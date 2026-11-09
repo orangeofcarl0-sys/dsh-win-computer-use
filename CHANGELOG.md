@@ -2,6 +2,25 @@
 
 ## 0.5.7 (未发布)
 
+**2026-11-09 安全边界与可复现性修复（P0/P1）**
+
+### Added
+
+- **`computer_set_value`（第 22 个工具）**：驱动 `set_value`（UIA `ValuePattern`）直连，适用于可设置控件（文本框/滑块/下拉）；Web/自绘控件可能忽略，回执明确提示改用 `computer_type` 或点击后输入。加入 `OPERATION_TOOLS`（密码框硬拒）与展开态清单。
+- **`tests/action-bounds.mjs`**：P0-1/2/3/4/5 与 P1-A 的行为边界测试（无快照拒绝、type/key/scroll/drag 的窗口绑定、suspected_noop、窗口未匹配 fail-closed、set_value payload）。
+- **`tests/package-manifest.test.mjs`**：锁定 peerDependencies / devDependencies / dsh 兼容下限 / 发布文件清单 / 权限声明，防清单回归。
+- **`tests/delivery-chain.smoke.mjs` 重写**：直接导入真实 `lib/cua.js`，通过 `opts.call` 注入假驱动；不再用复刻的 `cuaDeliver` 测复刻（P0-0）。
+
+### Fixed
+
+- **`computer_type` 无 element 时盲发 `scope:'desktop'`（P0-1）**：改为必须绑定新鲜快照窗口（`pid + window_id`），输入到该窗口当前焦点；无快照直接拒绝。密码保护仍只在指定 element 时可预判焦点控件，回执如实注记。
+- **`computer_key` 无快照时退回 `scope:'desktop'`（P0-2）**：改为必须 `resolveWindow`，按键绑定快照窗口；无快照直接拒绝，不再盲发当前前台。
+- **`computer_scroll` / `computer_drag` 丢弃 `window_id`（P0-3）**：`resolveWindow` 返回的 `windowId` 现在透传到 payload；多窗口应用不再由驱动“自动选第一个可见窗口”。
+- **`suspected_noop` 被当成功上报（P0-4）**：`engineRefusal` 新增识别；`settleAction` 返回 `ok:false`、附“先观察再决定是否重试”注记并 `markSuspect`（不 `markConsumed`，避免复用旧快照）。`unverifiable` 的“成功但未验证”语义保持不变。
+- **`screen_observe(window=...)` 未匹配时静默回退最前窗口（P0-5）**：改为 fail-closed，返回候选窗口列表且不建立快照；未指定 window 时才取 z 序最前，提示文案不再把“指定了但没找到”误写成“未指定”。
+- **观察降噪哈希漏字段（P1-B）**：旧哈希只看映射后的 `label`（`label || value` 截断 48 字符）；当 Edit 的 label 非空时 value 完全不参与，长文本/`enabled`/`selected`/`actions` 变化会被误判“状态未变”。改为基于驱动原始元素的 SHA-1 指纹（完整 label/value/enabled/selected/actions/is_password/parent/depth/frame），时间/行列噪声仍归一化。
+- **宿主依赖清单与测试环境错位（P0-6）**：`dependencies` 固定 `dsh-tools 0.1.1-rc.2`，而宿主已是 `0.2.2-rc.1`，干净 checkout 跑 `npm test` 直接 `ERR_MODULE_NOT_FOUND`。改为 `peerDependencies`（`dsh-tools >=0.1.5-rc.2 <0.3.0`、`schemastery >=3.18.2 <4`）+ `devDependencies` 固定实测 `0.2.2-rc.1 / 3.19.0`；lockfile 同步。
+
 ### Changed
 
 - **dsh 兼容下限如实改为 `>=0.1.5-rc.2`**（原写 `>=0.1.0`）：动态工具面依赖 0.1.5 才具备的宿主能力——`agent.ctx` 作用域注册（展开态注册进会话作用域；无此能力时退化为全局注册，失去会话隔离）与 `tools/result` 仅观测事件（无它则只有显式 `exit` 能回落）；另 0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。README 头部徽章同步标注实测版本。

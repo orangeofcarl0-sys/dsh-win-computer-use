@@ -61,7 +61,7 @@ export async function cuaCall(tool, args = {}) {
     return { refusal: { code: 'element_not_visible' }, delivery: { mode: 'background' } }
   }
   // 动作成功：真实驱动带 effect/delivery 字段（回执据此走紧凑形态）
-  if (['click', 'type_text', 'hotkey', 'press_key', 'scroll', 'drag', 'move_cursor'].includes(tool)) {
+  if (['click', 'type_text', 'set_value', 'hotkey', 'press_key', 'scroll', 'drag', 'move_cursor'].includes(tool)) {
     return { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }
   }
   if (SCENARIO === 'window-denied' && (tool === 'get_window_state' || tool === 'zoom')) {
@@ -169,6 +169,7 @@ const scenarios = [
   // 动作组：无快照拒绝（守卫路径）
   { name: 'click/no-snapshot', stub: 'ok', tool: 'computer_click', args: { x: 5, y: 5 } },
   { name: 'type/no-snapshot', stub: 'ok', tool: 'computer_type', args: { text: 'hi' } },
+  { name: 'set_value/ok', stub: 'ok', tool: 'computer_set_value', args: { element: 1, value: 'new' } },
   { name: 'key/no-snapshot', stub: 'ok', tool: 'computer_key', args: { key: 'return' } },
   { name: 'scroll/no-snapshot', stub: 'ok', tool: 'computer_scroll', args: { element: 0, direction: 'down', amount: 3 } },
   { name: 'drag/no-snapshot', stub: 'ok', tool: 'computer_drag', args: { from_x: 1, from_y: 1, to_x: 9, to_y: 9 } },
@@ -194,6 +195,7 @@ const scenarios = [
   // 结构化拒绝（引擎以 {ok:false, refusal} 表达，回执必须报失败而不是成功）
   { name: 'click/engine-refusal', stub: 'engine-refusal', tool: 'computer_click', args: { x: 5, y: 5 } },
   { name: 'type/engine-refusal', stub: 'engine-refusal', tool: 'computer_type', args: { text: 'hi' } },
+  { name: 'set_value/engine-refusal', stub: 'engine-refusal', tool: 'computer_set_value', args: { element: 1, value: 'new' } },
   { name: 'key/engine-refusal', stub: 'engine-refusal', tool: 'computer_key', args: { key: 'return' } },
   { name: 'scroll/engine-refusal', stub: 'engine-refusal', tool: 'computer_scroll', args: { element: 0, direction: 'down', amount: 3 } },
   { name: 'drag/engine-refusal', stub: 'engine-refusal', tool: 'computer_drag', args: { from_x: 1, from_y: 1, to_x: 9, to_y: 9 } },

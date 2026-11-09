@@ -17,7 +17,7 @@ import { makeWorkCopy, writeStubDriver, loadPlugin, makeCtx, makeChecks, cleanup
 
 const work = makeWorkCopy('dedup')
 
-// 受控引擎：元素集合由环境变量驱动，可注入"标题变化"/"元素变化"/"仅时间文本变化"
+// 受控引擎：元素集合由环境变量驱动，可注入"标题变化"/"元素变化"/"字段变化"/"仅时间文本变化"
 writeStubDriver(work, `
 export const CUA_BIN = 'stub'
 export const CUA_SESSION = 'dedup'
@@ -30,14 +30,18 @@ export async function cuaDeliver(tool, payload) { return { value: await cuaCall(
 
 let n = 0
 export async function cuaCall(tool, args = {}) {
-  const mutate = process.env.CUA_STUB_MUTATE || 'none'   // none | elements | title | time
+  // none | elements | title | time | value | enabled | selected | actions
+  const mutate = process.env.CUA_STUB_MUTATE || 'none'
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
     case 'list_windows': return { windows: [{ pid: 42, window_id: 7, app_name: 'Stub', title: mutate === 'title' ? 'Stub - v' + (++n) : 'Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5 }] }
     case 'get_window_state': {
       const base = [
-        { element_index: 0, role: 'Button', label: 'Save', x: 140, y: 160, width: 60, height: 24 },
-        { element_index: 1, role: 'Edit', label: 'text', x: 200, y: 300, width: 200, height: 30, value: 'x' },
+        { element_index: 0, role: 'Button', label: 'Save', x: 140, y: 160, width: 60, height: 24,
+          enabled: mutate !== 'enabled', selected: mutate === 'selected',
+          actions: mutate === 'actions' ? ['Invoke', 'Expand'] : ['Invoke'] },
+        { element_index: 1, role: 'Edit', label: 'text', x: 200, y: 300, width: 200, height: 30,
+          value: mutate === 'value' ? 'x'.repeat(60) + 'TAIL' : 'x' },
         { element_index: 2, role: 'Text', label: mutate === 'time' ? 'Line 1, Col ' + (++n) : 'status', x: 200, y: 360, width: 100, height: 20 },
       ]
       const filler = Array.from({ length: 27 }, (_, k) => ({ element_index: 10 + k, role: 'Button', label: '工具栏按钮 ' + k + ' （设置项）', x: 300 + k * 4, y: 500, width: 40, height: 20 }))
@@ -93,8 +97,15 @@ for (const [form, expectBrief] of [['summary', false], ['brief', true]]) {
   check('AC5(off) 永不降噪', !isStub(b) && raw(a).length === raw(b).length, `${raw(a).length}/${raw(b).length}`)
 }
 
-// ── AC2：变化必全量（元素集合变化 / 标题变化）────────────────────────
-for (const [mode, label] of [['elements', '元素集合变化'], ['title', '标题变化']]) {
+// ── AC2：变化必全量（元素集合 / 标题 / 语义字段）────────────────────
+for (const [mode, label] of [
+  ['elements', '元素集合变化'],
+  ['title', '标题变化'],
+  ['value', '编辑值变化（label 不变，旧哈希会漏）'],
+  ['enabled', 'enabled 变化'],
+  ['selected', 'selected 变化'],
+  ['actions', 'actions 变化'],
+]) {
   process.env.CUA_STUB_MUTATE = 'none'
   const call = await fresh()
   await call('screen_observe', { window: 'Stub' })

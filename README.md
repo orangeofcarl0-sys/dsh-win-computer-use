@@ -14,7 +14,7 @@
 
 ## 这是什么
 
-给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一套可观察、可验证的桌面操作层：**折叠态 2 个 / 展开态 21 个**模型友好工具（动态工具面：默认只暴露 `computer_do` 与 `screen_observe`，进入后展开全部），底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面（独立虚拟光标，不抢真实鼠标）。Windows 深度实测——前台锁、XAML/WinUI 输入、观测几何这些硬墙都在本机踩过并解决。
+给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一套可观察、可验证的桌面操作层：**折叠态 2 个 / 展开态 22 个**模型友好工具（动态工具面：默认只暴露 `computer_do` 与 `screen_observe`，进入后展开全部），底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面（独立虚拟光标，不抢真实鼠标）。Windows 深度实测——前台锁、XAML/WinUI 输入、观测几何这些硬墙都在本机踩过并解决。
 
 三个核心机制：
 
@@ -52,17 +52,17 @@
 
 ## 动态工具面（默认只有 2 个可见工具）
 
-20 个工具的 schema 常驻会持续占用模型的注意力（不是 token 成本问题）。所以默认工具面是**折叠态**：
+22 个工具的 schema 常驻会持续占用模型的注意力（不是 token 成本问题）。所以默认工具面是**折叠态**：
 
 | 状态 | 模型可见 | 何时 |
 |---|---|---|
 | 折叠（默认） | `computer_do` + `screen_observe` | 不做桌面操作时——工具面重量比全量低 **81%** |
-| 展开 | 再加 19 个（动作/验证/应用/委派） | 调 `computer_do({action:'enter'})` 之后；下一请求即可见 |
+| 展开 | 再加 20 个（动作/验证/应用/委派） | 调 `computer_do({action:'enter'})` 之后；下一请求即可见 |
 
 收起的三种方式：`computer_do({action:'exit'})`、或模型转去做别的（连续 2 次非桌面工具调用自动收起）。
 细粒度工具的 schema、宿主严格输出校验、未知参数拒发、工具级守卫在展开态**全部保留**——切换的只是"何时可见"。
 
-## 工具清单（展开态 21 个 = 折叠态 2 个 + 展开新增 19 个）
+## 工具清单（展开态 22 个 = 折叠态 2 个 + 展开新增 20 个）
 
 | 工具 | 作用 | 主要参数 |
 |---|---|---|
@@ -71,8 +71,9 @@
 | `computer_click` | 点击元素或坐标 | `element` 或 `x,y`；可选 `count`、`foreground` |
 | `computer_double_click` | 双击 | 同上 |
 | `computer_right_click` | 右键 | 同上 |
-| `computer_type` | 输入文本（UIA ValuePattern 后台写入） | `text`, `element`, `foreground` |
-| `computer_key` | 按键 / 快捷键（组合键走 hotkey 通道） | `key`, `foreground` |
+| `computer_type` | 输入文本（指定 element 时可走 UIA ValuePattern；未指定则输入到快照窗口当前焦点） | `text`, `element`, `foreground` |
+| `computer_set_value` | **直接设值**（UIA ValuePattern；文本框/滑块/下拉优先，Web/自绘控件可能忽略） | `element`, `value` |
+| `computer_key` | 按键 / 快捷键（组合键走 hotkey 通道；绑定快照窗口） | `key`, `foreground` |
 | `computer_scroll` | 滚动 | `direction`, `amount`, `element`, `foreground` |
 | `computer_drag` | 截图坐标拖拽 | `from_x/from_y → to_x/to_y`, `duration_ms`, `foreground` |
 | `computer_wait` | 等待加载/动画 | `ms`（1-60000） |
@@ -164,6 +165,8 @@ screen_observe（AX 树失败/树空）
 
 单次动作可用 `foreground: true` 覆盖。Windows 前台锁（ForegroundLockTimeout）、UIPI、XAML CoreInput 不吃 PostMessage 这些坑均已实测绕过——详见提交历史与 `WINDOWS_TEST.md`。
 
+所有输入/动作类工具（`computer_click` / `computer_double_click` / `computer_right_click` / `computer_type` / `computer_key` / `computer_scroll` / `computer_drag` / `computer_set_value`）都要求先 `screen_observe`：`type`/`key` 绑定快照窗口的 `pid + window_id`，不再支持无观察的 `scope:'desktop'` 盲发；`type` 未指定 `element` 时输入到该窗口当前焦点，密码保护无法预判焦点控件，回执会附注记。
+
 ## 配置
 
 ```yaml
@@ -229,12 +232,15 @@ screen_observe（AX 树失败/树空）
 ```bash
 npm install
 npm run check                      # 语法 + 安装脚本检查
-npm test                           # 七套离线测试共 148 断言：
-                                   #   posture 34（无感自治姿态/凭据硬保护/快照新鲜度）
-                                   #   tools 15 · delivery-chain 3
-                                   #   schema.conformance 20 工具 × 42 场景（按声明 schema 严格校验每种返回形态，
+npm test                           # 十套离线测试、224 个 ✅：
+                                   #   posture（无感自治姿态/凭据硬保护/快照新鲜度）
+                                   #   tools · delivery-chain（直接执行真实 cuaDeliver）
+                                   #   schema.conformance 22 工具 × 44 场景（按声明 schema 严格校验每种返回形态，
                                    #     含结构化拒绝/驱动错误/观测降级——dsh 严格输出校验类 bug 的守门测试）
-                                   #   observe.dedup 13 · task.tool 16 · config.plumbing 25
+                                   #   observe.dedup（含 value/enabled/selected/actions 变化）
+                                   #   task.tool · config.plumbing · surface
+                                   #   action-bounds（P0 无快照/窗口绑定/suspected_noop）
+                                   #   package-manifest（peer/dev/兼容下限/发布清单）
 node verify-runtime.mjs            # 运行时验证（需真实 harness + cua-driver）
 node tests/live-action.e2e.mjs 3   # 真桌面动作闭环 + 稳定性循环（真记事本 3 轮）
 node evals/verify-oracles.mjs      # S4 评测 oracle 双向验证（setup 必 ok → 空跑必失败 → simulate 必过）
@@ -248,7 +254,7 @@ node evals/verify-oracles.mjs      # S4 评测 oracle 双向验证（setup 必 o
 
 # English (brief)
 
-Personal Computer Use plugin for the DeepSeek Harness: 2 tools by default (dynamic tool surface — `computer_do` + observe), 21 when expanded driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Windows-deep-tested.
+Personal Computer Use plugin for the DeepSeek Harness: 2 tools by default (dynamic tool surface — `computer_do` + observe), 22 when expanded driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Windows-deep-tested.
 
 **Stance — zero-friction autonomy**: no approval prompts, no interruptions; capabilities always on (auto desktop-level observation fallback, three-tier delivery escalation that restores the previous foreground). The only hard refusal is automated typing into password fields. `extremePatterns` adds non-blocking warning notes.
 

@@ -181,3 +181,18 @@
 | 新发现并修复的缺陷 | schema 场景矩阵暴露 `scroll`/`drag` 把驱动的结构化拒绝（`{refusal:{code}}`）当成功上报——与 menu 同类缺陷，已收敛到 `lib/receipt.js` 单一出口；`runAction`/`dedupInvalidate`/`taskCallCount` 为死代码，已删 |
 
 > 证据生成方式（可复现）：工作区一次性探针 `_parity-observe.mjs`（observe/zoom 29 场景）与 `_tool-surface.mjs`（工具面），改前存基线、改后 diff，要求 diff 为空。
+
+## 补充验证（2026-11-09，P0/P1 安全边界与清单修复）
+
+环境：Windows 11 · 全局 `dsh 0.2.2-rc.1`（自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` / `schemastery 3.19.0`）· `cua-driver 0.23.2`。
+
+| 项 | 结果 |
+|---|---|
+| 依赖清单 | 旧清单 `dependencies.dsh-tools=0.1.1-rc.2`、本地 `node_modules/@deepseek-ai` 为空 → 干净 `node tests/schema.conformance.mjs` 真实退出码 **1**（`ERR_MODULE_NOT_FOUND @deepseek-ai/schemastery`）。改为 peerDependencies + devDependencies（`0.2.2-rc.1 / 3.19.0`）并 `npm install` 后，`node_modules` 实测即该两版本 |
+| 插件自测套件 | `npm test` **10 套、224 个 ✅、0 个 ❌**：posture / tools / delivery-chain（改为直接执行真实 `lib/cua.js`）/ schema.conformance **22 工具 × 44 场景** / observe.dedup（新增 value/enabled/selected/actions 变化）/ task.tool / config.plumbing / surface（22 工具）/ action-bounds / package-manifest |
+| 语法检查 | `npm run check` **16/16** JS + `bash -n install.sh/uninstall.sh` 全过 |
+| 打包面 | `npm pack --dry-run` **29 个文件**，无 `node_modules` / `.dsh-test` / `tests` |
+| P0-0 测试保真 | `tests/delivery-chain.smoke.mjs` 直接导入真实 `cuaDeliver`，通过 `opts.call` 注入假驱动；A–H 八个分支（含 L3 window_id、hotkey 不升级、无 pid 不 L3）全过 |
+| P0-1/2/3/4/5 | `tests/action-bounds.mjs`：无快照 type/key/set_value 拒绝；type/key 绑定 `pid+window_id` 且无 `scope:desktop`；scroll/drag 透传 `window_id`；`suspected_noop` → `ok:false` + 先观察注记 + 快照可疑；指定窗口未匹配 → fail-closed + 候选列表 + 不建快照 |
+| P1-A/B | `computer_set_value` 通过 schema conformance（ok/refusal）与 payload 断言；observe 降噪哈希新增字段变化的“必须全量”断言 |
+| 真机加载 | **未完成**：headless profile 缺 `DEEPSEEK_API_KEY`，`dsh --profile headless` 在 LLM 路由处退出（不是插件加载错误）。离线已用宿主同版本包全绿；真机加载待有凭据的 profile 复跑 |

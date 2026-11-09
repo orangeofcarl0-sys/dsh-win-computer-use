@@ -1,9 +1,9 @@
 /**
  * dsh-computer-use —— Computer Use 插件：给 harness-desktop 增加"虚拟鼠标真人操作"。
  *
- * 工具集（Hermes 风格，模型友好，共 19 个，按域分三组注册）：
+ * 工具集（Hermes 风格，模型友好，共 22 个，按域分三组注册）：
  *   观察组：screen_observe / screen_zoom
- *   动作组：computer_click / double_click / right_click / type / key / scroll / drag / wait
+ *   动作组：computer_click / double_click / right_click / type / set_value / key / scroll / drag / wait
  *           app_list / app_launch
  *   运营组：computer_verify / wait_for / clipboard / menu / hover / stop / resume
  *
@@ -43,7 +43,7 @@ const defineTool = (options) => {
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
 import {
-  click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp,
+  click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, setValue,
 } from './lib/actions.js'
 import { guard } from './lib/guard.js'
 import { cuaCall, CUA_SESSION } from './lib/cua.js'
@@ -413,7 +413,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_type',
-    description: '文本输入：向当前焦点（或指定元素）输入一段文本。指定 element 时走 UIA ValuePattern 后台写入（不抢焦点，XAML/WinUI 主机必需）；注意：不要在密码框使用——密码必须由用户本人输入（敏感输入保护）。',
+    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。注意：不要在密码框使用——密码必须由用户本人输入。',
     parameters: {
       text: { type: 'string', required: true, description: '要输入的文本。' },
       element: TARGET_PARAMS.element,
@@ -425,8 +425,20 @@ function actionToolDefs(ctx, cfg, wrap) {
   },
 
   {
+    name: 'computer_set_value',
+    description: '直接设值（UIA ValuePattern）：适用于可设置控件（文本框/滑块/下拉）。Web/自绘控件可能忽略；失败改用 computer_type 或点击后输入。调用前必须先 screen_observe。',
+    parameters: {
+      element: { ...TARGET_PARAMS.element, required: true, description: '观察编号（必须来自最新 screen_observe）。' },
+      value: { type: 'string', required: true, description: '新值。' },
+      ...SNAPSHOT_ID_PARAM,
+    },
+    output: OUT(),
+    execute: wrap('computer_set_value', (args, cfg2) => setValue(args, cfg2)),
+  },
+
+  {
     name: 'computer_key',
-    description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（默认后台 PostMessage 投递，目标窗口无需前台）。',
+    description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（绑定快照窗口；默认后台 PostMessage 投递，目标窗口无需前台）。调用前必须先 screen_observe。',
     parameters: {
       key: { type: 'string', required: true, description: '按键名或组合（示例: return / cmd+c / shift+tab / cmd+shift+p）。' },
       ...SNAPSHOT_ID_PARAM,
@@ -663,7 +675,7 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
       description:
         '桌面/屏幕操作的统一入口——本工具面默认只暴露它和 screen_observe。'
         + '任何要在其它窗口里点击、输入、读界面、操作应用的活，先 action="enter" 展开完整桌面工具面'
-        + '（19 个：观察/动作/验证/应用/委派），干完 action="exit" 收起（收起可显著降低工具对注意力的占用，但别频繁进出：切换会让 prompt 前缀缓存失效）。'
+        + '（20 个：观察/动作/验证/应用/委派），干完 action="exit" 收起（收起可显著降低工具对注意力的占用，但别频繁进出：切换会让 prompt 前缀缓存失效）。'
         + 'action="status" 查当前状态。只做一次屏幕观察不必进入，直接 screen_observe。',
       parameters: {
         action: {
@@ -709,7 +721,7 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
         return {
           ok: true,
           result: expanded
-            ? '当前：展开态（19 个桌面工具可见）。干完记得 action="exit" 收起；若你转去做别的（连续 2 次非桌面工具调用）也会自动收起。'
+            ? '当前：展开态（20 个桌面工具可见）。干完记得 action="exit" 收起；若你转去做别的（连续 2 次非桌面工具调用）也会自动收起。'
             : '当前：折叠态（只有 computer_do 与 screen_observe）。要做桌面操作请 action="enter"。',
           surface: expanded ? 'expanded' : 'collapsed',
           tools: expanded ? [...EXPANDED_ONLY] : [],
@@ -778,7 +790,7 @@ export function apply(ctx, config) {
   }
 
   // 工具面 = 数据：各组返回定义数组。注册分两态（PLAN-meta-tool，拍板 2026-09-17）：
-  //   折叠态（默认）= computer_do + screen_observe；展开态 = 另外 19 个按需注册进**本会话自己的作用域**。
+  //   折叠态（默认）= computer_do + screen_observe；展开态 = 另外 20 个按需注册进**本会话自己的作用域**。
   // 新增工具 = 在对应组数组里加一项 + 加进 lib/surface.js 的清单（有测试守住两处一致）。
   surfaceReset()
   // 必须用 defineTool 的**返回值**注册：它会把"作者面 schema"投影成宿主强制子集
@@ -810,7 +822,7 @@ export function apply(ctx, config) {
     })
   } catch { /* 宿主无事件总线：仅显式 exit */ }
 
-  ctx.logger?.info('dsh-computer-use: 动态工具面就绪（折叠态 2 个 computer_do/screen_observe；进入后展开 19 个；v0.5.4 的 20 个工具全部保留）')
+  ctx.logger?.info('dsh-computer-use: 动态工具面就绪（折叠态 2 个 computer_do/screen_observe；进入后展开 20 个；v0.5.4 的 20 个工具 + set_value 全部保留）')
 }
 
 export default { name, inject, Config, apply }

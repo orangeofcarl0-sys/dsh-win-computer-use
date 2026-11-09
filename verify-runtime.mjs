@@ -117,11 +117,11 @@ const config = {
 plugin.apply(ctx, config)
 
 // 断言工具注册 + 新能力
-// 动态工具面（PLAN-meta-tool）：折叠态只有 computer_do + screen_observe；进入后 20 个工具全部在册。
+// 动态工具面（PLAN-meta-tool）：折叠态只有 computer_do + screen_observe；进入后 21 个工具全部在册。
 const EXPECTED_ALWAYS = ['computer_do', 'screen_observe']
 const REQUIRED_TOOLS = [
   'screen_observe', 'screen_zoom', 'computer_click', 'computer_double_click', 'computer_right_click',
-  'computer_type', 'computer_key', 'computer_scroll', 'computer_drag', 'computer_wait',
+  'computer_type', 'computer_set_value', 'computer_key', 'computer_scroll', 'computer_drag', 'computer_wait',
   'app_list', 'app_launch', 'computer_verify', 'computer_wait_for', 'computer_clipboard',
   'computer_menu', 'computer_hover', 'computer_stop', 'computer_resume', 'computer_task',
 ]

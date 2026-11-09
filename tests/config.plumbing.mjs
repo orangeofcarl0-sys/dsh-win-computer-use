@@ -143,7 +143,7 @@ async function callTool(name, args) {
 /** 一套全新会话状态（apply 会重置降噪缓存/委派预算/锁存）+ 覆盖配置。 */
 async function freshConfig(overrides = {}) {
   plugin.apply(ctx, { ...defaultsOf(), passwordScan: 'off', ...overrides })   // passwordScan:off 保持测试零 spawn
-  await callTool('computer_do', { action: 'enter' })   // 展开工具面（B 系列要动 19 个工具）
+  await callTool('computer_do', { action: 'enter' })   // 展开工具面（B 系列要动 20 个工具）
   return {
     call: callTool,
     raw: (o) => String(o?.result || ''),

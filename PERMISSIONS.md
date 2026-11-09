@@ -7,7 +7,7 @@
 - 通过**宿主 `child_process.spawn` 以非 shell 固定 argv** 调用 `cua-driver` 原生驱动（跨平台：macOS / Windows / Linux），驱动本地桌面：
 - Windows 附加 spawn（0.5.3）：`powershell.exe` 固定 argv 执行随包脚本 `tools/uia-password-scan.ps1`——UIA 结构性密码扫描（IsPassword ∨ ES_PASSWORD 样式位），幂等只读、无网络、无文件写；`passwordScan: 'off'` 可关闭：
   - 屏幕观测：`screen_observe` / `screen_zoom`（读取被观测应用的 Accessibility/AX 树与窗口快照）
-  - 虚拟鼠标键盘模拟：`computer_click` / `computer_double_click` / `computer_right_click` / `computer_type` / `computer_key` / `computer_scroll` / `computer_drag` / `computer_wait`
+  - 虚拟鼠标键盘模拟：`computer_click` / `computer_double_click` / `computer_right_click` / `computer_type` / `computer_set_value` / `computer_key` / `computer_scroll` / `computer_drag` / `computer_wait`
   - 应用枚举与启动：`app_list` / `app_launch`
 - `cua-driver` 可执行文件来源：环境变量 `CUA_DRIVER_BIN` 显式指定，或 `PATH` 查找；缺失时返回结构化错误（含自救指引），不静默。
 - 内置安全姿态（**无感自治**，0.4.0）：动作**零审批、零打断**（危险词审批网关已删除），归因靠全量投递注记 + harness 会话日志；**凭据硬保护**（密码框拒绝自动输入）是唯一硬拒绝；**极危注记**（`extremePatterns` 配置命中 → 结果附警告，不阻断，默认空）；**兜底护栏**：快照 TTL 过期拒绝、无快照拒绝、`allowedApps` 作用域白名单（默认空 = 关闭）。
@@ -24,7 +24,7 @@
 | 极危注记（不阻断） | ✅ | ✅ | ✅ | posture.smoke |
 | allowedApps 作用域白名单 | ✅ | ✅ | ✅ | posture.smoke |
 | 快照 TTL / 无快照拒绝 | ✅ | ✅ | ✅ | posture.smoke / delivery-chain |
-| 三级投递链 + 恢复原前台 | ✅ 实测 | ▒ | ▒ | delivery-chain.smoke |
+| 三级投递链 + 恢复原前台 | ✅ 实测 | ▒ | ▒ | delivery-chain.smoke（直接执行真实 cuaDeliver） |
 | 强杀锁存（stop/resume） | ✅ 离线 | ▒ | ▒ | tools.smoke |
 | 验证 unknown ≠ 成功 | ✅ | ▒ | ▒ | tools.smoke |
 
@@ -36,14 +36,16 @@
 - ⚠️ 环境变量读取：`ZHIPU_API_KEY` / `GLM_API_KEY`（仅 GLM 视觉兜底这一可选特性；未配置则该路径停用）+ `CUA_DRIVER_BIN`（定位可执行文件）
 - ❌ 不在宿主写入任何文件
 - ❌ 无 npm 生命周期脚本（install / postinstall 等一律没有；安装包内的 `install.sh` / `uninstall.sh` 是给用户手动执行的安装辅助脚本，非 npm lifecycle）
-- ❌ 不触碰真实鼠标键盘焦点（独立虚拟光标，隔离运行，不抢占用户输入）
+- ⚠️ 点击使用独立虚拟光标；键盘/文本优先后台投递，后台不可用或前台锁拦截时可能短暂切换目标窗口焦点并恢复（不移动用户真实鼠标；详见 README「前后台投递」）
 
-## 依赖（仅两个，均为官方/DSH 生态）
+## 依赖（宿主提供，不随插件打包）
 
 | 依赖 | 用途 |
 |---|---|
-| `@deepseek-ai/dsh-tools` | 注册 dsh 原生工具（`ctx.tools.register(defineTool(...))`） |
-| `@deepseek-ai/schemastery` | 工具参数 schema 定义 |
+| `@deepseek-ai/dsh-tools` | 注册 dsh 原生工具（`ctx.tools.register(defineTool(...))`）；peerDependencies，由宿主解析 |
+| `@deepseek-ai/schemastery` | 工具参数 schema 定义；peerDependencies，由宿主解析 |
+
+`devDependencies` 只用于仓库测试，固定实测宿主版本 `@deepseek-ai/dsh-tools 0.2.2-rc.1` / `@deepseek-ai/schemastery 3.19.0`；发布包不带 `node_modules`。
 
 ## 权限信号对照（STORE 五信号）
 

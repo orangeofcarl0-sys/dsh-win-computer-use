@@ -3,7 +3,7 @@
  *
  * 覆盖：
  *  AC1 折叠态：apply 后模型可见的只有 computer_do + screen_observe
- *  AC2 展开：computer_do(enter) → 19 个工具可调用；回执紧凑且含纪律提醒
+ *  AC2 展开：computer_do(enter) → 22 个工具可调用；回执紧凑且含纪律提醒
  *  AC3 回落：computer_do(exit) → 回到折叠态；重复 enter/exit 幂等
  *  AC4 作用域隔离：一个会话展开不影响另一个会话
  *  AC5 能力兜底：宿主无 agent 作用域注册 → 退化注册到全局并注明 scope=global
@@ -56,7 +56,7 @@ function session(agentId = 'session-a') {
 {
   const s = session()
   const r = await s.call('computer_do', { action: 'enter' })
-  check('AC2 展开后 21 个工具可调用', s.reg.size === 21, `reg=${s.reg.size}`)
+  check('AC2 展开后 22 个工具可调用', s.reg.size === 22, `reg=${s.reg.size}`)
   check('AC2 回执声明展开态与工具数', r.surface === 'expanded' && (r.tools || []).length === EXPANDED_ONLY.length,
     `surface=${r.surface} tools=${(r.tools || []).length}`)
   check('AC2 回执紧凑（≤600 字符）且含纪律提醒', String(r.result).length <= 600 && /screen_observe|快照/.test(String(r.result)),
@@ -76,7 +76,7 @@ function session(agentId = 'session-a') {
   check('AC3 回落后恢复折叠态（2 个）', s.reg.size === 2 && ex.surface === 'collapsed', `reg=${s.reg.size}`)
   const again = await s.call('computer_do', { action: 'enter' })
   const again2 = await s.call('computer_do', { action: 'enter' })
-  check('AC3 重复 enter 幂等且不报错', s.reg.size === 21 && again.ok === true && again2.ok === true && /已是展开/.test(String(again2.result)),
+  check('AC3 重复 enter 幂等且不报错', s.reg.size === 22 && again.ok === true && again2.ok === true && /已是展开/.test(String(again2.result)),
     `reg=${s.reg.size}`)
   await s.call('computer_do', { action: 'exit' })
   const ex2 = await s.call('computer_do', { action: 'exit' })
@@ -90,10 +90,10 @@ function session(agentId = 'session-a') {
   const a = session('session-a')
   const b = session('session-b')
   await a.call('computer_do', { action: 'enter' })
-  check('AC4 A 展开不影响 B（B 仍折叠）', a.reg.size === 21 && b.reg.size === 2, `A=${a.reg.size} B=${b.reg.size}`)
+  check('AC4 A 展开不影响 B（B 仍折叠）', a.reg.size === 22 && b.reg.size === 2, `A=${a.reg.size} B=${b.reg.size}`)
   await a.call('computer_do', { action: 'exit' })
   const c = await b.call('computer_do', { action: 'enter' })
-  check('AC4 B 独立展开正常', b.reg.size === 21 && c.surface === 'expanded', `B=${b.reg.size}`)
+  check('AC4 B 独立展开正常', b.reg.size === 22 && c.surface === 'expanded', `B=${b.reg.size}`)
 }
 
 // ── AC5 能力兜底（宿主无 agent 作用域注册）────────────────────────────
@@ -102,7 +102,7 @@ function session(agentId = 'session-a') {
   delete exec.agent.ctx
   plugin.apply(ctx, cfgOf())
   const r = await reg.get('computer_do').execute({ action: 'enter' }, exec)
-  check('AC5 无作用域注册时退化到全局并注明', r.ok === true && r.scope === 'global' && reg.size === 21,
+  check('AC5 无作用域注册时退化到全局并注明', r.ok === true && r.scope === 'global' && reg.size === 22,
     `scope=${r.scope} reg=${reg.size}`)
 }
 
@@ -121,7 +121,7 @@ function session(agentId = 'session-a') {
   noteToolCall(exec, 'bash')
   const desktop = noteToolCall(exec, 'computer_click')
   const after = noteToolCall(exec, 'bash')
-  check('AC6 桌面工具调用会重置连击计数', desktop.streak === 0 && after.collapsed === false && reg.size === 21,
+  check('AC6 桌面工具调用会重置连击计数', desktop.streak === 0 && after.collapsed === false && reg.size === 22,
     `afterDesktop=${desktop.streak} collapsed=${after.collapsed}`)
 }
 
@@ -193,7 +193,7 @@ function session(agentId = 'session-a') {
       bad.push(`${name}: ${String(e.message).slice(0, 90)}`)
     }
   }
-  check('AC11 每个定义的输出 schema 都通过宿主强制子集断言', bad.length === 0 && reg.size === 21,
+  check('AC11 每个定义的输出 schema 都通过宿主强制子集断言', bad.length === 0 && reg.size === 22,
     bad.length ? bad.join(' | ') : `${reg.size} 个工具全部通过`)
   // 反向验证：未投影的原始字面量必须被拒（防止回归到"注册原始 def"）
   let rejected = false
