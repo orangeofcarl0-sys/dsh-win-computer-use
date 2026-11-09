@@ -52,8 +52,11 @@ import {
   verifyOnce, waitFor, clipboard as opsClipboard, menu as opsMenu, hover as opsHover,
 } from './lib/ops.js'
 import {
-  ALWAYS_VISIBLE, EXPANDED_ONLY, enterSurface, exitSurface, expandedReceipt, isExpanded, noteToolCall, surfaceReset,
+  EXPANDED_ONLY, enterSurface, exitSurface, expandedReceipt, isExpanded, noteToolCall, surfaceReset,
 } from './lib/surface.js'
+import {
+  SURFACE_MODES, catalogOf, hiddenToolNames, visibleToolsForMode,
+} from './lib/dispatcher.js'
 
 export const name = 'dsh-computer-use'
 
@@ -67,6 +70,14 @@ export const Config = z.object({
   maxElements: z.number().default(120),
   /** 重复观察降噪（同一未变窗口）：summary = 极简回执 + 上次元素摘要；brief = 只回一行；off = 每次都全量。 */
   observeDedup: z.union(['brief', 'summary', 'off']).default('summary'),
+  /**
+   * 实验性工具面模式：
+   *   dynamic（默认）= 折叠 2 / 展开 20，enter/exit 动态注册；行为与 0.5.6 一致。
+   *   dispatcher（方案 A）= 永远只暴露 computer_do + screen_observe；其余工具经 computer_do({action:'call'}) 路由。
+   *   hybrid（方案 B）= 常驻 computer_do + screen_observe + 5 个高频原生工具；长尾经 dispatcher 路由。
+   * A/B 的 tools 列表稳定，避免工具层变化破坏 prompt cache。
+   */
+  surfaceMode: z.union([...SURFACE_MODES]).default('dynamic'),
   /** 回执详略：false（默认）动作回执只回一行要点；true 附原始 JSON 明细（排障用）。 */
   verboseReceipts: z.boolean().default(false),
   /** computer_task 默认超时（分钟）；调用方可用 timeout_min 覆盖。实测：设太长会在子 agent 无法收敛时纯浪费（一次超时后父 agent 往往还要自己做一遍）。 */
@@ -669,6 +680,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
 
 /** ── 元工具组：computer_do（动态工具面的入口；PLAN-meta-tool 拍板 2026-09-17）── */
 function metaToolDefs(ctx, cfg, wrap, defsRef) {
+  if (cfg.surfaceMode !== 'dynamic') return dispatcherMetaToolDefs(ctx, cfg, wrap, defsRef)
   return [
     {
       name: 'computer_do',
@@ -732,6 +744,99 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
   ]
 }
 
+/** ── 元工具组：dispatcher / hybrid（surfaceMode，实验性 2026-11-09）── */
+function dispatcherMetaToolDefs(ctx, cfg, wrap, defsRef) {
+  return [
+    {
+      name: 'computer_do',
+      description:
+        (cfg.surfaceMode === 'hybrid'
+          ? '桌面工具入口（hybrid）：computer_do/screen_observe 与 5 个高频工具直接可见；长尾工具用 action="call" + tool + args 路由。'
+          : '桌面工具入口（dispatcher）：tools 列表稳定；所有桌面动作通过 action="call" + tool + args 路由到隐藏实现。')
+        + ' action="catalog" 列出隐藏工具签名；action="status" 查看模式。'
+        + '复杂参数（如 verify 的 expect JSON）先 catalog 取签名；不要把本工具当桌面动作直接执行。',
+      parameters: {
+        action: { type: 'string', enum: ['call', 'catalog', 'status'], required: true, description: 'call = 路由隐藏工具；catalog = 列出隐藏工具签名；status = 查看模式。' },
+        tool: { type: 'string', description: 'action=call 时的隐藏工具名（如 computer_click / computer_menu）。' },
+        args: { type: 'object', additionalProperties: true, description: 'action=call 时传给隐藏工具的参数对象。' },
+        query: { type: 'string', description: 'action=catalog 时的可选关键词过滤（匹配工具名/描述）。' },
+      },
+      output: {
+        ...OUT({
+          ...IMAGE_FIELD,
+          tool: { type: 'string', description: '本次路由的隐藏工具名（非 call 时为空串）。' },
+          surface: { type: 'string', description: '当前模式：dispatcher / hybrid。' },
+          tools: { type: 'array', items: { type: 'string' }, description: 'catalog/status 的工具名或本次路由的工具名。' },
+          scope: { type: 'string', description: 'dispatcher。' },
+        }),
+        render: renderWithImage,
+      },
+      execute: wrap('computer_do', async (args, _cfg2, exec) => {
+        const action = args.action || 'catalog'
+        const allNames = [...defsRef().keys()]
+        const hidden = hiddenToolNames(cfg.surfaceMode, allNames)
+        const visible = visibleToolsForMode(cfg.surfaceMode)
+        if (action === 'catalog') {
+          const cat = catalogOf(defsRef(), hidden, args.query)
+          return {
+            ok: true,
+            result: `可用桌面工具（${cat.names.length}）：\n${cat.lines.join('\n')}\n直接可见：${visible.join(', ')}`,
+            tool: '', surface: cfg.surfaceMode, tools: cat.names, scope: 'dispatcher',
+          }
+        }
+        if (action === 'call') {
+          const name = String(args.tool || '').trim()
+          if (!name) {
+            return { ok: false, result: '✗ action=call 缺少 tool。', tool: '', surface: cfg.surfaceMode, tools: [], scope: 'dispatcher' }
+          }
+          if (name === 'computer_do') {
+            return { ok: false, result: '✗ 不能通过 dispatcher 递归调用 computer_do。', tool: name, surface: cfg.surfaceMode, tools: [], scope: 'dispatcher' }
+          }
+          if (!hidden.includes(name)) {
+            if (visible.includes(name)) {
+              return {
+                ok: false,
+                result: `✗ "${name}" 已直接可见，请直接调用它；dispatcher 只路由隐藏工具。`,
+                tool: name, surface: cfg.surfaceMode, tools: [], scope: 'dispatcher',
+              }
+            }
+            return {
+              ok: false,
+              result: `✗ 未知工具 "${name}"。可用：${hidden.join(', ')}`,
+              tool: name, surface: cfg.surfaceMode, tools: [], scope: 'dispatcher',
+            }
+          }
+          const def = defsRef().get(name)
+          if (!def) {
+            return { ok: false, result: `✗ 工具 "${name}" 没有实现。`, tool: name, surface: cfg.surfaceMode, tools: [], scope: 'dispatcher' }
+          }
+          const hiddenArgs = args.args && typeof args.args === 'object' && !Array.isArray(args.args) ? args.args : {}
+          try {
+            const r = await def.execute(hiddenArgs, exec)
+            return {
+              ok: r?.ok === true,
+              result: `[${name}] ${r?.result ?? ''}`,
+              ...(r?.image ? { image: r.image } : {}),
+              tool: name, surface: cfg.surfaceMode, tools: [name], scope: 'dispatcher',
+            }
+          } catch (err) {
+            return {
+              ok: false,
+              result: `✗ ${name}: ${String(err?.message || err)}`,
+              tool: name, surface: cfg.surfaceMode, tools: [name], scope: 'dispatcher',
+            }
+          }
+        }
+        return {
+          ok: true,
+          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。`,
+          tool: '', surface: cfg.surfaceMode, tools: hidden, scope: 'dispatcher',
+        }
+      }),
+    },
+  ]
+}
+
 export function apply(ctx, config) {
   dedupReset()   // 每次 apply 视为全新会话状态（降噪缓存随会话走，避免陈旧哈希被复用）
   resetTaskCalls()   // 委派预算按会话重置
@@ -739,6 +844,7 @@ export function apply(ctx, config) {
     ttlMs: config.ttlMs,
     maxElements: config.maxElements,
     observeDedup: config.observeDedup || 'summary',
+    surfaceMode: config.surfaceMode || 'dynamic',
     verboseReceipts: config.verboseReceipts === true,
     taskTimeoutMin: config.taskTimeoutMin,
     maxTaskCalls: config.maxTaskCalls,
@@ -767,7 +873,10 @@ export function apply(ctx, config) {
   /** 统一包装：锁存闸门 → 守卫（注记不阻断）→ 执行实现（exec 透传给需要 route 的实现）。 */
   const wrap = (toolName, impl) => async (args, exec) => {
     try {
-      const denied = opsGate(opsState, toolName)
+      // dispatcher/hybrid 下 computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具
+      // 自己判定（否则 stop 后连 computer_resume 都进不来）。dynamic 模式保持原锁存语义。
+      const gateName = toolName === 'computer_do' && cfg.surfaceMode !== 'dynamic' ? null : toolName
+      const denied = gateName ? opsGate(opsState, gateName) : null
       if (denied) return { ok: false, result: `✗ ${denied}` }
       // 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默忽略，
       // 进而可能回退到非目标窗口/默认值——在桌面自动化里这是不可接受的静默错目标）
@@ -789,9 +898,11 @@ export function apply(ctx, config) {
     }
   }
 
-  // 工具面 = 数据：各组返回定义数组。注册分两态（PLAN-meta-tool，拍板 2026-09-17）：
-  //   折叠态（默认）= computer_do + screen_observe；展开态 = 另外 20 个按需注册进**本会话自己的作用域**。
-  // 新增工具 = 在对应组数组里加一项 + 加进 lib/surface.js 的清单（有测试守住两处一致）。
+  // 工具面 = 数据：各组返回定义数组。surfaceMode 决定 apply 时直接注册哪些工具：
+  //   dynamic（默认）= 折叠 2 个（enter/exit 动态注册其余 20 个）
+  //   dispatcher（A）= 2 个；其余经 computer_do({action:'call'}) 路由
+  //   hybrid（B）= 2 + HOT_TOOLS 5 个；长尾经 dispatcher 路由
+  // 新增工具 = 在对应组数组里加一项 + 加进 lib/surface.js/lib/dispatcher.js 的清单（有测试守住）。
   surfaceReset()
   // 必须用 defineTool 的**返回值**注册：它会把"作者面 schema"投影成宿主强制子集
   // （属性级 required:true → object 级 required 数组；隐式开放参数根）。直接注册原始字面量会被
@@ -805,24 +916,31 @@ export function apply(ctx, config) {
     ...metaToolDefs(ctx, cfg, wrap, () => defsByName),
   ].map((raw) => defineTool(raw))
   const defsByName = new Map(allDefs.map((d) => [d.name, d]))
+  const visibleAtStart = visibleToolsForMode(cfg.surfaceMode)
   for (const def of allDefs) {
-    if (ALWAYS_VISIBLE.includes(def.name)) ctx.tools.register(def)
+    if (visibleAtStart.includes(def.name)) ctx.tools.register(def)
   }
 
-  // 非桌面活动兜底（拍板：连续 2 次非桌面工具调用即回落）：订阅 tools/result——按宿主签名它是
-  // **仅观测**事件："'tools/result'(exec, result): undefined"，监听器异常被容器隔离。
-  // 绝不能用 tools/post-execute：那是 cordis waterfall（signature 末位是 next），不调用 next 返回
-  // undefined 会让注册表读 decision.kind 崩掉——**每一次工具调用都失败**（2026-09-17 真机探针实测踩到）。
-  try {
-    ctx.on?.('tools/result', (exec2) => {
-      try {
-        const name = exec2?.name
-        if (name) noteToolCall(exec2, name)
-      } catch { /* 观测失败不影响主流程 */ }
-    })
-  } catch { /* 宿主无事件总线：仅显式 exit */ }
+  // 非桌面活动兜底只属于 dynamic 模式；dispatcher/hybrid 的 tools 列表必须稳定，不能订阅回落。
+  if (cfg.surfaceMode === 'dynamic') {
+    // 订阅 tools/result——按宿主签名它是**仅观测**事件："'tools/result'(exec, result): undefined"，
+    // 监听器异常被容器隔离。绝不能用 tools/post-execute：那是 cordis waterfall（signature 末位是 next），
+    // 不调用 next 返回 undefined 会让注册表读 decision.kind 崩掉——**每一次工具调用都失败**（2026-09-17 真机实测）。
+    try {
+      ctx.on?.('tools/result', (exec2) => {
+        try {
+          const name = exec2?.name
+          if (name) noteToolCall(exec2, name)
+        } catch { /* 观测失败不影响主流程 */ }
+      })
+    } catch { /* 宿主无事件总线：仅显式 exit */ }
+  }
 
-  ctx.logger?.info('dsh-computer-use: 动态工具面就绪（折叠态 2 个 computer_do/screen_observe；进入后展开 20 个；v0.5.4 的 20 个工具 + set_value 全部保留）')
+  ctx.logger?.info(
+    cfg.surfaceMode === 'dynamic'
+      ? 'dsh-computer-use: 动态工具面就绪（折叠态 2 个 computer_do/screen_observe；进入后展开 20 个；v0.5.4 的 20 个工具 + set_value 全部保留）'
+      : `dsh-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；其余经 computer_do dispatcher 路由）`,
+  )
 }
 
 export default { name, inject, Config, apply }

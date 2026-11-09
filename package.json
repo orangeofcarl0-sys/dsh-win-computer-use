@@ -1,7 +1,7 @@
 {
   "name": "dsh-computer-use",
   "version": "0.5.6",
-  "description": "DeepSeek Harness 的桌面操作插件（个人项目）：22 个模型友好工具（观察降噪/确定性验证/谓词轮询/剪贴板/菜单直调/直接设值/子 agent 委派（工具范围限制取决于宿主能力，回执如实说明）/强杀开关），零审批自动提权，后台优先三级投递链，Windows 深度实测",
+  "description": "DeepSeek Harness 的桌面操作插件（个人项目）：22 个模型友好工具（观察降噪/确定性验证/谓词轮询/剪贴板/菜单直调/直接设值/子 agent 委派（工具范围限制取决于宿主能力，回执如实说明）/强杀开关），实验性 surfaceMode（dynamic/dispatcher/hybrid）稳定 tools 列表以保住 prompt cache，零审批自动提权，后台优先三级投递链，Windows 深度实测",
   "type": "module",
   "main": "index.js",
   "license": "MIT",
@@ -47,7 +47,7 @@
   ],
   "scripts": {
     "check": "node tests/syntax.check.mjs",
-    "test": "node tests/posture.smoke.mjs && node tests/tools.smoke.mjs && node tests/delivery-chain.smoke.mjs && node tests/schema.conformance.mjs && node tests/observe.dedup.mjs && node tests/task.tool.mjs && node tests/config.plumbing.mjs && node tests/surface.mjs && node tests/action-bounds.mjs && node tests/package-manifest.test.mjs"
+    "test": "node tests/posture.smoke.mjs && node tests/tools.smoke.mjs && node tests/delivery-chain.smoke.mjs && node tests/schema.conformance.mjs && node tests/observe.dedup.mjs && node tests/task.tool.mjs && node tests/config.plumbing.mjs && node tests/surface.mjs && node tests/action-bounds.mjs && node tests/dispatcher.test.mjs && node tests/package-manifest.test.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.1.5-rc.2 <0.3.0",

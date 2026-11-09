@@ -1,18 +1,19 @@
 # ARCHITECTURE — dsh-computer-use
 
-> 结构快照：v0.5.7（未发布；动态工具面：折叠态 2 / 展开态 22；依赖单向 DAG：`index.js → lib → cua-driver`，无环、无兼容层）。
+> 结构快照：v0.5.7（未发布；工具面模式：`dynamic` 折叠 2 / 展开 22（默认）、`dispatcher` 可见 2 / 隐藏 20、`hybrid` 可见 7 / 隐藏 15；依赖单向 DAG：`index.js → lib → cua-driver`，无环、无兼容层）。
 
 ## 1. 模块清单
 
 | 文件 | 行数 | 职责 | 依赖 |
 |---|---:|---|---|
-| `index.js` | 828 | 配置 schema、**工具面即数据**（四组定义数组：观察 2 / 动作 11 / 运营 7 / 委派 1，注册与参数名登记在 `apply()` 单处循环）、wrap 统一管线（锁存闸门→守卫→注记回填→未知参数拒绝） | observe / actions / ops / task / guard / cua |
+| `index.js` | 946 | 配置 schema、**工具面即数据**（四组定义数组：观察 2 / 动作 11 / 运营 7 / 委派 1，注册与参数名登记在 `apply()` 单处循环）、`surfaceMode` 三模式、dispatcher 元工具、wrap 统一管线（锁存闸门→守卫→注记回填→未知参数拒绝） | observe / actions / ops / task / guard / cua / surface / dispatcher |
 | `lib/observe.js` | 881 | `screenObserve`（六阶段：选目标 / 抓树 / 结构密码标记 / 元素映射 / 渲染 / 封装）、`screenZoom`（三阶段：目标解析 / 裁剪钳制 / 整窗回退）、观察降噪、桌面级兜底 | cua / snapshot / attach / vision / passwordScan |
 | `lib/actions.js` | 330 | 11 个动作工具实现（click/type/set_value/key/scroll/drag/wait/app_*） | cua / human / receipt / snapshot |
 | `lib/ops.js` | 183 | 确定性验证（verify/wait_for）、剪贴板、菜单直调、悬停、强杀锁存 | cua / snapshot / attach / receipt |
 | `lib/cua.js` | 223 | 驱动定位（resolveBin）、会话管理、**三级投递链 cuaDeliver**（`opts.call` 可注入供测试）、错误规范化 | node 内置 |
 | `lib/engine.js` | 41 | 驱动回执判定（共享）：`engineRefusal` 识别 `refusal`/`effect`（含 `suspected_noop`）/`error`/`code`、`isSuspectedNoop`、`uiaAcceleratorTimeout` | — |
-| `lib/surface.js` | 152 | **动态工具面两态状态机**：折叠态（computer_do + screen_observe）/ 展开态（按 agent 作用域懒注册 20 个）；幂等；连续 2 次非桌面调用自动回落；清单常量 | — |
+| `lib/surface.js` | 152 | **dynamic 两态状态机**：折叠态（computer_do + screen_observe）/ 展开态（按 agent 作用域懒注册 20 个）；幂等；连续 2 次非桌面调用自动回落；清单常量 | — |
+| `lib/dispatcher.js` | 60 | **A/B 工具面常量与目录**：`SURFACE_MODES` / `HOT_TOOLS` / `visibleToolsForMode` / `hiddenToolNames` / `catalogOf`（紧凑签名） | surface |
 | `lib/receipt.js` | 74 | **回执与动作收尾的唯一出口**：`receipt`（紧凑回执）、`refusalReceipt`、`settleAction`（规范化 → 判拒绝 → 标记快照消费/可疑；`suspected_noop` 附“先观察”注记） | cua / engine / snapshot |
 | `lib/task.js` | 188 | `computer_task` 委派实现（子会话请求构造、结构化结果映射、降级重试、超时、每会话预算） | — |
 | `lib/guard.js` | 85 | 无快照硬拒、凭据硬保护（密码框）、极危注记、allowedApps 白名单 | snapshot |
@@ -21,9 +22,19 @@
 | `lib/snapshot.js` | 132 | 单窗口快照 + TTL + 新鲜度语义（失效原因三分类 / supersession 门禁 / 消费与可疑标记；引擎侧 element_token 双重校验） | — |
 | `lib/attach.js` | 25 | 图片持久化统一出口（attachments.saveImage + 输出块装配） | — |
 | `tests/lib/harness.mjs` | 131 | 测试共享脚手架（临时工作副本 / 可编程驱动桩 / 假 ctx·exec / 严格 schema 校验器） | — |
-| `tests/*.mjs` | ~1800 | 离线测试 10 套、224 个 ✅（posture/tools/delivery-chain/schema.conformance 22 工具×44 场景/observe.dedup/task.tool/config.plumbing/surface/action-bounds/package-manifest）；另 live-action e2e（真桌面 30 步） | — |
+| `tests/*.mjs` | ~2000 | 离线测试 11 套、257 个 ✅（posture/tools/delivery-chain/schema.conformance 22 工具×44 场景/observe.dedup/task.tool/config.plumbing/surface/action-bounds/dispatcher.test/package-manifest）；另 live-action e2e（真桌面 30 步） | — |
 
-## 2. 分层与依赖
+## 2. 工具面模式（`surfaceMode`，实验性）
+
+| 模式 | apply 时直接注册 | 隐藏工具 | 路由 |
+|---|---|---|---|
+| `dynamic`（默认） | `computer_do` + `screen_observe` | 20 个（enter 时按 agent 作用域注册） | `computer_do({action:'enter'/'exit'})` |
+| `dispatcher`（A） | 2 个 | 20 个 | `computer_do({action:'call',tool,args})`；`catalog` 查签名 |
+| `hybrid`（B） | 2 + `HOT_TOOLS` 5 个 | 15 个 | 热工具直接调用；长尾 dispatcher |
+
+A/B 下 `computer_do` 是路由壳：`defsRef().get(tool).execute(args, exec)`，隐藏工具自己的 `wrap` 仍执行锁存/守卫/参数校验/回执。`computer_do` 在 stop 期间绕过外层 `opsGate`，否则 `computer_resume` 无法通过 dispatcher 解锁；隐藏工具仍会在自己的 `wrap` 被拒。`screen_zoom` 的 `image` 经 dispatcher 透传并由 `renderWithImage` 显示。
+
+## 3. 分层与依赖
 
 ```mermaid
 graph LR
@@ -73,7 +84,7 @@ graph LR
   HUMAN2["human.js<br/>轨迹/瞄准"]
 ```
 
-## 3. 动作请求流水线（以 computer_click 为例：三级投递链）
+## 4. 动作请求流水线（以 computer_click 为例：三级投递链）
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +118,7 @@ sequenceDiagram
   W-->>M: 结构化回执（投递过程全量注记）
 ```
 
-## 4. 观测流水线（screen_observe：模式决策与降级链）
+## 5. 观测流水线（screen_observe：模式决策与降级链）
 
 ```mermaid
 flowchart TD
@@ -128,7 +139,7 @@ flowchart TD
   L --> M
 ```
 
-## 5. 强杀锁存状态机（0.5.0）
+## 6. 强杀锁存状态机（0.5.0）
 
 ```mermaid
 stateDiagram-v2
@@ -141,7 +152,7 @@ stateDiagram-v2
   Running --> [*]: 配置重载 / 进程退出
 ```
 
-## 6. 设计不变量
+## 7. 设计不变量
 
 1. **依赖单向**：`index.js → lib → cua-driver`，lib 内无环；`snapshot.js / attach.js / vision.js` 为零内部依赖叶子。
 2. **闸门顺序恒定**：锁存 → 守卫 → 实现——任何新工具自动继承，无旁路。

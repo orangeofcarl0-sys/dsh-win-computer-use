@@ -59,9 +59,10 @@ check('dsh 权限声明仍在', () => {
   assert.ok(p && typeof p.summary === 'string' && Array.isArray(p.commands), 'permissions 缺失')
 })
 
-check('测试脚本包含 P0 边界与清单测试', () => {
+check('测试脚本包含 P0 边界、dispatcher 与清单测试', () => {
   const test = pkg.scripts?.test || ''
   assert.match(test, /action-bounds\.mjs/)
+  assert.match(test, /dispatcher\.test\.mjs/)
   assert.match(test, /package-manifest\.test\.mjs/)
 })
 

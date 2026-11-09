@@ -62,6 +62,31 @@
 收起的三种方式：`computer_do({action:'exit'})`、或模型转去做别的（连续 2 次非桌面工具调用自动收起）。
 细粒度工具的 schema、宿主严格输出校验、未知参数拒发、工具级守卫在展开态**全部保留**——切换的只是"何时可见"。
 
+### 实验性工具面模式：`surfaceMode`
+
+`surfaceMode` 用于切换工具面策略；默认 `dynamic` 保持上面这套折叠/展开行为不变。
+
+| 模式 | 直接可见工具 | 其它工具怎么调用 | 适用 |
+|---|---|---|---|
+| `dynamic`（默认） | `computer_do` + `screen_observe`；enter 后 22 个 | enter/exit 动态注册 | 既有行为；桌面任务占主导 |
+| `dispatcher`（方案 A） | 只有 `computer_do` + `screen_observe` | `computer_do({action:'call', tool, args})` | cache 最稳、schema 最少 |
+| `hybrid`（方案 B） | `computer_do` + `screen_observe` + `computer_click/type/key/scroll/verify` | 长尾工具经 dispatcher | cache 稳 + 高频动作有原生 schema |
+
+A/B 的 tools 列表在会话内**恒定**：`computer_do({action:'catalog'})` 返回隐藏工具的紧凑签名，`action:'call'` 路由到隐藏实现（隐藏工具不注册、不可直接调用）。隐藏工具仍走原来的 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 的图片也会经 dispatcher 透传。
+
+```yaml
+- id: dsh-computer-use
+  config:
+    surfaceMode: hybrid   # dynamic | dispatcher | hybrid
+```
+
+真实渠道实测（2026-11-09，opencode / deepseek-v4.1-flash）：dispatcher 的稳定 tools 在重复请求命中 **99.5%**，首次 tool_call 后 **92.1%**，第二次后 **85.4%**；而动态 enter / lazy search 每次 tools 变化的首击只有 **0%–18%**。因此：
+
+- 如果 **cache 优先**：选 `dispatcher`，或 `hybrid`（5 个热工具 + 长尾 dispatcher）；
+- 如果 **原生 schema 优先**：保留 `dynamic`，一次 enter 完成整段桌面工作，避免频繁 exit / 多次 search；
+- `catalog` 的签名是文本，复杂工具（如 `computer_verify` 的 expect JSON、`computer_task`）请先 catalog 看签名；必要时在 system prompt 里给一个示例。
+- 这是实验性开关：A/B 的模型参数遵循性仍在评估，默认不改变 `dynamic` 行为。
+
 ## 工具清单（展开态 22 个 = 折叠态 2 个 + 展开新增 20 个）
 
 | 工具 | 作用 | 主要参数 |
@@ -175,6 +200,7 @@ screen_observe（AX 树失败/树空）
     ttlMs: 60000
     maxElements: 120
     observeDedup: summary
+    surfaceMode: dynamic
     verboseReceipts: false
     taskTimeoutMin: 5
     maxTaskCalls: 3
@@ -194,6 +220,7 @@ screen_observe（AX 树失败/树空）
 | `ttlMs` | `60000` | 观察快照有效期（毫秒） |
 | `maxElements` | `120` | 单次观察最多返回的编号元素数（实测常见任务 30-70 个） |
 | `observeDedup` | `summary` | 重复观察降噪：同一未变窗口回极简回执——`summary`（含编号摘要）/ `brief`（单行）/ `off`（每次全量）；需要完整清单时传 `force=true` |
+| `surfaceMode` | `dynamic` | 实验性工具面：`dynamic` 折叠/展开；`dispatcher` 纯 dispatcher；`hybrid` 热工具+长尾 dispatcher。A/B 的 tools 列表稳定以保 prompt cache |
 | `verboseReceipts` | `false` | 动作回执详略：false = 只回一行要点；true = 附原始 JSON 明细（排障用） |
 | `taskTimeoutMin` | `5` | `computer_task` 默认超时分钟数（可用 `timeout_min` 覆盖，1-60）。实测设太长会在子 agent 无法收敛时纯浪费 |
 | `maxTaskCalls` | `3` | 每会话允许的 `computer_task` 次数上限（防委托风暴与反复超时重复劳动） |
@@ -232,7 +259,7 @@ screen_observe（AX 树失败/树空）
 ```bash
 npm install
 npm run check                      # 语法 + 安装脚本检查
-npm test                           # 十套离线测试、224 个 ✅：
+npm test                           # 十一套离线测试、257 个 ✅：
                                    #   posture（无感自治姿态/凭据硬保护/快照新鲜度）
                                    #   tools · delivery-chain（直接执行真实 cuaDeliver）
                                    #   schema.conformance 22 工具 × 44 场景（按声明 schema 严格校验每种返回形态，
@@ -240,6 +267,7 @@ npm test                           # 十套离线测试、224 个 ✅：
                                    #   observe.dedup（含 value/enabled/selected/actions 变化）
                                    #   task.tool · config.plumbing · surface
                                    #   action-bounds（P0 无快照/窗口绑定/suspected_noop）
+                                   #   dispatcher.test（surfaceMode A/B：隐藏路由/guard/stop/图片透传/固定工具面）
                                    #   package-manifest（peer/dev/兼容下限/发布清单）
 node verify-runtime.mjs            # 运行时验证（需真实 harness + cua-driver）
 node tests/live-action.e2e.mjs 3   # 真桌面动作闭环 + 稳定性循环（真记事本 3 轮）
@@ -255,6 +283,8 @@ node evals/verify-oracles.mjs      # S4 评测 oracle 双向验证（setup 必 o
 # English (brief)
 
 Personal Computer Use plugin for the DeepSeek Harness: 2 tools by default (dynamic tool surface — `computer_do` + observe), 22 when expanded driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Windows-deep-tested.
+
+Experimental `surfaceMode` (default `dynamic`; `dispatcher` = 2 visible with hidden tools routed through `computer_do`; `hybrid` = 2 + 5 hot native tools, long tail routed) keeps the visible tool list stable so tool-layer changes do not break prompt caching.
 
 **Stance — zero-friction autonomy**: no approval prompts, no interruptions; capabilities always on (auto desktop-level observation fallback, three-tier delivery escalation that restores the previous foreground). The only hard refusal is automated typing into password fields. `extremePatterns` adds non-blocking warning notes.
 
