@@ -14,7 +14,7 @@
 
 ## 这是什么
 
-给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一套可观察、可验证的桌面操作层：**折叠态 2 个 / 展开态 22 个**模型友好工具（动态工具面：默认只暴露 `computer_do` 与 `screen_observe`，进入后展开全部），底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面（独立虚拟光标，不抢真实鼠标）。Windows 深度实测——前台锁、XAML/WinUI 输入、观测几何这些硬墙都在本机踩过并解决。
+给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一套可观察、可验证的桌面操作层：**默认 2 个稳定入口（computer_do + screen_observe）/ 完整 22 个工具经 dispatcher 路由**，底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面（独立虚拟光标，不抢真实鼠标）。Windows 深度实测——前台锁、XAML/WinUI 输入、观测几何这些硬墙都在本机踩过并解决。
 
 三个核心机制：
 
@@ -50,44 +50,32 @@
 | 子 agent 委派 | `computer_task`：多步/噪声大的操作交给一次性子 agent，必须以 `{ok,summary,evidence}` 收尾，主上下文只吃一条 ≤400 字符回执。**工具范围能否限制取决于宿主能力**：能限制时只给桌面工具；宿主拒绝该约束时插件照常委派并在回执里如实写明（含拒绝原因）——见〈委派的能力边界〉 |
 | 上下文成本控制 | 重复观察降噪（未变窗口回极简回执，实测大树 1586→250 字符）、成本阶梯写入工具描述（ax < zoom < native）、紧凑动作回执（`verboseReceipts` 排障时才附明细） |
 
-## 动态工具面（默认只有 2 个可见工具）
+## 工具面模式（默认 dispatcher）
 
-22 个工具的 schema 常驻会持续占用模型的注意力（不是 token 成本问题）。所以默认工具面是**折叠态**：
+22 个工具的 schema 常驻会持续占用模型的注意力（不是 token 成本问题）。默认只暴露 2 个稳定入口，其余工具经 `computer_do` 路由；**不再使用 enter/exit 动态注册**（旧的 `dynamic` 模式已废弃并移除）。
 
-| 状态 | 模型可见 | 何时 |
+| 模式 | 直接可见 | 其它工具怎么调用 |
 |---|---|---|
-| 折叠（默认） | `computer_do` + `screen_observe` | 不做桌面操作时——工具面重量比全量低 **81%** |
-| 展开 | 再加 20 个（动作/验证/应用/委派） | 调 `computer_do({action:'enter'})` 之后；下一请求即可见 |
+| `dispatcher`（默认） | `computer_do` + `screen_observe` | `computer_do({action:'call', tool, args})` |
+| `hybrid` | `computer_do` + `screen_observe` + `computer_click/type/key/scroll/verify` | 长尾工具经 dispatcher |
 
-收起的三种方式：`computer_do({action:'exit'})`、或模型转去做别的（连续 2 次非桌面工具调用自动收起）。
-细粒度工具的 schema、宿主严格输出校验、未知参数拒发、工具级守卫在展开态**全部保留**——切换的只是"何时可见"。
-
-### 实验性工具面模式：`surfaceMode`
-
-`surfaceMode` 用于切换工具面策略；默认 `dynamic` 保持上面这套折叠/展开行为不变。
-
-| 模式 | 直接可见工具 | 其它工具怎么调用 | 适用 |
-|---|---|---|---|
-| `dynamic`（默认） | `computer_do` + `screen_observe`；enter 后 22 个 | enter/exit 动态注册 | 既有行为；桌面任务占主导 |
-| `dispatcher`（方案 A） | 只有 `computer_do` + `screen_observe` | `computer_do({action:'call', tool, args})` | cache 最稳、schema 最少 |
-| `hybrid`（方案 B） | `computer_do` + `screen_observe` + `computer_click/type/key/scroll/verify` | 长尾工具经 dispatcher | cache 稳 + 高频动作有原生 schema |
-
-A/B 的 tools 列表在会话内**恒定**：`computer_do({action:'catalog'})` 返回隐藏工具的紧凑签名，`action:'call'` 路由到隐藏实现（隐藏工具不注册、不可直接调用）。隐藏工具仍走原来的 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 的图片也会经 dispatcher 透传。
+`computer_do({action:'catalog'})` 返回隐藏工具的紧凑签名，`action:'call'` 路由到隐藏实现（隐藏工具不注册、不可直接调用）。隐藏工具仍走原来的 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 的图片也会经 dispatcher 透传。
 
 ```yaml
 - id: dsh-computer-use
   config:
-    surfaceMode: hybrid   # dynamic | dispatcher | hybrid
+    surfaceMode: dispatcher   # dispatcher（默认）| hybrid
 ```
 
-真实渠道实测（2026-11-09，opencode / deepseek-v4.1-flash）：dispatcher 的稳定 tools 在重复请求命中 **99.5%**，首次 tool_call 后 **92.1%**，第二次后 **85.4%**；而动态 enter / lazy search 每次 tools 变化的首击只有 **0%–18%**。因此：
+真实渠道实测（2026-11-09，opencode / deepseek-v4.1-flash）：dispatcher 的稳定 tools 在重复请求命中 **99.5%**，首次 tool_call 后 **92.1%**，第二次后 **85.4%**；而旧的动态 enter / lazy search 每次 tools 变化的首击只有 **0%–18%**。因此：
 
-- 如果 **cache 优先**：选 `dispatcher`，或 `hybrid`（5 个热工具 + 长尾 dispatcher）；
-- 如果 **原生 schema 优先**：保留 `dynamic`，一次 enter 完成整段桌面工作，避免频繁 exit / 多次 search；
-- `catalog` 的签名是文本，复杂工具（如 `computer_verify` 的 expect JSON、`computer_task`）请先 catalog 看签名；必要时在 system prompt 里给一个示例。
-- 这是实验性开关：A/B 的模型参数遵循性仍在评估，默认不改变 `dynamic` 行为。
+- **cache 优先**：保持 `dispatcher`，或选 `hybrid`（5 个热工具 + 长尾 dispatcher）；
+- `catalog` 的签名是文本，复杂工具（如 `computer_verify` 的 expect JSON、`computer_task`）请先 catalog 看签名；必要时在 system prompt 里给一个示例；
+- `hybrid` 的实验性在于“热工具数量/选择”可能随任务调整；`dispatcher` 是默认稳定面。
 
-## 工具清单（展开态 22 个 = 折叠态 2 个 + 展开新增 20 个）
+## 工具清单（完整 22 个 = 2 个常驻 + 20 个经 dispatcher）
+
+在默认 `dispatcher` 模式下，下表中除 `screen_observe`/`computer_do` 外的工具都通过 `computer_do({action:'call', tool, args})` 调用；`hybrid` 下 `click/type/key/scroll/verify` 可直接调用。
 
 | 工具 | 作用 | 主要参数 |
 |---|---|---|
@@ -173,7 +161,7 @@ screen_observe（AX 树失败/树空）
 `computer_task` 想给子 agent 施加三条约束：限定工具范围（只用桌面工具）、要求结构化输出、禁止再派生。它们是**独立的宿主能力**，能否生效取决于宿主提供方：
 
 - 三者都支持 → 子 agent 只拿到桌面工具，结构化结果经宿主校验；
-- 宿主拒绝工具范围约束时（实测形态：`tools.restrict() names unknown global tools`——动态工具面把工具注册在会话作用域后，宿主对 `toolFilter` 的名字校验只认全局层）→ 插件**丢掉这一条、保住结构化输出**，并在回执里写明"子 agent 拥有与父会话同级的能力"及拒绝原因；
+- 宿主拒绝工具范围约束时（实测形态：`tools.restrict() names unknown global tools`——默认 dispatcher 下桌面工具不注册为全局工具，宿主对 `toolFilter` 的名字校验只认全局层）→ 插件**丢掉这一条、保住结构化输出**，并在回执里写明"子 agent 拥有与父会话同级的能力"及拒绝原因；
 - 宿主连结构化也不支持 → 再降一级，回执标注"结果未结构化"。
 
 也就是说：**在宿主不支持工具范围约束的部署上，子 agent 与父会话能力同级（可能具备 shell/文件工具）**。插件不会把这条约束当作已生效来上报；需要严格限制时，请用宿主自己的子 agent 机制并在其配置里限定工具。
@@ -200,7 +188,7 @@ screen_observe（AX 树失败/树空）
     ttlMs: 60000
     maxElements: 120
     observeDedup: summary
-    surfaceMode: dynamic
+    surfaceMode: dispatcher
     verboseReceipts: false
     taskTimeoutMin: 5
     maxTaskCalls: 3
@@ -220,7 +208,7 @@ screen_observe（AX 树失败/树空）
 | `ttlMs` | `60000` | 观察快照有效期（毫秒） |
 | `maxElements` | `120` | 单次观察最多返回的编号元素数（实测常见任务 30-70 个） |
 | `observeDedup` | `summary` | 重复观察降噪：同一未变窗口回极简回执——`summary`（含编号摘要）/ `brief`（单行）/ `off`（每次全量）；需要完整清单时传 `force=true` |
-| `surfaceMode` | `dynamic` | 实验性工具面：`dynamic` 折叠/展开；`dispatcher` 纯 dispatcher；`hybrid` 热工具+长尾 dispatcher。A/B 的 tools 列表稳定以保 prompt cache |
+| `surfaceMode` | `dispatcher` | 工具面模式：`dispatcher`（2 个常驻；其余经 dispatcher）/ `hybrid`（2 + 5 个热工具；长尾经 dispatcher）。tools 列表稳定以保 prompt cache |
 | `verboseReceipts` | `false` | 动作回执详略：false = 只回一行要点；true = 附原始 JSON 明细（排障用） |
 | `taskTimeoutMin` | `5` | `computer_task` 默认超时分钟数（可用 `timeout_min` 覆盖，1-60）。实测设太长会在子 agent 无法收敛时纯浪费 |
 | `maxTaskCalls` | `3` | 每会话允许的 `computer_task` 次数上限（防委托风暴与反复超时重复劳动） |
@@ -259,17 +247,17 @@ screen_observe（AX 树失败/树空）
 ```bash
 npm install
 npm run check                      # 语法 + 安装脚本检查
-npm test                           # 十一套离线测试、257 个 ✅：
+npm test                           # 十套离线测试、230 个 ✅：
                                    #   posture（无感自治姿态/凭据硬保护/快照新鲜度）
                                    #   tools · delivery-chain（直接执行真实 cuaDeliver）
                                    #   schema.conformance 22 工具 × 44 场景（按声明 schema 严格校验每种返回形态，
                                    #     含结构化拒绝/驱动错误/观测降级——dsh 严格输出校验类 bug 的守门测试）
                                    #   observe.dedup（含 value/enabled/selected/actions 变化）
-                                   #   task.tool · config.plumbing · surface
+                                   #   task.tool · config.plumbing
                                    #   action-bounds（P0 无快照/窗口绑定/suspected_noop）
-                                   #   dispatcher.test（surfaceMode A/B：隐藏路由/guard/stop/图片透传/固定工具面）
+                                   #   dispatcher.test（surfaceMode dispatcher/hybrid：隐藏路由/guard/stop/图片透传/固定工具面）
                                    #   package-manifest（peer/dev/兼容下限/发布清单）
-node verify-runtime.mjs            # 运行时验证（需真实 harness + cua-driver）
+node verify-runtime.mjs            # 运行时验证（dispatcher 默认 16/16；需真实 harness + cua-driver）
 node tests/live-action.e2e.mjs 3   # 真桌面动作闭环 + 稳定性循环（真记事本 3 轮）
 node evals/verify-oracles.mjs      # S4 评测 oracle 双向验证（setup 必 ok → 空跑必失败 → simulate 必过）
 ```
@@ -282,9 +270,9 @@ node evals/verify-oracles.mjs      # S4 评测 oracle 双向验证（setup 必 o
 
 # English (brief)
 
-Personal Computer Use plugin for the DeepSeek Harness: 2 tools by default (dynamic tool surface — `computer_do` + observe), 22 when expanded driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Windows-deep-tested.
+Personal Computer Use plugin for the DeepSeek Harness: 2 stable tools by default (`computer_do` dispatcher + observe), with all 22 tools reachable through the dispatcher, driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Windows-deep-tested.
 
-Experimental `surfaceMode` (default `dynamic`; `dispatcher` = 2 visible with hidden tools routed through `computer_do`; `hybrid` = 2 + 5 hot native tools, long tail routed) keeps the visible tool list stable so tool-layer changes do not break prompt caching.
+`surfaceMode` (default `dispatcher`; `hybrid` = 2 + 5 hot native tools, long tail routed) keeps the visible tool list stable so tool-layer changes do not break prompt caching. The old `dynamic` enter/exit surface has been removed.
 
 **Stance — zero-friction autonomy**: no approval prompts, no interruptions; capabilities always on (auto desktop-level observation fallback, three-tier delivery escalation that restores the previous foreground). The only hard refusal is automated typing into password fields. `extremePatterns` adds non-blocking warning notes.
 

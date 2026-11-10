@@ -66,7 +66,7 @@ export function makeServices(overrides = {}) {
 export function makeCtx({ services = makeServices(), config = {}, agent = { id: 'test-parent' } } = {}) {
   const reg = new Map()
   const register = (d) => { reg.set(d.name, d); return () => reg.delete(d.name) }
-  // 会话作用域注册表：模拟宿主的 agent.ctx.tools（动态工具面的展开走这条路径）。
+  // 会话作用域注册表：模拟宿主的 agent.ctx.tools（保留给作用域注册类测试；dispatcher 不依赖）。
   // 与全局共同写入同一张 reg，便于测试沿用"按名字取工具"的写法；作用域隔离由不同 makeCtx 实例验证。
   const scopeReg = new Map()
   const scopeTools = {

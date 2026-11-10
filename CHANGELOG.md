@@ -6,10 +6,10 @@
 
 ### Added
 
-- **实验性 `surfaceMode`（2026-11-09）：`dynamic`（默认）/ `dispatcher`（方案 A）/ `hybrid`（方案 B）**。A/B 的 tools 列表在会话内恒定：`dispatcher` 只暴露 `computer_do + screen_observe`，`hybrid` 再暴露 click/type/key/scroll/verify 5 个高频原生工具；其余工具经 `computer_do({action:'call', tool, args})` 路由到隐藏实现，`action:'catalog'` 返回紧凑签名。隐藏工具不注册、不可直接调用，但仍走原 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 图片经 dispatcher 透传。`dynamic` 默认行为不变。
+- **`surfaceMode`（2026-11-10：dispatcher 默认；dynamic 已废弃移除）**：`dispatcher` 只暴露 `computer_do + screen_observe`，`hybrid` 再暴露 click/type/key/scroll/verify 5 个高频原生工具；其余工具经 `computer_do({action:'call', tool, args})` 路由到隐藏实现，`action:'catalog'` 返回紧凑签名。隐藏工具不注册、不可直接调用，但仍走原 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 图片经 dispatcher 透传。旧 `lib/surface.js`、enter/exit、自动回落和 `tests/surface.mjs` 已删除。
 - **`lib/dispatcher.js`**：模式常量（`SURFACE_MODES`、`HOT_TOOLS`）、可见/隐藏工具清单、catalog 签名生成。
-- **`tests/dispatcher.test.mjs`**（32 断言）：A/B 注册面、catalog、隐藏工具不可直接调用、guard/stop/resume、参数校验、未知工具、图片透传、工具面稳定、宿主 schema 断言；`dynamic` 回归。
-- **`computer_set_value`（第 22 个工具）**：驱动 `set_value`（UIA `ValuePattern`）直连，适用于可设置控件（文本框/滑块/下拉）；Web/自绘控件可能忽略，回执明确提示改用 `computer_type` 或点击后输入。加入 `OPERATION_TOOLS`（密码框硬拒）与展开态清单。
+- **`tests/dispatcher.test.mjs`**（31 断言）：A/B 注册面、catalog、隐藏工具不可直接调用、guard/stop/resume、参数校验、未知工具、图片透传、工具面稳定、宿主 schema 断言；默认 dispatcher 回归。
+- **`computer_set_value`（第 22 个工具）**：驱动 `set_value`（UIA `ValuePattern`）直连，适用于可设置控件（文本框/滑块/下拉）；Web/自绘控件可能忽略，回执明确提示改用 `computer_type` 或点击后输入。加入 `OPERATION_TOOLS`（密码框硬拒）与 dispatcher catalog。
 - **`tests/action-bounds.mjs`**：P0-1/2/3/4/5 与 P1-A 的行为边界测试（无快照拒绝、type/key/scroll/drag 的窗口绑定、suspected_noop、窗口未匹配 fail-closed、set_value payload）。
 - **`tests/package-manifest.test.mjs`**：锁定 peerDependencies / devDependencies / dsh 兼容下限 / 发布文件清单 / 权限声明，防清单回归。
 - **`tests/delivery-chain.smoke.mjs` 重写**：直接导入真实 `lib/cua.js`，通过 `opts.call` 注入假驱动；不再用复刻的 `cuaDeliver` 测复刻（P0-0）。
@@ -26,11 +26,11 @@
 
 ### Changed
 
-- **dsh 兼容下限如实改为 `>=0.1.5-rc.2`**（原写 `>=0.1.0`）：动态工具面依赖 0.1.5 才具备的宿主能力——`agent.ctx` 作用域注册（展开态注册进会话作用域；无此能力时退化为全局注册，失去会话隔离）与 `tools/result` 仅观测事件（无它则只有显式 `exit` 能回落）；另 0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。README 头部徽章同步标注实测版本。
+- **dsh 兼容下限保持 `>=0.1.5-rc.2`**：0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。0.5.7 移除 dynamic 后不再依赖 `agent.ctx` 作用域注册与 `tools/result`；实测宿主为 0.2.2-rc.1。
 
 ### Measured
 
-- **真实渠道 cache A/B（2026-11-09，opencode / deepseek-v4.1-flash）**：`dispatcher` 稳定 tools 重复命中 99.5%，首次 tool_call 后 92.1%，第二次后 85.4%；`lazy search` 首次新增工具 0–17.7%（+1 为 0%，+4 为 17.7%），每次新增工具集合都重新 full miss；`dynamic` 的 tools 变化同理。结论：要保 cache，tools 列表必须稳定；A/B 是为此刻意设计的实验模式。
+- **真实渠道 cache A/B（2026-11-09，opencode / deepseek-v4.1-flash）**：`dispatcher` 稳定 tools 重复命中 99.5%，首次 tool_call 后 92.1%，第二次后 85.4%；`lazy search` 首次新增工具 0–17.7%（+1 为 0%，+4 为 17.7%），每次新增工具集合都重新 full miss；旧 `dynamic` 的 tools 变化同理。结论：要保 cache，tools 列表必须稳定；dispatcher 已成为默认。
 
 ## 0.5.6 (2026-09-17)
 

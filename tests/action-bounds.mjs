@@ -63,8 +63,11 @@ const cfg = {
 
 const { reg, ctx, exec } = makeCtx({ services: makeServices() })
 plugin.apply(ctx, cfg)
-await reg.get('computer_do').execute({ action: 'enter' }, exec)
-const call = (name, args = {}) => reg.get(name).execute(args, exec)
+const call = (name, args = {}) => {
+  const direct = reg.get(name)
+  if (direct) return direct.execute(args, exec)
+  return reg.get('computer_do').execute({ action: 'call', tool: name, args }, exec)
+}
 
 // ── P0-1/2：无快照 → 守卫拒绝 ───────────────────────────────────────
 clearSnapshot()

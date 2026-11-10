@@ -52,15 +52,16 @@ import {
   verifyOnce, waitFor, clipboard as opsClipboard, menu as opsMenu, hover as opsHover,
 } from './lib/ops.js'
 import {
-  EXPANDED_ONLY, enterSurface, exitSurface, expandedReceipt, isExpanded, noteToolCall, surfaceReset,
-} from './lib/surface.js'
-import {
   SURFACE_MODES, catalogOf, hiddenToolNames, visibleToolsForMode,
 } from './lib/dispatcher.js'
 
 export const name = 'dsh-computer-use'
 
 export const inject = ['tools']
+
+/** 最近一次 apply 构建的全部工具定义（含 dispatcher 隐藏工具；供测试/诊断，不面向模型）。 */
+let lastToolDefs = []
+export function toolDefinitions() { return lastToolDefs }
 
 /** 插件配置。 */
 export const Config = z.object({
@@ -71,13 +72,12 @@ export const Config = z.object({
   /** 重复观察降噪（同一未变窗口）：summary = 极简回执 + 上次元素摘要；brief = 只回一行；off = 每次都全量。 */
   observeDedup: z.union(['brief', 'summary', 'off']).default('summary'),
   /**
-   * 实验性工具面模式：
-   *   dynamic（默认）= 折叠 2 / 展开 20，enter/exit 动态注册；行为与 0.5.6 一致。
-   *   dispatcher（方案 A）= 永远只暴露 computer_do + screen_observe；其余工具经 computer_do({action:'call'}) 路由。
-   *   hybrid（方案 B）= 常驻 computer_do + screen_observe + 5 个高频原生工具；长尾经 dispatcher 路由。
-   * A/B 的 tools 列表稳定，避免工具层变化破坏 prompt cache。
+   * 工具面模式：
+   *   dispatcher（默认）= 只暴露 computer_do + screen_observe；其余工具经 computer_do({action:'call'}) 路由。
+   *   hybrid = 常驻 computer_do + screen_observe + 5 个高频原生工具；长尾经 dispatcher 路由。
+   * 两种模式的 tools 列表在会话内稳定，避免工具层变化破坏 prompt cache。
    */
-  surfaceMode: z.union([...SURFACE_MODES]).default('dynamic'),
+  surfaceMode: z.union([...SURFACE_MODES]).default('dispatcher'),
   /** 回执详略：false（默认）动作回执只回一行要点；true 附原始 JSON 明细（排障用）。 */
   verboseReceipts: z.boolean().default(false),
   /** computer_task 默认超时（分钟）；调用方可用 timeout_min 覆盖。实测：设太长会在子 agent 无法收敛时纯浪费（一次超时后父 agent 往往还要自己做一遍）。 */
@@ -678,74 +678,8 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
   ]
 }
 
-/** ── 元工具组：computer_do（动态工具面的入口；PLAN-meta-tool 拍板 2026-09-17）── */
+/** ── 元工具组：computer_do（dispatcher / hybrid；dynamic 已废弃，2026-11-10）── */
 function metaToolDefs(ctx, cfg, wrap, defsRef) {
-  if (cfg.surfaceMode !== 'dynamic') return dispatcherMetaToolDefs(ctx, cfg, wrap, defsRef)
-  return [
-    {
-      name: 'computer_do',
-      description:
-        '桌面/屏幕操作的统一入口——本工具面默认只暴露它和 screen_observe。'
-        + '任何要在其它窗口里点击、输入、读界面、操作应用的活，先 action="enter" 展开完整桌面工具面'
-        + '（20 个：观察/动作/验证/应用/委派），干完 action="exit" 收起（收起可显著降低工具对注意力的占用，但别频繁进出：切换会让 prompt 前缀缓存失效）。'
-        + 'action="status" 查当前状态。只做一次屏幕观察不必进入，直接 screen_observe。',
-      parameters: {
-        action: {
-          type: 'string',
-          enum: ['enter', 'exit', 'status'],
-          description: 'enter = 展开桌面工具面（默认）；exit = 收起回折叠态；status = 查看当前状态。',
-        },
-      },
-      output: OUT({
-        surface: { type: 'string', description: '当前工具面状态：collapsed（折叠）/ expanded（展开）。' },
-        tools: { type: 'array', items: { type: 'string' }, description: '展开态新增可见的工具名（折叠态为空数组）。' },
-        scope: { type: 'string', description: '本次注册的作用域：agent（会话级）/ global（宿主无作用域注册时的兜底）/ none。' },
-      }),
-      execute: wrap('computer_do', (args, _cfg2, exec) => {
-        const action = args.action || 'enter'
-        if (action === 'enter') {
-          const r = enterSurface(ctx, exec, defsRef())
-          if (!r.ok) {
-            return {
-              ok: false,
-              result: '✗ 当前宿主未提供工具注册能力，无法展开桌面工具面（本插件在无作用域注册的宿主上退化为扁平工具面）。',
-              surface: 'collapsed', tools: [], scope: 'none',
-            }
-          }
-          const already = r.note === 'already-expanded'
-          return {
-            ok: true,
-            result: (already ? '桌面工具面已是展开状态。' : expandedReceipt(r.scope, r.count)) + (r.note && !already ? ` ${r.note}` : ''),
-            surface: 'expanded',
-            tools: [...EXPANDED_ONLY],
-            scope: r.scope,
-          }
-        }
-        if (action === 'exit') {
-          const r = exitSurface(exec)
-          return {
-            ok: true,
-            result: `已收起桌面工具面（注销 ${r.count} 个工具，回到折叠态）。后续桌面操作请重新 action="enter"。`,
-            surface: 'collapsed', tools: [], scope: r.count ? 'none' : 'none',
-          }
-        }
-        const expanded = isExpanded(exec.agent)
-        return {
-          ok: true,
-          result: expanded
-            ? '当前：展开态（20 个桌面工具可见）。干完记得 action="exit" 收起；若你转去做别的（连续 2 次非桌面工具调用）也会自动收起。'
-            : '当前：折叠态（只有 computer_do 与 screen_observe）。要做桌面操作请 action="enter"。',
-          surface: expanded ? 'expanded' : 'collapsed',
-          tools: expanded ? [...EXPANDED_ONLY] : [],
-          scope: expanded ? 'agent' : 'none',
-        }
-      }),
-    },
-  ]
-}
-
-/** ── 元工具组：dispatcher / hybrid（surfaceMode，实验性 2026-11-09）── */
-function dispatcherMetaToolDefs(ctx, cfg, wrap, defsRef) {
   return [
     {
       name: 'computer_do',
@@ -844,7 +778,7 @@ export function apply(ctx, config) {
     ttlMs: config.ttlMs,
     maxElements: config.maxElements,
     observeDedup: config.observeDedup || 'summary',
-    surfaceMode: config.surfaceMode || 'dynamic',
+    surfaceMode: config.surfaceMode || 'dispatcher',
     verboseReceipts: config.verboseReceipts === true,
     taskTimeoutMin: config.taskTimeoutMin,
     maxTaskCalls: config.maxTaskCalls,
@@ -873,9 +807,9 @@ export function apply(ctx, config) {
   /** 统一包装：锁存闸门 → 守卫（注记不阻断）→ 执行实现（exec 透传给需要 route 的实现）。 */
   const wrap = (toolName, impl) => async (args, exec) => {
     try {
-      // dispatcher/hybrid 下 computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具
-      // 自己判定（否则 stop 后连 computer_resume 都进不来）。dynamic 模式保持原锁存语义。
-      const gateName = toolName === 'computer_do' && cfg.surfaceMode !== 'dynamic' ? null : toolName
+      // computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具自己判定
+      // （否则 stop 后连 computer_resume 都进不来）。
+      const gateName = toolName === 'computer_do' ? null : toolName
       const denied = gateName ? opsGate(opsState, gateName) : null
       if (denied) return { ok: false, result: `✗ ${denied}` }
       // 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默忽略，
@@ -899,11 +833,9 @@ export function apply(ctx, config) {
   }
 
   // 工具面 = 数据：各组返回定义数组。surfaceMode 决定 apply 时直接注册哪些工具：
-  //   dynamic（默认）= 折叠 2 个（enter/exit 动态注册其余 20 个）
-  //   dispatcher（A）= 2 个；其余经 computer_do({action:'call'}) 路由
-  //   hybrid（B）= 2 + HOT_TOOLS 5 个；长尾经 dispatcher 路由
-  // 新增工具 = 在对应组数组里加一项 + 加进 lib/surface.js/lib/dispatcher.js 的清单（有测试守住）。
-  surfaceReset()
+  //   dispatcher（默认）= 2 个；其余经 computer_do({action:'call'}) 路由
+  //   hybrid = 2 + HOT_TOOLS 5 个；长尾经 dispatcher 路由
+  // 新增工具 = 在对应组数组里加一项 + 加进 lib/dispatcher.js 的清单（有测试守住）。
   // 必须用 defineTool 的**返回值**注册：它会把"作者面 schema"投影成宿主强制子集
   // （属性级 required:true → object 级 required 数组；隐式开放参数根）。直接注册原始字面量会被
   // dsh-tools 的 assertSupportedJsonSchema 拒掉——整棵插件树加载失败（2026-09-17 真机探针实测：
@@ -915,31 +847,15 @@ export function apply(ctx, config) {
     ...taskToolDefs(ctx, cfg, wrap),
     ...metaToolDefs(ctx, cfg, wrap, () => defsByName),
   ].map((raw) => defineTool(raw))
+  lastToolDefs = allDefs
   const defsByName = new Map(allDefs.map((d) => [d.name, d]))
   const visibleAtStart = visibleToolsForMode(cfg.surfaceMode)
   for (const def of allDefs) {
     if (visibleAtStart.includes(def.name)) ctx.tools.register(def)
   }
 
-  // 非桌面活动兜底只属于 dynamic 模式；dispatcher/hybrid 的 tools 列表必须稳定，不能订阅回落。
-  if (cfg.surfaceMode === 'dynamic') {
-    // 订阅 tools/result——按宿主签名它是**仅观测**事件："'tools/result'(exec, result): undefined"，
-    // 监听器异常被容器隔离。绝不能用 tools/post-execute：那是 cordis waterfall（signature 末位是 next），
-    // 不调用 next 返回 undefined 会让注册表读 decision.kind 崩掉——**每一次工具调用都失败**（2026-09-17 真机实测）。
-    try {
-      ctx.on?.('tools/result', (exec2) => {
-        try {
-          const name = exec2?.name
-          if (name) noteToolCall(exec2, name)
-        } catch { /* 观测失败不影响主流程 */ }
-      })
-    } catch { /* 宿主无事件总线：仅显式 exit */ }
-  }
-
   ctx.logger?.info(
-    cfg.surfaceMode === 'dynamic'
-      ? 'dsh-computer-use: 动态工具面就绪（折叠态 2 个 computer_do/screen_observe；进入后展开 20 个；v0.5.4 的 20 个工具 + set_value 全部保留）'
-      : `dsh-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；其余经 computer_do dispatcher 路由）`,
+    `dsh-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；其余经 computer_do dispatcher 路由）`,
   )
 }
 

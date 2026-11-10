@@ -117,28 +117,26 @@ const config = {
 plugin.apply(ctx, config)
 
 // 断言工具注册 + 新能力
-// 动态工具面（PLAN-meta-tool）：折叠态只有 computer_do + screen_observe；进入后 21 个工具全部在册。
+// 默认 dispatcher：直接可见 computer_do + screen_observe；其余 20 个经 catalog/action=call 路由。
 const EXPECTED_ALWAYS = ['computer_do', 'screen_observe']
-const REQUIRED_TOOLS = [
-  'screen_observe', 'screen_zoom', 'computer_click', 'computer_double_click', 'computer_right_click',
+const HIDDEN_TOOLS = [
+  'screen_zoom', 'computer_click', 'computer_double_click', 'computer_right_click',
   'computer_type', 'computer_set_value', 'computer_key', 'computer_scroll', 'computer_drag', 'computer_wait',
   'app_list', 'app_launch', 'computer_verify', 'computer_wait_for', 'computer_clipboard',
   'computer_menu', 'computer_hover', 'computer_stop', 'computer_resume', 'computer_task',
 ]
 const collapsed = [...registered.keys()].sort()
-check('折叠态工具面 = computer_do + screen_observe', collapsed.join(',') === EXPECTED_ALWAYS.join(','), collapsed.join(', '))
-// 展开（真实宿主：注册进会话作用域；本脚本的 ctx 为最小桩，走全局退化路径）
+check('dispatcher 可见工具 = computer_do + screen_observe', collapsed.join(',') === EXPECTED_ALWAYS.join(','), collapsed.join(', '))
 const surfaceExec = { agent: { id: 'verify-surface' }, signal: new AbortController().signal, get signalSet() { return true } }
-const enterRes = await registered.get('computer_do').execute({ action: 'enter' }, surfaceExec)
-const missingTools = REQUIRED_TOOLS.filter((t) => !registered.has(t))
-check(`展开后 ${REQUIRED_TOOLS.length + 1} 个工具齐备`, enterRes.ok === true && registered.size >= REQUIRED_TOOLS.length + 1 && missingTools.length === 0,
-  `展开后注册 ${registered.size} 个（scope=${enterRes.scope}）${missingTools.length ? '，缺: ' + missingTools.join(', ') : ''}`)
-const exitRes = await registered.get('computer_do').execute({ action: 'exit' }, surfaceExec)
-check('回落后恢复折叠态', exitRes.ok === true && registered.size === EXPECTED_ALWAYS.length, `注册 ${registered.size} 个`)
-await registered.get('computer_do').execute({ action: 'enter' }, surfaceExec)   // 后续断言需要完整工具面
+const catalog = await registered.get('computer_do').execute({ action: 'catalog' }, surfaceExec)
+const catNames = catalog.tools || []
+const missingTools = HIDDEN_TOOLS.filter((t) => !catNames.includes(t))
+check(`dispatcher catalog 覆盖 ${HIDDEN_TOOLS.length} 个隐藏工具`, catalog.ok === true && missingTools.length === 0,
+  `catalog ${catNames.length} 个${missingTools.length ? '，缺: ' + missingTools.join(', ') : ''}`)
+check('dispatcher 注册面仍只有 2 个', registered.size === 2, `注册 ${registered.size} 个`)
 const modeProp = registered.get('screen_observe').parameters?.properties?.mode
 check('screen_observe 含 native 模式', registered.has('screen_observe') && modeProp?.enum?.includes('native'), `mode enum: ${modeProp?.enum?.join('/')}`)
-check('screen_zoom 已注册', registered.has('screen_zoom'), '')
+check('screen_zoom 在 dispatcher catalog 中', catNames.includes('screen_zoom'), '')
 
 // ── 执行辅助 ─────────────────────────────────────────────────────
 function agentWith(provider, model) {
@@ -149,11 +147,14 @@ function agentWith(provider, model) {
 }
 
 async function runTool(name, args, agent) {
-  const def = registered.get(name)
-  if (!def) return { error: `tool ${name} not registered` }
   const exec = { agent, signal: new AbortController().signal, get signalSet() { return true } }
+  const direct = registered.get(name)
+  const dispatcher = registered.get('computer_do')
+  if (!direct && (!dispatcher || name === 'computer_do')) return { error: `tool ${name} not registered` }
   try {
-    const value = await def.execute(args, exec)
+    const value = direct
+      ? await direct.execute(args, exec)
+      : await dispatcher.execute({ action: 'call', tool: name, args }, exec)
     return { value }
   } catch (err) {
     return { error: err.message }
@@ -207,7 +208,7 @@ async function runTool(name, args, agent) {
   const r = await runTool('screen_zoom', { ...testWindowArgs, x1: 0, y1: 0, x2: 300, y2: 180 }, agentWith('deepseek-official', 'deepseek-v4-flash-vision-exp'))
   const v = r.value
   check('screen_zoom 区域直读', v?.ok === true && v?.image, `${v?.image?.width}x${v?.image?.height} ${v?.image?.mediaType} ${v?.image?.bytes}B`)
-  const blocks = registered.get('screen_zoom').output.render({}, v)
+  const blocks = registered.get('computer_do').output.render({}, v)
   check('screen_zoom render 图片块', Array.isArray(blocks) && blocks.some((b) => b.type === 'image'))
 }
 

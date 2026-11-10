@@ -142,8 +142,7 @@ async function callTool(name, args) {
 
 /** 一套全新会话状态（apply 会重置降噪缓存/委派预算/锁存）+ 覆盖配置。 */
 async function freshConfig(overrides = {}) {
-  plugin.apply(ctx, { ...defaultsOf(), passwordScan: 'off', ...overrides })   // passwordScan:off 保持测试零 spawn
-  await callTool('computer_do', { action: 'enter' })   // 展开工具面（B 系列要动 20 个工具）
+  plugin.apply(ctx, { ...defaultsOf(), passwordScan: 'off', surfaceMode: 'hybrid', ...overrides })   // passwordScan:off 保持测试零 spawn；hybrid 暴露 click 等热工具
   return {
     call: callTool,
     raw: (o) => String(o?.result || ''),
@@ -277,8 +276,8 @@ const observeArgs = { window: '4242', mode: 'ax' }
   }
   const t = await freshConfig({ maxTaskCalls: 1 })
   ctxServices.subagents = subagents   // 服务面按调用时读取
-  const first = await t.call('computer_task', { goal: 'g1' })
-  const second = await t.call('computer_task', { goal: 'g2' })
+  const first = await t.call('computer_do', { action: 'call', tool: 'computer_task', args: { goal: 'g1' } })
+  const second = await t.call('computer_do', { action: 'call', tool: 'computer_task', args: { goal: 'g2' } })
   delete ctxServices.subagents
   check('B10 maxTaskCalls=1 第二次委派被拒', first.ok === true && second.ok === false && /上限/.test(second.result), `started=${started}`)
 }

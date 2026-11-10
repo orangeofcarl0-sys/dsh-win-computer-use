@@ -25,7 +25,8 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const rounds = Number(process.argv[2] || '3')
-const plugin = (await import(pathToFileURL(join(root, 'index.js')).href)).default
+const mod = await import(pathToFileURL(join(root, 'index.js')).href)
+const plugin = mod.default
 
 const attachmentRoot = mkdtempSync(join(tmpdir(), 'cu-live-att-'))
 const services = {
@@ -52,13 +53,13 @@ const ctx = {
 }
 // passwordScan off：本轮不需要 sidecar spawn
 plugin.apply(ctx, { ttlMs: 60000, maxElements: 120, deliveryMode: 'auto', nativeImage: 'auto', passwordScan: 'off' })
-// 动态工具面（PLAN-meta-tool）：先展开，否则下面的动作/验证/应用工具都不可见
-await (async () => { const d = registered.get('computer_do'); await d.execute({ action: 'enter' }, { agent: { id: 'live-e2e' }, signal: new AbortController().signal, get signalSet() { return true } }) })()
+// dispatcher 默认只注册 2 个可见工具；E2E 直接取 apply 构建的全部定义（含隐藏工具）。
+const defs = new Map(mod.toolDefinitions().map((d) => [d.name, d]))
 
 const agent = { options: { provider: 'p', model: 'm' }, session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } }
 async function call(name, args = {}) {
-  const def = registered.get(name)
-  if (!def) throw new Error('tool not registered: ' + name)
+  const def = defs.get(name)
+  if (!def) throw new Error('tool not defined: ' + name)
   const exec = { agent, signal: new AbortController().signal, get signalSet() { return true } }
   const t0 = Date.now()
   const value = await def.execute(args, exec)

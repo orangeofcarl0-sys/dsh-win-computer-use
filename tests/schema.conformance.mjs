@@ -128,7 +128,7 @@ const fakeSubagents = {
 
 // 服务面按场景挂/摘（插件在调用时用 ctx.get 取服务，删键即为"宿主无此能力"）。
 const ctxServices = makeServices({ subagents: fakeSubagents })
-const { reg: registered, ctx, exec: baseExec } = makeCtx({
+const { ctx, exec: baseExec } = makeCtx({
   services: ctxServices,
   agent: { options: { provider: 'p', model: 'm' }, session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } },
 })
@@ -140,11 +140,12 @@ function setServices(mode) {
 }
 
 plugin.apply(ctx, { ttlMs: 60000, maxElements: 120, deliveryMode: 'auto', nativeImage: 'auto', passwordScan: 'off' })
-// 动态工具面（PLAN-meta-tool）：折叠态只有 computer_do + screen_observe，先展开再跑场景矩阵
-await (async () => { const d = registered.get('computer_do'); await d.execute({ action: 'enter' }, baseExec) })()
+// dispatcher 默认只注册 2 个可见工具；schema 测试直接取 apply 构建的全部定义（含隐藏工具）。
+const mod = await import(pathToFileURL(join(work, 'index.js')).href)
+const allDefs = new Map(mod.toolDefinitions().map((d) => [d.name, d]))
 
 async function runTool(name, args) {
-  const def = registered.get(name)
+  const def = allDefs.get(name)
   if (!def) return { missing: true }
   try {
     const value = await def.execute(args, baseExec)
@@ -244,7 +245,7 @@ for (const sc of scenarios) {
 
 // ── 汇总 ──────────────────────────────────────────────────────────────
 const pad = (s, n) => String(s).padEnd(n)
-console.log('工具数:', registered.size, '| 场景数:', scenarios.length)
+console.log('工具数:', allDefs.size, '| 场景数:', scenarios.length)
 for (const r of results) {
   console.log(`${r.ok ? '✅' : '❌'} ${pad(r.sc, 28)}${r.note ? r.note : ''}`)
   for (const i of r.issues || []) console.log('   - ' + i)

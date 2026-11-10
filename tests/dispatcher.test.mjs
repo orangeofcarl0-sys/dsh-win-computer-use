@@ -1,8 +1,8 @@
 /**
- * 实验性工具面模式测试（surfaceMode，2026-11-09）：
- *   A dispatcher：只暴露 computer_do + screen_observe；20 个隐藏工具经 action="call" 路由。
- *   B hybrid：再暴露 5 个高频原生工具；长尾经 dispatcher 路由。
- *   默认 dynamic 保持既有行为。
+ * 工具面模式测试（surfaceMode，2026-11-10：dispatcher 默认 / hybrid）：
+ *   dispatcher：只暴露 computer_do + screen_observe；20 个隐藏工具经 action="call" 路由。
+ *   hybrid：再暴露 5 个高频原生工具；长尾经 dispatcher 路由。
+ *   dynamic 已废弃移除。
  *
  * 覆盖：注册面、catalog、隐藏工具不可直接调用、guard/stop 锁存、参数校验、未知工具、
  * 图片透传（screen_zoom）、工具列表稳定、宿主 schema 断言。
@@ -45,7 +45,6 @@ export async function cuaDeliver(tool, payload) { return { value: await cuaCall(
 
 const plugin = await loadPlugin(work)
 const { check, state } = makeChecks()
-const surface = await import(pathToFileURL(join(work, 'lib', 'surface.js')).href)
 const dispatcher = await import(pathToFileURL(join(work, 'lib', 'dispatcher.js')).href)
 
 const cfgOf = (mode) => ({
@@ -124,7 +123,7 @@ function session(mode) {
 {
   const s = session('hybrid')
   const names = [...s.reg.keys()].sort()
-  const hotExpected = [...surface.ALWAYS_VISIBLE, ...dispatcher.HOT_TOOLS].sort()
+  const hotExpected = [...dispatcher.STABLE_TOOLS, ...dispatcher.HOT_TOOLS].sort()
   check('B1 暴露 computer_do + screen_observe + 5 个热工具', names.join(',') === hotExpected.join(',') && s.reg.size === 7, names.join(','))
   check('B2 长尾工具不可直接调用', !s.reg.has('computer_menu') && !s.reg.has('computer_clipboard'))
 
@@ -148,22 +147,22 @@ function session(mode) {
   check('B8 工具列表全程稳定', s.reg.size === 7, `reg=${s.reg.size}`)
 }
 
-// ── C. dynamic 默认不变 ─────────────────────────────────────────────
+// ── C. 默认模式是 dispatcher ───────────────────────────────────────
 {
-  const s = session('dynamic')
-  check('C1 dynamic 折叠态仍是 2 个', s.reg.size === 2)
-  await s.reg.get('computer_do').execute({ action: 'enter' }, s.exec)
-  check('C2 dynamic enter 后仍是 22 个', s.reg.size === 22, `reg=${s.reg.size}`)
+  const s = session(undefined)
+  check('C1 未指定 surfaceMode 时默认 dispatcher（2 个可见）', s.reg.size === 2 && [...s.reg.keys()].sort().join(',') === 'computer_do,screen_observe', [...s.reg.keys()].join(','))
   const actionEnum = s.reg.get('computer_do').parameters?.properties?.action?.enum || []
-  check('C3 dynamic 仍是 enter/exit/status', actionEnum.includes('enter') && actionEnum.includes('exit') && !actionEnum.includes('call'), actionEnum.join(','))
+  check('C2 默认模式没有 enter/exit', actionEnum.includes('call') && !actionEnum.includes('enter') && !actionEnum.includes('exit'), actionEnum.join(','))
 }
 
 // ── D. 清单/宿主 schema 守门 ───────────────────────────────────────
 {
-  const hotSubset = dispatcher.HOT_TOOLS.every((n) => surface.EXPANDED_ONLY.includes(n))
-  check('D1 HOT_TOOLS 全部在 EXPANDED_ONLY 清单', hotSubset, dispatcher.HOT_TOOLS.join(','))
+  const probe = session('dispatcher')
+  const cat = await probe.call('computer_do', { action: 'catalog' })
+  const missingHot = dispatcher.HOT_TOOLS.filter((n) => !(cat.tools || []).includes(n))
+  check('D1 HOT_TOOLS 都在 dispatcher 隐藏清单', missingHot.length === 0, missingHot.join(',') || dispatcher.HOT_TOOLS.join(','))
   const modes = dispatcher.SURFACE_MODES
-  check('D2 surfaceMode 枚举完整', modes.includes('dynamic') && modes.includes('dispatcher') && modes.includes('hybrid'), modes.join(','))
+  check('D2 surfaceMode 枚举只有 dispatcher/hybrid', modes.includes('dispatcher') && modes.includes('hybrid') && !modes.includes('dynamic'), modes.join(','))
 
   const t = await import('@deepseek-ai/dsh-tools')
   for (const mode of ['dispatcher', 'hybrid']) {

@@ -189,13 +189,14 @@
 | 项 | 结果 |
 |---|---|
 | 依赖清单 | 旧清单 `dependencies.dsh-tools=0.1.1-rc.2`、本地 `node_modules/@deepseek-ai` 为空 → 干净 `node tests/schema.conformance.mjs` 真实退出码 **1**（`ERR_MODULE_NOT_FOUND @deepseek-ai/schemastery`）。改为 peerDependencies + devDependencies（`0.2.2-rc.1 / 3.19.0`）并 `npm install` 后，`node_modules` 实测即该两版本 |
-| 插件自测套件 | `npm test` **11 套、257 个 ✅、0 个 ❌**：posture / tools / delivery-chain（改为直接执行真实 `lib/cua.js`）/ schema.conformance **22 工具 × 44 场景** / observe.dedup（新增 value/enabled/selected/actions 变化）/ task.tool / config.plumbing / surface（22 工具）/ action-bounds / dispatcher.test（surfaceMode A/B）/ package-manifest |
-| 语法检查 | `npm run check` **17/17** JS + `bash -n install.sh/uninstall.sh` 全过 |
-| 打包面 | `npm pack --dry-run` **30 个文件**，无 `node_modules` / `.dsh-test` / `tests` |
+| 插件自测套件 | `npm test` **10 套、230 个 ✅、0 个 ❌**：posture / tools / delivery-chain（改为直接执行真实 `lib/cua.js`）/ schema.conformance **22 工具 × 44 场景** / observe.dedup（新增 value/enabled/selected/actions 变化）/ task.tool / config.plumbing / action-bounds / dispatcher.test（dispatcher/hybrid）/ package-manifest |
+| 语法检查 | `npm run check` **16/16** JS + `bash -n install.sh/uninstall.sh` 全过 |
+| 打包面 | `npm pack --dry-run` **29 个文件**，无 `node_modules` / `.dsh-test` / `tests` |
 | P0-0 测试保真 | `tests/delivery-chain.smoke.mjs` 直接导入真实 `cuaDeliver`，通过 `opts.call` 注入假驱动；A–H 八个分支（含 L3 window_id、hotkey 不升级、无 pid 不 L3）全过 |
 | P0-1/2/3/4/5 | `tests/action-bounds.mjs`：无快照 type/key/set_value 拒绝；type/key 绑定 `pid+window_id` 且无 `scope:desktop`；scroll/drag 透传 `window_id`；`suspected_noop` → `ok:false` + 先观察注记 + 快照可疑；指定窗口未匹配 → fail-closed + 候选列表 + 不建快照 |
 | P1-A/B | `computer_set_value` 通过 schema conformance（ok/refusal）与 payload 断言；observe 降噪哈希新增字段变化的“必须全量”断言 |
-| surfaceMode A/B | `tests/dispatcher.test.mjs` **32 断言全绿**：dispatcher 可见 2 / 隐藏 20；hybrid 可见 7 / 隐藏 15；catalog/隐藏工具不可直接调用/guard/stop/resume/参数校验/未知工具/screen_zoom 图片透传/工具面稳定/宿主 schema 断言；dynamic 折叠 2 → enter 22 回归 |
+| surfaceMode（dispatcher 默认 / hybrid） | `tests/dispatcher.test.mjs` **31 断言全绿**：dispatcher 可见 2 / 隐藏 20；hybrid 可见 7 / 隐藏 15；catalog/隐藏工具不可直接调用/guard/stop/resume/参数校验/未知工具/screen_zoom 图片透传/工具面稳定/宿主 schema 断言；默认 dispatcher 回归 |
 | **真实渠道 cache A/B（opencode / deepseek-v4.1-flash）** | dispatcher 稳定 tools：重复 99.5%、首次 tool_call 后 92.1%、第二次后 85.4%；lazy search 首次 +1 +0%、+4 17.7%，每次新增工具集合重新 full miss；结论：tools 列表必须稳定才能保 cache。脚本 `_dispatcher-live-cache.mjs` / `_cache-live5.mjs`（仓库外，key 只从 ZCode 配置读取，未打印） |
 | 模型可发现性（同渠道） | dispatcher：click/type（带观察上下文）/key/verify（带 expect 示例，max_tokens 1024）/clipboard/task/catalog 均正确生成 `computer_do({action:'call',...})`；无上下文时倾向先 screen_observe；scroll/无示例 verify 需要多一轮或更大 max_tokens。未执行真实桌面动作 |
+| 真机运行时（dispatcher 默认） | `verify-runtime.mjs` **16/16**：dispatcher 可见 2 / catalog 20 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` 与 native 图片落盘 / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致（真实 cua-driver 0.23.2；测试窗口为当前可见的 ChatGPT 窗口，只读观察） |
 | 真机加载 | **未完成**：headless profile 缺 `DEEPSEEK_API_KEY`，`dsh --profile headless` 在 LLM 路由处退出（不是插件加载错误）。离线已用宿主同版本包全绿；真机加载待有凭据的 profile 复跑 |

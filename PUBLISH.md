@@ -2,7 +2,7 @@
 
 > 状态更新：2026-09-17 · **v0.5.6 已发布**：`v0.3` 与 `main` 均指向 `789dd51`；注解 tag `v0.5.6`（→ `789dd51`）。
 > 发布前 check：`npm run check` / `npm test`（176 断言）/ `verify-runtime.mjs`（16/16）/ `npm pack --dry-run`（29 文件）/ headless 真机加载探针。
-> **2026-11-09 更新**：工作树含 P0/P1 安全边界修复 + 实验性 `surfaceMode`（dynamic/dispatcher/hybrid）；`npm test` 现为 **11 套 257 断言**，`npm run check` **17/17**，`npm pack --dry-run` 30 文件。发布仍需用户明说「发布」。
+> **2026-11-10 更新**：工作树含 P0/P1 安全边界修复 + `surfaceMode`（dispatcher 默认 / hybrid 可选；dynamic 已删除）；`npm test` 现为 **10 套 230 断言**，`npm run check` **16/16**，`npm pack --dry-run` 29 文件。发布仍需用户明说「发布」。
 > **部署现状（用户决定）**：web profile 已**回滚到 v0.5.3**（即本轮改动前的状态），
 > `~/.dsh/profiles/web/node_modules/dsh-computer-use.0.5.5-kept` 保留 0.5.5 副本；要切到新版本：改名该副本为 `dsh-computer-use` 后重启（`restart-dsh-capture.ps1`）。
 > npm 发布与 awesome 收录仍未做，见文末。
@@ -42,7 +42,7 @@ node evals/verify-oracles.mjs
 npm pack --dry-run
 
 # 7. 真机加载验证（必做：唯一能发现"整棵插件树加载失败"的检查）
-#    发布前用 headless 探针确认插件在真实 dsh 上能加载、折叠态生效：
+#    发布前用 headless 探针确认插件在真实 dsh 上能加载、默认 dispatcher 生效：
 dsh --profile headless --patch "<工作区>/_probe-surface.yml" "调用 computer_do(action='status')，把返回原文贴出来"
 
 # 8. 文档一致性（版本号 / 工具数 / 默认值三处对齐）

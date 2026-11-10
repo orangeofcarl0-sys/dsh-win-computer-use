@@ -17,14 +17,19 @@ const work = makeWorkCopy('task')
 const { check, state: checkState } = makeChecks()
 
 const plugin = await loadPlugin(work)
+const mod = await import(pathToFileURL(join(work, 'index.js')).href)
 const { GUI_ONLY_TOOLS, DELEGATION_RECIPE } = await import(pathToFileURL(join(work, 'lib', 'task.js')).href)
 
 async function setup({ subagents }) {
   const overrides = subagents ? { subagents } : {}
   const { reg, ctx, exec } = makeCtx({ services: makeServices(overrides), agent: { id: 'parent-agent' } })
   plugin.apply(ctx, { ttlMs: 60000, maxElements: 120, deliveryMode: 'auto', passwordScan: 'off' })
-  await reg.get('computer_do').execute({ action: 'enter' }, exec)   // 展开工具面（computer_task 属展开态）
-  return { call: (name, args) => reg.get(name).execute(args, exec), reg }
+  const defs = new Map(mod.toolDefinitions().map((d) => [d.name, d]))
+  return {
+    call: (name, args) => (defs.get(name) || reg.get(name)).execute(args, exec),
+    reg,
+    defs,
+  }
 }
 
 // ── T1/T2：请求构造 + 结构化结果映射 ─────────────────────────────────
@@ -125,12 +130,12 @@ async function setup({ subagents }) {
   check('T6c 全部降级失败 → 明确报错', rC.ok === false && /启动失败/.test(String(rC.result)), String(rC.result).slice(0, 70))
 }
 
-// ── T7：白名单与注册工具集一致性 ────────────────────────────────────
+// ── T7：白名单与工具定义一致性 ──────────────────────────────────────
 {
-  const { reg } = await setup({ subagents: null })
-  const registered = [...reg.keys()]
-  const missing = GUI_ONLY_TOOLS.filter((n) => !registered.includes(n))
-  check('T7 toolFilter 白名单全部是已注册工具', missing.length === 0, missing.length ? '缺: ' + missing.join(',') : `${GUI_ONLY_TOOLS.length} 项全在册`)
+  const { defs } = await setup({ subagents: null })
+  const available = [...defs.keys()]
+  const missing = GUI_ONLY_TOOLS.filter((n) => !available.includes(n))
+  check('T7 toolFilter 白名单全部是已定义工具', missing.length === 0, missing.length ? '缺: ' + missing.join(',') : `${GUI_ONLY_TOOLS.length} 项全在册`)
   check('T7 白名单不含非桌面工具（无 bash/文件类）', !GUI_ONLY_TOOLS.some((n) => /bash|shell|file|write|edit/i.test(n)))
 }
 
