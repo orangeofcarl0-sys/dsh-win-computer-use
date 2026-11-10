@@ -1,4 +1,4 @@
-# ARCHITECTURE — dsh-computer-use
+# ARCHITECTURE — dsh-win-computer-use
 
 > 结构快照：v0.5.7（未发布；工具面模式：`dispatcher` 可见 2 / 隐藏 20（默认）、`hybrid` 可见 7 / 隐藏 15；依赖单向 DAG：`index.js → lib → cua-driver`，无环、无兼容层）。
 
@@ -21,7 +21,7 @@
 | `lib/snapshot.js` | 132 | 单窗口快照 + TTL + 新鲜度语义（失效原因三分类 / supersession 门禁 / 消费与可疑标记；引擎侧 element_token 双重校验） | — |
 | `lib/attach.js` | 25 | 图片持久化统一出口（attachments.saveImage + 输出块装配） | — |
 | `tests/lib/harness.mjs` | 131 | 测试共享脚手架（临时工作副本 / 可编程驱动桩 / 假 ctx·exec / 严格 schema 校验器） | — |
-| `tests/*.mjs` | ~2000 | 离线测试 10 套、230 个 ✅（posture/tools/delivery-chain/schema.conformance 22 工具×44 场景/observe.dedup/task.tool/config.plumbing/action-bounds/dispatcher.test/package-manifest）；另 live-action e2e（真桌面 30 步） | — |
+| `tests/*.mjs` | ~2000 | 离线测试 10 套、231 个 ✅（posture/tools/delivery-chain/schema.conformance 22 工具×44 场景/observe.dedup/task.tool/config.plumbing/action-bounds/dispatcher.test/package-manifest）；另 live-action e2e（真桌面 30 步） | — |
 
 ## 2. 工具面模式（`surfaceMode`）
 

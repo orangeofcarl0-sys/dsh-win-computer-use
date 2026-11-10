@@ -1,4 +1,4 @@
-# dsh-computer-use 验证报告（VERIFICATION）
+# dsh-win-computer-use 验证报告（VERIFICATION）
 
 > 环境：macOS 15.6 (arm64) · harness-desktop（dsh 0.1.1-rc.2）· cua-driver 0.19.3
 > 方法：隔离 profile（.dsh-p0）headless 实测，未改动真实 GUI 配置
@@ -77,7 +77,7 @@
 |---|---|
 | 集成方式 | home 级用户 patch 层（`$DSH_HOME/cordis.patch.yml`）注入，不修改任何 profile 配置 |
 | install.sh | 执行成功：symlink 插件包 + 追加 home patch（幂等） |
-| 合成验证 | `dsh --profile web --dump-config` 确认 `dsh-computer-use` 在合成树中 |
+| 合成验证 | `dsh --profile web --dump-config` 确认 `dsh-win-computer-use` 在合成树中 |
 | **热生效** | **HMR 热加载确认：当前真实 GUI 会话可直接调用插件工具，screen_observe 返回格式与实现逐字段一致（含快照 ID 与提示语），无需重启** |
 | 内置冲突排查 | 全 app 范围 grep：harness-desktop **无内置** computer_click/screen_observe 同名工具，纯新增无覆盖 |
 | 卸载 | uninstall.sh |
@@ -91,7 +91,7 @@
 | 主题 | `com.dsh.computeruse.rainbow`（128×128, 30fps, 12 动作动画）|
 | 编译 | validate/build 通过（CuaDriver.app 内 cua-cursor-theme；CLI sidecar 缺失已绕过）|
 | 安装/切换 | 已入库；会话 demo 实测 **用户确认满意** |
-| 插件固化 | 动作绑定统一会话 `dsh-computer-use` + 启动自动 `set_agent_cursor_theme`（`cursorTheme` 配置项）|
+| 插件固化 | 动作绑定统一会话 `dsh-win-computer-use` + 启动自动 `set_agent_cursor_theme`（`cursorTheme` 配置项）|
 | 踩坑 | Lottie 层变换必须是标准动画属性格式（`{"a":0,"k":...}`）；形状不能包 `gr` group；渐变 `gf` 不支持 |
 
 ## 已知边界（非缺陷）
@@ -112,7 +112,7 @@
 | 附件字节解析 | adapter 注入 `resolveImageBytes`（`ctx.attachments.readImage`），无 attachment 服务时副作用明确报错 |
 | 单测 | `serialize.spec` / `adapter.spec` / `dynamic-config.spec` 全部更新并通过（含图片块用例、3 模型默认目录断言）|
 
-### 插件侧（dsh-computer-use，真实引擎闭环 12/12 ✅）
+### 插件侧（dsh-win-computer-use，真实引擎闭环 12/12 ✅）
 
 运行 `node verify-runtime.mjs`（隔离验证脚本，真实 cua-driver 0.21.0 daemon + 注入 attachments/llm 桩）：
 
@@ -189,7 +189,7 @@
 | 项 | 结果 |
 |---|---|
 | 依赖清单 | 旧清单 `dependencies.dsh-tools=0.1.1-rc.2`、本地 `node_modules/@deepseek-ai` 为空 → 干净 `node tests/schema.conformance.mjs` 真实退出码 **1**（`ERR_MODULE_NOT_FOUND @deepseek-ai/schemastery`）。改为 peerDependencies + devDependencies（`0.2.2-rc.1 / 3.19.0`）并 `npm install` 后，`node_modules` 实测即该两版本 |
-| 插件自测套件 | `npm test` **10 套、230 个 ✅、0 个 ❌**：posture / tools / delivery-chain（改为直接执行真实 `lib/cua.js`）/ schema.conformance **22 工具 × 44 场景** / observe.dedup（新增 value/enabled/selected/actions 变化）/ task.tool / config.plumbing / action-bounds / dispatcher.test（dispatcher/hybrid）/ package-manifest |
+| 插件自测套件 | `npm test` **10 套、231 个 ✅、0 个 ❌**：posture / tools / delivery-chain（改为直接执行真实 `lib/cua.js`）/ schema.conformance **22 工具 × 44 场景** / observe.dedup（新增 value/enabled/selected/actions 变化）/ task.tool / config.plumbing / action-bounds / dispatcher.test（dispatcher/hybrid）/ package-manifest |
 | 语法检查 | `npm run check` **16/16** JS + `bash -n install.sh/uninstall.sh` 全过 |
 | 打包面 | `npm pack --dry-run` **29 个文件**，无 `node_modules` / `.dsh-test` / `tests` |
 | P0-0 测试保真 | `tests/delivery-chain.smoke.mjs` 直接导入真实 `cuaDeliver`，通过 `opts.call` 注入假驱动；A–H 八个分支（含 L3 window_id、hotkey 不升级、无 pid 不 L3）全过 |

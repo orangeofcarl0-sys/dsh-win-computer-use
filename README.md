@@ -1,20 +1,24 @@
-# dsh-computer-use
+# dsh-win-computer-use
 
-> 我的 DeepSeek Harness 桌面操作插件：**观察 → 编号定位 → 自动升级投递 → 验证**，全程零审批、零打断。
+> **Windows-first Computer Use for DeepSeek Harness。**
+> 深度 Win32 / WinUI / UIA 工程 + 零审批投递升级：
+> 后台优先，失败自动前台，结束恢复原焦点。
+> 默认 2 个稳定入口，22 个桌面工具按需调度。
 
 [![Version](https://img.shields.io/badge/version-0.5.6-blue)]()
 [![dsh](https://img.shields.io/badge/dsh-0.1.5--rc.2-green)]()
+[![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#平台支持)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20first%20%7C%20macOS%20%7C%20Linux-lightgrey)](#平台支持)
 
 ![verified desktop demo](assets/demo-verified.png)
 
-> 源自 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use)（MIT）@`07477f4`，现为独立维护的个人项目，安全姿态与投递管线均按自有路线演进。出处与借鉴见文末[「出处与致谢」](#出处与致谢)。
+> 源自 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use)（MIT）@`07477f4`，现为独立维护的个人项目；2026-11-10 更名为 `dsh-win-computer-use`，安全姿态与投递管线均按自有路线演进。出处与借鉴见文末[「出处与致谢」](#出处与致谢)。
 
 ## 这是什么
 
-给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一套可观察、可验证的桌面操作层：**默认 2 个稳定入口（computer_do + screen_observe）/ 完整 22 个工具经 dispatcher 路由**，底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面（独立虚拟光标，不抢真实鼠标）。Windows 深度实测——前台锁、XAML/WinUI 输入、观测几何这些硬墙都在本机踩过并解决。
+给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一套 Windows 深度实测、可观察、可验证的 Computer Use 桌面操作层：**默认 2 个稳定入口（computer_do + screen_observe）/ 完整 22 个工具经 dispatcher 路由**，底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面（独立虚拟光标，不抢真实鼠标）。Windows 深度实测——前台锁、XAML/WinUI 输入、观测几何这些硬墙都在本机踩过并解决。
 
 三个核心机制：
 
@@ -62,7 +66,7 @@
 `computer_do({action:'catalog'})` 返回隐藏工具的紧凑签名，`action:'call'` 路由到隐藏实现（隐藏工具不注册、不可直接调用）。隐藏工具仍走原来的 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 的图片也会经 dispatcher 透传。
 
 ```yaml
-- id: dsh-computer-use
+- id: dsh-win-computer-use
   config:
     surfaceMode: dispatcher   # dispatcher（默认）| hybrid
 ```
@@ -116,8 +120,8 @@ export CUA_DRIVER_BIN=/path/to/cua-driver
 ### 安装插件
 
 ```bash
-git clone https://github.com/orangeofcarl0-sys/dsh-computer-use.git
-cd dsh-computer-use
+git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git
+cd dsh-win-computer-use
 ./install.sh --dry-run   # 预演，不写配置
 ./install.sh             # 链接进 profile + 注册 bundle patch
 ```
@@ -183,7 +187,7 @@ screen_observe（AX 树失败/树空）
 ## 配置
 
 ```yaml
-- id: dsh-computer-use
+- id: dsh-win-computer-use
   config:
     ttlMs: 60000
     maxElements: 120
@@ -247,7 +251,7 @@ screen_observe（AX 树失败/树空）
 ```bash
 npm install
 npm run check                      # 语法 + 安装脚本检查
-npm test                           # 十套离线测试、230 个 ✅：
+npm test                           # 十套离线测试、231 个 ✅：
                                    #   posture（无感自治姿态/凭据硬保护/快照新鲜度）
                                    #   tools · delivery-chain（直接执行真实 cuaDeliver）
                                    #   schema.conformance 22 工具 × 44 场景（按声明 schema 严格校验每种返回形态，
@@ -270,7 +274,7 @@ node evals/verify-oracles.mjs      # S4 评测 oracle 双向验证（setup 必 o
 
 # English (brief)
 
-Personal Computer Use plugin for the DeepSeek Harness: 2 stable tools by default (`computer_do` dispatcher + observe), with all 22 tools reachable through the dispatcher, driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Windows-deep-tested.
+Windows-first Computer Use plugin for the DeepSeek Harness: 2 stable tools by default (`computer_do` dispatcher + observe), with all 22 tools reachable through the dispatcher, driving local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor. Deep Win32/WinUI/UIA engineering; Windows-deep-tested.
 
 `surfaceMode` (default `dispatcher`; `hybrid` = 2 + 5 hot native tools, long tail routed) keeps the visible tool list stable so tool-layer changes do not break prompt caching. The old `dynamic` enter/exit surface has been removed.
 
@@ -278,7 +282,7 @@ Personal Computer Use plugin for the DeepSeek Harness: 2 stable tools by default
 
 **Loop**: `screen_observe` (AX/UIA index tree, native screenshot read, or vision observer) → act via `element` index or window-local screenshot pixels → auto-escalated delivery → observe again to verify.
 
-**Install**: install cua-driver, then `git clone https://github.com/orangeofcarl0-sys/dsh-computer-use.git && ./install.sh` (set `DSH_HOME` on Windows/Linux). Config defaults: `ttlMs: 60000`, `deliveryMode: auto`, `extremePatterns: []` — see the Chinese section above for the full table.
+**Install**: install cua-driver, then `git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git && ./install.sh` (set `DSH_HOME` on Windows/Linux). Config defaults: `ttlMs: 60000`, `deliveryMode: auto`, `extremePatterns: []` — see the Chinese section above for the full table.
 
 Derived from [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) (MIT); see [Acknowledgements](#出处与致谢).
 

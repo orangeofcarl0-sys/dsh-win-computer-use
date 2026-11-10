@@ -1,4 +1,4 @@
-# ROADMAP — dsh-computer-use
+# ROADMAP — dsh-win-computer-use
 
 个人项目路线图。状态基线：**v0.4.1**（无感自治姿态 + screen_zoom 定位原语，已发布）。
 

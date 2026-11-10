@@ -1,16 +1,24 @@
 {
-  "name": "dsh-computer-use",
+  "name": "dsh-win-computer-use",
   "version": "0.5.6",
-  "description": "DeepSeek Harness 的桌面操作插件（个人项目）：22 个模型友好工具（观察降噪/确定性验证/谓词轮询/剪贴板/菜单直调/直接设值/子 agent 委派（工具范围限制取决于宿主能力，回执如实说明）/强杀开关），默认 dispatcher 工具面（2 个常驻，其余隐藏路由；hybrid 可选）以保住 prompt cache，零审批自动提权，后台优先三级投递链，Windows 深度实测",
+  "description": "Windows-first Computer Use plugin for DeepSeek Harness: deep Win32/WinUI/UIA engineering, zero-approval delivery escalation (background → foreground → bring_to_front, restoring focus), 22 tools with a dispatcher-first 2-tool surface, prompt-cache friendly.",
   "type": "module",
   "main": "index.js",
   "license": "MIT",
   "keywords": [
     "dsh",
+    "deepseek-harness",
     "computer-use",
+    "windows",
+    "win32",
+    "winui",
+    "uia",
     "cua-driver",
     "harness-desktop",
-    "autopilot"
+    "desktop-automation",
+    "zero-friction",
+    "dispatch",
+    "prompt-cache"
   ],
   "dsh": {
     "bundle": {
@@ -59,7 +67,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/orangeofcarl0-sys/dsh-computer-use.git"
+    "url": "git+https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git"
   },
   "engines": {
     "node": ">=22.18.0"

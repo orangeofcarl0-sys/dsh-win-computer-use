@@ -1,10 +1,11 @@
-# dsh-computer-use 发布清单（PUBLISH）
+# dsh-win-computer-use 发布清单（PUBLISH）
 
 > 状态更新：2026-09-17 · **v0.5.6 已发布**：`v0.3` 与 `main` 均指向 `789dd51`；注解 tag `v0.5.6`（→ `789dd51`）。
 > 发布前 check：`npm run check` / `npm test`（176 断言）/ `verify-runtime.mjs`（16/16）/ `npm pack --dry-run`（29 文件）/ headless 真机加载探针。
-> **2026-11-10 更新**：工作树含 P0/P1 安全边界修复 + `surfaceMode`（dispatcher 默认 / hybrid 可选；dynamic 已删除）；`npm test` 现为 **10 套 230 断言**，`npm run check` **16/16**，`npm pack --dry-run` 29 文件。发布仍需用户明说「发布」。
-> **部署现状（用户决定）**：web profile 已**回滚到 v0.5.3**（即本轮改动前的状态），
-> `~/.dsh/profiles/web/node_modules/dsh-computer-use.0.5.5-kept` 保留 0.5.5 副本；要切到新版本：改名该副本为 `dsh-computer-use` 后重启（`restart-dsh-capture.ps1`）。
+> **2026-11-10 更新**：工作树含 P0/P1 安全边界修复 + `surfaceMode`（dispatcher 默认 / hybrid 可选；dynamic 已删除）；包/仓库更名为 `dsh-win-computer-use`。`npm test` 现为 **10 套 231 断言**，`npm run check` **16/16**，`npm pack --dry-run` 29 文件。发布仍需用户明说「发布」。
+> **部署现状（用户决定）**：web profile 仍是旧名 `dsh-computer-use` 的 **v0.5.3** 拷贝；
+> `~/.dsh/profiles/web/node_modules/dsh-computer-use.0.5.5-kept` 保留 0.5.5 副本。改名后新安装名是
+> `dsh-win-computer-use`；切换版本 = 用新名重装/改目录名后重启（`restart-dsh-capture.ps1`）。
 > npm 发布与 awesome 收录仍未做，见文末。
 
 ## 发布口径（2026-09-17 确立）
@@ -76,7 +77,7 @@ git ls-remote --tags origin | grep v0.5.4
 
 | 项 | 状态 |
 |----|------|
-| 仓库（现址）| `https://github.com/orangeofcarl0-sys/dsh-computer-use`（public，MIT） |
+| 仓库（现址）| `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
 | 派生来源 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4` 按 MIT 派生，独立维护 |
 | topics | `dsh-plugin` + `deepseek-harness` + `computer-use` + `cua-driver` + `ai-agents` |
 | dsh-plugin topic 收录 | ✅ 已出现在 https://github.com/topics/dsh-plugin |
@@ -85,15 +86,15 @@ git ls-remote --tags origin | grep v0.5.4
 
 ## ⏳ 待做：npm 发布（dsh-market 安装途径）
 
-> dsh-market（插件市场）安装插件**优先走 npm tarball**。`dsh plugin add <包名>` 从 npm 解析；名称 `dsh-computer-use` 已验证可用，npm 账号已登录（jerryweizhihao）。**尚未发布**。
+> dsh-market（插件市场）安装插件**优先走 npm tarball**。`dsh plugin add <包名>` 从 npm 解析；名称 `dsh-win-computer-use` 已验证可用，npm 账号已登录（jerryweizhihao）。**尚未发布**。
 
 ```bash
 npm pack --dry-run          # 先看包里内容（files 字段见 package.json）
 npm publish --access public # 需要 npm 2FA/token
-npm view dsh-computer-use version
+npm view dsh-win-computer-use version
 ```
 
-发布后 `dsh plugin --profile web add dsh-computer-use` 即可安装。
+发布后 `dsh plugin --profile web add dsh-win-computer-use` 即可安装。
 
 ## ⏳ 待做：awesome-dsh-plugin 收录 PR
 
@@ -101,7 +102,7 @@ npm view dsh-computer-use version
 2. 在 `README.md` 与 `README.zh.md` 的合适分类各加一行（候选分类 `Tools & Capabilities` / 新增 `Computer Use`）：
 
 ```markdown
-- [orangeofcarl0-sys/dsh-computer-use](https://github.com/orangeofcarl0-sys/dsh-computer-use) — 桌面操作插件：AX/UIA 编号树 + 原生截图直读，后台优先三级投递链，凭据硬保护
+- [orangeofcarl0-sys/dsh-win-computer-use](https://github.com/orangeofcarl0-sys/dsh-win-computer-use) — Windows-first 桌面操作插件：AX/UIA 编号树 + 原生截图直读，后台优先三级投递链，凭据硬保护
 ```
 
 3. 提交 PR（仓库已加 `dsh-plugin` topic，满足收录要求）。

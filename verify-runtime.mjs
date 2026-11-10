@@ -1,10 +1,10 @@
 /**
- * 运行时验证脚本（隔离）：加载 dsh-computer-use 插件，捕获其真实注册的工具定义，
+ * 运行时验证脚本（隔离）：加载 dsh-win-computer-use 插件，捕获其真实注册的工具定义，
  * 直接执行 execute + render，用真实 cua-driver 引擎（后台 daemon）+ attachments/llm 桩，
- * 验证：工具注册、ax 观察、native 直读（图片块 + attachments 落盘）、native 拒绝
- * （text-only route）、screen_zoom、vision 优雅降级、坐标语义标记。
+ * 验证：dispatcher 可见面、catalog、ax 观察、native 直读（图片块 + attachments 落盘）、native 拒绝
+ * （text-only route）、screen_zoom 经 dispatcher 图片透传、vision 优雅降级、坐标语义标记。
  *
- * 运行：node /Users/Zhuanz/development/plugins/dsh-computer-use/verify-runtime.mjs
+ * 运行：node /Users/Zhuanz/development/plugins/dsh-win-computer-use/verify-runtime.mjs
  */
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

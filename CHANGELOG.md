@@ -6,6 +6,7 @@
 
 ### Added
 
+- **更名（2026-11-10）**：包名/仓库名 `dsh-computer-use` → **`dsh-win-computer-use`**，定位为 Windows-first Computer Use；`package.json`、`cordis.patch.yml`、install/uninstall、README/文档与 GitHub 仓库同步更名。旧 GitHub URL 自动 redirect；npm 尚未发布，无历史包名负担。
 - **`surfaceMode`（2026-11-10：dispatcher 默认；dynamic 已废弃移除）**：`dispatcher` 只暴露 `computer_do + screen_observe`，`hybrid` 再暴露 click/type/key/scroll/verify 5 个高频原生工具；其余工具经 `computer_do({action:'call', tool, args})` 路由到隐藏实现，`action:'catalog'` 返回紧凑签名。隐藏工具不注册、不可直接调用，但仍走原 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 图片经 dispatcher 透传。旧 `lib/surface.js`、enter/exit、自动回落和 `tests/surface.mjs` 已删除。
 - **`lib/dispatcher.js`**：模式常量（`SURFACE_MODES`、`HOT_TOOLS`）、可见/隐藏工具清单、catalog 签名生成。
 - **`tests/dispatcher.test.mjs`**（31 断言）：A/B 注册面、catalog、隐藏工具不可直接调用、guard/stop/resume、参数校验、未知工具、图片透传、工具面稳定、宿主 schema 断言；默认 dispatcher 回归。

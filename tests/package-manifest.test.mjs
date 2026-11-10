@@ -25,6 +25,11 @@ const check = (name, fn) => {
   }
 }
 
+check('包名与仓库名已统一为 dsh-win-computer-use', () => {
+  assert.equal(pkg.name, 'dsh-win-computer-use')
+  assert.match(pkg.repository?.url || '', /dsh-win-computer-use\.git$/)
+})
+
 check('宿主包没有出现在 dependencies', () => {
   const deps = pkg.dependencies || {}
   assert.equal(Object.keys(deps).filter((k) => k.startsWith('@deepseek-ai/')).length, 0, JSON.stringify(deps))

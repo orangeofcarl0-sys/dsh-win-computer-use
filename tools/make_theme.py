@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dsh-computer-use 光标主题生成器 v2 —— 彩虹渐变箭头
+dsh-win-computer-use 光标主题生成器 v2 —— 彩虹渐变箭头
 dotLottie 主题：128x128, 30fps, 12 个动作动画。
 渐变实现：箭头主体由 4 条纯色带拼接（左上→右下渐变），每条色带颜色做
 关键帧动画（彩虹流动）= "动态渐变"。白色描边保证任意背景下可见。
@@ -145,8 +145,8 @@ def make_animation(action, frames=30):
 
 def make_dotlottie(out_path):
     manifest = {
-        "version": "1.0", "generator": "dsh-computer-use",
-        "author": "dsh-computer-use",
+        "version": "1.0", "generator": "dsh-win-computer-use",
+        "author": "dsh-win-computer-use",
         "animations": [{"id": a, "playMode": "normal"} for a in ACTIONS],
     }
     theme = {
@@ -154,7 +154,7 @@ def make_dotlottie(out_path):
         "id": "com.dsh.computeruse.rainbow",
         "name": "彩虹渐变指针",
         "version": "1.0.0",
-        "author": "dsh-computer-use",
+        "author": "dsh-win-computer-use",
         "license": "MIT",
         "compatibility": {"profile": "cua-driver-actions-v2", "semantics": 2},
         "canvas": {"width": W, "height": H, "fps": FPS},

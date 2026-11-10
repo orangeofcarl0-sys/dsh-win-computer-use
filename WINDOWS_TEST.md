@@ -1,6 +1,6 @@
 # Windows 双平台冒烟验证指南
 
-> 目标：验证 dsh-computer-use 在 Windows 上完成"打开应用 → 点击 → 输入"闭环。
+> 目标：验证 dsh-win-computer-use 在 Windows 上完成"打开应用 → 点击 → 输入"闭环。
 > 无 Windows 真机时，可用 cua-driver 官方的 "Drive a Windows app over SSH" 方案远程驱动。
 
 ## 前置
@@ -24,14 +24,14 @@
 ## 冒烟步骤（headless，可脚本化）
 
 1. **引擎连通**：`cua-driver call get_screen_size '{}'` 返回分辨率
-2. **插件加载**：`dsh --profile web --dump-config` 含 `dsh-computer-use`
+2. **插件加载**：`dsh --profile web --dump-config` 含 `dsh-win-computer-use`
 3. **闭环 demo**（headless prompt）：
    ```
    1) app_list 列出应用
    2) app_launch 打开"记事本"(notepad.exe, bring_to_front)
    3) screen_observe 观察（UIA 树）
    4) computer_click 点击编辑区（element 编号）
-   5) computer_type 输入 "hello dsh-computer-use"
+   5) computer_type 输入 "hello dsh-win-computer-use"
    6) screen_observe 验证文本已输入
    ```
 4. **边界验证**：

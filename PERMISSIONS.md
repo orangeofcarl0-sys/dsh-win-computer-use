@@ -1,6 +1,6 @@
-# PERMISSIONS — dsh-computer-use
+# PERMISSIONS — dsh-win-computer-use
 
-本文件声明 `dsh-computer-use` 插件在运行时实际使用的权限面（DSH STORE 审查依据）。
+本文件声明 `dsh-win-computer-use` 插件在运行时实际使用的权限面（DSH STORE 审查依据）。
 
 ## 总览（运行时行为）
 

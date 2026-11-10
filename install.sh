@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 安装 dsh-computer-use 到 harness-desktop（home 级用户 patch 层）。
+# 安装 dsh-win-computer-use 到 harness-desktop（home 级用户 patch 层）。
 #
 # 原理（dsh profile-boot）：
 #   patch 层顺序 = bundle → profile 层 → HOME 层（$DSH_HOME/cordis.patch.yml）→ --patch
@@ -14,7 +14,7 @@ DRY_RUN=0
 DSH_HOME="${DSH_HOME:-$HOME/Library/Application Support/harness-desktop/dsh-home}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 
-echo "== dsh-computer-use install (home patch layer) =="
+echo "== dsh-win-computer-use install (home patch layer) =="
 echo "  DSH_HOME: $DSH_HOME"
 echo "  source  : $SRC"
 
@@ -22,26 +22,26 @@ echo "  source  : $SRC"
 NM_DIR="$DSH_HOME/profiles/web/node_modules"
 [ -d "$NM_DIR" ] || { echo "错误: 未找到 $NM_DIR"; exit 1; }
 if [ "$DRY_RUN" = 1 ]; then
-  echo "  [dry-run] ln -sfn $SRC -> $NM_DIR/dsh-computer-use"
+  echo "  [dry-run] ln -sfn $SRC -> $NM_DIR/dsh-win-computer-use"
 else
-  ln -sfn "$SRC" "$NM_DIR/dsh-computer-use"
+  ln -sfn "$SRC" "$NM_DIR/dsh-win-computer-use"
   echo "  [ok] 插件包已链接"
 fi
 
 # 2. 在 home 级 patch 层注册（幂等：已存在则跳过）
 PATCH="$DSH_HOME/cordis.patch.yml"
 if [ "$DRY_RUN" = 1 ]; then
-  echo "  [dry-run] 写入 $PATCH : insert dsh-computer-use"
+  echo "  [dry-run] 写入 $PATCH : insert dsh-win-computer-use"
 else
   touch "$PATCH"
-  if grep -q "dsh-computer-use" "$PATCH"; then
-    echo "  [ok] $PATCH 已含 dsh-computer-use（跳过）"
+  if grep -q "dsh-win-computer-use" "$PATCH"; then
+    echo "  [ok] $PATCH 已含 dsh-win-computer-use（跳过）"
   else
     {
-      printf '# dsh-computer-use 用户级注册（install.sh 生成）\n'
+      printf '# dsh-win-computer-use 用户级注册（install.sh 生成）\n'
       printf -- '- insert:\n'
-      printf '    - id: dsh-computer-use\n'
-      printf '      name: dsh-computer-use\n'
+      printf '    - id: dsh-win-computer-use\n'
+      printf '      name: dsh-win-computer-use\n'
       printf '      config:\n'
       printf '        ttlMs: 15000\n'
       printf '        maxElements: 500\n'

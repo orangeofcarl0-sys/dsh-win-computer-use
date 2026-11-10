@@ -459,7 +459,7 @@ function readJsonSafe(p) {
   try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return null }
 }
 function pluginVersion() {
-  const p = readJsonSafe(join(homedir(), '.dsh', 'profiles', 'web', 'node_modules', 'dsh-computer-use', 'package.json'))
+  const p = readJsonSafe(join(homedir(), '.dsh', 'profiles', 'web', 'node_modules', 'dsh-win-computer-use', 'package.json'))
   return p?.version || 'unknown'
 }
 function dshVersion() {

@@ -1,5 +1,5 @@
 /**
- * dsh-computer-use —— Computer Use 插件：给 harness-desktop 增加"虚拟鼠标真人操作"。
+ * dsh-win-computer-use —— Windows-first Computer Use 插件：给 harness-desktop 增加"虚拟鼠标真人操作"。
  *
  * 工具集（Hermes 风格，模型友好，共 22 个，按域分三组注册）：
  *   观察组：screen_observe / screen_zoom
@@ -55,7 +55,7 @@ import {
   SURFACE_MODES, catalogOf, hiddenToolNames, visibleToolsForMode,
 } from './lib/dispatcher.js'
 
-export const name = 'dsh-computer-use'
+export const name = 'dsh-win-computer-use'
 
 export const inject = ['tools']
 
@@ -855,7 +855,7 @@ export function apply(ctx, config) {
   }
 
   ctx.logger?.info(
-    `dsh-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；其余经 computer_do dispatcher 路由）`,
+    `dsh-win-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；其余经 computer_do dispatcher 路由）`,
   )
 }
 

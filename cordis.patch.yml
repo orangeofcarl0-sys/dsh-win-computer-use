@@ -1,11 +1,13 @@
-# dsh-computer-use bundle patch：把 Computer Use 插件插入 profile。
+# dsh-win-computer-use bundle patch：把 Windows-first Computer Use 插件插入 profile。
 #
-# 作为 dsh.bundle.patch 被 dsh 加载器消费。insert 引用本包（dsh-computer-use），
+# 作为 dsh.bundle.patch 被 dsh 加载器消费。insert 引用本包（dsh-win-computer-use），
 # 加载器会从 profile 的 node_modules 解析它并加载为 Cordis 插件。
 - insert:
-    - id: dsh-computer-use
-      name: dsh-computer-use
+    - id: dsh-win-computer-use
+      name: dsh-win-computer-use
       config:
+        # 工具面模式：dispatcher（默认，2 个常驻 + 20 个隐藏路由）| hybrid（2 + 5 个热工具）
+        surfaceMode: dispatcher
         # 观察快照有效期（毫秒）：长会话减少重复观察
         ttlMs: 60000
         # 单次观察最多返回的编号元素数（实测常见任务 30-70 个；大树可显式调大）
