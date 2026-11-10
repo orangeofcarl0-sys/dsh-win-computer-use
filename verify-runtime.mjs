@@ -23,7 +23,11 @@ const liveWindowList = await cuaCall('list_windows', { on_screen_only: true })
 const testWindow = (liveWindowList.windows || []).find((w) =>
   // 排除驱动自身与系统 shell 窗口：cua-driver 会拒绝观察自己的窗口
   // （原正则只匹 "cua-driver"，实际进程名是 "cua-driver.exe" → 选中后必降级，造成假失败）
-  w.window_id && w.pid && w.app_name && !/cua[-_ ]?driver/i.test(w.app_name) && !/^(CursorUIViewService|ApplicationFrameHost|Windows Shell Experience Host)$/i.test(w.app_name)
+  // 同时跳过 0×0 的 shell 弹窗：实测 explorer 的"主机弹出窗口"会被列出但截图 0B，造成图像断言假失败。
+  w.window_id && w.pid && w.app_name
+  && Number(w.bounds?.width) > 0 && Number(w.bounds?.height) > 0
+  && !/cua[-_ ]?driver/i.test(w.app_name)
+  && !/^(CursorUIViewService|ApplicationFrameHost|Windows Shell Experience Host)$/i.test(w.app_name)
 )
 if (!testWindow) throw new Error('verify-runtime: 当前没有可用于真实观察的可见窗口')
 const testWindowRef = String(testWindow.pid)
