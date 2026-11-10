@@ -1,15 +1,17 @@
 # Changelog
 
+> **版本状态（2026-11-10）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布）。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+
 ## 0.5.7 (未发布)
 
-**2026-11-09 安全边界与可复现性修复（P0/P1）**
+**2026-11-09/10：安全边界与可复现性修复（P0/P1）+ 工具面收敛 + Windows-first 更名 + 文档体系重写**
 
 ### Added
 
 - **更名（2026-11-10）**：包名/仓库名 `dsh-computer-use` → **`dsh-win-computer-use`**，定位为 Windows-first Computer Use；`package.json`、`cordis.patch.yml`、install/uninstall、README/文档与 GitHub 仓库同步更名。旧 GitHub URL 自动 redirect；npm 尚未发布，无历史包名负担。
 - **`surfaceMode`（2026-11-10：dispatcher 默认；dynamic 已废弃移除）**：`dispatcher` 只暴露 `computer_do + screen_observe`，`hybrid` 再暴露 click/type/key/scroll/verify 5 个高频原生工具；其余工具经 `computer_do({action:'call', tool, args})` 路由到隐藏实现，`action:'catalog'` 返回紧凑签名。隐藏工具不注册、不可直接调用，但仍走原 guard/快照/stop 锁存/参数校验/回执；`screen_zoom` 图片经 dispatcher 透传。旧 `lib/surface.js`、enter/exit、自动回落和 `tests/surface.mjs` 已删除。
 - **`lib/dispatcher.js`**：模式常量（`SURFACE_MODES`、`HOT_TOOLS`）、可见/隐藏工具清单、catalog 签名生成。
-- **`tests/dispatcher.test.mjs`**（31 断言）：A/B 注册面、catalog、隐藏工具不可直接调用、guard/stop/resume、参数校验、未知工具、图片透传、工具面稳定、宿主 schema 断言；默认 dispatcher 回归。
+- **`tests/dispatcher.test.mjs`**（32 断言）：A/B 注册面、catalog、隐藏工具不可直接调用、guard/stop/resume、参数校验、未知工具、图片透传、工具面稳定、宿主 schema 断言；默认 dispatcher 回归。
 - **`computer_set_value`（第 22 个工具）**：驱动 `set_value`（UIA `ValuePattern`）直连，适用于可设置控件（文本框/滑块/下拉）；Web/自绘控件可能忽略，回执明确提示改用 `computer_type` 或点击后输入。加入 `OPERATION_TOOLS`（密码框硬拒）与 dispatcher catalog。
 - **`tests/action-bounds.mjs`**：P0-1/2/3/4/5 与 P1-A 的行为边界测试（无快照拒绝、type/key/scroll/drag 的窗口绑定、suspected_noop、窗口未匹配 fail-closed、set_value payload）。
 - **`tests/package-manifest.test.mjs`**：锁定 peerDependencies / devDependencies / dsh 兼容下限 / 发布文件清单 / 权限声明，防清单回归。
@@ -24,10 +26,15 @@
 - **`screen_observe(window=...)` 未匹配时静默回退最前窗口（P0-5）**：改为 fail-closed，返回候选窗口列表且不建立快照；未指定 window 时才取 z 序最前，提示文案不再把“指定了但没找到”误写成“未指定”。
 - **观察降噪哈希漏字段（P1-B）**：旧哈希只看映射后的 `label`（`label || value` 截断 48 字符）；当 Edit 的 label 非空时 value 完全不参与，长文本/`enabled`/`selected`/`actions` 变化会被误判“状态未变”。改为基于驱动原始元素的 SHA-1 指纹（完整 label/value/enabled/selected/actions/is_password/parent/depth/frame），时间/行列噪声仍归一化。
 - **宿主依赖清单与测试环境错位（P0-6）**：`dependencies` 固定 `dsh-tools 0.1.1-rc.2`，而宿主已是 `0.2.2-rc.1`，干净 checkout 跑 `npm test` 直接 `ERR_MODULE_NOT_FOUND`。改为 `peerDependencies`（`dsh-tools >=0.1.5-rc.2 <0.3.0`、`schemastery >=3.18.2 <4`）+ `devDependencies` 固定实测 `0.2.2-rc.1 / 3.19.0`；lockfile 同步。
+- **`install.sh` 生成的默认值过期**：仍写 `ttlMs: 15000 / maxElements: 500`，与当前默认 `60000/120` 不一致（新装用户会得到过短 TTL）。改为 `surfaceMode: dispatcher / ttlMs: 60000 / maxElements: 120`。
+- **`computer_task` 的超时描述与实现不一致**：参数说明写“默认 10”，实际取 `taskTimeoutMin`（默认 5）。描述改为“默认取 taskTimeoutMin，默认 5”。
+- **委派白名单漏 `computer_set_value`**：`GUI_ONLY_TOOLS` 仍是 19 项，新增的设值工具不在白名单。补为 20 项（仍排除 `computer_task` 防递归）。
+- **权限元数据与可选网络不一致**：`package.json` 的 `externalServices: "none"` 与 GLM 兜底的外呼事实冲突；改为条件性说明，并补全 `CUA_SESSION/GLM_API_BASE/GLM_VISION_MODEL` 环境变量。
 
 ### Changed
 
 - **dsh 兼容下限保持 `>=0.1.5-rc.2`**：0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。0.5.7 移除 dynamic 后不再依赖 `agent.ctx` 作用域注册与 `tools/result`；实测宿主为 0.2.2-rc.1。
+- **文档体系重写（2026-11-10）**：README 重排为“产品入口 + 工具参考 + 边界”；新增 `docs/WINDOWS.md`（Windows 工程与冒烟矩阵）、`docs/TESTING.md`（测试分层）；重写 `docs/ARCHITECTURE.md`（模块/流水线/不变量/扩展/已知缺口）、`VERIFICATION.md`（当前矩阵 + 历史证据）、`PERMISSIONS.md`（条件性网络与全部环境变量）、`ROADMAP.md`、`PUBLISH.md`、`docs/store-evidence.md`；`HANDOFF-2026-09-16.md` 并入 `MAINTAINING.md` 后移除。修正 macOS/Linux 过度声明、危险词审批旧验收、像素点击“零标定命中”等与实现不一致的表述。
 
 ### Measured
 
@@ -66,7 +73,7 @@
 
 - **坐标换算基准元数据**：observe/zoom 输出 `screenOrigin`（= `list_windows` 的 bounds；实测截图与该 bounds 逐像素相同）+ `coordinateSpace`，使"图内像素 × crop.scale + crop 原点 + screenOrigin = 屏幕物理像素"可算（zoom 实测为恒定 1.2× 上采样，裁剪宽 ≤500px）。
 - **未知参数拒发**：宿主参数表编译后不含 additionalProperties，参数名写错会被静默忽略并可能回退"z 序最前窗口"（实测踩坑：给 screen_observe 传 `app=` 观察到了别的应用）→ `wrap()` 单点拒绝并列明可接受参数；observe 未指定 window 时结果显式注明"已取最前窗口"。
-- **测试面**：`tests/schema.conformance.mjs`（把实现可能返回的每种形态——正常/守卫拒绝/观测降级/驱动错误——对着声明 schema 严格校验；本版收尾时覆盖 20 工具 × 42 场景）、`tests/live-action.e2e.mjs`（真桌面动作闭环 + 稳定性循环）、`tests/syntax.check.mjs`（修 `npm run check` 的 Windows glob 失效）。
+- **测试面**：`tests/schema.conformance.mjs`（把实现可能返回的每种形态——正常/守卫拒绝/观测降级/驱动错误——对着声明 schema 严格校验；本版收尾时覆盖 20 个工具 / 42 个场景）、`tests/live-action.e2e.mjs`（真桌面动作闭环 + 稳定性循环）、`tests/syntax.check.mjs`（修 `npm run check` 的 Windows glob 失效）。
 - **S4 评测回归系统**（仓库 `evals/`）：9 条任务（冒烟 4 + 核心 5）、PS oracle 四件套（setup/oracle/cleanup/simulate）、AC2 双向独立验证、零依赖 CDP runner（`--tier/--max-steps/--pin-model/--pin-effort`）、maintain/stop-stale/hygiene 运维脚本；坐标标定与键盘通道诊断脚本一并入库。
 
 ### Fixed

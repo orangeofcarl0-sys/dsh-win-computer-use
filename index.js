@@ -563,7 +563,7 @@ function taskToolDefs(ctx, cfg, wrap) {
       goal: { type: 'string', required: true, description: '要完成的操作目标（含具体路径/名称等要素）。' },
       success_criteria: { type: 'string', description: '可选：完成判据（子 agent 据此自评，并作为证据要求）。' },
       constraints: { type: 'string', description: '可选：附加约束（如"不要改动其它文件""保留原窗口"）。' },
-      timeout_min: { type: 'integer', description: '可选：超时分钟数（默认 10，1-60）；到点取消子任务并返回失败。' },
+      timeout_min: { type: 'integer', description: '可选：超时分钟数（默认取 taskTimeoutMin，默认 5；1-60）；到点取消子任务并返回失败。' },
       model: { type: 'string', description: '可选：子 agent 使用的模型 id（默认继承当前）。' },
       model_effort: { type: 'string', description: '可选：子 agent 推理档（如 low/medium/high；默认继承当前）。' },
     },

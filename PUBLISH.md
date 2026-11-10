@@ -1,114 +1,188 @@
-# dsh-win-computer-use 发布清单（PUBLISH）
+# PUBLISH — 发布与部署手册
 
-> 状态更新：2026-09-17 · **v0.5.6 已发布**：`v0.3` 与 `main` 均指向 `789dd51`；注解 tag `v0.5.6`（→ `789dd51`）。
-> 发布前 check：`npm run check` / `npm test`（176 断言）/ `verify-runtime.mjs`（16/16）/ `npm pack --dry-run`（29 文件）/ headless 真机加载探针。
-> **2026-11-10 更新**：工作树含 P0/P1 安全边界修复 + `surfaceMode`（dispatcher 默认 / hybrid 可选；dynamic 已删除）；包/仓库更名为 `dsh-win-computer-use`。`npm test` 现为 **10 套 231 断言**，`npm run check` **16/16**，`npm pack --dry-run` 29 文件。发布仍需用户明说「发布」。
-> **部署现状（用户决定）**：web profile 仍是旧名 `dsh-computer-use` 的 **v0.5.3** 拷贝；
-> `~/.dsh/profiles/web/node_modules/dsh-computer-use.0.5.5-kept` 保留 0.5.5 副本。改名后新安装名是
-> `dsh-win-computer-use`；切换版本 = 用新名重装/改目录名后重启（`restart-dsh-capture.ps1`）。
-> npm 发布与 awesome 收录仍未做，见文末。
+> 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
+> 当前状态（2026-11-10）：`v0.5.6` 已发布（tag 指向 `68770fd`）；`main` 含 `0.5.7-dev` 未发布变更（文档提交以 `git log -1` 为准）；npm 未发布；web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3。
 
-## 发布口径（2026-09-17 确立）
+## 1. 当前状态
+
+| 项 | 值 |
+|---|---|
+| 仓库 | `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
+| 默认分支 | `main`（单分支；旧 `v0.3` 已合并/删除） |
+| 最新发布 tag | `v0.5.6` → `68770fd`（注解 tag） |
+| `main` HEAD | `c29e019` + 本次文档提交（以 `git log -1` 为准） |
+| `package.json` version | `0.5.6`（发布 0.5.7 时才 bump） |
+| npm | 未发布；名称 `dsh-win-computer-use` 可用 |
+| 部署 | web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3 拷贝；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
+| 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
+
+## 2. 版本口径
 
 | 项 | 约定 |
 |---|---|
-| 版本号 | `package.json` / `package-lock.json` 的 `version` = tag 名（去掉 `v`）；CHANGELOG 顶部为该版本一节 |
-| 发布载体 | **单一分支 `main`**（2026-09-17 收敛：原先 `v0.3` + `main` 双分支且各自指向同一提交，已删 `v0.3`，与其它仓库惯例一致）+ 版本注解 tag |
-| tag | **注解 tag**（`git tag -a v0.5.4 -m "…"`），历史 tag 均为注解 tag |
-| push 授权 | **仅用户明说「发布」时执行**；本地提交自主（见 HANDOFF 工作约定 5） |
-| 发布前 check | 见下节「发布前 check」，全绿才动 push |
+| 版本号 | `package.json` / `package-lock.json` 的 `version` = tag 名去掉 `v` |
+| CHANGELOG | 顶部为当前版本一节；未发布时写“0.5.7 (未发布)” |
+| tag | **注解 tag**：`git tag -a v0.5.7 -m "..."` |
+| 分支 | 只推 `main`；不再维护发布分支 |
+| 发布物 | 提交 + 注解 tag；不是工作区 |
+| 授权 | push/tag/npm/部署只在用户明说“发布”时执行 |
 
-## 发布前 check（逐项跑，看退出码不看输出）
+## 3. 发布前检查（逐项跑，看退出码）
 
 ```bash
 # 0. 工作树必须干净（发布物 = 提交，不是工作区）
 git status --short
 
 # 1. 语法 + 安装脚本
-npm run check
+npm run check; echo "check=$?"
 
-# 2. 离线测试（七套 148 断言；&& 串联，必须看 $?，别只 grep 输出）
-npm test; echo "exit=$?"
+# 2. 离线测试（10 套 / 231 断言；&& 串联，必须看 $?）
+npm test; echo "test=$?"
 
-# 3. 真驱动运行时验证（真实 cua-driver + harness）
+# 3. 真驱动运行时（只读观察；16/16）
 node verify-runtime.mjs
 
-# 4. 真桌面动作闭环（真记事本 3 轮；自带清理，按标题匹配）
+# 4. 真桌面动作闭环（23/23；会打开临时记事本，残留标签人工关闭）
 node tests/live-action.e2e.mjs 3
 
-# 5. S4 评测 oracle 双向验证（setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净）
+# 5. S4 oracle 双向验证（10/10）
 node evals/verify-oracles.mjs
 
-# 6. 打包面预检：确认 npm 包里只有运行面文件（无内部项目书/测试/文档草稿）
+# 6. 打包面（31 文件；确认没有 node_modules/.dsh-test/tests）
 npm pack --dry-run
 
-# 7. 真机加载验证（必做：唯一能发现"整棵插件树加载失败"的检查）
-#    发布前用 headless 探针确认插件在真实 dsh 上能加载、默认 dispatcher 生效：
-dsh --profile headless --patch "<工作区>/_probe-surface.yml" "调用 computer_do(action='status')，把返回原文贴出来"
+# 7. 真机加载（必做；唯一能发现“整棵插件树加载失败”的检查）
+#    需要凭据；headless 缺 DEEPSEEK_API_KEY 会在 LLM 路由退出，不是加载错误
+dsh --profile headless --patch "<工作区>/_probe-surface.yml" \
+  "调用 computer_do(action='status')，把返回原文贴出来"
 
-# 8. 文档一致性（版本号 / 工具数 / 默认值三处对齐）
+# 8. 文档一致性（版本/工具数/配置键三处对齐）
 grep -n '"version"' package.json package-lock.json
-grep -rn "个模型友好工具\|20 个工具" README.md package.json docs/store-evidence.md
+grep -rn "231\|22 个工具\|20 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
 ```
 
-历史上真正抓出过问题的两类检查：**schema 严格校验（`schema.conformance`）**与**真机闭环（`live-action.e2e`）**——前者抓到过工具输出 schema 缺口、结构化拒绝误报成功；后者抓到过 Windows 前台锁与 XAML 输入通道问题。
+历史上真正抓出过问题的检查：
 
-## 发布步骤
+- **schema 严格校验**：抓过输出 schema 缺口、结构化拒绝误报成功；
+- **真机 live e2e**：抓过 Windows 前台锁与 XAML 输入通道；
+- **真机 headless 探针**：抓过 `defineTool` 投影丢失导致整棵树加载失败；
+- **退出码**：只 grep 输出会把“某套中途崩溃、前面全绿”误判为通过（实际踩过）。
+
+## 4. 发布步骤
 
 ```bash
-# 1. 收尾提交（版本号、CHANGELOG、文档）
-git add -A && git commit -m "0.5.4 …"
+# 1. 版本号与 CHANGELOG（0.5.6 -> 0.5.7；package-lock 同步）
+#    手动编辑 package.json / package-lock.json / CHANGELOG.md
 
-# 2. 推送工作分支
-git push origin v0.3
+# 2. 收尾提交（中文一句话：版本 + 主题）
+git add -A
+git commit -m "0.5.7 文档体系重写 + P0/P1 边界 + dispatcher 默认 + Windows-first 更名"
 
 # 3. 注解 tag（标题即发布说明首行）
-git tag -a v0.5.4 -m "0.5.4：dsh 0.1.5 适配 + 坐标契约根治 + 观察降噪/上下文预算 A–F + S4 评测系统 + 结构治理"
-git push origin v0.5.4
+git tag -a v0.5.7 -m "0.5.7：Windows-first 更名 + dispatcher 默认 + P0/P1 安全边界 + 文档体系重写"
 
-# 4. 默认分支对齐（main 是 v0.3 的祖先，快进无冲突；GitHub 首页访问者才看得到新代码）
-git push origin v0.3:main
+# 4. 推送 main 与 tag
+git push origin main
+git push origin v0.5.7
 
 # 5. 复核
-git ls-remote --tags origin | grep v0.5.4
+git ls-remote --tags origin | grep v0.5.7
+git log --oneline -1
 ```
 
-## ✅ 已完成：GitHub 仓库与收录
+不要：
 
-| 项 | 状态 |
-|----|------|
-| 仓库（现址）| `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
-| 派生来源 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4` 按 MIT 派生，独立维护 |
-| topics | `dsh-plugin` + `deepseek-harness` + `computer-use` + `cua-driver` + `ai-agents` |
-| dsh-plugin topic 收录 | ✅ 已出现在 https://github.com/topics/dsh-plugin |
-| 内部项目书 | ✅ 已从远程移除（`dsh-computer-use.md` 在 .gitignore；⚠️ 首次提交的历史里仍有，介意需 filter-repo 重写） |
-| tag 历史 | v0.4.0 / v0.4.1 / v0.5.0 / v0.5.1 / v0.5.2 / v0.5.3 / v0.5.4 / v0.5.5 / **v0.5.6**（均为注解 tag；仓库未使用 GitHub Releases 页面，PUBLISH 视其为可选项）|
+- 不要推 `v0.3`（分支已不存在）；
+- 不要在未 bump 版本时打 tag；
+- 不要用 `--force` 推 `main`。
 
-## ⏳ 待做：npm 发布（dsh-market 安装途径）
+## 5. 发布后
 
-> dsh-market（插件市场）安装插件**优先走 npm tarball**。`dsh plugin add <包名>` 从 npm 解析；名称 `dsh-win-computer-use` 已验证可用，npm 账号已登录（jerryweizhihao）。**尚未发布**。
+| 项 | 命令/动作 |
+|---|---|
+| GitHub Release | 可选；tag 已含说明 |
+| npm | `npm publish --access public`（需 2FA/token；见 §7） |
+| 部署 | 按 §6 重新安装/链接并重启 |
+| 公告 | 更新 README 版本徽章/状态段、GitHub description/topics |
+| 复核 | `npm view dsh-win-computer-use version`；`dsh --profile web --dump-config` |
+
+## 6. 部署到 web profile
+
+**现状**：web profile 跑的是**拷贝**，不是指向仓库的链接；发布 tag 不会自动进入用户 harness。切换必须重新安装/链接并重启。
 
 ```bash
-npm pack --dry-run          # 先看包里内容（files 字段见 package.json）
-npm publish --access public # 需要 npm 2FA/token
+# 1. 备份当前目录（不要直接覆盖旧版；保留回滚能力）
+#    当前旧名：~/.dsh/profiles/web/node_modules/dsh-computer-use
+#    新名：    ~/.dsh/profiles/web/node_modules/dsh-win-computer-use
+
+# 2. 用新名安装（推荐 install.sh；Windows/Linux 先设 DSH_HOME）
+DSH_HOME=/path/to/dsh-home ./install.sh
+
+# 3. 确认合成配置含新插件
+dsh --profile web --dump-config | grep dsh-win-computer-use
+
+# 4. 重启 harness（token 会轮换）
+~/.dsh/restart-dsh-capture.ps1
+
+# 5. 会话内冒烟
+#    computer_do(action="status") -> dispatcher / 2 可见 / 20 隐藏
+#    screen_observe(window="Notepad") -> 编号树
+```
+
+注意：
+
+- `install.sh` 会写 home 级 `cordis.patch.yml`；如果已有同名块会跳过（幂等）。改配置请直接编辑 profile/home patch。
+- 不要在未确认旧目录内容时 `rm -rf`；先重命名保留回滚。
+- 旧版 `dsh-computer-use` 与新版可并存于 node_modules，但 profile 配置只能启用一个 id。
+- 部署后若工具未出现：先查 `--dump-config` 与宿主日志；不要先怀疑模型。
+
+## 7. npm 发布（待做）
+
+> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。当前**未发布**。
+
+```bash
+npm pack --dry-run              # 先看 31 文件清单
+npm login                       # 已登录账号 jerryweizhihao（按实际）
+npm publish --access public     # 需要 2FA/token
 npm view dsh-win-computer-use version
 ```
 
-发布后 `dsh plugin --profile web add dsh-win-computer-use` 即可安装。
+发布后：
 
-## ⏳ 待做：awesome-dsh-plugin 收录 PR
+```bash
+dsh plugin --profile web add dsh-win-computer-use
+```
+
+`package.json` 已声明 `files`（index.js / lib / tools / cordis.patch.yml / README / VERIFICATION / PERMISSIONS / docs / assets / verify-runtime.mjs）；不要加入 tests、node_modules、`.dsh-test`。
+
+## 8. awesome-dsh-plugin 收录（待做）
 
 1. Fork [awesome-dsh-plugin/awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)；
-2. 在 `README.md` 与 `README.zh.md` 的合适分类各加一行（候选分类 `Tools & Capabilities` / 新增 `Computer Use`）：
+2. 在 `README.md` 与 `README.zh.md` 的合适分类各加一行（候选 `Tools & Capabilities` / 新增 `Computer Use`）：
 
 ```markdown
 - [orangeofcarl0-sys/dsh-win-computer-use](https://github.com/orangeofcarl0-sys/dsh-win-computer-use) — Windows-first 桌面操作插件：AX/UIA 编号树 + 原生截图直读，后台优先三级投递链，凭据硬保护
 ```
 
-3. 提交 PR（仓库已加 `dsh-plugin` topic，满足收录要求）。
+3. 提交 PR（仓库已有 `dsh-plugin` topic）。
 
-## ✅ 已完成：独立站引流（aibunkhouse.com，2026-08-15）
+## 9. 回滚
 
-- [x] 教程资源分类发过一篇介绍文章（ID 279）
-- [x] 工具页挂仓库链接（tools 表 + API 第 5 条 + featured）
-- [ ] README 挂独立站链接（待做，可选）
+- **代码**：切回上一个 tag（`git checkout v0.5.6 -- .` 不推荐；用干净 clone 或 `git revert`），重新打 tag 需用户授权。
+- **部署**：把 profile 的 `node_modules/dsh-win-computer-use` 指回备份目录，重启 harness。
+- **npm**：`npm unpublish` 有 72 小时/依赖限制；优先发 patch 版本，不要删版本。
+- **数据**：插件不写用户文件、不建数据库，回滚无需数据迁移。
+
+## 10. 发布记录
+
+| 版本 | 日期 | 提交 | 主题 |
+|---|---|---|---|
+| v0.5.6 | 2026-09-17 | `68770fd` | 委派能力降级修复（toolFilter/scoped restrict/三级阶梯）+ 文档修正 |
+| v0.5.5 | 2026-09-17 | — | 动态工具面（已废弃） |
+| v0.5.4 | 2026-09-17 | — | dsh 0.1.5 适配、坐标契约、观察降噪、上下文预算、S4 |
+| v0.5.3 | 2026-09-06 | — | 结构密码检测、快照新鲜度、S3a |
+| v0.5.2 | 2026-09-06 | — | Windows 凭据保护 |
+| v0.5.1 | 2026-09-06 | — | 结构重构 |
+| v0.5.0 | 2026-09-06 | — | 工具改进包（12→19） |
+
+> 历史 tag 均为注解 tag；更早版本见 `git tag`。

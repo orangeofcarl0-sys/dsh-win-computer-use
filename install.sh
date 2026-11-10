@@ -43,8 +43,9 @@ else
       printf '    - id: dsh-win-computer-use\n'
       printf '      name: dsh-win-computer-use\n'
       printf '      config:\n'
-      printf '        ttlMs: 15000\n'
-      printf '        maxElements: 500\n'
+      printf '        surfaceMode: dispatcher\n'
+      printf '        ttlMs: 60000\n'
+      printf '        maxElements: 120\n'
     } >> "$PATCH"
     echo "  [ok] 已写入 $PATCH"
   fi

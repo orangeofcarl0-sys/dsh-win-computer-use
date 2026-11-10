@@ -3,6 +3,8 @@
 插件级回归评测：确定性 setup/oracle 的桌面任务，经 harness 真实会话执行，PowerShell oracle 记分。
 spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8 拍板、§10 基线与分析）。
 
+> 前置：runner 从 `~/.dsh/profiles/web/node_modules/dsh-win-computer-use/package.json` 读取插件版本。当前 web profile 若仍是旧名 `dsh-computer-use` v0.5.3，报告里的 `pluginVersion` 会缺失/过期；先按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §6 部署新版再跑评测。
+
 ## 任务集（2026-09-09 基线后重排：只留重要×快；重要但慢的做优化）
 
 **优化原则**：oracle 一律不改（判据不变才可跨版本比较），只把 setup **预置到决策点**——
@@ -125,7 +127,7 @@ node evals/maintain.mjs "<url>"                       # 停残留 + 拒绝待审
 
 - `--dsh-url` 缺省调 `~/.dsh/restart-dsh-capture.ps1`（token 每次重启轮换，stdout 捕获至 `~/.dsh/web-latest.log`）。
 - 浏览器：本机 Chrome headless（`--remote-debugging-port`，零 npm 依赖）。
-- 报告：`dsv4fv-exp/s4-report-<date>.json`（真值产物不入库，AC5）；仓库只进 runner/任务/oracle。
+- 报告：`evals/report-last.json`（已 gitignore；真值产物不入库，AC5）；仓库只进 runner/任务/oracle。
 - **快速模式建议**：冒烟组用 `--tier smoke --max-steps 40 --timeout-min 8`（4 条约 15-25 分钟）；
   核心组单独排期跑。
 
@@ -147,10 +149,6 @@ node evals/maintain.mjs "<url>"                       # 停残留 + 拒绝待审
 | id | waaId | 原域 | 原 instruction 摘录 | 本地化改动 | 判定 |
 |---|---|---|---|---|---|
 | wa2 | e27984c7-968c-48d7-b2c3-6e45cdcc5249-WOS | file_explorer | Set the file "secret.txt" in the Documents folder as hidden. | Documents→沙箱目录；文件由 setup 本地生成；资源管理器预置停在目标并选中文件 | is_file_hidden 同义 PS 重写 |
-
-| id | waaId | 原域 | 原 instruction 摘录 | 本地化改动 | 判定 |
-|---|---|---|---|---|---|
-| wa2 | e27984c7-968c-48d7-b2c3-6e45cdcc5249-WOS | file_explorer | Set the file "secret.txt" in the Documents folder as hidden. | Documents→沙箱目录；文件本地生成；资源管理器预置停在目标并选中文件 | is_file_hidden 同义 PS 重写 |
 
 （其余 5 条 2026-09-09 退役，原定义见 git 历史；退役理由表在上方“退役”节。）
 

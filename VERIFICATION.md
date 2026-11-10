@@ -1,202 +1,166 @@
-# dsh-win-computer-use 验证报告（VERIFICATION）
+# VERIFICATION — 验证报告
 
-> 环境：macOS 15.6 (arm64) · harness-desktop（dsh 0.1.1-rc.2）· cua-driver 0.19.3
-> 方法：隔离 profile（.dsh-p0）headless 实测，未改动真实 GUI 配置
-> 日期：2026-08-15
+> 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
+> 代码快照：`main` @ 2026-11-10（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。
+> 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)。
 
-## P0 — 引擎与桥接验证 ✅
+## 1. 当前验证矩阵
+
+| 验证面 | 结果 | 平台 | 证据 |
+|---|---|---|---|
+| 离线测试 | **10 套 / 231 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **16/16 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
+| 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
+| S4 oracle 双向验证 | **10/10** | Windows 11 | `node evals/verify-oracles.mjs` |
+| 打包面 | **31 文件**（新增 docs/WINDOWS、docs/TESTING） | — | `npm pack --dry-run` |
+| 真机 headless 加载 | **未完成**（缺 `DEEPSEEK_API_KEY`，在 LLM 路由退出） | — | 见 §4 |
+| npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+
+### 1.1 安全承诺矩阵
+
+| 承诺 | Windows | macOS | Linux | 验证载体 |
+|---|---|---|---|---|
+| 凭据硬保护（密码框拒自动输入） | ✅ 结构位（UIA sidecar `IsPassword` ∨ `ES_PASSWORD`）+ 启发式降级 | ✅ AX 结构化角色（0.1–0.2 时期） | 未验证 | `posture.smoke` G/H 系列 + A6 探针 |
+| 极危注记（不阻断） | ✅ | ✅ | ✅ 离线 | `posture.smoke` |
+| `allowedApps` 白名单 | ✅ | ✅ 离线 | ✅ 离线 | `posture.smoke` / `config.plumbing` |
+| 快照 TTL / 无快照拒绝 | ✅ | ✅ 离线 | ✅ 离线 | `posture.smoke` / `action-bounds` |
+| 三级投递链 + 恢复原前台 | ✅ 真机 | 仅离线覆盖 | 仅离线覆盖 | `delivery-chain.smoke`（真实 `cuaDeliver`） |
+| 强杀锁存（stop/resume） | ✅ 离线 | ✅ 离线 | ✅ 离线 | `tools.smoke` / `dispatcher.test` |
+| `unknown ≠ 成功` | ✅ | ✅ 离线 | ✅ 离线 | `tools.smoke` / `schema.conformance` |
+| 结构密码扫描 | ✅ 真机 9/9 | 不适用 | 不适用 | A6 探针 + `posture.smoke` |
+| WinUI3 输入通道 | ✅ 已定性（hotkey 不可达，改点控件） | 不适用 | 不适用 | 受控窗口实验 + #3908 |
+| 像素点击落点 | ⚠️ best-effort（A7） | 未标定 | 未标定 | 六轮实验，见 ROADMAP A7 |
+
+### 1.2 提示缓存 A/B（真实渠道）
+
+2026-11-09，opencode / deepseek-v4.1-flash，重复请求同一前缀：
+
+| 工具面 | 结果 |
+|---|---|
+| `dispatcher` 稳定 tools | 重复 **99.5%**；首次 tool_call 后 **92.1%**；第二次后 **85.4%** |
+| 旧 `dynamic` / lazy search 工具层变化 | 首击 **0%–18%**（+1 工具 0%，+4 工具 17.7%） |
+
+结论：**tools 列表必须稳定**。这是 `dispatcher` 成为默认、`dynamic` 被删除的直接依据。测试脚本在仓库外，key 只从本地配置读取、未打印。
+
+### 1.3 模型可发现性（同渠道）
+
+在不执行真实桌面动作的前提下，验证模型能否正确生成 dispatcher 调用：
+
+- `computer_click` / `computer_type`（带观察上下文）、`computer_key`、`computer_verify`（带 `expect` 示例）、`computer_clipboard`、`computer_task`、`catalog`：均能生成 `computer_do({action:'call',...})`。
+- 无上下文时倾向先 `screen_observe`；`scroll` 与“无示例的 verify”需要多一轮或更大 `max_tokens`。
+- 结论：复杂参数建议先 `catalog`，必要时在 system prompt 给一个示例。
+
+## 2. 历史证据
+
+### 2.1 2026-11-09/10 — P0/P1 安全边界、dispatcher、更名（0.5.7-dev）
 
 | 项 | 结果 |
 |---|---|
-| cua-driver headless call | `get_screen_size`→1710×1112@1x；`get_cursor_position`；`list_apps`；`health_report` 全 pass |
-| MCP stdio 链路 | `cua-driver mcp` 初始化 + `tools/list` 返回 **54 个工具** + `tools/call` 正常 |
-| dsh-mcp-client 桥接 | 端到端：headless agent 真实调用 `mcp__cua__get_screen_size` 并正确报告 |
+| 离线 | 10 套 **231** 断言；新增 `action-bounds`、`dispatcher.test`、`package-manifest`；`delivery-chain` 改为直接执行真实 `cuaDeliver` |
+| 语法 | 16/16 JS + `bash -n` |
+| 运行时 | `verify-runtime` **16/16**（dispatcher 2 可见 / catalog 20 / 隐藏 click 无快照拒绝 / native 图片落盘 / zoom 图片透传 / 坐标字段） |
+| 打包 | 31 文件；更名后包名 `dsh-win-computer-use` |
+| P0 修复 | `type`/`key` 不再盲发 desktop；`scroll`/`drag` 透传 `window_id`；`suspected_noop` 终态失败；指定窗口未匹配 fail-closed；观察降噪完整指纹 |
+| 工具面 | `dispatcher` 默认（2 可见/20 隐藏）；`hybrid` 可选（7/15）；`dynamic` 删除 |
+| 缓存 | 见 §1.2 |
 
-## P1 — 插件骨架与工具注册 ✅
-
-| 项 | 结果 |
-|---|---|
-| 插件结构 | `cordis.patch.yml`（dsh.bundle.patch）+ `index.js` + `package.json`，bundle 机制加载成功 |
-| 工具注册 | **11 个工具**全部注册（screen_observe / computer_click / double / right / type / key / scroll / drag / wait / app_list / app_launch） |
-| screen_observe | harness-desktop 窗口：325 个编号元素，`[N] 角色 "标签" @(x,y)` 格式 |
-| app_list | 返回 11 个运行中应用（含 pid/活动态） |
-
-## P2 — 双模闭环 ✅（AX 模式实测通过）
-
-备忘录完整 demo（"打开应用 → 点击 → 输入"验收项）：
-
-| 步骤 | 工具 | 结果 |
-|---|---|---|
-| 打开 | `app_launch(bundle_id=com.apple.Notes, bring_to_front)` | ✅ 启动前置 |
-| 观察 | `screen_observe(window=41812)` | ✅ 183 元素，锁定"新建备忘录"[46] |
-| 点击 | `computer_click(element=46)` | ✅ 新建笔记成功 |
-| 输入 | `computer_type(element=38, text=…)` | ✅ delivered=28，回读确认 |
-| 验证 | `screen_observe(query=…)` | ✅ element 38 值=输入文本 |
-
-视觉兜底（模式 B）：代码就绪（GLM-4V-Flash）；无 key 时优雅降级验证通过（AX 树照常返回 + 清晰提示），真实调用待 ZHIPU_API_KEY。
-
-## P3 — 安全护栏 ✅
-
-| 护栏 | 验证方式 | 结果 |
-|---|---|---|
-| 快照 TTL | 观察后等 16s 再点击 | ✅ 拒绝："快照已过期（超过 15 秒）"，无真实操作 |
-| 无快照拒绝 | 直接动作 | ✅ 拒绝："请先调用 screen_observe" |
-| 区域限制 | allowedApps=['备忘录']，操作 harness-desktop | ✅ 拒绝："不在允许操作列表"，fail closed |
-| 放行路径 | allowedApps 含 harness-desktop | ✅ "收起侧边栏"点击成功 |
-| 危险词检测 | 单元 12/12 | ✅ 删除/支付/转账/退出登录命中；保存/新建不误报 |
-| 密码框保护 | 逻辑（AXSecureTextField 拒绝 type） | ✅ 代码验证，真实密码框待集成后补测 |
-
-## 开发中发现并修复的真实 Bug
-
-1. dsh-tools schema 不支持 `type:[x,'null']` 联合 → `oneOf`
-2. output 多余字段被 `additionalProperties:false` 拒绝 → 精简 schema
-3. object schema 缺 `additionalProperties` → 显式声明
-4. **Safari AX 树序列化崩溃**（NaN 坐标 + 孤立代理项）→ `safeStr` + `centerOf` 有限性校验
-5. `query` 参数声明未透传 → 修复
-6. `app_launch` 的 `creates_new_instance` 未入 schema → 补全
-7. **试用实测（真实 GUI 会话）**：`computer_key` 未传 pid/scope（press_key 报 Missing pid）→ 修复（有快照传 pid，否则 desktop scope）
-8. **试用实测**：`computer_click` 坐标模式未传 window_id（多窗口应用报 ambiguous_window_target）→ 修复（坐标模式带 window_id）
-9. **试用实测**：`computer_key` 传 pid 仍多窗口歧义 → 修复（补传 window_id；引擎验证通过 global_input/confirmed）
-10. **试用实测**：TTL 15 秒对多步 UI 操作太短（计算器 19 次点击断链）→ 配置调 60 秒（HMR 热更新生效）*（会话级临时调整；代码默认仍为 15 秒，多步操作场景可自行调大 `ttlMs`）*
-
-## 🕹 真人操作模式（2026-08-15 核心改造）
-
-**核心初衷落实**：AX 树只用于"看"（定位坐标），操作走像素级虚拟光标（滑行+点击，看得见过程）。
+### 2.2 2026-09-17 — 结构治理与发布前复跑（0.5.4/0.5.6）
 
 | 项 | 结果 |
 |---|---|
-| `lib/human.js` | 光标分段弧线滑行（模拟人手轨迹）+ 像素级点击 |
-| `lib/actions.js` | click/双击/右键 全部改为真人操作（不再 AX 瞬发）|
-| 快照增强 | 元素坐标 + 窗口位置（滑行定位）|
-| 演示 | 彩虹光标弧线滑行到计算器（引擎直连验证滑行可见）；坐标校准为近似，待真实会话验证 |
-| 光标主题 | 彩虹渐变（用户确认满意）|
+| 离线 | 7 套 **148** 断言；schema 20 个工具 / 42 个场景；config.plumbing 25 |
+| 真桌面 | `live-action.e2e` **23/23**（重设计：唯一命名临时文件 + 标题匹配，不杀进程） |
+| parity | observe/zoom 29 场景 `{value,render}` 逐字节一致；20 工具工具面 JSON 逐字节一致 |
+| S4 oracle | `verify-oracles` **10/10**（首次 t04 因遗留计算器窗口失败，清理后通过——环境态问题，非退归） |
+| 发现并修复 | `scroll`/`drag` 把结构化拒绝当成功；`runAction`/`dedupInvalidate`/`taskCallCount` 死代码；schema 覆盖 13/20 → 20/20 |
+| 发布 | v0.5.6 注解 tag；`main` 单分支 |
 
-## P4 — 真实环境集成 ✅（已热生效）
-
-| 项 | 结果 |
-|---|---|
-| 集成方式 | home 级用户 patch 层（`$DSH_HOME/cordis.patch.yml`）注入，不修改任何 profile 配置 |
-| install.sh | 执行成功：symlink 插件包 + 追加 home patch（幂等） |
-| 合成验证 | `dsh --profile web --dump-config` 确认 `dsh-win-computer-use` 在合成树中 |
-| **热生效** | **HMR 热加载确认：当前真实 GUI 会话可直接调用插件工具，screen_observe 返回格式与实现逐字段一致（含快照 ID 与提示语），无需重启** |
-| 内置冲突排查 | 全 app 范围 grep：harness-desktop **无内置** computer_click/screen_observe 同名工具，纯新增无覆盖 |
-| 卸载 | uninstall.sh |
-
-## 🎨 虚拟光标主题（2026-08-15 新增）
+### 2.3 2026-09-16 — dsh 0.1.5 适配、坐标契约、上下文预算
 
 | 项 | 结果 |
 |---|---|
-| 需求 | 彩色 + 渐变 + 动态渐变光标 |
-| 生成器 | `tools/make_theme.py`：4 条纯色带拼渐变箭头（gf 渐变不被 bounded vector 支持 → 纯色带方案）+ 颜色关键帧动画（彩虹流动）|
-| 主题 | `com.dsh.computeruse.rainbow`（128×128, 30fps, 12 动作动画）|
-| 编译 | validate/build 通过（CuaDriver.app 内 cua-cursor-theme；CLI sidecar 缺失已绕过）|
-| 安装/切换 | 已入库；会话 demo 实测 **用户确认满意** |
-| 插件固化 | 动作绑定统一会话 `dsh-win-computer-use` + 启动自动 `set_agent_cursor_theme`（`cursorTheme` 配置项）|
-| 踩坑 | Lottie 层变换必须是标准动画属性格式（`{"a":0,"k":...}`）；形状不能包 `gr` group；渐变 `gf` 不支持 |
+| 离线 | 4 套 **74** 断言；19 个工具 / 22 个场景 |
+| 真桌面 | `live-action.e2e` 3 轮 **30/30**（旧版设计） |
+| 坐标标定 | 可控探针逐点最小二乘 **残差 ≤0.55px**：`computer_click(x,y)` = 窗口矩形相对物理像素；observe 元素坐标已换算到同一空间；截图 == `list_windows.bounds` 1:1 |
+| 输入通道 | 经典 Win32（regedit `ctrl+f`）**3/3**；WinUI3（记事本）`hotkey` **5/5 失败**（UIA 加速器 4s 超时，上游 #3908） |
+| 驱动完整性 | `cua-driver.exe` 清单 `requireAdministrator` → daemon 与 `app_launch` 子进程 High IL；非提权客户端清不掉（#3607） |
+| S4 | 9 任务 + AC2 双向验证 **9/9**（连跑 3 次一致）；冒烟 t07 pass |
+| 客户端适配 | 严格输出校验、composer `Input.insertText`、页脚格式、新会话视图钉住 |
 
-## 已知边界（非缺陷）
-
-- Safari 网页 DOM 不在 AX 树展开（引擎特性）→ 视觉兜底场景（native / vision 模式）
-- 管理员权限窗口（UAC 等）Windows 上不可操作（引擎结构化拒绝）
-- Windows/Linux 平台待真机实测（官方支持矩阵：Windows Supported）
-
-## 📸 原生视觉模型接入（v0.2.0，2026-08-25 验证）
-
-### harness 侧（dsh-src，已通过类型检查 + 154 项单测）
+### 2.4 2026-09-06/07 — A6/A7、快照新鲜度、原生视觉
 
 | 项 | 结果 |
 |---|---|
-| `llm-deepseek` 目录模型 `input` 字段 | `DeepSeekCatalogModel.input?: ['text'] \| ['text','image']`；`modelInfo()` 与 `resolveModel` 据此声明 `inputModalities` |
-| 注册 `deepseek-v4-flash-vision-exp` | `DEFAULT_MODELS` 新增该模型（input: [text, image]），Web 模型选择器直接可见 |
-| 图片块序列化 | `serialize.ts`：user 消息图片块 → OpenAI 兼容 `[{type:text},{type:image_url,url:data:...}]`（经 attachments 读回字节）；assistant/其他角色图片仍拒绝（UNSUPPORTED_CONTENT） |
-| 附件字节解析 | adapter 注入 `resolveImageBytes`（`ctx.attachments.readImage`），无 attachment 服务时副作用明确报错 |
-| 单测 | `serialize.spec` / `adapter.spec` / `dynamic-config.spec` 全部更新并通过（含图片块用例、3 模型默认目录断言）|
+| A6 密码窗口 | **9/9**：结构标记注记 / guard 硬拒 / 普通框零误拒 / sidecar 时延 1.4–1.6s / zoom crop 元数据；发现并修复标记坐标系错误 |
+| 快照新鲜度 | **4/4**：快照 id / 首写 confirmed+readback / 同快照二写一致性注记 / 密码框硬拒 |
+| A7 坐标语义 | 六轮实验：驱动 0.23.2 文档契约与实测矛盾，三种语义假设均有反例 → 插件层定性 best-effort；element 路径可靠 |
+| dsv4fv 通道 | ax ✓；native ✓（attachments 端到端，首 token 0.9s / 116 tok/s / 缓存 74%）；vision 观察者半通（只出思考），GLM 无 key 优雅降级 |
+| 上游反馈 | #3576（密码投影）、#3586（树版本/条件请求）、#3587（干预信号）已提 |
 
-### 插件侧（dsh-win-computer-use，真实引擎闭环 12/12 ✅）
+### 2.5 2026-08-25 — 原生视觉接入
 
-运行 `node verify-runtime.mjs`（隔离验证脚本，真实 cua-driver 0.21.0 daemon + 注入 attachments/llm 桩）：
+`verify-runtime` **12/12**：12 工具注册（新增 `screen_zoom`）；`screen_observe(ax)` 真实树；native text-only 拒绝；native image route PNG（1.06MB）attachments 落盘 + `{type:"image"}` 内容块；zoom 区域 JPEG；vision 降级链；坐标语义；安全回归；结构化拒绝透传。
 
-| 项 | 结果 |
-|---|---|
-| 工具注册 | 12 个（新增 `screen_zoom`），`screen_observe` mode enum = ax/vision/native |
-| `screen_observe(ax)` | 真实引擎：终端窗口树 + 坐标（截图像素标注）|
-| native 拒绝 | text-only route（deepseek-v4-flash）→ 优雅提示切视觉模型 |
-| **native 直读** | image-capable route（deepseek-v4-flash-vision-exp）→ 截图 PNG（1.06MB）经 attachments 落盘 + **render 产出 `{type:"image"}` 内容块（主模型直接看图）** |
-| `screen_zoom` | 真实引擎 zoom：区域 JPEG（≤500px）落盘 + 图片块 |
-| vision 降级链 | DeepSeek 观察者（无 key → MISSING_CREDENTIAL）→ GLM（无 key → 网络失败）→ 错误文本优雅返回，不崩溃 |
-| 坐标语义 | 0.21.0 "窗口本地截图像素" 统一：移除旧 ×2 / 窗口偏移换算；输出标注"坐标=窗口本地截图像素" |
-| 安全回归 | 无快照拒绝仍生效 |
-| 引擎拒绝透传 | `{code, effect:"refused"}` 结构化拒绝 → `ok:false`（不再误报成功）|
+### 2.6 2026-08-15 — macOS 初始验证
 
-### 说明
+cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备忘录“打开→点击→输入”闭环；TTL/白名单/危险词/密码保护；home 级 patch 安装与 HMR 热生效。此阶段的安全姿态（危险词审批）已在 0.4.0 删除，相关结论仅作历史。
 
-- native 直读的"模型真正看到图"依赖 harness 运行时（附带的 app 内嵌 dsh 需含上述 harness 改动；用 dsh-src 源码构建的 dsh CLI 直接具备）
-- vision 观察者真实调用需 DEEPSEEK_API_KEY + 端点提供 `deepseek-v4-flash-vision-exp`
-- 截图超附件限额（5MB）时自动用引擎 `zoom` 降级 ≤500px JPEG（`nativeImage: auto/full/compact` 可调）
+## 3. 代表性缺陷与守门测试
 
----
+| # | 缺陷 | 根因 | 守门 |
+|---|---|---|---|
+| 1 | 插件整棵树加载失败 | P1-7 重构丢了 `defineTool()` 返回值；原始字面量被 `assertSupportedJsonSchema` 拒 | 真机 headless 探针（离线假注册表无校验） |
+| 2 | 所有工具调用报 `reading 'kind'` | 订阅了 `tools/post-execute` waterfall 却不调 `next()` | 真机探针 + 约定：只订阅 `tools/result` |
+| 3 | 观测降级整次 `invalid output` | 降级回执字段未在 output schema 声明（dsh 严格校验） | `schema.conformance` 降级场景 |
+| 4 | 结构化拒绝被当成功 | `{refusal:{code}}` / `effect:refused` 分散判断，menu/scroll/drag 各漏一次 | `lib/receipt.js` 单一出口 + schema 拒绝场景 |
+| 5 | 坐标点击整体偏移 | 元素 frame 是屏幕 px，点击是窗口截图 px，差一个窗口原点 | 坐标标定 + observe 输出换算 |
+| 6 | Windows 密码框保护静默失效 | guard 只匹配 macOS `AXSecureTextField`；Windows UIA 角色不同且无密码位 | `roles.js` 跨平台三态 + sidecar 结构位 |
+| 7 | 结构密码标记标错相邻元素 | 旧假设“元素中心=窗口本地+原点换算”，实际 frame/sidecar 都是屏幕 px | A6 端到端 + 屏幕坐标直配 |
+| 8 | `type`/`key` 盲发到当前前台 | 无 element/无快照时退回 `scope:'desktop'` | `action-bounds` P0-1/2 |
+| 9 | `suspected_noop` 报成功 | `engineRefusal` 未识别该 effect | `action-bounds` P0-4 + `receipt` |
+| 10 | 指定窗口未匹配却观察最前窗口 | 静默回退 | `action-bounds` P0-5 |
+| 11 | 观察降噪误判“未变” | 旧哈希只看 label（label 非空时 value 不参与） | `observe.dedup` 值/enabled/selected/actions 变化 |
+| 12 | 投递链测试测的是复刻 | 测试替换了整个 `lib/cua.js` | `delivery-chain` 直接执行真实函数 + `opts.call` |
 
-# Windows 运行时验证（2026-09-06/07 追加）
+## 4. 未验证 / 未完成
 
-> 环境：Windows 11 x64 · DPI 150% · harness web（dsh 消费 git+https 分支 HEAD）· cua-driver 0.23.2 daemon
-> 方法：隔离插件加载 + 真实驱动 + 探针窗口（脚本在 `dsv4fv-exp/`，不入库）；结果已录入 ROADMAP A/D
+| 项 | 状态 | 原因/影响 | 下一步 |
+|---|---|---|---|
+| 真机 headless 加载 | 未完成 | headless profile 缺 `DEEPSEEK_API_KEY`，在 LLM 路由退出（不是加载错误） | 用有凭据 profile 复跑 `--patch _probe-surface.yml` |
+| 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
+| npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
+| macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
+| Linux | 未验证 | 桌面环境/accessibility 栈差异大 | 不在当前承诺范围 |
+| 像素点击 A7 | best-effort | 驱动 0.23.2 混合 DPI 落点缺陷；插件层不可判定 | 等上游；element 路径优先 |
+| WinUI3 hotkey/menu | 不可达 | UIA 加速器 4s 超时（#3908）；`invoke_menu` 可能不可用 | 改点控件；上游跟踪 |
+| `app_launch` 清理 | 需人工 | 子进程 High IL，非提权侧 UIPI 拒绝关闭 | 任务产出接受人工收尾 |
+| 委派工具约束 | 宿主相关 | `toolFilter` 只认全局工具名；默认 dispatcher 下很可能被拒 | 插件如实降级；严格限制用宿主机制 |
+| `computer_task` 工具面 | 真实但有限 | 默认超时 5 分钟、每会话 3 次；子 agent 可能拥有父级能力 | 见 README“委派的能力边界” |
 
-| 验证 | 结果 | 证据 |
-|---|---|---|
-| A6 密码窗口端到端 | **9/9**：结构密码标记注记 / guard 结构位硬拒 / 普通框零误拒 / sidecar 时延 1.4-1.6s / zoom crop 元数据 | `a6-password-e2e.mjs`；顺带发现并修复标记坐标系错误（frame=屏幕px 直配，commit a1b1069） |
-| 快照新鲜度语义真机 | **4/4**：observe 出快照 id（s000000d4）/ 首写 confirmed+value_readback / 同快照二写出「快照一致性提示」注记（note 档）/ 密码框 guard 硬拒回归 | harness 会话实测（2026-09-07，commit f5f59e5） |
-| dsv4fv 通道（A1） | ax ✓ / native ✓（attachments 管线端到端，首 token 0.9s·116 tok/s）/ vision 观察者半通（dsv4fv 只出思考，GLM 兜底缺 key 优雅降级） | harness 会话实测 |
-| A4 运行时项 | 用户层覆盖退役 ✓ / driverAccess 完整 ✓ / crop 元数据 ✓ / L3 恢复=smoke 层 | dump-config + E2E |
-| A7 坐标语义 | 驱动 0.23.2 像素点击换算疑似 DPI 缺陷（契约与实测矛盾），插件层不可判定维持现状 | 六轮实验 `a7-*`，ROADMAP D |
-| A5 OCR 噪声 | 可读 PNG 证据上 dsv4fv 数字转述噪声≈0（93 位零错误）；zoom JPEG 对 ~13px 小字不可读；诚实拒答 2/2 | 七轮实验，PLAN-s3-model-verifier |
-| 上游反馈 | #3576（密码投影，已提）；#3586（树版本+条件请求）、#3587（干预信号）（2026-09-07 提） | trycua/cua |
+## 5. 复现方式
 
-> 离线回归基线同步升级：posture 34 / tools 15 / delivery-chain 3 = **52 项**（I 系列覆盖新鲜度语义）。
+```bash
+npm install
+npm run check; echo "check=$?"
+npm test; echo "test=$?"
+node verify-runtime.mjs
+node tests/live-action.e2e.mjs 3
+node evals/verify-oracles.mjs
+npm pack --dry-run
+```
 
-## 补充验证（2026-09-16，dsh 0.1.5-rc.2 环境）
+判据：
 
-| 项 | 结果 |
-|---|---|
-| 插件自测套件 | `npm test` 四套共 **74 断言**全绿（posture / tools / delivery-chain / **schema.conformance：19 工具 × 22 场景**，按声明 schema 严格校验所有返回形态） |
-| 真机运行时 | `verify-runtime.mjs` **12/12**（真实驱动：ax 观察 / native 直读 / zoom / vision 降级 / 坐标标注） |
-| 真桌面动作闭环 | `tests/live-action.e2e.mjs` 3 轮 **30/30**（launch → observe → type(effect:confirmed) → verify → clipboard → wait → cleanup） |
-| 坐标契约标定 | 可控探针逐点最小二乘 **残差 ≤0.55px**：`computer_click(x,y)` = 窗口矩形相对物理像素，`screen_observe` 元素坐标已换算到同一空间；截图 == `list_windows.bounds` 1:1（1906×1166 实测） |
-| 输入通道对照 | 经典 Win32（regedit `ctrl+f`）**3/3 送达**；WinUI3（记事本）`hotkey` **5/5 失败**（UIA 加速器 4s 超时）→ 上游 #3908 |
-| 驱动完整性级别 | `cua-driver.exe` 清单 `requireAdministrator` → daemon 与 `app_launch` 子进程均 **High IL**（对照：同一 shell 直起 notepad 为 Medium）→ 上游 #3607 已补对照实验与清理后果 |
-| S4 评测系统 | `evals/` 9 任务 + AC2 双向验证 **9/9**（连跑 3 次一致）；冒烟组在新通道下 t07 pass（8 步 / 117s） |
-| 客户端适配 | dsh 0.1.5：工具输出严格校验（已修 schema）、composer 输入法与页脚格式变化（runner 已适配）、新会话视图钉住（runner 自愈：重载客户端） |
+- `npm test` 退出码 0，且最后每套都打印“全部通过”；
+- `verify-runtime` 的 `结果：16/16 通过`；
+- `live-action` 的 `23/23`（会打开临时记事本窗口；不杀进程，残留标签人工关闭）；
+- `verify-oracles` 的 `10/10`；
+- `npm pack --dry-run` 的 total files = 31。
 
-> 离线回归基线再升级：posture 34 / tools 15 / delivery-chain 3 / schema.conformance 22 = **74 项**。
+## 6. 证据约定
 
-## 补充验证（2026-09-17，代码结构治理批）
-
-| 项 | 结果 |
-|---|---|
-| 插件自测套件 | `npm test` 七套共 **148 断言**全绿：posture 34 / tools 15 / delivery-chain 3 / **schema.conformance 20 工具 × 42 场景** / observe.dedup 13 / task.tool 16 / **config.plumbing 25** |
-| 真桌面动作闭环（发布前复跑） | `tests/live-action.e2e.mjs` **23/23**（重设计后：唯一命名临时文件窗口做确定性选择 → observe(ax) 找文档元素 → type(effect:confirmed) → **脚本自读 UIA 文档文本含标记（独立见证）** → window 谓词 satisfied / 自输入文本 unknown+untrusted_source → 未知参数拒绝 → clipboard 往返 → wait）。重设计原因：旧版用 'Notepad' 标题子串选窗口，桌面存在多个记事本（含用户文档与 UIA 树为空的残留窗口）时会选错而整轮失败 |
-| 清理立场（实测修正） | WinUI 记事本的窗口/标签**无法安全自动关闭**：按进程名杀会连带用户未保存文档、WM_CLOSE 先弹"另存为"（对话框 UIA 子树为空）、UIA `Invoke` "关闭标签页" 实测 no-op → e2e 与 `evals` 清理一律改为"如实报告残留、人工关闭"（详见 HANDOFF §7.6） |
-| observe/zoom 重构 parity | 29 场景受控桩（含 native/vision、降噪三档、桌面降级、zoom 无 bounds、zoom 失败整窗回退、无 attachments）{value, render} **逐字节一致** |
-| 工具面 parity | 20 工具的描述 / 参数表 / 输出 schema / render 存在性 / execute arity JSON 快照 **逐字节一致** |
-| S4 oracle 双向验证（发布前） | `evals/verify-oracles.mjs` **10/10**：首次跑 t04 失败（simulate 三次 code=1）——清理遗留的计算器窗口后复跑通过，属环境态问题（前置进程残留），非退归 |
-| 新发现并修复的缺陷 | schema 场景矩阵暴露 `scroll`/`drag` 把驱动的结构化拒绝（`{refusal:{code}}`）当成功上报——与 menu 同类缺陷，已收敛到 `lib/receipt.js` 单一出口；`runAction`/`dedupInvalidate`/`taskCallCount` 为死代码，已删 |
-
-> 证据生成方式（可复现）：工作区一次性探针 `_parity-observe.mjs`（observe/zoom 29 场景）与 `_tool-surface.mjs`（工具面），改前存基线、改后 diff，要求 diff 为空。
-
-## 补充验证（2026-11-09，P0/P1 安全边界与清单修复）
-
-环境：Windows 11 · 全局 `dsh 0.2.2-rc.1`（自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` / `schemastery 3.19.0`）· `cua-driver 0.23.2`。
-
-| 项 | 结果 |
-|---|---|
-| 依赖清单 | 旧清单 `dependencies.dsh-tools=0.1.1-rc.2`、本地 `node_modules/@deepseek-ai` 为空 → 干净 `node tests/schema.conformance.mjs` 真实退出码 **1**（`ERR_MODULE_NOT_FOUND @deepseek-ai/schemastery`）。改为 peerDependencies + devDependencies（`0.2.2-rc.1 / 3.19.0`）并 `npm install` 后，`node_modules` 实测即该两版本 |
-| 插件自测套件 | `npm test` **10 套、231 个 ✅、0 个 ❌**：posture / tools / delivery-chain（改为直接执行真实 `lib/cua.js`）/ schema.conformance **22 工具 × 44 场景** / observe.dedup（新增 value/enabled/selected/actions 变化）/ task.tool / config.plumbing / action-bounds / dispatcher.test（dispatcher/hybrid）/ package-manifest |
-| 语法检查 | `npm run check` **16/16** JS + `bash -n install.sh/uninstall.sh` 全过 |
-| 打包面 | `npm pack --dry-run` **29 个文件**，无 `node_modules` / `.dsh-test` / `tests` |
-| P0-0 测试保真 | `tests/delivery-chain.smoke.mjs` 直接导入真实 `cuaDeliver`，通过 `opts.call` 注入假驱动；A–H 八个分支（含 L3 window_id、hotkey 不升级、无 pid 不 L3）全过 |
-| P0-1/2/3/4/5 | `tests/action-bounds.mjs`：无快照 type/key/set_value 拒绝；type/key 绑定 `pid+window_id` 且无 `scope:desktop`；scroll/drag 透传 `window_id`；`suspected_noop` → `ok:false` + 先观察注记 + 快照可疑；指定窗口未匹配 → fail-closed + 候选列表 + 不建快照 |
-| P1-A/B | `computer_set_value` 通过 schema conformance（ok/refusal）与 payload 断言；observe 降噪哈希新增字段变化的“必须全量”断言 |
-| surfaceMode（dispatcher 默认 / hybrid） | `tests/dispatcher.test.mjs` **31 断言全绿**：dispatcher 可见 2 / 隐藏 20；hybrid 可见 7 / 隐藏 15；catalog/隐藏工具不可直接调用/guard/stop/resume/参数校验/未知工具/screen_zoom 图片透传/工具面稳定/宿主 schema 断言；默认 dispatcher 回归 |
-| **真实渠道 cache A/B（opencode / deepseek-v4.1-flash）** | dispatcher 稳定 tools：重复 99.5%、首次 tool_call 后 92.1%、第二次后 85.4%；lazy search 首次 +1 +0%、+4 17.7%，每次新增工具集合重新 full miss；结论：tools 列表必须稳定才能保 cache。脚本 `_dispatcher-live-cache.mjs` / `_cache-live5.mjs`（仓库外，key 只从 ZCode 配置读取，未打印） |
-| 模型可发现性（同渠道） | dispatcher：click/type（带观察上下文）/key/verify（带 expect 示例，max_tokens 1024）/clipboard/task/catalog 均正确生成 `computer_do({action:'call',...})`；无上下文时倾向先 screen_observe；scroll/无示例 verify 需要多一轮或更大 max_tokens。未执行真实桌面动作 |
-| 真机运行时（dispatcher 默认） | `verify-runtime.mjs` **16/16**：dispatcher 可见 2 / catalog 20 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` 与 native 图片落盘 / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致（真实 cua-driver 0.23.2；测试窗口为当前可见的 ChatGPT 窗口，只读观察） |
-| 真机加载 | **未完成**：headless profile 缺 `DEEPSEEK_API_KEY`，`dsh --profile headless` 在 LLM 路由处退出（不是插件加载错误）。离线已用宿主同版本包全绿；真机加载待有凭据的 profile 复跑 |
+- **真值/实验产物不进仓库**：`evals/report-last.json`、`dsv4fv-exp/`、工作区 `_*.mjs` 探针均不入库；仓库只进可复现脚本与文档。
+- **测量驱动**：被数据否决的方案要记录（SoM、双原点、坐标三假设、动态工具面）；不要凭直觉复活。
+- **平台分列**：安全承诺按平台实测；`unverified` 不写成 `supported`。
+- **失败也记录**：超时、环境态失败、驱动缺陷都写进报告；修复后保留根因与守门测试。
