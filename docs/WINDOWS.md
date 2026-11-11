@@ -169,6 +169,7 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | 剪贴板 read 为空 | 被其它进程占用 | write 后 verify/重试；用粘贴流 |
 | `app_launch` 后无法关闭 | High IL + UIPI | 提示用户手动关闭；不要按进程名杀 |
 | 测试选中错误窗口 | 桌面有同名/残留窗口 | 用唯一命名临时文件 + 标题精确匹配；不要用进程名 |
+| PowerShell `Add-Type` 报 `C:\Windows\TEMP\*.cs` 找不到 | 进程 `TEMP` 指向系统目录 | 跑 `evals/` 前设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp` |
 
 ## 9. 上游问题跟踪
 

@@ -12,7 +12,7 @@
 | 语法/安装脚本 | **16/16 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
-| S4 oracle 双向验证 | **10/10** | Windows 11 | `node evals/verify-oracles.mjs` |
+| S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | 打包面 | **31 文件**（新增 docs/WINDOWS、docs/TESTING） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
@@ -78,6 +78,21 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 - headless profile **默认禁用 `credentials`**（`id: credentials disabled: true`）；探针 patch 显式启用后，才能解析 `~/.dsh/.credentials.yaml` 的 provider key。默认 headless 配置下 `MISSING_CREDENTIAL` 不是插件加载错误。
 - 本机 `OPENCODE_GO_API_KEY` 已过期（401 `api_key_expired`），因此本次使用默认 DeepSeek 通道；这不影响插件证据。
 - 探针 patch 在仓库外（`_probe-win-cu-deepseek.yml`），未入库。
+
+### 2.1.1 2026-11-12 — S4 oracle 双向验证（10/10）
+
+```bash
+TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp' \
+  node evals/verify-oracles.mjs
+```
+
+| 检查 | 结果 |
+|---|---|
+| 任务 | `t01` `t03` `t04` `t05` `t06` `t07` `t09` `t10` `wa2` `x1` — **10/10 PASS** |
+| 每条判据 | setup ok → oracle 空跑 fail → simulate pass ×2 → cleanup ok |
+| 首次失败 | `0/10`，原因不是题目逻辑：本机 `TEMP=C:\Windows\TEMP`，PowerShell `Add-Type` 编译临时 `.cs` 报“未能找到源文件” |
+| 修正 | 把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 后 10/10（最小 `Add-Type` 探针也已验证） |
+| 说明 | 这是题目/判据验证，不调用模型、不执行 S4 任务；模型级任务仍需 web profile + 当前插件部署 |
 
 ### 2.2 2026-11-09/10 — P0/P1 安全边界、dispatcher、更名（0.5.7-dev）
 
@@ -188,6 +203,7 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 - `verify-oracles` 的 `10/10`；
 - `npm pack --dry-run` 的 total files = 31；
 - headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 20 隐藏（本次实测见 §2.1）。
+- 若 `verify-oracles` 的 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp`。
 
 ## 6. 证据约定
 

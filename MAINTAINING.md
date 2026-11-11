@@ -96,6 +96,7 @@
 ### 4.7 PowerShell / Windows 脚本
 
 - PowerShell 5.1 把无 BOM 脚本按 ANSI 解析：`.ps1` 必须 **ASCII-only**，中文用码点构造。
+- `TEMP=C:\Windows\TEMP` 时 `Add-Type -TypeDefinition` 可能报“未能找到源文件 …*.cs”（2026-11-12 实测导致 S4 0/10）；跑 `evals/` 前把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp`。
 - 变量大小写不敏感，注意遮蔽；单元素数组会被解包，解析时做 `Array.isArray` 防御。
 - sidecar 由 node 派生，继承 DPI 感知，返回物理 px；bash 直跑探针可能得逻辑 px，仅影响独立实验。
 - 运行时 spawn 用固定 argv、`shell:false`、`windowsHide:true`；不要拼命令串。

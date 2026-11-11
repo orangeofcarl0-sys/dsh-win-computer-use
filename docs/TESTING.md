@@ -22,7 +22,7 @@
 | 运行时（真驱动） | `node verify-runtime.mjs` | 16 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
-| 任务级评测 | `node evals/run.mjs --tier smoke` | 9 条任务 | 多步任务收敛、步数/成本、模型行为 |
+| 任务级评测 | `node evals/run.mjs --tier smoke` | 10 条任务 | 多步任务收敛、步数/成本、模型行为 |
 | oracle 验证 | `node evals/verify-oracles.mjs` | 10 项 | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
 
 ## 3. 离线套件（`npm test`）
@@ -118,9 +118,9 @@ node evals/run.mjs --group authored|waa|all
 node evals/verify-oracles.mjs
 ```
 
-- 任务集 9 条：冒烟 4（t01/t04/t07/wa2）+ 核心 5（t03/t05/t06/t09/t10）；退役 7 条见 `evals/README.md`。
+- 任务集 10 条：冒烟 4（t01/t04/t07/wa2）+ 核心 6（t03/t05/t06/t09/t10 + x1 委派通道）；退役 7 条见 `evals/README.md`。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
-- `verify-oracles` 的判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；最近一次 10/10。
+- `verify-oracles` 的判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；**2026-11-12 复跑 10/10**（含 `x1`）。若 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 再跑。
 - 报告（`evals/report-last.json`）是**真值产物，不入库**；仓库只进 runner/任务/oracle。
 - 基线不是通过率承诺：2026-09-16 冒烟组首次运行 t07 pass、其余 timeout，瓶颈在执行面（多窗口/对话框）而非模型档位。
 
@@ -160,6 +160,6 @@ node evals/verify-oracles.mjs
 | 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
-| 评测 | `verify-oracles` 10/10；任务集 9 条 |
+| 评测 | `verify-oracles` 10/10；任务集 10 条 |
 | 打包 | `npm pack --dry-run` 31 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

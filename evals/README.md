@@ -7,6 +7,8 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 
 ## 任务集（2026-09-09 基线后重排：只留重要×快；重要但慢的做优化）
 
+> 共 **10 条**：冒烟 4 + 核心 6（含 `x1` 委派通道集成）。此前的“9 条”说法漏了 `x1`；`verify-oracles` 的 10/10 对应的就是这 10 条。
+
 **优化原则**：oracle 一律不改（判据不变才可跨版本比较），只把 setup **预置到决策点**——
 应用已开、目录已停、内容已载。被测能力保留，启动/导航/发现的探索成本砍掉。
 另加两层运行期加速：`--max-steps` 步数预算（快速失败）、推理档位对照（跑 Medium 档）。
@@ -29,6 +31,7 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 | t06 | 剪贴板粘贴保存 | 剪贴板链路 | 剪贴板已置 + 空白记事本已开 | 57（timeout） |
 | t09 | 画图填充纯红并保存 | 图形表面 + 像素级 oracle | 画图已开 | 57（timeout） |
 | t10 | 两文档内容互换 | **多文档/多窗口状态管理（最大缺口）** | 两文件已载入记事本 | 48（timeout） |
+| x1 | 委派记事本保存 | **`computer_task` 子 agent 委派通道** | 沙箱目标目录已建 | 17（timeout，0.5.3 / dsh 0.1.5 报告） |
 
 ### 退役（2026-09-09，git 历史可恢复）
 
@@ -69,6 +72,7 @@ evals/
 
 ## 环境知识（2026-09-08/09 实测，写脚本前先读）
 
+- **PowerShell `Add-Type` 临时文件坑（2026-11-12 实测）**：本机 `TEMP` 指向 `C:\Windows\TEMP` 时，`Add-Type -TypeDefinition` 编译会报“未能找到源文件 C:\Windows\TEMP\*.cs”，导致所有 setup/oracle 失败（不是任务逻辑）。把 `TEMP`/`TMP` 设为 `%LOCALAPPDATA%\Temp` 后 `verify-oracles` **10/10**。
 - **Win11 记事本会恢复上一会话**：`%LOCALAPPDATA%\Packages\Microsoft.WindowsNotepad_*\LocalState\TabState\*.bin` 让未保存标签在下次启动时复活——基线里“幽灵 notepad 窗口”与 t07 级联失败的真机制。`hygiene.ps1 -ClearNotepadTabState` 可清（**会丢未保存文档，含用户自己的，故须显式开启**）；默认只关窗口+报告。
 - **WinUI3 应用 `MainWindowHandle` 恒为 0**（计算器实证）：就绪判定用 UIA（`Test-CalculatorVisible`/`Start-Calculator`），别用 MainWindowHandle。
 - **剪贴板可能被占用**：set 后立即 get 可能为空 → set+verify 重试（t06 setup 已实现）。
@@ -102,6 +106,8 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 | wa2 设隐藏 | timeout | 32 步 / 494s |
 
 步速约 11-15 秒/步；能收敛的任务很快（t07 一条动作 104 秒收工），不收敛的仍在多窗口/对话框上耗满预算——与旧配置同构，说明瓶颈在任务执行面而非模型档位。
+
+> `x1` 最后一次报告（2026-09-16，plugin 0.5.3 / dsh 0.1.5）：17 步 / 951s，timeout。该报告只覆盖 x1，且是旧插件/旧宿主，不能代表当前 `0.5.7-dev`。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

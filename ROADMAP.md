@@ -72,7 +72,7 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| S4 任务集 9 条 | ✅ 已落地 | 冒烟 4 + 核心 5；oracle 双向 10/10 |
+| S4 任务集 10 条 | ✅ 已落地 | 冒烟 4 + 核心 6（含 x1 委派通道）；oracle 双向 10/10 |
 | 任务级复跑 | 待排期 | harness UI 空闲、daemon 纯净时跑 `--tier smoke --max-steps 40 --timeout-min 8` |
 | AC6（A–F 的 per-task token/步数对比） | 未做 | 降噪/预算的收益需要任务级数据 |
 | observe:action 比例 | 已知瓶颈 | S4 基线约 2–3:1，单回合输入曾达 8.5M tok |
