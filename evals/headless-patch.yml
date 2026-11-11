@@ -1,0 +1,15 @@
+# headless S4 探针叠加层：启用 credentials，插入本插件。
+# 前置：headless profile 的 node_modules 里有 dsh-win-computer-use（junction/安装）。
+# 模型使用 dsh 默认 deepseek-official/deepseek-flash；如需换模型，覆盖 agent-default-model。
+- id: credentials
+  disabled: false
+
+- insert:
+    - id: dsh-win-computer-use
+      name: dsh-win-computer-use
+      config:
+        surfaceMode: dispatcher
+        ttlMs: 60000
+        maxElements: 120
+        passwordScan: off
+        deliveryMode: background

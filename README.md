@@ -335,6 +335,7 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')"   # 真机 dsh 加载（headless 需先启用 credentials）
 node tests/live-action.e2e.mjs 3   # 真桌面动作闭环（会打开临时记事本窗口）
+npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可用；10 分钟/条）
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
 ```
 

@@ -99,16 +99,20 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 
 ### 4.2 headless S4 smoke（绕过 Web runner）
 
-2026-11-12 用仓库外一次性 runner 直跑 4 条 smoke（`setup → headless dsh → oracle → cleanup`，8 分钟上限）：
+```bash
+node evals/headless-run.mjs --tier smoke --timeout-min 10
+```
 
-| 任务 | 结果 | 步数 | 备注 |
-|---|---|---:|---|
-| `t01` | pass | 49 | 8 分钟到点，但 oracle 逐字匹配 |
-| `t04` | pass | 19 | 7,006,652 |
-| `t07` | pass | 11 | `showCmd=3` |
-| `wa2` | fail | 57 | 超时，属性仍 Archive |
+复用 setup/oracle/cleanup，逐条保存 `evals/headless-runs/<stamp>/<task>-r<n>.jsonl`，统计 pass/fail、工具错误、未验证、超时。前置：headless profile 可解析 `dsh-win-computer-use`；`DSH_BIN` 可覆盖 dsh entry；`TEMP/TMP` 自动归一化。
 
-任务级 **3/4**；2/4 正常收尾，2/4 撞 8 分钟上限。
+2026-11-12 两轮 smoke：
+
+| 轮次 | 上限 | 结果 | 备注 |
+|---|---:|---|---|
+| Round 1（一次性 runner） | 8min | **3/4** | `t01/t04/t07` pass；`wa2` fail（57 调用，Archive） |
+| Round 2（`headless-run.mjs`） | 10min | **4/4** | `t01` 41 调用/err 7/unverified 13；`t04` 23/0/10；`t07` 5/0/2；`wa2` 72/12/16（到点但 oracle pass） |
+
+两轮合计 **7/8（87.5%）**。`wa2` 对时间预算敏感（8min fail → 10min pass）；工具错误计数含探索性重试，不等同于插件缺陷，但值得做轨迹分析。
 
 > **Web runner 当前不可用于 dsh 0.2.2**：`evals/run.mjs` 的 UI 选择器/发送路径基于 dsh 0.1.5；在 0.2.2 上创建的新会话只有 session 头、没有消息，`steps` 从旧会话页面误读。2026-11-12 的 Web `0/4` 是该兼容问题，不是插件错误率。已修 CRLF prompt 解析；UI 兼容待办见 ROADMAP C9。
 
@@ -173,7 +177,7 @@ node evals/verify-oracles.mjs
 | 离线 | 10 套 / 231 ✅ / 0 ❌ |
 | 语法 | 16/16 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
-| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 3/4 |
+| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 10 条 |
 | 打包 | `npm pack --dry-run` 31 文件 |

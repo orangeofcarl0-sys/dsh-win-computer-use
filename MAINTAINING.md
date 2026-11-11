@@ -145,10 +145,11 @@
 - 切换版本：用新名重装/改目录名 → `restart-dsh-capture.ps1` → 会话内 `computer_do(status)` 冒烟。
 - **headless 探针通道**（不影响 web 客户端）：
   - `~/.dsh/profiles/headless/node_modules/dsh-win-computer-use` 已建 junction → 本仓库（2026-11-12；旧名 junction 保留）。
-  - 叠加层 `F:\Codex_Work_Space\DSH plugin\_probe-win-cu-deepseek.yml`：启用 `credentials` + insert 本插件，模型走 dsh 默认 `deepseek-official/deepseek-flash`。
+  - 叠加层：仓库内 `evals/headless-patch.yml`（推荐；启用 `credentials` + insert 本插件）或工作区 `_probe-win-cu-deepseek.yml`；模型走 dsh 默认 `deepseek-official/deepseek-flash`。
   - **headless 默认禁用 `credentials`**（`id: credentials disabled: true`）；不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
   - 用法：`dsh --profile headless --patch "<...>/_probe-win-cu-deepseek.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - 2026-11-12 实测：1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；2 可见/20 隐藏；cacheRead 6528→7296。
+  - S4 headless 直跑：`node evals/headless-run.mjs --tier smoke --timeout-min 10`（复用 setup/oracle/cleanup，日志在 `evals/headless-runs/`）。
   - 本机 `OPENCODE_GO_API_KEY` 已过期（401），opencode-go 通道暂不可用；默认 DeepSeek 通道正常。
 - npm 未发布；dsh-market 安装途径暂不可用。
 - 详细步骤见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §6。
@@ -164,7 +165,7 @@
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 有环境时补矩阵 |
 | G7 | 部署/npm | web profile 仍旧版；npm 未发布 | 用户看到的可能不是 main | 按 PUBLISH 执行 |
 | G8 | `evals/run.mjs` Web runner | dsh 0.2.2 下创建空会话、`steps` 误读；Web `0/4` 无效 | 任务级错误率不可用 Web runner 统计 | 更新 UI 选择器/发送路径（ROADMAP C9） |
-| G9 | S4 `wa2` | headless smoke 57 步 / 8 分钟超时，属性仍 Archive | 该条失败原因未分离“通道/步速” | 轨迹分析 + 加大预算复跑（C10） |
+| G9 | S4 `wa2` | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON | 时间预算/步速敏感，另有提示层/焦点问题 | 轨迹分析，降低步速（C10） |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 
 **当前文档的处理**：G1/G5 已在 [ARCHITECTURE](docs/ARCHITECTURE.md) §13 与 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) 中如实标注；README 不把它们写成已支持能力。原先的 install.sh 默认值、`computer_task` 描述默认值、委派白名单漏 `set_value` 三项已在 2026-11-10 文档重写批一并修正。

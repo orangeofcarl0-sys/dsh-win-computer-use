@@ -31,7 +31,7 @@
 | C7 | 真机 headless 加载 | ✅ 2026-11-12 | dsh 0.2.2-rc.1 headless + 启用 credentials 的隔离 patch；5 步完成 status/observe/catalog/隐藏 computer_wait |
 | C8 | `screen_zoom` 的 `coordinateSpace` 语义 | 待做 | 字段标 `screen-physical-px`，点击输入是 window-screenshot-px；统一字段或改名 |
 | C9 | S4 Web runner 的 dsh 0.2.2 UI 兼容 | 待做 | 新会话只写 session 头、无消息；`steps` 从旧会话误读；Web `0/4` 无效。CRLF prompt 解析已修 |
-| C10 | `wa2` 失败归因 | 待做 | headless smoke 57 步 / 8 分钟超时，属性仍 `Archive`；需看是否 Explorer 属性页通道/步速问题 |
+| C10 | `wa2` 失败归因 | 🔶 初查 | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次工具错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON；先做轨迹/提示层优化 |
 
 ## 3. 事实澄清 / 实验（冻结，按触发条件解冻）
 

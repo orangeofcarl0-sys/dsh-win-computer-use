@@ -16,6 +16,7 @@
 - **`tests/action-bounds.mjs`**：P0-1/2/3/4/5 与 P1-A 的行为边界测试（无快照拒绝、type/key/scroll/drag 的窗口绑定、suspected_noop、窗口未匹配 fail-closed、set_value payload）。
 - **`tests/package-manifest.test.mjs`**：锁定 peerDependencies / devDependencies / dsh 兼容下限 / 发布文件清单 / 权限声明，防清单回归。
 - **`tests/delivery-chain.smoke.mjs` 重写**：直接导入真实 `lib/cua.js`，通过 `opts.call` 注入假驱动；不再用复刻的 `cuaDeliver` 测复刻（P0-0）。
+- **`evals/headless-run.mjs`**：dsh 0.2.2 可用的 S4 headless 直跑器（复用 setup/oracle/cleanup，保存逐任务 JSONL，统计工具错误/未验证/超时）；配套 `evals/headless-patch.yml` 与 `npm run eval:headless`。Web runner 的 dsh 0.2.2 UI 兼容另列 ROADMAP C9。
 
 ### Fixed
 
@@ -41,7 +42,7 @@
 
 - **dsh 0.2.2-rc.1 headless 真机加载（2026-11-12）**：隔离 patch 启用 `credentials` + 本插件，默认 DeepSeek 通道，1 轮 5 步完成 `computer_do(status)` / `screen_observe()` / `computer_do(catalog)` / 隐藏 `computer_wait` 路由；`status` 返回 2 可见/20 隐藏，`screen_observe` 读到真实窗口 4 个元素；每步 `cacheReadTokens` 6528→7296。证据见 `VERIFICATION.md` §2.1。
 - **S4 oracle 双向验证（2026-11-12）**：10 条任务（含 `x1` 委派通道）全部 PASS（setup ok → 空跑 fail → simulate pass ×2 → cleanup ok）。首次 0/10 是 `TEMP=C:\Windows\TEMP` 导致 PowerShell `Add-Type` 找不到临时 `.cs`；设置 `TEMP/TMP=%LOCALAPPDATA%\Temp` 后 10/10。证据见 `VERIFICATION.md` §2.1.1。
-- **headless S4 smoke（2026-11-12）**：`t01/t04/t07` pass、`wa2` fail，**3/4**；`t01` 49 步（8min 到点但 oracle 逐字匹配）、`t04` 19 步、`t07` 11 步、`wa2` 57 步（超时，属性仍 Archive）。Web runner 的 `0/4` 是 dsh 0.2.2 UI 兼容问题（空会话/步数误读），不是插件错误率。证据见 `VERIFICATION.md` §2.1.2。
+- **headless S4 smoke（2026-11-12，两轮）**：Round 1（8min）`3/4`（`t01/t04/t07` pass、`wa2` fail）；Round 2（10min，`evals/headless-run.mjs`）**4/4**；两轮合计 **7/8（87.5%）**。`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。Round 2 工具级 141 次调用 / 19 次错误（13.5%）/ 41 次 unverified（29.1%）。Web runner 的 `0/4` 是 dsh 0.2.2 UI 兼容问题（空会话/步数误读），不是插件错误率。证据见 `VERIFICATION.md` §2.1.2。
 - **真实渠道 cache A/B（2026-11-09，opencode / deepseek-v4.1-flash）**：`dispatcher` 稳定 tools 重复命中 99.5%，首次 tool_call 后 92.1%，第二次后 85.4%；`lazy search` 首次新增工具 0–17.7%（+1 为 0%，+4 为 17.7%），每次新增工具集合都重新 full miss；旧 `dynamic` 的 tools 变化同理。结论：要保 cache，tools 列表必须稳定；dispatcher 已成为默认。
 
 ## 0.5.6 (2026-09-17)

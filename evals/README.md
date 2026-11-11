@@ -55,7 +55,9 @@ WAA 组由 6 条缩至 1 条（wa2）：基线显示两组同构失败（瓶颈�
 ```
 evals/
   README.md            本文件（约定 + 溯源总表 + 弃选留档）
-  run.mjs              运行器：逐任务 setup → harness 会话 → oracle → cleanup → 报告 JSON
+  run.mjs              Web UI 运行器（dsh 0.2.2 暂不适配）
+  headless-run.mjs     headless 直跑器（dsh 0.2.2 当前可用；复用 setup/oracle/cleanup）
+  headless-patch.yml   headless 探针叠加层（启用 credentials + 插入本插件）
   verify-oracles.mjs   oracle 独立验证（AC2）：setup→oracle 必须 fail；simulate→oracle 必须 pass
   lib/
     common.ps1         PS 共享前置：沙箱根、JSON 输出、路径约定（所有 PS1 dot-source）
@@ -113,14 +115,12 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 
 ### 2026-11-12 headless 直跑（当前插件）
 
-| 任务 | 结果 | 步数 | 备注 |
-|---|---|---:|---|
-| t01 | pass | 49 | 8min 到点，但 oracle 逐字匹配 |
-| t04 | pass | 19 | 7,006,652 |
-| t07 | pass | 11 | showCmd=3 |
-| wa2 | fail | 57 | 8min 超时，属性仍 Archive |
+| 轮次 | 上限 | 结果 | 备注 |
+|---|---:|---|---|
+| Round 1（一次性 runner） | 8min | **3/4** | `t01/t04/t07` pass；`wa2` fail |
+| Round 2（`headless-run.mjs`） | 10min | **4/4** | `wa2` 到点但 oracle pass |
 
-任务级 **3/4**；Web runner 的 `0/4` 是 dsh 0.2.2 UI 兼容问题（空会话/步数误读），不是插件错误率。
+两轮合计 **7/8（87.5%）**；`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。Web runner 的 `0/4` 是 dsh 0.2.2 UI 兼容问题（空会话/步数误读），不是插件错误率。
 
 ## 运行期语义（试跑定案 2026-09-07）
 
@@ -134,21 +134,23 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 ## 运行
 
 ```
-node evals/run.mjs --tasks t01,t04                    # 跑指定任务
+node evals/run.mjs --tasks t01,t04                    # Web UI runner（dsh 0.2.2 暂不适配，见上）
 node evals/run.mjs --group authored|waa|all           # 按组跑（缺省 all）
 node evals/run.mjs --tier smoke                       # 只跑冒烟组（日常回归）
 node evals/run.mjs --max-steps 40 --timeout-min 8     # 快速模式：步数预算 + 墙钟兜底
 node evals/run.mjs --model-label dsv4fv-medium        # 档位对照（同样的集，换推理档）
+node evals/headless-run.mjs --tier smoke              # headless 直跑（dsh 0.2.2 当前可用）
+node evals/headless-run.mjs --tasks t01,t04 --repeats 3 --timeout-min 12
 node evals/verify-oracles.mjs                         # AC2：全部 oracle 双向独立验证
 node evals/stop-stale.mjs "<url>" 18                  # 止损：停 >18min 的残留进行中回合
 node evals/maintain.mjs "<url>"                       # 停残留 + 拒绝待审批
 ```
 
+- `headless-run.mjs`：不依赖浏览器；复用 setup/oracle/cleanup，逐条保存 `evals/headless-runs/<stamp>/<task>-r<n>.jsonl`，统计任务级 pass/fail、工具错误、未验证、超时。前置：headless profile 可解析 `dsh-win-computer-use`；`DSH_BIN` 可覆盖 dsh 的 `lib/bin.js`；`TEMP/TMP` 自动指到用户临时目录。
 - `--dsh-url` 缺省调 `~/.dsh/restart-dsh-capture.ps1`（token 每次重启轮换，stdout 捕获至 `~/.dsh/web-latest.log`）。
 - 浏览器：本机 Chrome headless（`--remote-debugging-port`，零 npm 依赖）。
-- 报告：`evals/report-last.json`（已 gitignore；真值产物不入库，AC5）；仓库只进 runner/任务/oracle。
-- **快速模式建议**：冒烟组用 `--tier smoke --max-steps 40 --timeout-min 8`（4 条约 15-25 分钟）；
-  核心组单独排期跑。
+- 报告：Web runner 写 `evals/report-last.json`；headless runner 写 `evals/report-last-headless.json`（两者都已 gitignore；真值产物不入库，AC5）；仓库只进 runner/任务/oracle。
+- **快速模式建议**：Web 冒烟用 `--tier smoke --max-steps 40 --timeout-min 8`（4 条约 15-25 分钟）；dsh 0.2.2 当前建议用 `node evals/headless-run.mjs --tier smoke --timeout-min 10`。
 
 ## 报告 schema
 

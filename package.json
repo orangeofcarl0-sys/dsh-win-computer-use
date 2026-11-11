@@ -55,7 +55,8 @@
   ],
   "scripts": {
     "check": "node tests/syntax.check.mjs",
-    "test": "node tests/posture.smoke.mjs && node tests/tools.smoke.mjs && node tests/delivery-chain.smoke.mjs && node tests/schema.conformance.mjs && node tests/observe.dedup.mjs && node tests/task.tool.mjs && node tests/config.plumbing.mjs && node tests/action-bounds.mjs && node tests/dispatcher.test.mjs && node tests/package-manifest.test.mjs"
+    "test": "node tests/posture.smoke.mjs && node tests/tools.smoke.mjs && node tests/delivery-chain.smoke.mjs && node tests/schema.conformance.mjs && node tests/observe.dedup.mjs && node tests/task.tool.mjs && node tests/config.plumbing.mjs && node tests/action-bounds.mjs && node tests/dispatcher.test.mjs && node tests/package-manifest.test.mjs",
+    "eval:headless": "node evals/headless-run.mjs --tier smoke --timeout-min 10"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.1.5-rc.2 <0.3.0",
