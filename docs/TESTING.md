@@ -97,6 +97,21 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 - 2026-11-12 实测：dsh 0.2.2-rc.1 + 默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；2 可见/20 隐藏；`cacheReadTokens` 6528→7296。
 - 探针 patch 在仓库外，不入库；详细证据见 [VERIFICATION](../VERIFICATION.md) §2.1。
 
+### 4.2 headless S4 smoke（绕过 Web runner）
+
+2026-11-12 用仓库外一次性 runner 直跑 4 条 smoke（`setup → headless dsh → oracle → cleanup`，8 分钟上限）：
+
+| 任务 | 结果 | 步数 | 备注 |
+|---|---|---:|---|
+| `t01` | pass | 49 | 8 分钟到点，但 oracle 逐字匹配 |
+| `t04` | pass | 19 | 7,006,652 |
+| `t07` | pass | 11 | `showCmd=3` |
+| `wa2` | fail | 57 | 超时，属性仍 Archive |
+
+任务级 **3/4**；2/4 正常收尾，2/4 撞 8 分钟上限。
+
+> **Web runner 当前不可用于 dsh 0.2.2**：`evals/run.mjs` 的 UI 选择器/发送路径基于 dsh 0.1.5；在 0.2.2 上创建的新会话只有 session 头、没有消息，`steps` 从旧会话页面误读。2026-11-12 的 Web `0/4` 是该兼容问题，不是插件错误率。已修 CRLF prompt 解析；UI 兼容待办见 ROADMAP C9。
+
 ## 5. 真桌面闭环
 
 ```bash
@@ -158,7 +173,7 @@ node evals/verify-oracles.mjs
 | 离线 | 10 套 / 231 ✅ / 0 ❌ |
 | 语法 | 16/16 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
-| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12） |
+| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 3/4 |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 10 条 |
 | 打包 | `npm pack --dry-run` 31 文件 |

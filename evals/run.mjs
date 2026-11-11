@@ -59,7 +59,9 @@ function discoverTasks() {
   for (const f of readdirSync(join(ROOT, 'tasks')).filter((f) => f.endsWith('.md')).sort()) {
     const id = f.replace(/\.md$/, '').split('-')[0]
     if (tasksArg && !tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase())) continue
-    const md = readFileSync(join(ROOT, 'tasks', f), 'utf8')
+    // Windows checkout 的 task 文件是 CRLF；prompt 块正则按 LF 设计，先归一化，
+    // 否则会在 discoverTasks 阶段直接 "no <<<PROMPT block"（2026-11-12 实测）。
+    const md = readFileSync(join(ROOT, 'tasks', f), 'utf8').replace(/\r\n/g, '\n')
     const group = /^wa/.test(id) ? 'waa' : 'authored'
     if (groupArg !== 'all' && group !== groupArg) continue
     const m = md.match(/<<<PROMPT\n([\s\S]*?)\nPROMPT>>>/)

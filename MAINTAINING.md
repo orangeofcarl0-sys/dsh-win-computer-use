@@ -163,6 +163,8 @@
 | G5 | `lib/observe.js` `screenZoom` | `coordinateSpace: 'screen-physical-px'`，但点击输入是 window-screenshot-px | 换算终点易误读 | 统一字段或改名 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 有环境时补矩阵 |
 | G7 | 部署/npm | web profile 仍旧版；npm 未发布 | 用户看到的可能不是 main | 按 PUBLISH 执行 |
+| G8 | `evals/run.mjs` Web runner | dsh 0.2.2 下创建空会话、`steps` 误读；Web `0/4` 无效 | 任务级错误率不可用 Web runner 统计 | 更新 UI 选择器/发送路径（ROADMAP C9） |
+| G9 | S4 `wa2` | headless smoke 57 步 / 8 分钟超时，属性仍 Archive | 该条失败原因未分离“通道/步速” | 轨迹分析 + 加大预算复跑（C10） |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 
 **当前文档的处理**：G1/G5 已在 [ARCHITECTURE](docs/ARCHITECTURE.md) §13 与 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) 中如实标注；README 不把它们写成已支持能力。原先的 install.sh 默认值、`computer_task` 描述默认值、委派白名单漏 `set_value` 三项已在 2026-11-10 文档重写批一并修正。
@@ -172,6 +174,7 @@
 | 优先级 | 事项 |
 |---|---|
 | P1 | 修 G1/G5（都是小改动，补测试后合入） |
+| P1 | 修 `evals/run.mjs` 的 dsh 0.2.2 Web UI 兼容（G8）；当前 Web 冒烟结果无效 |
 | P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
 | P2 | S4 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
 | P2 | daemon 提权/清理问题（#3607）；先试非提权重启 daemon |
@@ -188,7 +191,7 @@
 - 2026-09-08~16：S4 评测系统；坐标契约根治；dsh 0.1.5 适配；上下文预算 A–F；`computer_task`。
 - 2026-09-17：结构治理（测试脚手架、schema 20/20、config plumbing、回执统一、注册数据化）；v0.5.4/0.5.5/0.5.6。
 - 2026-11-09/10：P0/P1 边界、`dispatcher` 默认、`dynamic` 删除、更名、文档体系重写。
-- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）。
+- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）；S4 oracle 10/10；headless smoke 3/4（`wa2` fail）；Web runner 的 0/4 判为 dsh 0.2.2 UI 兼容问题。
 
 > 更早的逐日交接（2026-09-16 `HANDOFF`）已不在工作树；需要时从 git 历史取回。
 

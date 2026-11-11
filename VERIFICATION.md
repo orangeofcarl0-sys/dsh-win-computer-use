@@ -13,6 +13,7 @@
 | 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
+| headless S4 smoke | **3/4**（2026-11-12；`wa2` fail） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | 打包面 | **31 文件**（新增 docs/WINDOWS、docs/TESTING） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
@@ -93,6 +94,22 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | 首次失败 | `0/10`，原因不是题目逻辑：本机 `TEMP=C:\Windows\TEMP`，PowerShell `Add-Type` 编译临时 `.cs` 报“未能找到源文件” |
 | 修正 | 把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 后 10/10（最小 `Add-Type` 探针也已验证） |
 | 说明 | 这是题目/判据验证，不调用模型、不执行 S4 任务；模型级任务仍需 web profile + 当前插件部署 |
+
+### 2.1.2 2026-11-12 — headless S4 smoke（4 条）
+
+用仓库外的一次性 runner 直跑：`setup → dsh --profile headless（当前插件）→ oracle → cleanup`，单条 8 分钟上限，默认 DeepSeek 通道。
+
+| 任务 | 结果 | 步数/工具调用 | 备注 |
+|---|---|---|---|
+| `t01` 记事本保存 | **pass** | 49 | 8 分钟到点被 runner 终止，但 oracle 文件内容逐字匹配；turn 未正常收尾 |
+| `t04` 计算器乘法 | **pass** | 19 | 显示 7,006,652；正常 final |
+| `t07` 窗口最大化 | **pass** | 11 | `showCmd=3`；正常 final |
+| `wa2` 设置隐藏 | **fail** | 57 | 8 分钟超时，属性仍为 `Archive`；未完成 |
+
+- 任务级：**3/4 pass（75%）**，1 条 fail（25%），0 条 setup/环境错误。
+- 完成度：2/4 正常收尾，2/4 撞 8 分钟上限；`t01` 虽超时但终态正确，`wa2` 未完成。
+- 这是 headless 直跑的插件/模型结果，不是 Web runner 的 `0/4`。
+- **Web runner `0/4` 判为无效**：`evals/run.mjs` 以 dsh 0.1.5 UI 选择器编写；在 dsh 0.2.2 上它创建了 4 个只有 session 头的空会话（无 user/assistant 消息），`steps` 是从旧会话页面误读的 6–7。先修了它的 CRLF prompt 解析与 PowerShell TEMP 问题，随后仍无法把 prompt 送进新会话。该结果不能当插件错误率。
 
 ### 2.2 2026-11-09/10 — P0/P1 安全边界、dispatcher、更名（0.5.7-dev）
 

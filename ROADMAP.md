@@ -30,6 +30,8 @@
 | C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3 |
 | C7 | 真机 headless 加载 | ✅ 2026-11-12 | dsh 0.2.2-rc.1 headless + 启用 credentials 的隔离 patch；5 步完成 status/observe/catalog/隐藏 computer_wait |
 | C8 | `screen_zoom` 的 `coordinateSpace` 语义 | 待做 | 字段标 `screen-physical-px`，点击输入是 window-screenshot-px；统一字段或改名 |
+| C9 | S4 Web runner 的 dsh 0.2.2 UI 兼容 | 待做 | 新会话只写 session 头、无消息；`steps` 从旧会话误读；Web `0/4` 无效。CRLF prompt 解析已修 |
+| C10 | `wa2` 失败归因 | 待做 | headless smoke 57 步 / 8 分钟超时，属性仍 `Archive`；需看是否 Explorer 属性页通道/步速问题 |
 
 ## 3. 事实澄清 / 实验（冻结，按触发条件解冻）
 
@@ -72,7 +74,7 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| S4 任务集 10 条 | ✅ 已落地 | 冒烟 4 + 核心 6（含 x1 委派通道）；oracle 双向 10/10 |
+| S4 任务集 10 条 | ✅ 已落地 | 冒烟 4 + 核心 6（含 x1 委派通道）；oracle 双向 10/10；2026-11-12 headless smoke 3/4（wa2 fail） |
 | 任务级复跑 | 待排期 | harness UI 空闲、daemon 纯净时跑 `--tier smoke --max-steps 40 --timeout-min 8` |
 | AC6（A–F 的 per-task token/步数对比） | 未做 | 降噪/预算的收益需要任务级数据 |
 | observe:action 比例 | 已知瓶颈 | S4 基线约 2–3:1，单回合输入曾达 8.5M tok |

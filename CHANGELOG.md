@@ -30,6 +30,7 @@
 - **`computer_task` 的超时描述与实现不一致**：参数说明写“默认 10”，实际取 `taskTimeoutMin`（默认 5）。描述改为“默认取 taskTimeoutMin，默认 5”。
 - **委派白名单漏 `computer_set_value`**：`GUI_ONLY_TOOLS` 仍是 19 项，新增的设值工具不在白名单。补为 20 项（仍排除 `computer_task` 防递归）。
 - **权限元数据与可选网络不一致**：`package.json` 的 `externalServices: "none"` 与 GLM 兜底的外呼事实冲突；改为条件性说明，并补全 `CUA_SESSION/GLM_API_BASE/GLM_VISION_MODEL` 环境变量。
+- **S4 runner 的 CRLF prompt 解析**：Windows checkout 的 `evals/tasks/*.md` 是 CRLF，而 `<<<PROMPT\n` 正则只认 LF，`discoverTasks` 直接报 “no <<<PROMPT block”；读入后统一归一化为 LF。
 
 ### Changed
 
@@ -40,6 +41,7 @@
 
 - **dsh 0.2.2-rc.1 headless 真机加载（2026-11-12）**：隔离 patch 启用 `credentials` + 本插件，默认 DeepSeek 通道，1 轮 5 步完成 `computer_do(status)` / `screen_observe()` / `computer_do(catalog)` / 隐藏 `computer_wait` 路由；`status` 返回 2 可见/20 隐藏，`screen_observe` 读到真实窗口 4 个元素；每步 `cacheReadTokens` 6528→7296。证据见 `VERIFICATION.md` §2.1。
 - **S4 oracle 双向验证（2026-11-12）**：10 条任务（含 `x1` 委派通道）全部 PASS（setup ok → 空跑 fail → simulate pass ×2 → cleanup ok）。首次 0/10 是 `TEMP=C:\Windows\TEMP` 导致 PowerShell `Add-Type` 找不到临时 `.cs`；设置 `TEMP/TMP=%LOCALAPPDATA%\Temp` 后 10/10。证据见 `VERIFICATION.md` §2.1.1。
+- **headless S4 smoke（2026-11-12）**：`t01/t04/t07` pass、`wa2` fail，**3/4**；`t01` 49 步（8min 到点但 oracle 逐字匹配）、`t04` 19 步、`t07` 11 步、`wa2` 57 步（超时，属性仍 Archive）。Web runner 的 `0/4` 是 dsh 0.2.2 UI 兼容问题（空会话/步数误读），不是插件错误率。证据见 `VERIFICATION.md` §2.1.2。
 - **真实渠道 cache A/B（2026-11-09，opencode / deepseek-v4.1-flash）**：`dispatcher` 稳定 tools 重复命中 99.5%，首次 tool_call 后 92.1%，第二次后 85.4%；`lazy search` 首次新增工具 0–17.7%（+1 为 0%，+4 为 17.7%），每次新增工具集合都重新 full miss；旧 `dynamic` 的 tools 变化同理。结论：要保 cache，tools 列表必须稳定；dispatcher 已成为默认。
 
 ## 0.5.6 (2026-09-17)

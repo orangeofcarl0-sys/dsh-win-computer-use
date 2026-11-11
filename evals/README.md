@@ -4,6 +4,8 @@
 spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8 拍板、§10 基线与分析）。
 
 > 前置：runner 从 `~/.dsh/profiles/web/node_modules/dsh-win-computer-use/package.json` 读取插件版本。当前 web profile 若仍是旧名 `dsh-computer-use` v0.5.3，报告里的 `pluginVersion` 会缺失/过期；先按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §6 部署新版再跑评测。
+>
+> **2026-11-12 状态**：`run.mjs` 的 Web UI 选择器/发送路径基于 dsh 0.1.5，在 dsh 0.2.2 上会创建空会话并把旧会话的步数误读成 `steps`，任务级结果为无效的 `0/4`（不是插件错误率）。已修 task 文件 CRLF 的 prompt 解析；Web UI 兼容待办见 ROADMAP C9。当前有效冒烟改用 headless 直跑：`t01/t04/t07` pass、`wa2` fail，**3/4**（见 VERIFICATION §2.1.2）。
 
 ## 任务集（2026-09-09 基线后重排：只留重要×快；重要但慢的做优化）
 
@@ -108,6 +110,17 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 步速约 11-15 秒/步；能收敛的任务很快（t07 一条动作 104 秒收工），不收敛的仍在多窗口/对话框上耗满预算——与旧配置同构，说明瓶颈在任务执行面而非模型档位。
 
 > `x1` 最后一次报告（2026-09-16，plugin 0.5.3 / dsh 0.1.5）：17 步 / 951s，timeout。该报告只覆盖 x1，且是旧插件/旧宿主，不能代表当前 `0.5.7-dev`。
+
+### 2026-11-12 headless 直跑（当前插件）
+
+| 任务 | 结果 | 步数 | 备注 |
+|---|---|---:|---|
+| t01 | pass | 49 | 8min 到点，但 oracle 逐字匹配 |
+| t04 | pass | 19 | 7,006,652 |
+| t07 | pass | 11 | showCmd=3 |
+| wa2 | fail | 57 | 8min 超时，属性仍 Archive |
+
+任务级 **3/4**；Web runner 的 `0/4` 是 dsh 0.2.2 UI 兼容问题（空会话/步数误读），不是插件错误率。
 
 ## 运行期语义（试跑定案 2026-09-07）
 
