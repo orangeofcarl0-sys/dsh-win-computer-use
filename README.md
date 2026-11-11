@@ -331,6 +331,9 @@ npm install
 npm run check                      # 语法检查 + bash -n（16/16 JS）
 npm test                           # 10 套离线测试，231 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
+dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
+  "调用 computer_do(action='status')"   # 真机 dsh 加载（headless 需先启用 credentials）
 node tests/live-action.e2e.mjs 3   # 真桌面动作闭环（会打开临时记事本窗口）
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
 ```

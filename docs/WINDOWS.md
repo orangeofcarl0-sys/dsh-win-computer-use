@@ -110,12 +110,13 @@ cua-driver call get_screen_size '{}'
 # 2) 插件出现在合成配置中
 dsh --profile web --dump-config | grep dsh-win-computer-use
 
-# 3) dispatcher 面（headless 探针，需要凭据）
-dsh --profile headless --patch "<工作区>/_probe-surface.yml" \
+# 3) dispatcher 面（headless 探针；headless 默认禁用 credentials，探针 patch 需启用）
+dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')，把返回原文贴出来"
 ```
 
-期望：`status` 返回 `dispatcher` 模式、直接可见 `computer_do,screen_observe`、隐藏 20 个。注意：headless profile 缺 `DEEPSEEK_API_KEY` 时会在 LLM 路由处退出，这不是插件加载错误。
+期望：`status` 返回 `dispatcher` 模式、直接可见 `computer_do,screen_observe`、隐藏 20 个。2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；headless 默认 `credentials: disabled`，不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
 
 ### 7.2 真桌面闭环（推荐脚本）
 

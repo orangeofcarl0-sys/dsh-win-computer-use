@@ -38,6 +38,7 @@
 
 ### Measured
 
+- **dsh 0.2.2-rc.1 headless 真机加载（2026-11-12）**：隔离 patch 启用 `credentials` + 本插件，默认 DeepSeek 通道，1 轮 5 步完成 `computer_do(status)` / `screen_observe()` / `computer_do(catalog)` / 隐藏 `computer_wait` 路由；`status` 返回 2 可见/20 隐藏，`screen_observe` 读到真实窗口 4 个元素；每步 `cacheReadTokens` 6528→7296。证据见 `VERIFICATION.md` §2.1。
 - **真实渠道 cache A/B（2026-11-09，opencode / deepseek-v4.1-flash）**：`dispatcher` 稳定 tools 重复命中 99.5%，首次 tool_call 后 92.1%，第二次后 85.4%；`lazy search` 首次新增工具 0–17.7%（+1 为 0%，+4 为 17.7%），每次新增工具集合都重新 full miss；旧 `dynamic` 的 tools 变化同理。结论：要保 cache，tools 列表必须稳定；dispatcher 已成为默认。
 
 ## 0.5.6 (2026-09-17)

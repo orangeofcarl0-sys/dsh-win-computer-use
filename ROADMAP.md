@@ -28,7 +28,7 @@
 | C4 | `GUI_ONLY_TOOLS` 补 `computer_set_value` | ✅ 2026-11-10 | 白名单 20 个桌面工具（仍不含 `computer_task`） |
 | C5 | `scroll`/`drag` 的 `snapshot_id` 校验 | 待做 | schema 接受但实现未 `validateSnapshotId` |
 | C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3 |
-| C7 | 真机 headless 加载 | 待凭据 | 缺 `DEEPSEEK_API_KEY`，在 LLM 路由退出 |
+| C7 | 真机 headless 加载 | ✅ 2026-11-12 | dsh 0.2.2-rc.1 headless + 启用 credentials 的隔离 patch；5 步完成 status/observe/catalog/隐藏 computer_wait |
 | C8 | `screen_zoom` 的 `coordinateSpace` 语义 | 待做 | 字段标 `screen-physical-px`，点击输入是 window-screenshot-px；统一字段或改名 |
 
 ## 3. 事实澄清 / 实验（冻结，按触发条件解冻）

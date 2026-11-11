@@ -52,8 +52,10 @@ node evals/verify-oracles.mjs
 npm pack --dry-run
 
 # 7. 真机加载（必做；唯一能发现“整棵插件树加载失败”的检查）
-#    需要凭据；headless 缺 DEEPSEEK_API_KEY 会在 LLM 路由退出，不是加载错误
-dsh --profile headless --patch "<工作区>/_probe-surface.yml" \
+#    headless 默认禁用 credentials；用探针 patch 显式启用 + insert 插件。
+#    2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步，2 可见/20 隐藏。
+dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')，把返回原文贴出来"
 
 # 8. 文档一致性（版本/工具数/配置键三处对齐）

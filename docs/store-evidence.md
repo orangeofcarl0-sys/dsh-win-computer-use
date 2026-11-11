@@ -33,13 +33,14 @@ rm -rf "$DSH_HOME"
 
 > 当前 npm **尚未发布**；方式 A 只有在 `npm view dsh-win-computer-use version` 有输出后才可用。发布步骤见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §7。
 
-## 2. 离线等价证据（仓库内可复现）
+## 2. 证据（离线等价 + 真机加载）
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 语法 + 安装脚本 | `npm run check` | **16/16** JS + `bash -n install.sh/uninstall.sh` |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
 | 离线测试 | `npm test; echo $?` | **10 套 / 231 ✅ / 0 ❌** |
+| dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏，真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **22 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 20 个经 dispatcher 路由；`hybrid` 注册 7 个 |
 | 安全护栏 | `guard()` / `wrap()` | 凭据硬保护、无快照/过期拒绝、`allowedApps`、极危注记、stop/resume 锁存 |
@@ -111,7 +112,7 @@ node verify-runtime.mjs
 
 ## 6. 已知限制
 
-- 真机 headless 加载需要凭据；缺 `DEEPSEEK_API_KEY` 会在 LLM 路由退出，不是插件加载错误。
+- headless profile 默认禁用 `credentials`；探针 patch 启用后，2026-11-12 已在 dsh 0.2.2-rc.1 上完成真机加载与 5 步只读调用（2 可见/20 隐藏）。默认配置下 `MISSING_CREDENTIAL` 不是插件加载错误。
 - npm 未发布；dsh-market 的 npm tarball 安装路径暂不可用。
 - web profile 当前仍是旧名 `dsh-computer-use` v0.5.3；更名后需重新安装为 `dsh-win-computer-use`。
 - Linux 未验证；macOS 近期未回归。不要把“安装成功”当成“平台已验收”。

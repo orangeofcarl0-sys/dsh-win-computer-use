@@ -1,7 +1,7 @@
 # VERIFICATION — 验证报告
 
 > 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
-> 代码快照：`main` @ 2026-11-10（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。
+> 代码快照：`main` @ 2026-11-10（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。2026-11-12 追加 dsh headless 真机加载证据（§2.1）。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)。
 
 ## 1. 当前验证矩阵
@@ -14,7 +14,7 @@
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10** | Windows 11 | `node evals/verify-oracles.mjs` |
 | 打包面 | **31 文件**（新增 docs/WINDOWS、docs/TESTING） | — | `npm pack --dry-run` |
-| 真机 headless 加载 | **未完成**（缺 `DEEPSEEK_API_KEY`，在 LLM 路由退出） | — | 见 §4 |
+| 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 ### 1.1 安全承诺矩阵
@@ -53,7 +53,33 @@
 
 ## 2. 历史证据
 
-### 2.1 2026-11-09/10 — P0/P1 安全边界、dispatcher、更名（0.5.7-dev）
+### 2.1 2026-11-12 — dsh 0.2.2-rc.1 headless 真机加载
+
+隔离 patch 启用 `credentials` + 本插件，模型走 dsh 默认 `deepseek-official/deepseek-flash`，只做只读调用：
+
+```bash
+dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
+  "只做只读验证：status / screen_observe / catalog / 隐藏 computer_wait"
+```
+
+| 检查 | 结果 |
+|---|---|
+| 会话 | `session-e1d8a603-9225-4755-b1ad-78f766dbf42e`，1 轮 5 步，`turn_end: completed` |
+| 插件加载 | `computer_do(action="status")` → “当前：dispatcher 模式（直接可见：computer_do, screen_observe；隐藏 20 个）” |
+| 真实观察 | `screen_observe()` → `Arknights.exe · 明日方舟`，pid 47912 / window 14354214，4 个元素，快照 `s0000001f` |
+| catalog | 20 个隐藏工具签名；`screen_zoom`、`computer_click`、`double_click`、`right_click` 等 |
+| 隐藏路由 | `computer_do({action:"call",tool:"computer_wait",args:{ms:50}})` → `[computer_wait] 已等待 50ms。` |
+| prompt cache | 每步 `cacheReadTokens`：6528 → 6656 → 6912 → 7296；tools 列表全程稳定 |
+| 安全边界 | 只读 observe + 纯等待；未调用 bash/文件工具，未点击/输入 |
+
+环境说明：
+
+- headless profile **默认禁用 `credentials`**（`id: credentials disabled: true`）；探针 patch 显式启用后，才能解析 `~/.dsh/.credentials.yaml` 的 provider key。默认 headless 配置下 `MISSING_CREDENTIAL` 不是插件加载错误。
+- 本机 `OPENCODE_GO_API_KEY` 已过期（401 `api_key_expired`），因此本次使用默认 DeepSeek 通道；这不影响插件证据。
+- 探针 patch 在仓库外（`_probe-win-cu-deepseek.yml`），未入库。
+
+### 2.2 2026-11-09/10 — P0/P1 安全边界、dispatcher、更名（0.5.7-dev）
 
 | 项 | 结果 |
 |---|---|
@@ -65,7 +91,7 @@
 | 工具面 | `dispatcher` 默认（2 可见/20 隐藏）；`hybrid` 可选（7/15）；`dynamic` 删除 |
 | 缓存 | 见 §1.2 |
 
-### 2.2 2026-09-17 — 结构治理与发布前复跑（0.5.4/0.5.6）
+### 2.3 2026-09-17 — 结构治理与发布前复跑（0.5.4/0.5.6）
 
 | 项 | 结果 |
 |---|---|
@@ -76,7 +102,7 @@
 | 发现并修复 | `scroll`/`drag` 把结构化拒绝当成功；`runAction`/`dedupInvalidate`/`taskCallCount` 死代码；schema 覆盖 13/20 → 20/20 |
 | 发布 | v0.5.6 注解 tag；`main` 单分支 |
 
-### 2.3 2026-09-16 — dsh 0.1.5 适配、坐标契约、上下文预算
+### 2.4 2026-09-16 — dsh 0.1.5 适配、坐标契约、上下文预算
 
 | 项 | 结果 |
 |---|---|
@@ -88,7 +114,7 @@
 | S4 | 9 任务 + AC2 双向验证 **9/9**（连跑 3 次一致）；冒烟 t07 pass |
 | 客户端适配 | 严格输出校验、composer `Input.insertText`、页脚格式、新会话视图钉住 |
 
-### 2.4 2026-09-06/07 — A6/A7、快照新鲜度、原生视觉
+### 2.5 2026-09-06/07 — A6/A7、快照新鲜度、原生视觉
 
 | 项 | 结果 |
 |---|---|
@@ -98,11 +124,11 @@
 | dsv4fv 通道 | ax ✓；native ✓（attachments 端到端，首 token 0.9s / 116 tok/s / 缓存 74%）；vision 观察者半通（只出思考），GLM 无 key 优雅降级 |
 | 上游反馈 | #3576（密码投影）、#3586（树版本/条件请求）、#3587（干预信号）已提 |
 
-### 2.5 2026-08-25 — 原生视觉接入
+### 2.6 2026-08-25 — 原生视觉接入
 
 `verify-runtime` **12/12**：12 工具注册（新增 `screen_zoom`）；`screen_observe(ax)` 真实树；native text-only 拒绝；native image route PNG（1.06MB）attachments 落盘 + `{type:"image"}` 内容块；zoom 区域 JPEG；vision 降级链；坐标语义；安全回归；结构化拒绝透传。
 
-### 2.6 2026-08-15 — macOS 初始验证
+### 2.7 2026-08-15 — macOS 初始验证
 
 cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备忘录“打开→点击→输入”闭环；TTL/白名单/危险词/密码保护；home 级 patch 安装与 HMR 热生效。此阶段的安全姿态（危险词审批）已在 0.4.0 删除，相关结论仅作历史。
 
@@ -127,7 +153,6 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
-| 真机 headless 加载 | 未完成 | headless profile 缺 `DEEPSEEK_API_KEY`，在 LLM 路由退出（不是加载错误） | 用有凭据 profile 复跑 `--patch _probe-surface.yml` |
 | 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
@@ -148,6 +173,11 @@ node verify-runtime.mjs
 node tests/live-action.e2e.mjs 3
 node evals/verify-oracles.mjs
 npm pack --dry-run
+
+# dsh 0.2.2-rc.1 真机加载（隔离 patch 需启用 credentials；headless 默认关闭）
+dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
+  "调用 computer_do(action='status')，把返回原文贴出来"
 ```
 
 判据：
@@ -156,7 +186,8 @@ npm pack --dry-run
 - `verify-runtime` 的 `结果：16/16 通过`；
 - `live-action` 的 `23/23`（会打开临时记事本窗口；不杀进程，残留标签人工关闭）；
 - `verify-oracles` 的 `10/10`；
-- `npm pack --dry-run` 的 total files = 31。
+- `npm pack --dry-run` 的 total files = 31；
+- headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 20 隐藏（本次实测见 §2.1）。
 
 ## 6. 证据约定
 

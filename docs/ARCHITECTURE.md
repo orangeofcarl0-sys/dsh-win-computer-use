@@ -390,7 +390,7 @@ stateDiagram-v2
 ## 14. 测试与证据
 
 - 离线：10 套、231 断言（2026-11-10）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)。
-- 真机：`verify-runtime.mjs` 16/16；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
+- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 16/16；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 9 条任务 + oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。
 

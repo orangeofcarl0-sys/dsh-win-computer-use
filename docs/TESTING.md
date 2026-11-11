@@ -20,6 +20,7 @@
 | 语法/安装脚本 | `npm run check` | 16 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
 | 离线单元/契约 | `npm test` | 10 套 / 231 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 16 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段 |
+| dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
 | 任务级评测 | `node evals/run.mjs --tier smoke` | 9 条任务 | 多步任务收敛、步数/成本、模型行为 |
 | oracle 验证 | `node evals/verify-oracles.mjs` | 10 项 | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
@@ -84,6 +85,18 @@ node verify-runtime.mjs
 
 注意：脚本只读观察，不执行桌面动作；窗口每次从 `list_windows(on_screen_only)` 发现，不写死 PID；选择时跳过 `0×0` shell 弹窗与驱动自身窗口。
 
+### 4.1 dsh 真机加载（headless）
+
+```bash
+dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
+  "调用 computer_do(action='status')，把返回原文贴出来"
+```
+
+- `headless` 默认禁用 `credentials`（`id: credentials disabled: true`）；探针 patch 必须显式启用，否则会在 LLM 路由报 `MISSING_CREDENTIAL`，不是插件加载错误。
+- 2026-11-12 实测：dsh 0.2.2-rc.1 + 默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；2 可见/20 隐藏；`cacheReadTokens` 6528→7296。
+- 探针 patch 在仓库外，不入库；详细证据见 [VERIFICATION](../VERIFICATION.md) §2.1。
+
 ## 5. 真桌面闭环
 
 ```bash
@@ -145,6 +158,7 @@ node evals/verify-oracles.mjs
 | 离线 | 10 套 / 231 ✅ / 0 ❌ |
 | 语法 | 16/16 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
+| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 9 条 |
 | 打包 | `npm pack --dry-run` 31 文件 |

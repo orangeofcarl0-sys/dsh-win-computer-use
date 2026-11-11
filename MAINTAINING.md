@@ -40,9 +40,9 @@
 | 重启 harness | `~/.dsh/restart-dsh-capture.ps1`（把当前 boot 的 tokened URL 落盘） |
 | URL/token | `~/.dsh/web-latest.log` 最后一条 |
 | 模型通道 | `~/.dsh/settings.yaml`：`agent-default-model` = `opencode-go / deepseek-v4.1-flash / high`；`llm-pi-ai.providers.opencode-go` 需 `baseURL=https://opencode.ai/zen/go/v1` + 必需请求头 `x-opencode-session` |
-| 凭据 | `~/.dsh/.credentials.yaml`（含 `OPENCODE_GO_API_KEY`）；GLM 兜底需 `ZHIPU_API_KEY`（当前未配） |
+| 凭据 | `~/.dsh/.credentials.yaml`（含 `OPENCODE_GO_API_KEY`，2026-11-12 实测已过期 401；默认 DeepSeek 通道可用）；GLM 兜底需 `ZHIPU_API_KEY`（当前未配） |
 | S4 沙箱 | `%USERPROFILE%\.dsh\s4-evals\<taskId>\` |
-| 一次性探针 | 工作区 `_probe-surface.yml`、`_parity-observe.mjs`、`_tool-surface.mjs`（不入库） |
+| 一次性探针 | 工作区 `_probe-surface.yml`、`_probe-win-cu-deepseek.yml`、`_parity-observe.mjs`、`_tool-surface.mjs`（不入库） |
 
 **不要**把 key、token、实验产物写进仓库。模型通道的 key 只从本地配置读取，测试脚本不打印。
 
@@ -143,10 +143,12 @@
   - 新包名/安装名 = `dsh-win-computer-use`。
 - 切换版本：用新名重装/改目录名 → `restart-dsh-capture.ps1` → 会话内 `computer_do(status)` 冒烟。
 - **headless 探针通道**（不影响 web 客户端）：
-  - `~/.dsh/profiles/headless/node_modules/dsh-computer-use` 曾建 junction → 本仓库；更名后需改为 `dsh-win-computer-use`。
-  - 叠加层 `F:\Codex_Work_Space\DSH plugin\_probe-surface.yml`（只 insert 本插件，`deliveryMode: background`、`passwordScan: off`）。
-  - 用法：`dsh --profile headless --patch "<...>/_probe-surface.yml" "<任务>"`；headless 是“答一个任务即退出”的 profile。
-  - 缺 `DEEPSEEK_API_KEY` 时会在 LLM 路由退出；这不是插件加载错误。
+  - `~/.dsh/profiles/headless/node_modules/dsh-win-computer-use` 已建 junction → 本仓库（2026-11-12；旧名 junction 保留）。
+  - 叠加层 `F:\Codex_Work_Space\DSH plugin\_probe-win-cu-deepseek.yml`：启用 `credentials` + insert 本插件，模型走 dsh 默认 `deepseek-official/deepseek-flash`。
+  - **headless 默认禁用 `credentials`**（`id: credentials disabled: true`）；不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
+  - 用法：`dsh --profile headless --patch "<...>/_probe-win-cu-deepseek.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
+  - 2026-11-12 实测：1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；2 可见/20 隐藏；cacheRead 6528→7296。
+  - 本机 `OPENCODE_GO_API_KEY` 已过期（401），opencode-go 通道暂不可用；默认 DeepSeek 通道正常。
 - npm 未发布；dsh-market 安装途径暂不可用。
 - 详细步骤见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §6。
 
@@ -169,7 +171,6 @@
 | 优先级 | 事项 |
 |---|---|
 | P1 | 修 G1/G5（都是小改动，补测试后合入） |
-| P1 | 有凭据 profile 跑真机 headless 加载 |
 | P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
 | P2 | S4 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
 | P2 | daemon 提权/清理问题（#3607）；先试非提权重启 daemon |
@@ -186,6 +187,7 @@
 - 2026-09-08~16：S4 评测系统；坐标契约根治；dsh 0.1.5 适配；上下文预算 A–F；`computer_task`。
 - 2026-09-17：结构治理（测试脚手架、schema 20/20、config plumbing、回执统一、注册数据化）；v0.5.4/0.5.5/0.5.6。
 - 2026-11-09/10：P0/P1 边界、`dispatcher` 默认、`dynamic` 删除、更名、文档体系重写。
+- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）。
 
 > 更早的逐日交接（2026-09-16 `HANDOFF`）已不在工作树；需要时从 git 历史取回。
 
