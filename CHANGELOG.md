@@ -37,6 +37,7 @@
 
 - **dsh 兼容下限保持 `>=0.1.5-rc.2`**：0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。0.5.7 移除 dynamic 后不再依赖 `agent.ctx` 作用域注册与 `tools/result`；实测宿主为 0.2.2-rc.1。
 - **文档体系重写（2026-11-10）**：README 重排为“产品入口 + 工具参考 + 边界”；新增 `docs/WINDOWS.md`（Windows 工程与冒烟矩阵）、`docs/TESTING.md`（测试分层）；重写 `docs/ARCHITECTURE.md`（模块/流水线/不变量/扩展/已知缺口）、`VERIFICATION.md`（当前矩阵 + 历史证据）、`PERMISSIONS.md`（条件性网络与全部环境变量）、`ROADMAP.md`、`PUBLISH.md`、`docs/store-evidence.md`；`HANDOFF-2026-09-16.md` 并入 `MAINTAINING.md` 后移除。修正 macOS/Linux 过度声明、危险词审批旧验收、像素点击“零标定命中”等与实现不一致的表述。
+- **dsh 0.2.2 兼容性审计（2026-11-12）**：新增 `docs/COMPATIBILITY-0.2.2.md`。P0：`computer_task` 仍依赖已移除的 `ctx.subagents.start()`，0.2.2 只有 `startActivation()`，委派会退回配方；P1：默认 `visionModel` 不在 0.2.2 目录、`nativeImage:auto` 未覆盖新附件 dimension/pixels 限额、PTC 工具面未实测；P2：`toolFilter` 文案与兼容上限。核心观察/动作/native/dispatcher 已真机兼容（7/8 smoke、16/16 runtime）。
 
 ### Measured
 

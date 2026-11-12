@@ -346,6 +346,7 @@ node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
 | 文档 | 读者 | 内容 |
 |---|---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 贡献者 | 模块、工具面、请求/观察流水线、投递链、快照状态机、扩展指南 |
+| [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md) | 升级审查 | dsh 0.2.2 契约矩阵、P0/P1 兼容缺口、升级顺序 |
 | [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 用户/贡献者 | 完整性级别、前台锁、输入通道、坐标/DPI、清理规则、冒烟矩阵 |
 | [docs/TESTING.md](docs/TESTING.md) | 贡献者 | 离线/真机/评测三层测试、断言清单、排障与新增测试 |
 | [VERIFICATION.md](VERIFICATION.md) | 审查者 | 当前验证矩阵、按日期的证据、未验证项 |

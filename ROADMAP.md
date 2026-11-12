@@ -32,6 +32,7 @@
 | C8 | `screen_zoom` 的 `coordinateSpace` 语义 | 待做 | 字段标 `screen-physical-px`，点击输入是 window-screenshot-px；统一字段或改名 |
 | C9 | S4 Web runner 的 dsh 0.2.2 UI 兼容 | 待做 | 新会话只写 session 头、无消息；`steps` 从旧会话误读；Web `0/4` 无效。CRLF prompt 解析已修 |
 | C10 | `wa2` 失败归因 | 🔶 初查 | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次工具错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON；先做轨迹/提示层优化 |
+| C11 | dsh 0.2.2 全面兼容性检查 | 🔶 报告完成 | `docs/COMPATIBILITY-0.2.2.md`：P0 `computer_task` subagents API；P1 vision 默认模型 / 附件 dimension / PTC 未验；P2 toolFilter 文案/上限 |
 
 ## 3. 事实澄清 / 实验（冻结，按触发条件解冻）
 

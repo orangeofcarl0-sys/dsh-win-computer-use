@@ -20,6 +20,7 @@
 |---|---|
 | [README](README.md) | 用户入口、工具参考、配置、边界 |
 | [docs/ARCHITECTURE](docs/ARCHITECTURE.md) | 模块、流水线、快照/投递、扩展指南、已知缺口 |
+| [docs/COMPATIBILITY-0.2.2](docs/COMPATIBILITY-0.2.2.md) | dsh 0.2.2 契约矩阵与 P0/P1 兼容缺口 |
 | [docs/WINDOWS](docs/WINDOWS.md) | Windows 工程细节、冒烟矩阵、清理规则 |
 | [docs/TESTING](docs/TESTING.md) | 测试分层、断言清单、排障 |
 | [VERIFICATION](VERIFICATION.md) | 验证矩阵、历史证据、未验证项 |
@@ -166,6 +167,7 @@
 | G7 | 部署/npm | web profile 仍旧版；npm 未发布 | 用户看到的可能不是 main | 按 PUBLISH 执行 |
 | G8 | `evals/run.mjs` Web runner | dsh 0.2.2 下创建空会话、`steps` 误读；Web `0/4` 无效 | 任务级错误率不可用 Web runner 统计 | 更新 UI 选择器/发送路径（ROADMAP C9） |
 | G9 | S4 `wa2` | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON | 时间预算/步速敏感，另有提示层/焦点问题 | 轨迹分析，降低步速（C10） |
+| G10 | `computer_task` | 0.2.2 只有 `subagents.startActivation`，插件仍检查 `svc.start`，会退回“未提供 subagents 服务”配方 | 0.2.2 上委派不可用 | 双 API 适配 + 测试（COMPATIBILITY P0） |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 
 **当前文档的处理**：G1/G5 已在 [ARCHITECTURE](docs/ARCHITECTURE.md) §13 与 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) 中如实标注；README 不把它们写成已支持能力。原先的 install.sh 默认值、`computer_task` 描述默认值、委派白名单漏 `set_value` 三项已在 2026-11-10 文档重写批一并修正。
@@ -175,6 +177,7 @@
 | 优先级 | 事项 |
 |---|---|
 | P1 | 修 G1/G5（都是小改动，补测试后合入） |
+| P1 | 修 `computer_task` 的 0.2.2 `startActivation` 适配（G10 / COMPATIBILITY P0） |
 | P1 | 修 `evals/run.mjs` 的 dsh 0.2.2 Web UI 兼容（G8）；当前 Web 冒烟结果无效 |
 | P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
 | P2 | S4 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
