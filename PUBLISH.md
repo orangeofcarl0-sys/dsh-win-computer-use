@@ -36,7 +36,7 @@ git status --short
 # 1. 语法 + 安装脚本
 npm run check; echo "check=$?"
 
-# 2. 离线测试（10 套 / 231 断言；&& 串联，必须看 $?）
+# 2. 离线测试（10 套 / 241 断言；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
 # 3. 真驱动运行时（只读观察；16/16）
@@ -48,7 +48,7 @@ node tests/live-action.e2e.mjs 3
 # 5. S4 oracle 双向验证（10/10）
 node evals/verify-oracles.mjs
 
-# 6. 打包面（31 文件；确认没有 node_modules/.dsh-test/tests）
+# 6. 打包面（32 文件；确认没有 node_modules/.dsh-test/tests）
 npm pack --dry-run
 
 # 7. 真机加载（必做；唯一能发现“整棵插件树加载失败”的检查）
@@ -60,7 +60,7 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 
 # 8. 文档一致性（版本/工具数/配置键三处对齐）
 grep -n '"version"' package.json package-lock.json
-grep -rn "231\|22 个工具\|20 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
+grep -rn "241\|22 个工具\|20 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
 ```
 
 历史上真正抓出过问题的检查：
@@ -143,7 +143,7 @@ dsh --profile web --dump-config | grep dsh-win-computer-use
 > dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。当前**未发布**。
 
 ```bash
-npm pack --dry-run              # 先看 31 文件清单
+npm pack --dry-run              # 先看 32 文件清单
 npm login                       # 已登录账号 jerryweizhihao（按实际）
 npm publish --access public     # 需要 2FA/token
 npm view dsh-win-computer-use version

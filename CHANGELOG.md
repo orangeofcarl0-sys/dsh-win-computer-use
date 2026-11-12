@@ -4,7 +4,7 @@
 
 ## 0.5.7 (未发布)
 
-**2026-11-09/10：安全边界与可复现性修复（P0/P1）+ 工具面收敛 + Windows-first 更名 + 文档体系重写**
+**2026-11-09/12：安全边界与可复现性修复（P0/P1）+ 工具面收敛 + Windows-first 更名 + 文档体系重写 + dsh 0.2.2 兼容升级**
 
 ### Added
 
@@ -32,12 +32,16 @@
 - **委派白名单漏 `computer_set_value`**：`GUI_ONLY_TOOLS` 仍是 19 项，新增的设值工具不在白名单。补为 20 项（仍排除 `computer_task` 防递归）。
 - **权限元数据与可选网络不一致**：`package.json` 的 `externalServices: "none"` 与 GLM 兜底的外呼事实冲突；改为条件性说明，并补全 `CUA_SESSION/GLM_API_BASE/GLM_VISION_MODEL` 环境变量。
 - **S4 runner 的 CRLF prompt 解析**：Windows checkout 的 `evals/tasks/*.md` 是 CRLF，而 `<<<PROMPT\n` 正则只认 LF，`discoverTasks` 直接报 “no <<<PROMPT block”；读入后统一归一化为 LF。
+- **`computer_task` 不兼容 dsh 0.2.2 subagents（P0）**：0.2.2 只有 `startActivation(spec)`，插件仍检查/调用 `svc.start(provider, request)`，即使 subagents 已挂载也会退回“未提供 subagents 服务”配方。改为按宿主能力选择 `startActivation` / `start` 双路径；0.2.2 路径使用 `delivery:'caller'`、`request.parent`、`activation.result/dispose`，不再传 `toolFilter`；真机成功拉起子 agent 并返回结构化结果。
+- **0.2.2 默认视觉模型失效（P1）**：`deepseek-v4-flash-vision-exp` 不在 0.2.2 DeepSeek 目录；默认改为 `deepseek-flash`，并在 `lib/vision.js` 对 `deepseek-flash` ↔ legacy 做能力回退。真机 `mode="vision"` 返回观察者描述。
+- **native 附件限额只检查字节数（P1）**：0.2.2 新增 `maxImageDimension`/`maxImagePixels`；`nativeImage:auto` 超限时自动走 compact zoom，而不是被 `saveImage` 拒绝。
+- **`toolFilter` 文案与工具描述过度承诺（P2）**：0.2.2 的 `startActivation` 没有 `toolFilter`；README/ARCHITECTURE/MAINTAINING/工具描述统一改为“工具集限制取决于宿主”，回执明确写同级能力。
 
 ### Changed
 
 - **dsh 兼容下限保持 `>=0.1.5-rc.2`**：0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。0.5.7 移除 dynamic 后不再依赖 `agent.ctx` 作用域注册与 `tools/result`；实测宿主为 0.2.2-rc.1。
 - **文档体系重写（2026-11-10）**：README 重排为“产品入口 + 工具参考 + 边界”；新增 `docs/WINDOWS.md`（Windows 工程与冒烟矩阵）、`docs/TESTING.md`（测试分层）；重写 `docs/ARCHITECTURE.md`（模块/流水线/不变量/扩展/已知缺口）、`VERIFICATION.md`（当前矩阵 + 历史证据）、`PERMISSIONS.md`（条件性网络与全部环境变量）、`ROADMAP.md`、`PUBLISH.md`、`docs/store-evidence.md`；`HANDOFF-2026-09-16.md` 并入 `MAINTAINING.md` 后移除。修正 macOS/Linux 过度声明、危险词审批旧验收、像素点击“零标定命中”等与实现不一致的表述。
-- **dsh 0.2.2 兼容性审计（2026-11-12）**：新增 `docs/COMPATIBILITY-0.2.2.md`。P0：`computer_task` 仍依赖已移除的 `ctx.subagents.start()`，0.2.2 只有 `startActivation()`，委派会退回配方；P1：默认 `visionModel` 不在 0.2.2 目录、`nativeImage:auto` 未覆盖新附件 dimension/pixels 限额、PTC 工具面未实测；P2：`toolFilter` 文案与兼容上限。核心观察/动作/native/dispatcher 已真机兼容（7/8 smoke、16/16 runtime）。
+- **dsh 0.2.2 兼容性升级（2026-11-12）**：`docs/COMPATIBILITY-0.2.2.md` 记录契约矩阵与真机证据；P0/P1/P2 已实施（subagents 双 API、vision 默认/回退、附件 dimension/pixels、PTC `run_code` + native/`computer_task` 验证、toolFilter 文案、兼容上限 `<0.3.0`）。核心观察/动作/native/dispatcher 已真机兼容（7/8 smoke、16/16 runtime）。
 
 ### Measured
 

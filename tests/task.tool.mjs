@@ -8,6 +8,8 @@
  *  T5 宿主无 subagents 服务 → 返回委派配方（不执行）
  *  T6 能力降级阶梯：只丢 toolFilter（保住结构化）→ 再丢 outputSchema → 全失败报错，每级如实注明原因
  *  T7 toolFilter 白名单与注册工具集一致（防拼错工具名导致子 agent 被限死）
+ *  T10-T11 dsh 0.2.2 startActivation（无 toolFilter；outputSchema 降级）
+ *  T12 只有 list、无启动 API → 委派配方
  */
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -165,6 +167,65 @@ async function setup({ subagents }) {
   await new Promise((r) => setTimeout(r, 30))
   check('T9 长任务未立即返回（超时逻辑在跑）', true)
   void p // 一秒级超时不在此断言（默认 5 分钟），指引文案由实现常量保证
+}
+
+// ── T10/T11：dsh 0.2.2 subagents API（startActivation，无 toolFilter） ─────
+{
+  const { resetTaskCalls } = await import(pathToFileURL(join(work, 'lib', 'task.js')).href)
+  resetTaskCalls()
+  let seen = null
+  let disposed = false
+  const fake = {
+    list: () => ['spawn'],
+    async startActivation(spec) {
+      seen = spec
+      return {
+        childId: 'child-22', messageId: 'msg-22',
+        result: Promise.resolve({ stopReason: 'completed', structured: { ok: true, summary: '0.2.2 委派完成', evidence: ['e'] } }),
+        async dispose() { disposed = true },
+      }
+    },
+  }
+  const { call } = await setup({ subagents: fake })
+  const r = await call('computer_task', { goal: '0.2.2 委派测试' })
+  check('T10 走 0.2.2 startActivation（provider/label/request/delivery）',
+    seen?.provider === 'spawn' && /computer_task/.test(seen?.label || '') && seen?.delivery === 'caller'
+    && Array.isArray(seen?.request?.prompt) && !!seen?.request?.parent,
+    JSON.stringify({ provider: seen?.provider, delivery: seen?.delivery }))
+  check('T10 request 不含 toolFilter / label / signal',
+    seen?.request && !('toolFilter' in seen.request) && !('label' in seen.request) && !('signal' in seen.request),
+    Object.keys(seen?.request || {}).join(','))
+  check('T10 保留 outputSchema/maxDepth', !!seen?.request?.outputSchema && seen?.request?.maxDepth === 1)
+  check('T10 结果映射 + 同级能力说明', r.ok === true && /0.2.2 委派完成/.test(r.result) && /同级的能力/.test(r.result))
+  check('T10 激活被 dispose', disposed === true && r.structured?.summary === '0.2.2 委派完成')
+
+  // T11：宿主不支持 outputSchema → 自动去掉后重试，并如实标注未结构化
+  resetTaskCalls()
+  let calls = 0
+  const fakeNoSchema = {
+    list: () => ['spawn'],
+    async startActivation(spec) {
+      calls++
+      if (spec.request.outputSchema) throw new Error('outputSchema not supported')
+      return {
+        childId: 'child-23',
+        result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '完成了' }] }),
+        async dispose() {},
+      }
+    },
+  }
+  const b = await setup({ subagents: fakeNoSchema })
+  const r2 = await b.call('computer_task', { goal: '无结构化' })
+  check('T11 outputSchema 被拒 → 第二次不带 outputSchema', calls === 2, `calls=${calls}`)
+  check('T11 回执如实标注未结构化', r2.ok === false && /未返回结构化结果/.test(r2.result) && /结果未结构化/.test(r2.result), r2.result.slice(0, 100))
+}
+
+// ── T12：只有 list、没有启动 API → 配方，不误判为“已完成” ───────────────
+{
+  const fake = { list: () => ['spawn'] }
+  const { call } = await setup({ subagents: fake })
+  const r = await call('computer_task', { goal: 'x' })
+  check('T12 无 start/startActivation → 返回委托配方', r.ok === false && /子任务/.test(r.result), r.result.slice(0, 80))
 }
 
 console.log(`\n结果：${checkState.failures ? '❌ ' + checkState.failures + ' 项失败' : '✅ 全部通过'}`)

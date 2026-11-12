@@ -33,6 +33,8 @@ export async function cuaCall(tool, args = {}) {
   if (tool === 'get_window_state') {
     // screen_zoom 用 max_elements:1 取窗口尺寸（不降级）；其余路径恒失败以测观测降级
     if (args.max_elements === 1) return { screenshot_width: 2560, screenshot_height: 1610, elements: [], element_count: 0, total_element_count: 0 }
+    // native 观察：给一张超过 maxImageDimension 的“截图”，用于验证 auto → compact
+    if (args.include_screenshot === true) return { screenshot_width: 4000, screenshot_height: 3000, screenshot_png_b64: 'aGVsbG8=', screenshot_mime_type: 'image/png', elements: [], element_count: 0, total_element_count: 0 }
     throw new Error('access denied (integrity level)')
   }
   if (tool === 'get_desktop_state') return { screenshot_width: 100, screenshot_height: 100 }
@@ -53,6 +55,7 @@ const { setSnapshot } = await import(libUrl('snapshot.js'))
 const { screenObserve } = await import(libUrl('observe.js'))
 const { isActionableRole, isMaskedValue } = await import(libUrl('roles.js'))
 const { scanPasswords, markElementsFromScan } = await import(libUrl('passwordScan.js'))
+const { history } = await import(libUrl('cua.js'))
 
 const cfg = { ttlMs: 60000, maxElements: 500, allowedApps: [], extremeRes: [], passwordScan: 'off', deliveryMode: 'auto' }
 const cfgExtreme = { ...cfg, extremeRes: [/永久删除/] }
@@ -145,6 +148,42 @@ const execZoom = { agent: { options: { provider: 'p', model: 'm' } } }
 const z = await screenZoom(ctxZoom, { pid: 1, window_id: 2, x1: 100, y1: 200, x2: 200, y2: 280 }, cfg, execZoom)
 check('F1: zoom 返回 crop 元数据（原点+尺寸）', z.ok === true && z.crop?.x === 100 && z.crop?.y === 200 && z.crop?.w === 100 && z.crop?.h === 80)
 check('F2: crop.scale = 裁剪宽/返回图宽 = 2', z.crop?.scale === 2 && /定位环/.test(z.result || ''))
+
+// N. dsh 0.2.2 附件限额：maxImageDimension 超限时 native auto 必须走 compact
+const nativeAtt = {
+  imageLimits: { maxImageBytes: 5 * 1024 * 1024, maxImageDimension: 1000, maxImagePixels: 4_000_000 },
+  saveImage: async (o) => ({ attachmentId: 'a-native', mediaType: o.mediaType, bytes: o.data.length, width: 50, height: 40, name: o.name }),
+}
+const nativeLlm = { resolveModelInfo: async () => ({ inputModalities: ['image', 'text'] }) }
+const ctxNative = { get: (k) => (k === 'attachments' ? nativeAtt : k === 'llm' ? nativeLlm : null) }
+const execNative = { agent: { options: { provider: 'p', model: 'm' } } }
+const beforeZoom = history.filter((h) => h.tool === 'zoom').length
+const n = await screenObserve(ctxNative, { mode: 'native', force: true }, { ...cfg, nativeImage: 'auto' }, execNative)
+const afterZoom = history.filter((h) => h.tool === 'zoom').length
+check('N1: native 超 maxImageDimension 自动 compact（走 zoom）',
+  n.ok === true && n.mode === 'native' && n.image?.attachmentId === 'a-native' && afterZoom > beforeZoom,
+  `zoom ${beforeZoom}->${afterZoom}`)
+
+// V. 0.2.2 视觉模型目录：legacy 默认不可用时回退 deepseek-flash
+const { deepseekVisionDescribe } = await import(libUrl('vision.js'))
+const visionCalls = []
+const fakeVisionLlm = {
+  async resolveModelInfo(_provider, model) {
+    visionCalls.push(model)
+    return { inputModalities: model === 'deepseek-flash' ? ['text', 'image'] : ['text'] }
+  },
+  async * stream({ model }) {
+    yield { type: 'text-delta', text: `看懂了(${model})` }
+  },
+}
+const visionText = await deepseekVisionDescribe(
+  { get: (k) => (k === 'llm' ? fakeVisionLlm : null) },
+  { visionProvider: 'deepseek-official', visionModel: 'deepseek-v4-flash-vision-exp' },
+  { imageRef: { attachmentId: 'a1' }, question: '描述' },
+)
+check('V1: legacy 视觉模型失败时回退 deepseek-flash',
+  /回退 deepseek-flash/.test(visionText) && /看懂了\(deepseek-flash\)/.test(visionText)
+  && visionCalls.includes('deepseek-flash'))
 
 // E. 姿态结构断言（源码级：无 permissionMode 残留、默认值翻转、无 approval 残留）
 const yml = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')

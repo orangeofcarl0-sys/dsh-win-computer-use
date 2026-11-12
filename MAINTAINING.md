@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：22 工具 = 21 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 20；`hybrid` 可见 7 / 隐藏 15。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 10 套 / 231 断言；`npm run check` 16/16；`verify-runtime` 16/16。
+- **测试基线**：`npm test` 10 套 / 241 断言；`npm run check` 16/16；`verify-runtime` 16/16。
 
 ## 2. 文档地图
 
@@ -89,9 +89,10 @@
 
 ### 4.6 子 agent 能力
 
-- `toolFilter` 在宿主内部是 scoped `tools.restrict()`，名字校验**只认全局层**；默认 dispatcher 下 20 个桌面工具不注册为全局工具 → toolFilter 很可能被拒（`tools.restrict() names unknown global tools`）。
-- `outputSchema`/`maxDepth` 在 spawn-in-process provider 上仍可用；降级不能“一把全丢”，要按阶梯：全量 → 去 toolFilter → 去 outputSchema → 报错。
-- 每次降级都要把**拒绝原因与权限后果**写进回执（“子 agent 拥有与父会话同级的能力”）。
+- **dsh 0.2.2**：`ctx.subagents.startActivation(spec)`；`spec.request` 没有 `toolFilter`，工具集由 Agent Preset/宿主组合决定；`delivery:'caller'`，结果读 `activation.result`，结束 `activation.dispose()`。
+- **dsh 0.1.5**：`start(provider, request)`；`toolFilter` 在宿主内部是 scoped `tools.restrict()`，名字校验**只认全局层**；默认 dispatcher 下 20 个桌面工具不注册为全局工具 → toolFilter 可能被拒。
+- `outputSchema`/`maxDepth` 在 spawn-in-process provider 上可用；降级不能“一把全丢”，要按阶梯：全量 → 去 toolFilter（仅旧 API）→ 去 outputSchema → 报错。
+- 每次降级都要把**拒绝原因与权限后果**写进回执（“子 agent 拥有与父会话同级的能力”）；0.2.2 新路径即使全量成功也要写，因为它根本没有工具限制参数。
 - 子 agent 不能再派生：`maxDepth=1` 且白名单不含 `computer_task`。
 
 ### 4.7 PowerShell / Windows 脚本
@@ -167,7 +168,6 @@
 | G7 | 部署/npm | web profile 仍旧版；npm 未发布 | 用户看到的可能不是 main | 按 PUBLISH 执行 |
 | G8 | `evals/run.mjs` Web runner | dsh 0.2.2 下创建空会话、`steps` 误读；Web `0/4` 无效 | 任务级错误率不可用 Web runner 统计 | 更新 UI 选择器/发送路径（ROADMAP C9） |
 | G9 | S4 `wa2` | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON | 时间预算/步速敏感，另有提示层/焦点问题 | 轨迹分析，降低步速（C10） |
-| G10 | `computer_task` | 0.2.2 只有 `subagents.startActivation`，插件仍检查 `svc.start`，会退回“未提供 subagents 服务”配方 | 0.2.2 上委派不可用 | 双 API 适配 + 测试（COMPATIBILITY P0） |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 
 **当前文档的处理**：G1/G5 已在 [ARCHITECTURE](docs/ARCHITECTURE.md) §13 与 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) 中如实标注；README 不把它们写成已支持能力。原先的 install.sh 默认值、`computer_task` 描述默认值、委派白名单漏 `set_value` 三项已在 2026-11-10 文档重写批一并修正。
@@ -177,7 +177,6 @@
 | 优先级 | 事项 |
 |---|---|
 | P1 | 修 G1/G5（都是小改动，补测试后合入） |
-| P1 | 修 `computer_task` 的 0.2.2 `startActivation` 适配（G10 / COMPATIBILITY P0） |
 | P1 | 修 `evals/run.mjs` 的 dsh 0.2.2 Web UI 兼容（G8）；当前 Web 冒烟结果无效 |
 | P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
 | P2 | S4 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
@@ -195,7 +194,7 @@
 - 2026-09-08~16：S4 评测系统；坐标契约根治；dsh 0.1.5 适配；上下文预算 A–F；`computer_task`。
 - 2026-09-17：结构治理（测试脚手架、schema 20/20、config plumbing、回执统一、注册数据化）；v0.5.4/0.5.5/0.5.6。
 - 2026-11-09/10：P0/P1 边界、`dispatcher` 默认、`dynamic` 删除、更名、文档体系重写。
-- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）；S4 oracle 10/10；headless smoke 3/4（`wa2` fail）；Web runner 的 0/4 判为 dsh 0.2.2 UI 兼容问题。
+- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）；S4 oracle 10/10；headless smoke 3/4（`wa2` fail）；Web runner 的 0/4 判为 dsh 0.2.2 UI 兼容问题；随后完成 dsh 0.2.2 兼容升级（subagents 双 API / vision 默认回退 / 附件 dimension / PTC 真机）。
 
 > 更早的逐日交接（2026-09-16 `HANDOFF`）已不在工作树；需要时从 git 历史取回。
 

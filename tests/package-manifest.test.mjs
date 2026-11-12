@@ -48,8 +48,8 @@ check('devDependencies 固定实测宿主版本', () => {
   assert.equal(pkg.devDependencies?.['@deepseek-ai/schemastery'], '3.19.0')
 })
 
-check('dsh 兼容下限仍为 0.1.5-rc.2', () => {
-  assert.match(pkg.dsh?.compatibility?.dsh || '', /^>=0\.1\.5-rc\.2/)
+check('dsh 兼容下限与上限（0.1.5-rc.2 ~ 0.3.0）', () => {
+  assert.equal(pkg.dsh?.compatibility?.dsh, '>=0.1.5-rc.2 <0.3.0')
 })
 
 check('发布文件清单包含运行必需项', () => {

@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-10 · `npm test` 10 套 / **231 断言** · `npm run check` **16/16** · `verify-runtime` **16/16**。
+> 最近基线：2026-11-12 · `npm test` 10 套 / **241 断言** · `npm run check` **16/16** · `verify-runtime` **16/16**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -18,7 +18,7 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 16 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 10 套 / 231 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界 |
+| 离线单元/契约 | `npm test` | 10 套 / 241 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 16 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
@@ -29,16 +29,16 @@
 
 | 套件 | 断言 | 主要覆盖 |
 |---|---:|---|
-| `posture.smoke.mjs` | 34 | 零审批姿态、密码硬保护（AX/UIA/结构位/掩码）、极危注记、桌面降级、快照新鲜度 I 系列、执行侧接线 |
+| `posture.smoke.mjs` | 36 | 零审批姿态、密码硬保护（AX/UIA/结构位/掩码）、极危注记、桌面降级、快照新鲜度 I 系列、执行侧接线 |
 | `tools.smoke.mjs` | 15 | stop/resume 锁存、verify unknown≠成功、wait_for 超时、clipboard、menu、hover 两种 scope |
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复 |
 | `schema.conformance.mjs` | 44 | 22 个工具 / 44 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级形态 |
 | `observe.dedup.mjs` | 18 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
-| `task.tool.mjs` | 20 | 子 agent 请求构造、结构化结果、超时、无服务配方、三级降级、预算、白名单一致性 |
+| `task.tool.mjs` | 28 | 子 agent 请求构造、结构化结果、超时、无服务配方、三级降级、预算、白名单一致性 |
 | `config.plumbing.mjs` | 26 | 16 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；11 组行为哨兵 |
 | `action-bounds.mjs` | 20 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
 | `dispatcher.test.mjs` | 32 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、工具面稳定、宿主 schema |
-| `package-manifest.test.mjs` | 10 | 包名/仓库、peer/dev 依赖、dsh 兼容下限、发布文件、权限声明、测试脚本 |
+| `package-manifest.test.mjs` | 10 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 
 ### 3.1 共享脚手架
 
@@ -174,11 +174,11 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 10 套 / 231 ✅ / 0 ❌ |
+| 离线 | 10 套 / 241 ✅ / 0 ❌ |
 | 语法 | 16/16 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 10 条 |
-| 打包 | `npm pack --dry-run` 31 文件 |
+| 打包 | `npm pack --dry-run` 32 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

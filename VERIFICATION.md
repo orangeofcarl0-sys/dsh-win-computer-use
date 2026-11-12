@@ -8,13 +8,14 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **10 套 / 231 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **10 套 / 241 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **16/16 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
-| 打包面 | **31 文件**（新增 docs/WINDOWS、docs/TESTING） | — | `npm pack --dry-run` |
+| dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
+| 打包面 | **32 文件**（新增 docs/WINDOWS、docs/TESTING、docs/COMPATIBILITY-0.2.2） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -126,14 +127,31 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 - **Web runner `0/4` 判为无效**：`evals/run.mjs` 以 dsh 0.1.5 UI 选择器编写；在 dsh 0.2.2 上它创建了 4 个只有 session 头的空会话（无 user/assistant 消息），`steps` 是从旧会话页面误读的 6–7。先修了它的 CRLF prompt 解析与 PowerShell TEMP 问题，随后仍无法把 prompt 送进新会话。该结果不能当插件错误率。
 - Round 2 的逐任务 JSONL 在 `evals/headless-runs/<stamp>/`（gitignore）；Web runner 兼容问题见 ROADMAP C9。
 
+### 2.1.3 2026-11-12 — dsh 0.2.2 兼容性升级（P0/P1/P2）
+
+| 检查 | 结果 |
+|---|---|
+| `computer_task` 0.2.2 `startActivation` | ✅ headless 真机拉起子 agent；结构化结果 `OK`；回执注明“子 agent 拥有与父会话同级的能力” |
+| `computer_task` 旧 API | ✅ `tests/task.tool` T1–T9 保留，T10–T12 覆盖 0.2.2 / 降级 / 无 API |
+| vision 默认 | ✅ `deepseek-flash`；真机观察者返回“视觉理解”段 |
+| vision legacy 回退 | ✅ `tests/posture` V1；legacy 配置在 0.2.2-like llm 上回退 `deepseek-flash` |
+| native 附件限额 | ✅ `maxImageDimension`/`maxImagePixels` 纳入 compact；`tests/posture` N1 |
+| PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
+| PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
+| PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
+| 离线 | **10 套 / 241** 断言全绿；`npm run check` 16/16；`npm pack` 32 文件 |
+| 兼容上限 | `dsh.compatibility.dsh` = `>=0.1.5-rc.2 <0.3.0` |
+
+详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
+
 ### 2.2 2026-11-09/10 — P0/P1 安全边界、dispatcher、更名（0.5.7-dev）
 
 | 项 | 结果 |
 |---|---|
-| 离线 | 10 套 **231** 断言；新增 `action-bounds`、`dispatcher.test`、`package-manifest`；`delivery-chain` 改为直接执行真实 `cuaDeliver` |
+| 离线 | 10 套 **231** 断言（当时）；新增 `action-bounds`、`dispatcher.test`、`package-manifest`；`delivery-chain` 改为直接执行真实 `cuaDeliver` |
 | 语法 | 16/16 JS + `bash -n` |
 | 运行时 | `verify-runtime` **16/16**（dispatcher 2 可见 / catalog 20 / 隐藏 click 无快照拒绝 / native 图片落盘 / zoom 图片透传 / 坐标字段） |
-| 打包 | 31 文件；更名后包名 `dsh-win-computer-use` |
+| 打包 | 31 文件（当时）；更名后包名 `dsh-win-computer-use` |
 | P0 修复 | `type`/`key` 不再盲发 desktop；`scroll`/`drag` 透传 `window_id`；`suspected_noop` 终态失败；指定窗口未匹配 fail-closed；观察降噪完整指纹 |
 | 工具面 | `dispatcher` 默认（2 可见/20 隐藏）；`hybrid` 可选（7/15）；`dynamic` 删除 |
 | 缓存 | 见 §1.2 |
@@ -207,7 +225,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 像素点击 A7 | best-effort | 驱动 0.23.2 混合 DPI 落点缺陷；插件层不可判定 | 等上游；element 路径优先 |
 | WinUI3 hotkey/menu | 不可达 | UIA 加速器 4s 超时（#3908）；`invoke_menu` 可能不可用 | 改点控件；上游跟踪 |
 | `app_launch` 清理 | 需人工 | 子进程 High IL，非提权侧 UIPI 拒绝关闭 | 任务产出接受人工收尾 |
-| 委派工具约束 | 宿主相关 | `toolFilter` 只认全局工具名；默认 dispatcher 下很可能被拒 | 插件如实降级；严格限制用宿主机制 |
+| 委派工具约束 | 宿主相关 | 0.1.5 `toolFilter` 只认全局工具名；0.2.2 `startActivation` 无该参数 | 插件如实降级/说明；严格限制用宿主 Agent Preset |
 | `computer_task` 工具面 | 真实但有限 | 默认超时 5 分钟、每会话 3 次；子 agent 可能拥有父级能力 | 见 README“委派的能力边界” |
 
 ## 5. 复现方式

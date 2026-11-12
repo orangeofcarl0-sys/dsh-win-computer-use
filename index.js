@@ -9,8 +9,9 @@
  *
  * 视觉能力（原生接入）：
  *   - mode="native"：截图经 attachments 持久化后以图片块返回，主对话模型
- *     （如 deepseek-v4-flash-vision-exp）直接看图 —— 零外部 API、零额外 key。
+ *     （如 deepseek-flash）直接看图 —— 零外部 API、零额外 key。
  *   - mode="vision"：DeepSeek 视觉观察者（ctx.llm）结构化描述截图（免 ZHIPU key），
+ *     默认 deepseek-flash（0.2.2 目录）；旧宿主的 legacy 模型会按能力自动回退。
  *     不可用时回退 GLM 免费模型。
  *   - ax：零成本 AX 树；AX 树为空时自动降级 native → vision → ax。
  *
@@ -92,8 +93,8 @@ export const Config = z.object({
   nativeImage: z.union(['auto', 'full', 'compact']).default('auto'),
   /** Mode D 观察者 provider 路由。 */
   visionProvider: z.string().default('deepseek-official'),
-  /** Mode D 观察者模型（需声明 image 输入）。 */
-  visionModel: z.string().default('deepseek-v4-flash-vision-exp'),
+  /** Mode D 观察者模型（需声明 image 输入）。0.2.2 的 DeepSeek 目录用 deepseek-flash；旧宿主可配回 legacy。 */
+  visionModel: z.string().default('deepseek-flash'),
   /**
    * 极危清单（注记警告，不阻断）：正则源字符串数组，命中元素标签时在结果附加
    * 极危警告注记。默认空 = 零差异；按需增补（如 '永久删除|格式化|清空回收站'）。
@@ -555,8 +556,9 @@ function taskToolDefs(ctx, cfg, wrap) {
       '把一段桌面操作委派给一次性子 agent：主上下文只收到一条紧凑结果（≤300 字 + 证据列表），'
       + '中间的观察树/截图/回执都留在子上下文里随运行结束丢弃。适合"多步、过程噪声大"的操作'
       + '（如"打开记事本把三行文字存到 X 路径""在资源管理器里把 A 移到 B"）。\n'
-      + '子 agent 被限定为只能用桌面工具（无命令行/文件直写），且必须以 JSON 收尾'
-      + '（{ok, summary, evidence}），宿主按 schema 校验。默认继承当前模型与推理档，可用 model / model_effort 降档。\n'
+      + '子 agent 应只通过桌面工具完成任务，且必须以 JSON 收尾（{ok, summary, evidence}），宿主按 schema 校验。'
+      + '工具集能否限制取决于宿主：0.1.5 的 toolFilter 可限定；0.2.2 的 subagents 没有该参数，子 agent 可能拥有与父会话同级的能力（回执会写明）。'
+      + '默认继承当前模型与推理档，可用 model / model_effort 降档。\n'
       + '拿到结果后建议用 computer_verify 或 screen_observe 做一次廉价复核。'
       + '宿主未提供子 agent 能力时本工具会返回委派配方（不执行操作）。',
     parameters: {
@@ -787,7 +789,7 @@ export function apply(ctx, config) {
     cursorTheme: config.cursorTheme,
     nativeImage: config.nativeImage || 'auto',
     visionProvider: config.visionProvider || 'deepseek-official',
-    visionModel: config.visionModel || 'deepseek-v4-flash-vision-exp',
+    visionModel: config.visionModel || 'deepseek-flash',
     extremeRes: (Array.isArray(config.extremePatterns) ? config.extremePatterns : [])
       .map((p) => new RegExp(p)),
     passwordScan: config.passwordScan || 'auto',

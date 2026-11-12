@@ -60,7 +60,7 @@ flowchart LR
 | `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp` | 动作实现；快照/窗口解析；投递；回执 | cua / human / receipt / snapshot / engine |
 | `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf` | 虚拟光标滑行；element_token / 像素点击；坐标适配 | cua / snapshot |
 | `lib/ops.js` | `createOpsState`、`gate`、`stop`、`resume`、`verifyOnce`、`waitFor`、`clipboard`、`menu`、`hover` | 确定性验证、轮询、剪贴板、菜单直调、悬停、强杀锁存 | cua / snapshot / attach / engine / receipt |
-| `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`GUI_ONLY_TOOLS`、`DELEGATION_RECIPE` | 子 agent 委派、能力降级阶梯、超时/预算、结构化结果映射 | 宿主 `subagents` |
+| `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`GUI_ONLY_TOOLS`、`DELEGATION_RECIPE` | 子 agent 委派、0.1.5/0.2.2 双 API、能力降级阶梯、超时/预算、结构化结果映射 | 宿主 `subagents` |
 | `lib/guard.js` | `guard`、`extremeNote` | 无快照拒绝、白名单、密码三态、极危注记 | snapshot / roles |
 | `lib/snapshot.js` | `setSnapshot`、`resolveToken`、`resolveWindow`、`validateSnapshotId`、`markConsumed`、`markSuspect`、`freshnessGate` | 单窗口快照、TTL、编号解析、消费/可疑标记、连击语义 | — |
 | `lib/receipt.js` | `receipt`、`refusalReceipt`、`settleAction`、`UNVERIFIED_NOTE`、`SUSPECTED_NOOP_NOTE` | 动作回执唯一出口：规范化 → 判拒绝 → 标快照 → 紧凑文本 | cua / engine / snapshot |
@@ -128,6 +128,7 @@ const r = await def.execute(hiddenArgs, exec)
 - 未知工具返回可用清单。
 - `screen_zoom` 的 `image` 字段经 dispatcher 透传，`renderWithImage` 生成图片块。
 - `action` 缺省按 `catalog` 处理（schema 仍要求显式 `action`）。
+- PTC / `run_code` 模式下，SDK 只绑定直接可见的工具；隐藏工具仍需 `tools.computer_do({action:'call', tool, args})` 路由（`tools.computer_task` 为 `undefined` 是预期行为，不是注册失败）。
 
 ## 5. 请求管线
 
@@ -313,25 +314,33 @@ stateDiagram-v2
 
 ## 9. 委派
 
-`computer_task` 通过宿主 `ctx.get('subagents')` 启动一次性子 agent：
+`computer_task` 通过宿主 `ctx.get('subagents')` 启动一次性子 agent；按宿主 API 自动选路径：
+
+| 宿主 | API | 请求 | 结果 |
+|---|---|---|---|
+| dsh 0.2.2 | `startActivation(spec)` | `spec = { provider, label, request: { prompt, parent, outputSchema, maxDepth, agentOptions }, signal, delivery:'caller' }` | `activation.result` / `activation.dispose()` |
+| dsh 0.1.5 | `start(provider, request)` | `request = { label, prompt, parent, signal, toolFilter, outputSchema, maxDepth, agentOptions }` | `run.result` / `run.dispose()` |
+
+共同点：
 
 - provider 选 `spawn` / `in-process`；
-- `toolFilter.allow = GUI_ONLY_TOOLS`（当前 20 个桌面工具；不含 `computer_task`）；
 - `outputSchema = {ok, summary, evidence}`，`required: [ok, summary]`；
 - `maxDepth: 1`，子 agent 不能再派生；
 - 超时 `timeout_min || taskTimeoutMin`（默认 5，clamp 1–60）；
 - 每会话 `maxTaskCalls`（默认 3）预算；
 - 主上下文回执：`summary` ≤300 字，`evidence` 最多 5 条、每条 ≤200 字。
 
+**工具集限制**：只有 0.1.5 的 `toolFilter` 能按调用尝试限制（`GUI_ONLY_TOOLS`，20 个桌面工具，不含 `computer_task`）。0.2.2 的 `SubagentStartRequest` 没有 `toolFilter`，工具集由 Agent Preset/宿主组合决定；新路径会始终在回执里写“子 agent 拥有与父会话同级的能力”。
+
 能力降级阶梯：
 
-| 宿主拒绝 | 重试 | 回执 |
-|---|---|---|
-| `toolFilter` | 去掉 `toolFilter`，保留 `outputSchema`/`maxDepth` | 明确“子 agent 拥有与父会话同级的能力；结构化输出仍生效”，附拒绝原因 |
-| `outputSchema` 也被拒 | 去掉 `outputSchema` | 明确“子 agent 能力未受限，结果未结构化” |
-| 全部失败 | 不启动 | `ok:false` + provider 与错误 |
+| 路径 | 宿主拒绝 | 重试 | 回执 |
+|---|---|---|---|
+| 0.1.5 | `toolFilter` | 去掉 `toolFilter`，保留 `outputSchema`/`maxDepth` | “子 agent 拥有与父会话同级的能力；结构化输出仍生效”，附拒绝原因 |
+| 两条 | `outputSchema` | 去掉 `outputSchema` 再启动 | “结果未结构化”，附拒绝原因 |
+| 两条 | 全部失败 | 不启动 | `ok:false` + provider 与错误 |
 
-默认 dispatcher 下，桌面工具不注册为全局工具，而 `tools.restrict()` 的名字校验只认全局层——所以 `toolFilter` **很可能被拒**。这不是插件能单独修复的；详见 README“委派的能力边界”。
+默认 dispatcher 下桌面工具不注册为全局工具，`tools.restrict()` 的名字校验只认全局层——0.1.5 的 `toolFilter` 因此可能被拒；0.2.2 不再有该参数。两条路径都由回执如实说明，不假装已限制。详见 README“委派的能力边界”。
 
 ## 10. 安全姿态
 
@@ -389,7 +398,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：10 套、231 断言（2026-11-10）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)。
+- 离线：10 套、241 断言（2026-11-12）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 16/16；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。
