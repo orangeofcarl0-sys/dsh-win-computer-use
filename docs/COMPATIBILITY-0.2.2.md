@@ -2,7 +2,7 @@
 
 > 范围：本插件在 **dsh 0.2.2-rc.1** 上的清单/加载、工具契约、宿主服务、执行上下文、PTC 工具面与评测工具链。
 > 环境：Windows 11 x64 · dsh `0.2.2-rc.1` · `@deepseek-ai/dsh-tools 0.2.2-rc.1` · `schemastery 3.19.0` · cua-driver 0.23.2。
-> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 10 套 230 断言 + S4 数据。
+> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 10 套 232 断言 + S4 数据。
 
 ## 1. 结论
 
@@ -33,7 +33,7 @@
 | subagents | `startActivation(spec)`；`SubagentStartRequest` 无 `toolFilter` | `startActivation` + `delivery:'caller'` | ✅ P0 已修 |
 | Agent 上下文 | `agent.options` / `session.requestHeader()` 保留 | provider/model、`exec.agent` | ✅ |
 | PTC | web 默认 `agentPreset: ptc`；只直接暴露 `run_code` | 工具经 SDK 调用；`computer_do`/native 图片真机通过 | ✅ |
-| Web runner | dsh 0.2.2 DOM/发送路径变化 | `evals/run.mjs` 仍是 0.1.5 选择器 | ❌ 工具链，非插件；C9 |
+| Web runner | dsh 0.2.2 DOM/发送路径变化 | `evals/run.mjs` 已退役；默认拒绝，指向 `headless-run.mjs` | ⛔ 退役（非插件） |
 | Node/peer | dsh-tools 0.2.2 / schemastery 3.19 | peer `>=0.2.2-rc.1 <0.3.0` / `>=3.19.0 <4` | ✅ |
 | 兼容上限 | 0.3 可能再变 | `dsh.compatibility.dsh` 补 `<0.3.0` | ✅ |
 
@@ -109,7 +109,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 | PTC + `computer_task` | `tools.computer_do({action:'call',tool:'computer_task',...})` 成功拉起子 agent；直接 `tools.computer_task` 为 `undefined`（SDK 只绑定可见工具，预期行为） |
 | `computer_task` | 0.2.2 `startActivation` 真机拉起子 agent，返回结构化 `OK`，dispose 正常 |
 | 桌面动作 smoke | 两轮 **7/8**（Round 2 4/4；`wa2` 对时间预算敏感） |
-| 离线契约 | 10 套 **230** 断言；schema 22 工具 / 44 场景 |
+| 离线契约 | 10 套 **232** 断言；schema 22 工具 / 44 场景 |
 | S4 oracle | 10/10（含 `x1`） |
 | 打包 | 32 文件（新增 compat 报告） |
 
@@ -117,14 +117,14 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 
 - **0.2.2 没有 `toolFilter`**：插件无法按调用限制子 agent 工具集；只由 Agent Preset/宿主组合决定。回执会明确写同级能力。
 - **PTC 的 SDK 只绑定可见工具**：隐藏工具（如 `computer_task`）不会出现在 SDK；必须 `tools.computer_do({action:'call',...})`。已验证组合路径；直接 `tools.computer_task` 为 undefined 是预期行为。
-- **Web runner（evals/run.mjs）**仍不适配 dsh 0.2.2 的 UI（ROADMAP C9）；headless runner 可用。
+- **Web runner（evals/run.mjs）已退役**：dsh 0.2.2 下会创建空会话；默认拒绝运行并指向 `headless-run.mjs`（`--allow-legacy-web` 仅旧 UI 调试）。
 - macOS/Linux 的 0.2.2 未验证。
 - `nativeImage:'full'` 仍可能因超大截图被宿主附件层拒绝——这是用户显式选择原图的预期语义，不是 auto 降级缺口。
 
 ## 6. 复现命令
 
 ```bash
-npm test; echo "test=$?"                 # 230 断言
+npm test; echo "test=$?"                 # 232 断言
 npm run check; echo "check=$?"           # 16/16
 node verify-runtime.mjs                  # 16/16
 node evals/headless-run.mjs --tier smoke --timeout-min 10

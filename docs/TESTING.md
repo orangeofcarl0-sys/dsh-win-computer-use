@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-14 · `npm test` 10 套 / **230 断言** · `npm run check` **16/16** · `verify-runtime` **16/16**。
+> 最近基线：2026-11-14 · `npm test` 10 套 / **232 断言** · `npm run check` **16/16** · `verify-runtime` **16/16**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -18,7 +18,7 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 16 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 10 套 / 230 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界 |
+| 离线单元/契约 | `npm test` | 10 套 / 232 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 16 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
@@ -36,7 +36,7 @@
 | `observe.dedup.mjs` | 18 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
 | `task.tool.mjs` | 18 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
 | `config.plumbing.mjs` | 26 | 16 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；11 组行为哨兵 |
-| `action-bounds.mjs` | 20 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
+| `action-bounds.mjs` | 22 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
 | `dispatcher.test.mjs` | 32 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、工具面稳定、宿主 schema |
 | `package-manifest.test.mjs` | 10 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 
@@ -114,7 +114,7 @@ node evals/headless-run.mjs --tier smoke --timeout-min 10
 
 两轮合计 **7/8（87.5%）**。`wa2` 对时间预算敏感（8min fail → 10min pass）；工具错误计数含探索性重试，不等同于插件缺陷，但值得做轨迹分析。
 
-> **Web runner 当前不可用于 dsh 0.2.2**：`evals/run.mjs` 的 UI 选择器/发送路径基于 dsh 0.1.5；在 0.2.2 上创建的新会话只有 session 头、没有消息，`steps` 从旧会话页面误读。2026-11-12 的 Web `0/4` 是该兼容问题，不是插件错误率。已修 CRLF prompt 解析；UI 兼容待办见 ROADMAP C9。
+> **Web runner 已退役**：`evals/run.mjs` 的 UI 选择器/发送路径基于 dsh 0.1.5；在 0.2.2 上创建空会话、`steps` 误读。现在默认拒绝运行并提示改用 headless runner（`--allow-legacy-web` 仅旧 UI 调试，`--dry-setup` 仍可用）。S4 基线统一用 `headless-run.mjs`。
 
 ## 5. 真桌面闭环
 
@@ -174,7 +174,7 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 10 套 / 230 ✅ / 0 ❌ |
+| 离线 | 10 套 / 232 ✅ / 0 ❌ |
 | 语法 | 16/16 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4） |

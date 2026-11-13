@@ -634,6 +634,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
     name: 'computer_menu',
     description:
       '菜单路径直调：按精确逐级菜单路径（如 ["文件","另存为"]）经无障碍 API 解析并调用最终项。' +
+      'path 必须是 JSON 字符串（例如 \'["查看","显示"]\'），不是 JavaScript 数组、也不是单个菜单名；' +
       '失败关闭：缺失/歧义/禁用/结构不匹配即报错，绝不回退像素——比逐级点击菜单更可靠。',
     parameters: {
       pid: { type: 'integer', description: '目标进程 pid。' },

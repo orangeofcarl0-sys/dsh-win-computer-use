@@ -26,12 +26,12 @@
 | C2 | install.sh 配置同步 | ✅ 2026-11-10 | 生成 `surfaceMode: dispatcher / ttlMs: 60000 / maxElements: 120` |
 | C3 | `computer_task` 描述默认值 | ✅ 2026-11-10 | 描述改为“默认取 taskTimeoutMin（默认 5）” |
 | C4 | 旧 host `toolFilter` 白名单 | ⛔ 已删除 | 0.2.2 基线没有 `toolFilter`/`GUI_ONLY_TOOLS`；子 agent 工具集由 Agent Preset/宿主决定 |
-| C5 | `scroll`/`drag` 的 `snapshot_id` 校验 | 待做 | schema 接受但实现未 `validateSnapshotId` |
+| C5 | `scroll`/`drag` 的 `snapshot_id` 校验 | ✅ 2026-11-14 | 两个动作均 `validateSnapshotId`；`action-bounds` G1 覆盖 |
 | C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3 |
 | C7 | 真机 headless 加载 | ✅ 2026-11-12 | dsh 0.2.2-rc.1 headless + 启用 credentials 的隔离 patch；5 步完成 status/observe/catalog/隐藏 computer_wait |
-| C8 | `screen_zoom` 的 `coordinateSpace` 语义 | 待做 | 字段标 `screen-physical-px`，点击输入是 window-screenshot-px；统一字段或改名 |
-| C9 | S4 Web runner 的 dsh 0.2.2 UI 兼容 | 待做 | 新会话只写 session 头、无消息；`steps` 从旧会话误读；Web `0/4` 无效。CRLF prompt 解析已修 |
-| C10 | `wa2` 失败归因 | 🔶 初查 | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次工具错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON；先做轨迹/提示层优化 |
+| C8 | `screen_zoom` 的 `coordinateSpace` 语义 | ✅ 2026-11-14 | `coordinateSpace` 改为 `window-screenshot-px`；`screenOrigin` 仅用于屏幕绝对坐标 |
+| C9 | S4 Web runner 的 dsh 0.2.2 UI 兼容 | ⛔ 已退役 | `run.mjs` 默认拒绝运行并指向 `headless-run.mjs`；`--allow-legacy-web` 仅旧 UI 调试，`--dry-setup` 保留 |
+| C10 | `wa2` 失败归因 | ✅ 2026-11-14 | 时间预算敏感：8min fail / 10min pass（72 次调用）；根因含旧 snapshot_id、Explorer 前台确认、menu path 非 JSON。已补 `computer_menu` path 示例；10min 为基线 |
 | C11 | dsh 0.2.2 全面兼容性升级 | ✅ 2026-11-12 | 0.2.2 基线：`computer_task` 只用 `startActivation`；vision 默认 `deepseek-flash`；附件 dimension/pixels；PTC `run_code` + native + `computer_task` 真机通过；兼容基线 `>=0.2.2-rc.1 <0.3.0`。报告 `docs/COMPATIBILITY-0.2.2.md` |
 
 ## 3. 事实澄清 / 实验（冻结，按触发条件解冻）

@@ -8,7 +8,7 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **10 套 / 230 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **10 套 / 232 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **16/16 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
@@ -124,8 +124,8 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 - `wa2` 对时间预算敏感：8 分钟 fail，10 分钟 pass（72 次工具调用）——更像步速/路径效率问题，不是能力完全缺失；已列入 ROADMAP C10。
 - Round 2 工具级：**141 次调用，19 次错误（13.5%），41 次 unverifiable（29.1%）**。错误计数包含探索性失败/重试，不等同于插件缺陷；但 `wa2` 的 12 次错误值得轨迹分析（含 `snapshot_mismatch`、Explorer 窗口前台确认失败、`computer_menu` 收到非 JSON path）。
 - 这是 headless 直跑的插件/模型结果，不是 Web runner 的 `0/4`。
-- **Web runner `0/4` 判为无效**：`evals/run.mjs` 以 dsh 0.1.5 UI 选择器编写；在 dsh 0.2.2 上它创建了 4 个只有 session 头的空会话（无 user/assistant 消息），`steps` 是从旧会话页面误读的 6–7。先修了它的 CRLF prompt 解析与 PowerShell TEMP 问题，随后仍无法把 prompt 送进新会话。该结果不能当插件错误率。
-- Round 2 的逐任务 JSONL 在 `evals/headless-runs/<stamp>/`（gitignore）；Web runner 兼容问题见 ROADMAP C9。
+- **Web runner 已退役**：`evals/run.mjs` 以 dsh 0.1.5 UI 选择器编写；在 dsh 0.2.2 上创建空会话并误读步数，`0/4` 无效。现在默认拒绝运行并指向 `headless-run.mjs`（`--allow-legacy-web` 仅旧 UI 调试）。
+- Round 2 的逐任务 JSONL 在 `evals/headless-runs/<stamp>/`（gitignore）；Web runner 退役见 ROADMAP C9。
 
 ### 2.1.3 2026-11-12 — dsh 0.2.2 兼容性升级（P0/P1/P2）
 
@@ -136,10 +136,11 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | `computer_task` 契约测试 | ✅ `tests/task.tool` T1–T9：请求构造/结果映射/预算/无服务/outputSchema 降级/失败/无 API |
 | vision 默认 | ✅ `deepseek-flash`；真机观察者返回“视觉理解”段 |
 | native 附件限额 | ✅ `maxImageDimension`/`maxImagePixels` 纳入 compact；`tests/posture` N1 |
+| G1/G5 | ✅ scroll/drag 校验 `snapshot_id`（`action-bounds` G1）；zoom `coordinateSpace=window-screenshot-px` |
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **10 套 / 230** 断言全绿；`npm run check` 16/16；`npm pack` 32 文件 |
+| 离线 | **10 套 / 232** 断言全绿；`npm run check` 16/16；`npm pack` 32 文件 |
 | 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。

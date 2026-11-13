@@ -256,7 +256,7 @@ flowchart TD
 - 原始元素 `frame` 是屏幕物理像素；`mapElementsForModel` 在输出时减去 `screenOrigin`（`bounds.x/y`），得到 window-screenshot-px。
 - 快照内部仍保留原始坐标（密码标记/结构扫描用屏幕坐标），模型看到的是换算后的坐标。
 - `screen_zoom` 输出 `crop{x,y,w,h,scale}`：图内坐标 `× scale + crop.x/y` = window-screenshot-px。`screenOrigin` 只用于再换算到屏幕绝对坐标。
-- `screen_zoom` 的 `coordinateSpace` 字段标为 `screen-physical-px`（公式终点是屏幕绝对坐标），但**点击输入仍是 window-screenshot-px**——这是最容易看错的一处，见 §13 已知缺口。
+- `screen_zoom` 输出 `crop{x,y,w,h,scale}`：图内坐标 `× scale + crop.x/y` = window-screenshot-px（`coordinateSpace` 字段同此）；再加 `screenOrigin` 才是屏幕绝对坐标。
 
 ### 6.4 降噪
 
@@ -389,14 +389,12 @@ stateDiagram-v2
 | # | 位置 | 现象 | 影响 | 方向 |
 |---|---|---|---|---|
 | A7 | `lib/actions.js` 像素路径 | 驱动 0.23.2 在混合 DPI 下像素点击落点有实测偏差（三种语义假设均有反例） | 像素点击 best-effort；element 路径不受影响 | 等上游修复；文档已降级表述 |
-| G1 | `lib/actions.js` `scroll`/`drag` | schema 接受 `snapshot_id`，但实现未调用 `validateSnapshotId` | 显式证据基线对这两个动作不生效 | 补校验 + 测试 |
-| G5 | `lib/observe.js` `screenZoom` | 输出 `coordinateSpace: 'screen-physical-px'`，但点击输入是 window-screenshot-px | 容易误读换算终点 | 统一字段语义或改名 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 ROADMAP |
 | G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 PUBLISH |
 
 ## 14. 测试与证据
 
-- 离线：10 套、230 断言（2026-11-12）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)。
+- 离线：10 套、232 断言（2026-11-14）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 16/16；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

@@ -36,12 +36,16 @@
 - **0.2.2 默认视觉模型失效（P1）**：`deepseek-v4-flash-vision-exp` 不在 0.2.2 DeepSeek 目录；默认改为 `deepseek-flash`，删除 legacy 模型兼容分支。真机 `mode="vision"` 返回观察者描述。
 - **native 附件限额只检查字节数（P1）**：0.2.2 新增 `maxImageDimension`/`maxImagePixels`；`nativeImage:auto` 超限时自动走 compact zoom，而不是被 `saveImage` 拒绝。
 - **`toolFilter` 文案与工具描述过度承诺（P2）**：0.2.2 的 `startActivation` 没有 `toolFilter`；README/ARCHITECTURE/MAINTAINING/工具描述统一改为“工具集限制取决于宿主”，回执明确写同级能力。
+- **G1：`scroll`/`drag` 忽略 `snapshot_id`**：两个动作现在先 `validateSnapshotId`，不匹配直接 `[snapshot_mismatch]`，不会在错误证据基线上执行；`action-bounds` G1 覆盖。
+- **G5：`screen_zoom` 的坐标字段误导**：`coordinateSpace` 从 `screen-physical-px` 改为 `window-screenshot-px`（点击输入空间）；`screenOrigin` 继续作为屏幕绝对坐标的换算基准。
 
 ### Changed
 
 - **dsh 兼容基线提升到 `>=0.2.2-rc.1 <0.3.0`**：以 0.2.2-rc.1 为唯一支持基线；peer 依赖同步提升（dsh-tools `>=0.2.2-rc.1`、schemastery `>=3.19.0`），不再维护 0.1.5 兼容层。
 - **文档体系重写（2026-11-10）**：README 重排为“产品入口 + 工具参考 + 边界”；新增 `docs/WINDOWS.md`（Windows 工程与冒烟矩阵）、`docs/TESTING.md`（测试分层）；重写 `docs/ARCHITECTURE.md`（模块/流水线/不变量/扩展/已知缺口）、`VERIFICATION.md`（当前矩阵 + 历史证据）、`PERMISSIONS.md`（条件性网络与全部环境变量）、`ROADMAP.md`、`PUBLISH.md`、`docs/store-evidence.md`；`HANDOFF-2026-09-16.md` 并入 `MAINTAINING.md` 后移除。修正 macOS/Linux 过度声明、危险词审批旧验收、像素点击“零标定命中”等与实现不一致的表述。
 - **dsh 0.2.2 兼容性升级（2026-11-12）**：`docs/COMPATIBILITY-0.2.2.md` 记录契约矩阵与真机证据；P0/P1/P2 已实施（subagents `startActivation`、vision 默认 `deepseek-flash`、附件 dimension/pixels、PTC `run_code` + native/`computer_task` 验证、toolFilter 文案移除、兼容基线 `>=0.2.2-rc.1 <0.3.0`）。核心观察/动作/native/dispatcher 已真机兼容（7/8 smoke、16/16 runtime）。
+- **S4 Web runner 退役（2026-11-14）**：`evals/run.mjs` 的 UI 选择器基于 dsh 0.1.5，0.2.2 下会创建空会话并误读步数。现在默认拒绝运行并指向 `headless-run.mjs`；`--allow-legacy-web` 仅旧 UI 调试，`--dry-setup` 保留。
+- **`wa2` 归因收敛（2026-11-14）**：8min fail / 10min pass（72 次工具调用），属时间预算/步速敏感；错误集中在旧 `snapshot_id`、Explorer 前台确认、`computer_menu` 非 JSON path。`computer_menu` 描述补充 path 必须为 JSON 字符串的示例；10min 作为 S4 基线。
 
 ### Measured
 

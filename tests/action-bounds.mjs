@@ -114,6 +114,18 @@ r = await call('computer_drag', { from_x: 10, from_y: 10, to_x: 20, to_y: 20 })
 const dragCall = calls.find((c) => c.tool === 'drag')
 check('P0-3 drag 透传 window_id', r.ok === true && dragCall?.args.window_id === 7, JSON.stringify(dragCall?.args || {}))
 
+// G1：scroll/drag 也必须校验显式 snapshot_id（之前 schema 接受但实现忽略）
+calls.length = 0
+r = await call('computer_scroll', { direction: 'down', snapshot_id: 's-wrong' })
+check('G1 scroll 的 snapshot_id 不匹配被拒',
+  r.ok === false && /\[snapshot_mismatch\]/.test(String(r.result)) && !calls.some((c) => c.tool === 'scroll'),
+  String(r.result).slice(0, 70))
+calls.length = 0
+r = await call('computer_drag', { from_x: 1, from_y: 1, to_x: 2, to_y: 2, snapshot_id: 's-wrong' })
+check('G1 drag 的 snapshot_id 不匹配被拒',
+  r.ok === false && /\[snapshot_mismatch\]/.test(String(r.result)) && !calls.some((c) => c.tool === 'drag'),
+  String(r.result).slice(0, 70))
+
 // ── P1-A：set_value 走 element_token + value ────────────────────────
 calls.length = 0
 r = await call('computer_set_value', { element: 0, value: 'world' })

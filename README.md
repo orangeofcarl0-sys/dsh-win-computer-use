@@ -331,7 +331,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（16/16 JS）
-npm test                           # 10 套离线测试，230 个断言
+npm test                           # 10 套离线测试，232 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \

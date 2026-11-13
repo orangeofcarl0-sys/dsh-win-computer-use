@@ -146,7 +146,7 @@ const fakeLlm = { resolveModelInfo: async () => ({ inputModalities: ['image', 't
 const ctxZoom = { get: (k) => (k === 'attachments' ? fakeAtt : k === 'llm' ? fakeLlm : null) }
 const execZoom = { agent: { options: { provider: 'p', model: 'm' } } }
 const z = await screenZoom(ctxZoom, { pid: 1, window_id: 2, x1: 100, y1: 200, x2: 200, y2: 280 }, cfg, execZoom)
-check('F1: zoom 返回 crop 元数据（原点+尺寸）', z.ok === true && z.crop?.x === 100 && z.crop?.y === 200 && z.crop?.w === 100 && z.crop?.h === 80)
+check('F1: zoom 返回 crop 元数据（原点+尺寸）+ window-screenshot-px', z.ok === true && z.crop?.x === 100 && z.crop?.y === 200 && z.crop?.w === 100 && z.crop?.h === 80 && z.coordinateSpace === 'window-screenshot-px')
 check('F2: crop.scale = 裁剪宽/返回图宽 = 2', z.crop?.scale === 2 && /定位环/.test(z.result || ''))
 
 // N. dsh 0.2.2 附件限额：maxImageDimension 超限时 native auto 必须走 compact

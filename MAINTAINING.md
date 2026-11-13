@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：22 工具 = 21 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 20；`hybrid` 可见 7 / 隐藏 15。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 10 套 / 230 断言；`npm run check` 16/16；`verify-runtime` 16/16。
+- **测试基线**：`npm test` 10 套 / 232 断言；`npm run check` 16/16；`verify-runtime` 16/16。
 
 ## 2. 文档地图
 
@@ -161,22 +161,16 @@
 
 | # | 位置 | 现象 | 影响 | 建议 |
 |---|---|---|---|---|
-| G1 | `lib/actions.js` `scroll`/`drag` | schema 接受 `snapshot_id`，实现未 `validateSnapshotId` | 显式证据基线对这两个动作不生效 | 补校验 + 测试 |
-| G5 | `lib/observe.js` `screenZoom` | `coordinateSpace: 'screen-physical-px'`，但点击输入是 window-screenshot-px | 换算终点易误读 | 统一字段或改名 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 有环境时补矩阵 |
 | G7 | 部署/npm | web profile 仍旧版；npm 未发布 | 用户看到的可能不是 main | 按 PUBLISH 执行 |
-| G8 | `evals/run.mjs` Web runner | dsh 0.2.2 下创建空会话、`steps` 误读；Web `0/4` 无效 | 任务级错误率不可用 Web runner 统计 | 更新 UI 选择器/发送路径（ROADMAP C9） |
-| G9 | S4 `wa2` | 8min fail / 10min pass（72 次工具调用）；Round 2 的 12 次错误含 snapshot_mismatch、Explorer 前台确认失败、menu path 非 JSON | 时间预算/步速敏感，另有提示层/焦点问题 | 轨迹分析，降低步速（C10） |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 
-**当前文档的处理**：G1/G5 已在 [ARCHITECTURE](docs/ARCHITECTURE.md) §13 与 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) 中如实标注；README 不把它们写成已支持能力。原先的 install.sh 默认值、`computer_task` 描述默认值、委派白名单漏 `set_value` 三项已在 2026-11-10 文档重写批一并修正。
+**当前文档的处理**：G1/G5 已修复；G8（Web runner）已退役，统一用 `headless-run.mjs`；G9（wa2）定性为时间预算敏感，10min 基线通过，不再列为插件缺陷。其余 G6/G7/A7 保留限制表述。
 
 ## 8. 待办
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | 修 G1/G5（都是小改动，补测试后合入） |
-| P1 | 修 `evals/run.mjs` 的 dsh 0.2.2 Web UI 兼容（G8）；当前 Web 冒烟结果无效 |
 | P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
 | P2 | S4 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
 | P2 | daemon 提权/清理问题（#3607）；先试非提权重启 daemon |

@@ -41,6 +41,15 @@ const pinModel = arg('pin-model', '')            // e.g. "DeepSeek V4.1 Flash (O
 const pinEffort = arg('pin-effort', '')          // e.g. "High"
 const drySetup = hasFlag('dry-setup')
 const keepChrome = hasFlag('keep-chrome')
+const allowLegacyWeb = hasFlag('allow-legacy-web')
+if (!allowLegacyWeb && !drySetup) {
+  console.error(
+    'run.mjs 是 dsh 0.1.5 时代的 Web UI runner，已退役：dsh 0.2.2 下它会创建空会话/误读步数，结果无效。\n'
+    + '请改用 headless runner：node evals/headless-run.mjs --tier smoke --timeout-min 10\n'
+    + '仅调试旧 UI 时显式加 --allow-legacy-web；--dry-setup 不受影响。',
+  )
+  process.exit(2)
+}
 
 // GUI-only constraint PREPENDED to every task prompt (single enforcement point).
 // Rationale: dsv4fv routes file tasks straight to the file-write tool, then burns
