@@ -8,7 +8,7 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **10 套 / 241 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **10 套 / 230 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **16/16 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
@@ -132,15 +132,15 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | 检查 | 结果 |
 |---|---|
 | `computer_task` 0.2.2 `startActivation` | ✅ headless 真机拉起子 agent；结构化结果 `OK`；回执注明“子 agent 拥有与父会话同级的能力” |
-| `computer_task` 旧 API | ✅ `tests/task.tool` T1–T9 保留，T10–T12 覆盖 0.2.2 / 降级 / 无 API |
+| `computer_task` API 形状 | ✅ 运行时扁平 spec（类型声明的嵌套 `request` 不可用）；rc.2 无 `list()`，provider 用 `getProvider` 探测 |
+| `computer_task` 契约测试 | ✅ `tests/task.tool` T1–T9：请求构造/结果映射/预算/无服务/outputSchema 降级/失败/无 API |
 | vision 默认 | ✅ `deepseek-flash`；真机观察者返回“视觉理解”段 |
-| vision legacy 回退 | ✅ `tests/posture` V1；legacy 配置在 0.2.2-like llm 上回退 `deepseek-flash` |
 | native 附件限额 | ✅ `maxImageDimension`/`maxImagePixels` 纳入 compact；`tests/posture` N1 |
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **10 套 / 241** 断言全绿；`npm run check` 16/16；`npm pack` 32 文件 |
-| 兼容上限 | `dsh.compatibility.dsh` = `>=0.1.5-rc.2 <0.3.0` |
+| 离线 | **10 套 / 230** 断言全绿；`npm run check` 16/16；`npm pack` 32 文件 |
+| 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
 
@@ -225,7 +225,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 像素点击 A7 | best-effort | 驱动 0.23.2 混合 DPI 落点缺陷；插件层不可判定 | 等上游；element 路径优先 |
 | WinUI3 hotkey/menu | 不可达 | UIA 加速器 4s 超时（#3908）；`invoke_menu` 可能不可用 | 改点控件；上游跟踪 |
 | `app_launch` 清理 | 需人工 | 子进程 High IL，非提权侧 UIPI 拒绝关闭 | 任务产出接受人工收尾 |
-| 委派工具约束 | 宿主相关 | 0.1.5 `toolFilter` 只认全局工具名；0.2.2 `startActivation` 无该参数 | 插件如实降级/说明；严格限制用宿主 Agent Preset |
+| 委派工具约束 | 宿主相关 | 0.2.2 `startActivation` 没有 `toolFilter`；工具集由 Agent Preset/宿主决定 | 插件如实说明；严格限制用宿主 Agent Preset |
 | `computer_task` 工具面 | 真实但有限 | 默认超时 5 分钟、每会话 3 次；子 agent 可能拥有父级能力 | 见 README“委派的能力边界” |
 
 ## 5. 复现方式

@@ -164,27 +164,6 @@ check('N1: native 超 maxImageDimension 自动 compact（走 zoom）',
   n.ok === true && n.mode === 'native' && n.image?.attachmentId === 'a-native' && afterZoom > beforeZoom,
   `zoom ${beforeZoom}->${afterZoom}`)
 
-// V. 0.2.2 视觉模型目录：legacy 默认不可用时回退 deepseek-flash
-const { deepseekVisionDescribe } = await import(libUrl('vision.js'))
-const visionCalls = []
-const fakeVisionLlm = {
-  async resolveModelInfo(_provider, model) {
-    visionCalls.push(model)
-    return { inputModalities: model === 'deepseek-flash' ? ['text', 'image'] : ['text'] }
-  },
-  async * stream({ model }) {
-    yield { type: 'text-delta', text: `看懂了(${model})` }
-  },
-}
-const visionText = await deepseekVisionDescribe(
-  { get: (k) => (k === 'llm' ? fakeVisionLlm : null) },
-  { visionProvider: 'deepseek-official', visionModel: 'deepseek-v4-flash-vision-exp' },
-  { imageRef: { attachmentId: 'a1' }, question: '描述' },
-)
-check('V1: legacy 视觉模型失败时回退 deepseek-flash',
-  /回退 deepseek-flash/.test(visionText) && /看懂了\(deepseek-flash\)/.test(visionText)
-  && visionCalls.includes('deepseek-flash'))
-
 // E. 姿态结构断言（源码级：无 permissionMode 残留、默认值翻转、无 approval 残留）
 const yml = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')
 const idxSrc = readFileSync(join(root, 'index.js'), 'utf8')

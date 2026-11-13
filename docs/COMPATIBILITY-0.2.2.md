@@ -2,7 +2,7 @@
 
 > 范围：本插件在 **dsh 0.2.2-rc.1** 上的清单/加载、工具契约、宿主服务、执行上下文、PTC 工具面与评测工具链。
 > 环境：Windows 11 x64 · dsh `0.2.2-rc.1` · `@deepseek-ai/dsh-tools 0.2.2-rc.1` · `schemastery 3.19.0` · cua-driver 0.23.2。
-> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 10 套 241 断言 + S4 数据。
+> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 10 套 230 断言 + S4 数据。
 
 ## 1. 结论
 
@@ -10,12 +10,12 @@
 
 | 原级别 | 问题 | 当前状态 |
 |---|---|---|
-| **P0** | `computer_task` 只认 `ctx.subagents.start()`，0.2.2 只有 `startActivation()` | ✅ 已双 API 适配；真机成功拉起子 agent 并返回结构化结果 |
-| **P1** | 默认 `visionModel` 不在 0.2.2 模型目录 | ✅ 默认改 `deepseek-flash` + legacy 能力回退；真机 vision 成功 |
+| **P0** | `computer_task` 只认 `ctx.subagents.start()`，0.2.2 只有 `startActivation()` | ✅ 已改为 `startActivation`；真机成功拉起子 agent 并返回结构化结果 |
+| **P1** | 默认 `visionModel` 不在 0.2.2 模型目录 | ✅ 默认 `deepseek-flash`；真机 vision 成功 |
 | **P1** | `nativeImage:auto` 未覆盖 `maxImageDimension`/`maxImagePixels` | ✅ 已纳入 compact 判定；单测覆盖 |
 | **P1** | PTC 工具面未验证 | ✅ `run_code` 内 `computer_do` 与 native 图片均真机通过 |
 | **P2** | `toolFilter` 文案/工具描述仍暗示可限制 | ✅ 已改为“宿主能力相关”，0.2.2 明确无此参数 |
-| **P2** | `dsh.compatibility.dsh` 无上限 | ✅ 改为 `>=0.1.5-rc.2 <0.3.0` |
+| **P2** | `dsh.compatibility.dsh` 无上限 | ✅ 改为 `>=0.2.2-rc.1 <0.3.0` |
 
 ## 2. 契约矩阵（0.2.2）
 
@@ -30,30 +30,30 @@
 | `ToolRunContext` | 新增 `deferContext`/`concludeTurn`；保留 `agent`/`signal` | 只读 `agent`/`signal` | ✅ |
 | attachments | 新增 `maxImageDimension` / `maxImagePixels`；返回归一化 ref | 已纳入 compact 判定 | ✅ |
 | llm | `resolveModelInfo`/`stream` 契约保留 | native + vision 均真机通过 | ✅ |
-| subagents | `startActivation(spec)`；`SubagentStartRequest` 无 `toolFilter` | 双 API 适配；新路径 `delivery:'caller'` | ✅ P0 已修 |
+| subagents | `startActivation(spec)`；`SubagentStartRequest` 无 `toolFilter` | `startActivation` + `delivery:'caller'` | ✅ P0 已修 |
 | Agent 上下文 | `agent.options` / `session.requestHeader()` 保留 | provider/model、`exec.agent` | ✅ |
 | PTC | web 默认 `agentPreset: ptc`；只直接暴露 `run_code` | 工具经 SDK 调用；`computer_do`/native 图片真机通过 | ✅ |
 | Web runner | dsh 0.2.2 DOM/发送路径变化 | `evals/run.mjs` 仍是 0.1.5 选择器 | ❌ 工具链，非插件；C9 |
-| Node/peer | dsh-tools 0.2.2 / schemastery 3.19 | peer `>=0.1.5-rc.2 <0.3.0` / `>=3.18.2 <4` | ✅ |
+| Node/peer | dsh-tools 0.2.2 / schemastery 3.19 | peer `>=0.2.2-rc.1 <0.3.0` / `>=3.19.0 <4` | ✅ |
 | 兼容上限 | 0.3 可能再变 | `dsh.compatibility.dsh` 补 `<0.3.0` | ✅ |
 
 ## 3. 已实施改动
 
-### P0 — `computer_task` 双 API
+### P0 — `computer_task` 迁移到 `startActivation`
 
-`lib/task.js` 现在按宿主能力选择：
+`lib/task.js` 现在只走 0.2.2 基线：
 
-- **0.2.2**：`svc.startActivation({ provider, label, request: { prompt, parent, outputSchema, maxDepth, agentOptions }, signal, delivery:'caller' })`；读 `activation.result`，结束 `activation.dispose()`。
-- **0.1.5**：保留 `svc.start(provider, request)` 与 `toolFilter`。
-- 服务探测：`startActivation` 或 `start` 任一存在即可；两者都无才返回委派配方。
-- 0.2.2 成功路径也会写明：“本宿主不支持按调用限制子 agent 工具集；子 agent 拥有与父会话同级的能力；结构化输出仍生效。”
-- `outputSchema` 被拒时自动去掉后重试，并标注“结果未结构化”；两条路径都保留预算、超时、`maxDepth`。
+- `svc.startActivation({ provider, label, prompt, parent, signal, delivery:'caller', maxDepth, outputSchema, agentOptions })`；读 `activation.result`，结束 `activation.dispose()`。
+- **运行时形状与类型声明不一致**：`dsh-subagent` 0.2.2-rc.2 的类型写嵌套 `request`，运行时 `startActivation` 读扁平 `spec.parent/prompt/...`；以运行时为准（真机踩坑）。
+- 服务探测：只认 `startActivation`；provider 优先 `list()`（若存在），否则 `getProvider('spawn'/'in-process'/'fork')`，最后按 `spawn` 尝试。
+- 成功路径写明：“本宿主不支持按调用限制子 agent 工具集；子 agent 拥有与父会话同级的能力；结构化输出仍生效。”
+- `outputSchema` 被拒时自动去掉后重试，并标注“结果未结构化”；保留预算、超时、`maxDepth`。
 
 测试：
 
-- `tests/task.tool.mjs` T10：0.2.2-like fake 只实现 `startActivation`，断言 spec 形状、无 `toolFilter`、结果映射、dispose。
-- T11：`outputSchema` 被拒 → 第二次无 schema，回执如实标注。
-- T12：只有 `list`、无启动 API → 配方。
+- `tests/task.tool.mjs` T1：扁平 spec（provider/label/prompt/parent/signal/delivery）、无 `request`/`toolFilter`、结果映射、dispose。
+- T6：`outputSchema` 被拒 → 第二次无 schema，回执如实标注。
+- T8：只有 `list`、无 `startActivation` → 配方。
 
 真机：
 
@@ -63,12 +63,11 @@ computer_task(goal="只回复 OK，不要操作桌面", timeout_min=2)
 （说明：本宿主不支持按调用限制子 agent 工具集；子 agent 拥有与父会话同级的能力；结构化输出仍生效。）
 ```
 
-### P1 — 视觉默认与回退
+### P1 — 视觉默认
 
 - `index.js`：`visionModel` 默认改为 `deepseek-flash`；配置/工具描述同步。
-- `lib/vision.js`：只对“默认候选”做能力回退（`deepseek-flash` ↔ legacy `deepseek-v4-flash-vision-exp`）；用户显式配置其他模型不静默替换。
+- `lib/vision.js`：只接受配置的视觉模型；不再维护 legacy 模型兼容分支。
 - 真机 `screen_observe(mode="vision")`：`（观察者 deepseek-official/deepseek-flash）` 返回界面描述，不再落到 GLM 无 key。
-- 单测 V1：legacy 配置在 0.2.2-like llm 上回退 `deepseek-flash`。
 
 ### P1 — 附件 dimension/pixels
 
@@ -96,7 +95,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 
 - README / ARCHITECTURE / MAINTAINING / VERIFICATION / 工具描述统一为“工具集限制取决于宿主”；0.2.2 没有 `toolFilter`。
 - `package.json` `dsh.compatibility.dsh` 补 `<0.3.0`。
-- `lib/task.js` 顶部注释与 `GUI_ONLY_TOOLS` 注释改为双 API 说明。
+- `lib/task.js` 顶部注释与委派说明改为 0.2.2 `startActivation` 语义。
 
 ## 4. 真机证据
 
@@ -110,7 +109,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 | PTC + `computer_task` | `tools.computer_do({action:'call',tool:'computer_task',...})` 成功拉起子 agent；直接 `tools.computer_task` 为 `undefined`（SDK 只绑定可见工具，预期行为） |
 | `computer_task` | 0.2.2 `startActivation` 真机拉起子 agent，返回结构化 `OK`，dispose 正常 |
 | 桌面动作 smoke | 两轮 **7/8**（Round 2 4/4；`wa2` 对时间预算敏感） |
-| 离线契约 | 10 套 **241** 断言；schema 22 工具 / 44 场景 |
+| 离线契约 | 10 套 **230** 断言；schema 22 工具 / 44 场景 |
 | S4 oracle | 10/10（含 `x1`） |
 | 打包 | 32 文件（新增 compat 报告） |
 
@@ -118,7 +117,6 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 
 - **0.2.2 没有 `toolFilter`**：插件无法按调用限制子 agent 工具集；只由 Agent Preset/宿主组合决定。回执会明确写同级能力。
 - **PTC 的 SDK 只绑定可见工具**：隐藏工具（如 `computer_task`）不会出现在 SDK；必须 `tools.computer_do({action:'call',...})`。已验证组合路径；直接 `tools.computer_task` 为 undefined 是预期行为。
-- **0.1.5 真机未复跑**：旧 `start` 路径由单测覆盖，真实 0.1.5 宿主未回归。
 - **Web runner（evals/run.mjs）**仍不适配 dsh 0.2.2 的 UI（ROADMAP C9）；headless runner 可用。
 - macOS/Linux 的 0.2.2 未验证。
 - `nativeImage:'full'` 仍可能因超大截图被宿主附件层拒绝——这是用户显式选择原图的预期语义，不是 auto 降级缺口。
@@ -126,7 +124,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 ## 6. 复现命令
 
 ```bash
-npm test; echo "test=$?"                 # 241 断言
+npm test; echo "test=$?"                 # 230 断言
 npm run check; echo "check=$?"           # 16/16
 node verify-runtime.mjs                  # 16/16
 node evals/headless-run.mjs --tier smoke --timeout-min 10

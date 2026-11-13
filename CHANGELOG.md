@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-10）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布）。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-14）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 
 ## 0.5.7 (未发布)
 
@@ -26,22 +26,22 @@
 - **`suspected_noop` 被当成功上报（P0-4）**：`engineRefusal` 新增识别；`settleAction` 返回 `ok:false`、附“先观察再决定是否重试”注记并 `markSuspect`（不 `markConsumed`，避免复用旧快照）。`unverifiable` 的“成功但未验证”语义保持不变。
 - **`screen_observe(window=...)` 未匹配时静默回退最前窗口（P0-5）**：改为 fail-closed，返回候选窗口列表且不建立快照；未指定 window 时才取 z 序最前，提示文案不再把“指定了但没找到”误写成“未指定”。
 - **观察降噪哈希漏字段（P1-B）**：旧哈希只看映射后的 `label`（`label || value` 截断 48 字符）；当 Edit 的 label 非空时 value 完全不参与，长文本/`enabled`/`selected`/`actions` 变化会被误判“状态未变”。改为基于驱动原始元素的 SHA-1 指纹（完整 label/value/enabled/selected/actions/is_password/parent/depth/frame），时间/行列噪声仍归一化。
-- **宿主依赖清单与测试环境错位（P0-6）**：`dependencies` 固定 `dsh-tools 0.1.1-rc.2`，而宿主已是 `0.2.2-rc.1`，干净 checkout 跑 `npm test` 直接 `ERR_MODULE_NOT_FOUND`。改为 `peerDependencies`（`dsh-tools >=0.1.5-rc.2 <0.3.0`、`schemastery >=3.18.2 <4`）+ `devDependencies` 固定实测 `0.2.2-rc.1 / 3.19.0`；lockfile 同步。
+- **宿主依赖清单与测试环境错位（P0-6）**：`dependencies` 固定 `dsh-tools 0.1.1-rc.2`，而宿主已是 `0.2.2-rc.1`，干净 checkout 跑 `npm test` 直接 `ERR_MODULE_NOT_FOUND`。改为 `peerDependencies`（`dsh-tools >=0.2.2-rc.1 <0.3.0`、`schemastery >=3.19.0 <4`）+ `devDependencies` 固定实测 `0.2.2-rc.1 / 3.19.0`；lockfile 同步。
 - **`install.sh` 生成的默认值过期**：仍写 `ttlMs: 15000 / maxElements: 500`，与当前默认 `60000/120` 不一致（新装用户会得到过短 TTL）。改为 `surfaceMode: dispatcher / ttlMs: 60000 / maxElements: 120`。
 - **`computer_task` 的超时描述与实现不一致**：参数说明写“默认 10”，实际取 `taskTimeoutMin`（默认 5）。描述改为“默认取 taskTimeoutMin，默认 5”。
-- **委派白名单漏 `computer_set_value`**：`GUI_ONLY_TOOLS` 仍是 19 项，新增的设值工具不在白名单。补为 20 项（仍排除 `computer_task` 防递归）。
+- **委派白名单漏 `computer_set_value`**：`GUI_ONLY_TOOLS` 仍是 19 项，新增的设值工具不在白名单。补为 20 项（仍排除 `computer_task` 防递归）。**0.2.2 基线后整个 `toolFilter`/白名单已删除**，见下。
 - **权限元数据与可选网络不一致**：`package.json` 的 `externalServices: "none"` 与 GLM 兜底的外呼事实冲突；改为条件性说明，并补全 `CUA_SESSION/GLM_API_BASE/GLM_VISION_MODEL` 环境变量。
 - **S4 runner 的 CRLF prompt 解析**：Windows checkout 的 `evals/tasks/*.md` 是 CRLF，而 `<<<PROMPT\n` 正则只认 LF，`discoverTasks` 直接报 “no <<<PROMPT block”；读入后统一归一化为 LF。
-- **`computer_task` 不兼容 dsh 0.2.2 subagents（P0）**：0.2.2 只有 `startActivation(spec)`，插件仍检查/调用 `svc.start(provider, request)`，即使 subagents 已挂载也会退回“未提供 subagents 服务”配方。改为按宿主能力选择 `startActivation` / `start` 双路径；0.2.2 路径使用 `delivery:'caller'`、`request.parent`、`activation.result/dispose`，不再传 `toolFilter`；真机成功拉起子 agent 并返回结构化结果。
-- **0.2.2 默认视觉模型失效（P1）**：`deepseek-v4-flash-vision-exp` 不在 0.2.2 DeepSeek 目录；默认改为 `deepseek-flash`，并在 `lib/vision.js` 对 `deepseek-flash` ↔ legacy 做能力回退。真机 `mode="vision"` 返回观察者描述。
+- **`computer_task` 迁移到 dsh 0.2.2 subagents（P0）**：只使用 `startActivation(spec)` 的**扁平 spec**（`provider/label/prompt/parent/signal/delivery:'caller'/maxDepth/outputSchema/agentOptions`）；0.2.2-rc.2 类型声明写嵌套 `request`，以运行时为准。删除旧 `start(provider, request)` 兼容层、`toolFilter`/`GUI_ONLY_TOOLS` 与 `list()` 硬依赖（provider 用 `getProvider` 探测），不再对旧宿主做适配。真机成功拉起子 agent 并返回结构化结果。
+- **0.2.2 默认视觉模型失效（P1）**：`deepseek-v4-flash-vision-exp` 不在 0.2.2 DeepSeek 目录；默认改为 `deepseek-flash`，删除 legacy 模型兼容分支。真机 `mode="vision"` 返回观察者描述。
 - **native 附件限额只检查字节数（P1）**：0.2.2 新增 `maxImageDimension`/`maxImagePixels`；`nativeImage:auto` 超限时自动走 compact zoom，而不是被 `saveImage` 拒绝。
 - **`toolFilter` 文案与工具描述过度承诺（P2）**：0.2.2 的 `startActivation` 没有 `toolFilter`；README/ARCHITECTURE/MAINTAINING/工具描述统一改为“工具集限制取决于宿主”，回执明确写同级能力。
 
 ### Changed
 
-- **dsh 兼容下限保持 `>=0.1.5-rc.2`**：0.1.5 起 `defineTool` 才做"作者面 schema → 宿主强制子集"投影，更早的宿主不校验，行为不可保证。0.5.7 移除 dynamic 后不再依赖 `agent.ctx` 作用域注册与 `tools/result`；实测宿主为 0.2.2-rc.1。
+- **dsh 兼容基线提升到 `>=0.2.2-rc.1 <0.3.0`**：以 0.2.2-rc.1 为唯一支持基线；peer 依赖同步提升（dsh-tools `>=0.2.2-rc.1`、schemastery `>=3.19.0`），不再维护 0.1.5 兼容层。
 - **文档体系重写（2026-11-10）**：README 重排为“产品入口 + 工具参考 + 边界”；新增 `docs/WINDOWS.md`（Windows 工程与冒烟矩阵）、`docs/TESTING.md`（测试分层）；重写 `docs/ARCHITECTURE.md`（模块/流水线/不变量/扩展/已知缺口）、`VERIFICATION.md`（当前矩阵 + 历史证据）、`PERMISSIONS.md`（条件性网络与全部环境变量）、`ROADMAP.md`、`PUBLISH.md`、`docs/store-evidence.md`；`HANDOFF-2026-09-16.md` 并入 `MAINTAINING.md` 后移除。修正 macOS/Linux 过度声明、危险词审批旧验收、像素点击“零标定命中”等与实现不一致的表述。
-- **dsh 0.2.2 兼容性升级（2026-11-12）**：`docs/COMPATIBILITY-0.2.2.md` 记录契约矩阵与真机证据；P0/P1/P2 已实施（subagents 双 API、vision 默认/回退、附件 dimension/pixels、PTC `run_code` + native/`computer_task` 验证、toolFilter 文案、兼容上限 `<0.3.0`）。核心观察/动作/native/dispatcher 已真机兼容（7/8 smoke、16/16 runtime）。
+- **dsh 0.2.2 兼容性升级（2026-11-12）**：`docs/COMPATIBILITY-0.2.2.md` 记录契约矩阵与真机证据；P0/P1/P2 已实施（subagents `startActivation`、vision 默认 `deepseek-flash`、附件 dimension/pixels、PTC `run_code` + native/`computer_task` 验证、toolFilter 文案移除、兼容基线 `>=0.2.2-rc.1 <0.3.0`）。核心观察/动作/native/dispatcher 已真机兼容（7/8 smoke、16/16 runtime）。
 
 ### Measured
 

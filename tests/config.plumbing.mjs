@@ -265,10 +265,10 @@ const observeArgs = { window: '4242', mode: 'ax' }
   let started = 0
   const subagents = {
     list: () => ['spawn'],
-    async start() {
+    async startActivation() {
       started++
       return {
-        id: 'child', localAgent: {},
+        childId: 'child',
         result: Promise.resolve({ stopReason: 'completed', structured: { ok: true, summary: 's', evidence: ['e'] } }),
         async dispose() {},
       }

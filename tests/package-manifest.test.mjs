@@ -35,12 +35,12 @@ check('宿主包没有出现在 dependencies', () => {
   assert.equal(Object.keys(deps).filter((k) => k.startsWith('@deepseek-ai/')).length, 0, JSON.stringify(deps))
 })
 
-check('dsh-tools 走 peerDependencies 且覆盖 0.2.2', () => {
-  assert.equal(pkg.peerDependencies?.['@deepseek-ai/dsh-tools'], '>=0.1.5-rc.2 <0.3.0')
+check('dsh-tools 走 peerDependencies 且基线为 0.2.2-rc.1', () => {
+  assert.equal(pkg.peerDependencies?.['@deepseek-ai/dsh-tools'], '>=0.2.2-rc.1 <0.3.0')
 })
 
-check('schemastery 走 peerDependencies 且覆盖 3.19.0', () => {
-  assert.equal(pkg.peerDependencies?.['@deepseek-ai/schemastery'], '>=3.18.2 <4')
+check('schemastery 走 peerDependencies 且基线为 3.19.0', () => {
+  assert.equal(pkg.peerDependencies?.['@deepseek-ai/schemastery'], '>=3.19.0 <4')
 })
 
 check('devDependencies 固定实测宿主版本', () => {
@@ -48,8 +48,8 @@ check('devDependencies 固定实测宿主版本', () => {
   assert.equal(pkg.devDependencies?.['@deepseek-ai/schemastery'], '3.19.0')
 })
 
-check('dsh 兼容下限与上限（0.1.5-rc.2 ~ 0.3.0）', () => {
-  assert.equal(pkg.dsh?.compatibility?.dsh, '>=0.1.5-rc.2 <0.3.0')
+check('dsh 兼容基线（0.2.2-rc.1 ~ 0.3.0）', () => {
+  assert.equal(pkg.dsh?.compatibility?.dsh, '>=0.2.2-rc.1 <0.3.0')
 })
 
 check('发布文件清单包含运行必需项', () => {

@@ -5,12 +5,12 @@
 
 [![Release](https://img.shields.io/badge/release-0.5.6-blue)]()
 [![main](https://img.shields.io/badge/main-0.5.7--dev-orange)]()
-[![dsh](https://img.shields.io/badge/dsh-%3E%3D0.1.5--rc.2%20%7C%20tested%200.2.2--rc.1-green)]()
+[![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.2--rc.1-green)]()
 [![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)]()
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-10）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认与 P0/P1 安全边界修复。npm 尚未发布，部署侧可能仍是旧版——见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-14）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认、P0/P1 安全边界与 dsh 0.2.2 兼容升级（0.2.2-rc.1 为新基线）。npm 尚未发布，部署侧可能仍是旧版——见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 
@@ -269,14 +269,14 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `allowedApps` | `[]` | 操作类工具的应用白名单；空 = 不限制 |
 | `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
 | `nativeImage` | `auto` | `auto` 超附件限额自动降级 / `full` 原图 / `compact` 始终 ≤500px JPEG |
-| `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash`，旧宿主配 legacy 模型会按能力自动回退 |
+| `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
 | `extremePatterns` | `[]` | 极危清单（正则源数组）：命中附警告注记，不阻断 |
 | `deliveryMode` | `auto` | 后台/自动/前台投递策略 |
 
 ## 能力边界（诚实说明）
 
-- **委派不是沙箱。** `computer_task` 想给子 agent 施加三条约束（只用桌面工具、结构化输出、禁止再派生），但它们是独立的宿主能力。0.1.5 的 `toolFilter` 在宿主内部是 scoped `tools.restrict()`，其名字校验只认全局层；默认 dispatcher 下桌面工具不注册为全局工具，因此**可能被拒**。0.2.2 的 `subagents.startActivation` **根本没有 `toolFilter`**——工具集只能由 Agent Preset/宿主组合决定。两种情况下插件都会在回执里明确写“子 agent 拥有与父会话同级的能力”，不会假装已限制。需要严格限制时，请用宿主自己的子 agent/Preset 机制。
+- **委派不是沙箱。** `computer_task` 想给子 agent 施加三条约束（只用桌面工具、结构化输出、禁止再派生），但它们是独立的宿主能力。0.2.2 的 `subagents.startActivation` **没有 `toolFilter`**——工具集只能由 Agent Preset/宿主组合决定。插件会在回执里明确写“子 agent 拥有与父会话同级的能力”，不会假装已限制。需要严格限制时，请用宿主自己的 Agent Preset/子 agent 机制。
 - **`app_launch` 的窗口可能需要人工收尾。** 驱动二进制要求管理员权限，启动的应用继承高完整性级别；非提权客户端 `taskkill` / `Stop-Process` / `WM_CLOSE` 都会被 UIPI 拒绝。WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 UIA 超时、`invoke_menu` 报 `menu_path_unavailable`）。测试/自动化优先操作已在运行的普通应用。
 - **管理员窗口仍是系统边界。** 驱动能操作它自己启动的高完整性窗口，但非提权客户端不能清理；具体按目标与通道判断，不是“管理员窗口一律不可操作”。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
@@ -297,9 +297,9 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 | 依赖 | 实测版本 | 兼容范围 |
 |---|---|---|
-| dsh | `0.2.2-rc.1` | `>=0.1.5-rc.2 <0.3.0`（0.1.5 起才有 `defineTool` 投影） |
-| `@deepseek-ai/dsh-tools` | `0.2.2-rc.1` | `>=0.1.5-rc.2 <0.3.0`（peer） |
-| `@deepseek-ai/schemastery` | `3.19.0` | `>=3.18.2 <4`（peer） |
+| dsh | `0.2.2-rc.1` | `>=0.2.2-rc.1 <0.3.0` |
+| `@deepseek-ai/dsh-tools` | `0.2.2-rc.1` | `>=0.2.2-rc.1 <0.3.0`（peer） |
+| `@deepseek-ai/schemastery` | `3.19.0` | `>=3.19.0 <4`（peer） |
 | cua-driver | `0.23.2` | 以驱动 `call` 契约与工具名为准 |
 | Node.js | 22.18+ | `>=22.18.0` |
 
@@ -331,7 +331,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（16/16 JS）
-npm test                           # 10 套离线测试，241 个断言
+npm test                           # 10 套离线测试，230 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -367,7 +367,7 @@ Windows-first Computer Use plugin for the DeepSeek Harness: 22 tools (21 desktop
 - **Loop**: `screen_observe` (AX/UIA index tree, native screenshot, or vision observer) → act by `element` index or window-screenshot pixels → verify.
 - **Stance — zero-friction autonomy**: no approval prompts; background-first delivery escalates to foreground/`bring_to_front` and restores the previous foreground. The only content-level hard refusal is automated password entry (`typing` / `set_value`); `extremePatterns` adds non-blocking warning notes.
 - **Cache-friendly surface**: `surfaceMode` is either `dispatcher` (default, 2 visible) or `hybrid` (2 + 5 hot tools). The old dynamic enter/exit surface was removed.
-- **Honest boundaries**: Windows is the deep-tested target; macOS is basic; Linux is unverified. Delegation tool restriction depends on the host: 0.1.5 `toolFilter` may be rejected, and 0.2.2 `startActivation` has no `toolFilter` at all; the receipt states when the sub-agent has parent-level capabilities.
+- **Honest boundaries**: Windows is the deep-tested target; macOS is basic; Linux is unverified. Delegation tool restriction is not available on dsh 0.2.2 (`startActivation` has no `toolFilter`), so the sub-agent may have parent-level capabilities; the receipt says so.
 
 **Install**: install cua-driver, then `git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git && ./install.sh` (set `DSH_HOME` on Windows/Linux). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full table above.
 

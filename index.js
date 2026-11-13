@@ -11,7 +11,7 @@
  *   - mode="native"：截图经 attachments 持久化后以图片块返回，主对话模型
  *     （如 deepseek-flash）直接看图 —— 零外部 API、零额外 key。
  *   - mode="vision"：DeepSeek 视觉观察者（ctx.llm）结构化描述截图（免 ZHIPU key），
- *     默认 deepseek-flash（0.2.2 目录）；旧宿主的 legacy 模型会按能力自动回退。
+ *     默认 deepseek-flash（0.2.2 目录）。
  *     不可用时回退 GLM 免费模型。
  *   - ax：零成本 AX 树；AX 树为空时自动降级 native → vision → ax。
  *

@@ -39,7 +39,7 @@ rm -rf "$DSH_HOME"
 |---|---|---|
 | 语法 + 安装脚本 | `npm run check` | **16/16** JS + `bash -n install.sh/uninstall.sh` |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **10 套 / 241 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **10 套 / 230 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏，真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **22 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 20 个经 dispatcher 路由；`hybrid` 注册 7 个 |
@@ -52,7 +52,7 @@ rm -rf "$DSH_HOME"
 | 信号 | 响应 |
 |---|---|
 | 规范仓库 | `package.json` `repository` → `git+https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git` |
-| Node 兼容性 | `engines.node >= 22.18.0` + `dsh.compatibility.node`；dsh 兼容 `>=0.1.5-rc.2` |
+| Node 兼容性 | `engines.node >= 22.18.0` + `dsh.compatibility.node`；dsh 兼容基线 `>=0.2.2-rc.1 <0.3.0` |
 | 供应链 | 运行时 peer 依赖仅 `@deepseek-ai/dsh-tools` + `@deepseek-ai/schemastery`（宿主提供）；无第三方 runtime/optional 依赖；devDependencies 只用于测试 |
 | 文件权限 | 有 `spawn`（cua-driver）——插件核心能力；无用户文件读写；仅 `existsSync` 探测驱动 |
 | 命令权限 | 固定 argv、`shell:false`：`cua-driver call …`；Windows `powershell.exe -File tools/uia-password-scan.ps1`（只读） |

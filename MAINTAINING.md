@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：22 工具 = 21 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 20；`hybrid` 可见 7 / 隐藏 15。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 10 套 / 241 断言；`npm run check` 16/16；`verify-runtime` 16/16。
+- **测试基线**：`npm test` 10 套 / 230 断言；`npm run check` 16/16；`verify-runtime` 16/16。
 
 ## 2. 文档地图
 
@@ -37,7 +37,7 @@
 |---|---|
 | 工作副本 | `F:\Codex_Work_Space\DSH plugin\dsh-computer-use`（目录名未改；分支 `main`） |
 | cua-driver | `C:\Users\66494\.cua-driver\packages\current\cua-driver.exe`（0.23.2；daemon 由 `serve --socket \\.\pipe\cua-driver` 持有） |
-| dsh | 全局 `0.2.2-rc.1`（自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` / `schemastery 3.19.0`）；兼容下限 `>=0.1.5-rc.2` |
+| dsh | 全局 `0.2.2-rc.1`（自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` / `schemastery 3.19.0`）；兼容基线 `>=0.2.2-rc.1 <0.3.0` |
 | 重启 harness | `~/.dsh/restart-dsh-capture.ps1`（把当前 boot 的 tokened URL 落盘） |
 | URL/token | `~/.dsh/web-latest.log` 最后一条 |
 | 模型通道 | `~/.dsh/settings.yaml`：`agent-default-model` = `opencode-go / deepseek-v4.1-flash / high`；`llm-pi-ai.providers.opencode-go` 需 `baseURL=https://opencode.ai/zen/go/v1` + 必需请求头 `x-opencode-session` |
@@ -84,16 +84,15 @@
 - **必须用 `defineTool()` 的返回值注册**。它把作者面 schema 投影成宿主强制子集（属性级 `required:true` → object 级 `required` 数组；参数映射为隐式开放对象根）。直接传原始字面量会被 `assertSupportedJsonSchema` 拒绝 → **整棵插件树加载失败**（离线假注册表不校验，所以必须真机探针）。
 - **不要订阅 waterfall 事件做观测**。`tools/post-execute` 是 cordis waterfall，监听器不调用 `next()` 就返回 undefined，注册表读 `decision.kind` 崩 → 每次工具调用都失败。仅观测挂 `tools/result`。
 - 宿主参数表编译后不含 `additionalProperties`；写错的参数名会被静默丢弃。插件在 `wrap()` 单点拒绝未知参数，避免回退到非目标窗口。
-- dsh 0.1.5+ 对工具输出严格校验（`additionalProperties:false`）；返回字段必须在 output schema 声明，降级路径也不例外。
+- dsh 0.2.2 对工具输出严格校验（`additionalProperties:false`）；返回字段必须在 output schema 声明，降级路径也不例外。
 - 依赖：`dsh-tools`/`schemastery` 放 peerDependencies，devDependencies 固定实测版本；不要把宿主包放进 dependencies。
 
 ### 4.6 子 agent 能力
 
-- **dsh 0.2.2**：`ctx.subagents.startActivation(spec)`；`spec.request` 没有 `toolFilter`，工具集由 Agent Preset/宿主组合决定；`delivery:'caller'`，结果读 `activation.result`，结束 `activation.dispose()`。
-- **dsh 0.1.5**：`start(provider, request)`；`toolFilter` 在宿主内部是 scoped `tools.restrict()`，名字校验**只认全局层**；默认 dispatcher 下 20 个桌面工具不注册为全局工具 → toolFilter 可能被拒。
-- `outputSchema`/`maxDepth` 在 spawn-in-process provider 上可用；降级不能“一把全丢”，要按阶梯：全量 → 去 toolFilter（仅旧 API）→ 去 outputSchema → 报错。
-- 每次降级都要把**拒绝原因与权限后果**写进回执（“子 agent 拥有与父会话同级的能力”）；0.2.2 新路径即使全量成功也要写，因为它根本没有工具限制参数。
-- 子 agent 不能再派生：`maxDepth=1` 且白名单不含 `computer_task`。
+- `ctx.subagents.startActivation(spec)` 使用**扁平 spec**：`{ provider, label, prompt, parent, signal, delivery:'caller', maxDepth, outputSchema, agentOptions }`。0.2.2-rc.2 类型声明写成嵌套 `request`，运行时读扁平字段——以运行时为准；`list()` 在 rc.2 运行时也不存在，provider 用 `getProvider` 探测。
+- `outputSchema`/`maxDepth` 在 spawn-in-process provider 上可用；降级阶梯：全量 → 去 `outputSchema` → 报错。
+- 每次降级/成功都要把**权限后果**写进回执（“子 agent 拥有与父会话同级的能力”）；0.2.2 即使全量成功也要写，因为它没有工具限制参数。
+- 子 agent 默认不能再派生：`maxDepth=1`；工具集由宿主 Preset 决定，插件不维护白名单。
 
 ### 4.7 PowerShell / Windows 脚本
 
@@ -194,7 +193,7 @@
 - 2026-09-08~16：S4 评测系统；坐标契约根治；dsh 0.1.5 适配；上下文预算 A–F；`computer_task`。
 - 2026-09-17：结构治理（测试脚手架、schema 20/20、config plumbing、回执统一、注册数据化）；v0.5.4/0.5.5/0.5.6。
 - 2026-11-09/10：P0/P1 边界、`dispatcher` 默认、`dynamic` 删除、更名、文档体系重写。
-- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）；S4 oracle 10/10；headless smoke 3/4（`wa2` fail）；Web runner 的 0/4 判为 dsh 0.2.2 UI 兼容问题；随后完成 dsh 0.2.2 兼容升级（subagents 双 API / vision 默认回退 / 附件 dimension / PTC 真机）。
+- 2026-11-12：dsh 0.2.2-rc.1 headless 真机加载（默认 DeepSeek 通道，5 步只读，2 可见/20 隐藏）；S4 oracle 10/10；headless smoke 3/4（`wa2` fail）；Web runner 的 0/4 判为 dsh 0.2.2 UI 兼容问题；随后完成 dsh 0.2.2 兼容升级（`startActivation` / vision 默认 / 附件 dimension / PTC 真机）。
 
 > 更早的逐日交接（2026-09-16 `HANDOFF`）已不在工作树；需要时从 git 历史取回。
 

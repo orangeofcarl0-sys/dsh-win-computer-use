@@ -136,8 +136,8 @@ spawn('powershell.exe', [
 
 | 依赖 | 用途 | 解析方 |
 |---|---|---|
-| `@deepseek-ai/dsh-tools` | `defineTool` 注册与 schema 投影 | 宿主（peerDependencies `>=0.1.5-rc.2 <0.3.0`） |
-| `@deepseek-ai/schemastery` | 配置 schema | 宿主（peerDependencies `>=3.18.2 <4`） |
+| `@deepseek-ai/dsh-tools` | `defineTool` 注册与 schema 投影 | 宿主（peerDependencies `>=0.2.2-rc.1 <0.3.0`） |
+| `@deepseek-ai/schemastery` | 配置 schema | 宿主（peerDependencies `>=3.19.0 <4`） |
 
 `devDependencies` 固定实测宿主版本 `0.2.2-rc.1` / `3.19.0`；发布包不带 `node_modules`。
 
