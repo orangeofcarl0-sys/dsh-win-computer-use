@@ -43,7 +43,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 | 目标类型 | 文本 | 组合键 | 菜单 | 备注 |
 |---|---|---|---|---|
 | 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）走 SendInput；`press_key` 后台 PostMessage | `invoke_menu` 可用 | 对照实验：regedit `ctrl+f` 3/3 送达 |
-| XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单/工具栏控件”；`press_key` 可能 `effect:unverifiable` |
+| XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**和 `could not find a UIA AcceleratorKey`（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单栏项 → 观察弹出菜单 → 点菜单项”；`xamlKeyFallback: auto`（默认 off）可实验性自动做这一步；`press_key` 可能 `effect:unverifiable` |
 | Electron / Chromium / WebView2 | 通常可 UIA ValuePattern；内容区可能不暴露树 | 后台事件可能被静默丢弃（`background_unavailable`） | 取决于应用 | 用 `native` 截图 + element/像素点击 |
 | Canvas / 游戏 / 自绘 | 无 AX 树 | 同左 | 不可用 | `native` 或 `vision`；坐标点击 best-effort |
 
@@ -61,6 +61,8 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 | `screen_observe` 输出 `@(x,y)` | window-screenshot-px | 已在输出时减去 `screenOrigin`；可直接点击 |
 | `screen_zoom` 图内坐标 | crop-local px | `× crop.scale + crop.x/y` = window-screenshot-px |
 | `screen_zoom` 输出图 | 驱动恒定约 1.2× 上采样；裁剪宽 ≤500px | `scale` 以驱动返回图尺寸为准，不要用附件归一化尺寸 |
+
+`screen_observe` 的文本行 `@(x,y)` 与结构化 `elements[].x/y` 必须完全一致，都是减过 `screenOrigin` 的点击空间；2026-11-14 t01 的“反复定位”根因就是文本行漏了换算。取不到窗口 `bounds` 时不会假装可点击：头部会标注“屏幕物理像素，不要直接用于 computer_click”，`coordinateSpace` 为 `screen-physical-px`。
 
 **A7 的诚实结论**：驱动 0.23.2 的文档契约（click = window-local PNG px）与实测行为在混合 DPI 下有矛盾；六轮实验里 screen/bounds-local/client-local 三种假设都有反例。因此：
 
@@ -98,6 +100,7 @@ Win11 记事本是**单进程多窗口/多标签**，进程可能同时持有用
 3. **UIA 关标签不可靠**：“关闭标签页”按钮存在，但 `Invoke` 实测 no-op（与 #3908 同源）；先 `Select` 也一样。
 4. **`Start-Process -PassThru` 的 pid 是启动器**，可能随即退出；据此判断“已关闭”是假阳性。
 5. 测试脚本只**报告残留标签名**，由人工关闭（选中标签 → Ctrl+W → 不保存）。`tests/live-action.e2e.mjs` 使用唯一命名临时文件窗口做确定性选择，不杀进程。
+6. eval 的 Notepad 任务使用 `Open-TestNotepad` / `Close-TestNotepad`：启动前记录已有 HWND，只有新窗口且未修改才 `WM_CLOSE`；如果文件落进用户已有窗口（`owned=false`），setup fail closed、cleanup 留窗报告。`Close-TaskWindows` 不再有默认 Notepad 宽匹配，调用必须带显式模式。
 
 ## 7. 冒烟矩阵
 
@@ -162,7 +165,8 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | 窗口级观察被拒，返回 `desktop-visual` | 权限/UIPI/目标不可访问 | 换普通窗口；桌面坐标不能直接点击 |
 | `background_unavailable` | Chromium/Electron/GTK/VCL 等丢弃后台事件 | `deliveryMode: auto` 自动前台；或 `foreground:true` |
 | `foreground_unavailable` | 前台锁 | 自动 L3；仍失败先让目标前置 |
-| `alt+f4`/hotkey 4s 超时 | WinUI3 UIA 加速器不可达（#3908） | 点菜单/工具栏控件；或稍后重试 |
+| `alt+f4`/hotkey 4s 超时 | WinUI3 UIA 加速器不可达（#3908） | 点菜单/工具栏控件；或稍后重试；可试 `xamlKeyFallback: auto` |
+| `could not find a UIA AcceleratorKey` | 命令在关闭菜单里（保存/全选等）；PostMessage 被忽略 | 点菜单栏项打开菜单，再点具体菜单项；不要重复按键 |
 | `menu_path_unavailable` | XAML 菜单驱动走不到 | 改点控件；不要回退像素 |
 | 像素点击偏 | 混合 DPI + 驱动 0.23.2 落点缺陷（A7） | 用 element 路径；像素点击后复核 |
 | `computer_type` 送达但无效果 | 目标不接受该通道/焦点不对 | 指定 element 走 ValuePattern；或点控件后输入 |

@@ -1,0 +1,80 @@
+/**
+ * eval 脚本安全静态检查（2026-11-14 t01 复盘）。
+ *
+ * 共享机器上的硬约束：
+ * - 任何 setup/cleanup 都不能按进程名杀 Notepad（Win11 记事本多标签，会带走用户文档）；
+ * - Close-TaskWindows 只能按显式模式关闭，不能有默认的 Notepad/无标题/记事本宽匹配；
+ * - t01/t05/t06 的 Notepad 生命周期必须走 HWND/ownership 作用域的 Open/Close-TestNotepad。
+ *
+ * 运行：node tests/eval-safety.mjs
+ */
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
+const evals = join(root, 'evals')
+
+function walk(dir) {
+  const out = []
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name)
+    const st = statSync(p)
+    if (st.isDirectory()) out.push(...walk(p))
+    else if (name.endsWith('.ps1')) out.push(p)
+  }
+  return out
+}
+
+const files = walk(evals)
+const checks = []
+const check = (name, ok, detail = '') => {
+  if (!ok) checks.push({ name, detail })
+  console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`)
+}
+
+// 1. 任何脚本都不得“按 Notepad 进程名杀进程”
+const killers = []
+for (const f of files) {
+  const src = readFileSync(f, 'utf8')
+  if (/Get-Process\s+-Name\s+['"]Notepad['"][\s\S]{0,300}?Stop-Process/i.test(src)) killers.push(relative(root, f))
+}
+check('S1: 没有按 Notepad 进程名 Stop-Process', killers.length === 0, killers.join(', '))
+
+// 2. Close-TaskWindows 调用必须带显式模式
+const badCalls = []
+for (const f of files) {
+  if (f.endsWith('common.ps1')) continue
+  const lines = readFileSync(f, 'utf8').split(/\r?\n/)
+  for (const line of lines) {
+    if (!/Close-TaskWindows/.test(line)) continue
+    if (/^\s*#/.test(line)) continue
+    if (!/Close-TaskWindows\s+@\(/.test(line)) badCalls.push(`${relative(root, f)}: ${line.trim()}`)
+  }
+}
+check('S2: Close-TaskWindows 只按显式模式关闭', badCalls.length === 0, badCalls.join(' | '))
+
+// 3. Close-TaskWindows 源码不得含默认 Notepad/无标题/记事本 needles
+const common = readFileSync(join(evals, 'lib', 'common.ps1'), 'utf8')
+const fn = (common.match(/function Close-TaskWindows\s*\{[\s\S]*?\n\}/) || [''])[0]
+check('S3: Close-TaskWindows 无默认 Notepad 宽匹配', fn.length > 0
+  && !/@\('Notepad'/.test(fn)
+  && !/\$untitled/.test(fn)
+  && !/\$jishiben/.test(fn), fn.slice(0, 120))
+
+// 4. Notepad 生命周期走 Open/Close-TestNotepad
+for (const id of ['t01', 't05', 't06']) {
+  const setup = readFileSync(join(evals, 'setup', `${id}.ps1`), 'utf8')
+  const cleanup = readFileSync(join(evals, 'cleanup', `${id}.ps1`), 'utf8')
+  check(`S4: ${id} setup 使用 Open-TestNotepad`, /Open-TestNotepad/.test(setup))
+  check(`S5: ${id} cleanup 使用 Close-TestNotepad`, /Close-TestNotepad/.test(cleanup))
+}
+
+// 5. t10 双文件也走 Open/Close-TestNotepad，且不再无参数 Close-TaskWindows
+const t10s = readFileSync(join(evals, 'setup', 't10.ps1'), 'utf8')
+const t10c = readFileSync(join(evals, 'cleanup', 't10.ps1'), 'utf8')
+check('S6: t10 setup 使用 Open-TestNotepad 两次', (t10s.match(/Open-TestNotepad/g) || []).length >= 2)
+check('S7: t10 cleanup 使用 Close-TestNotepad', /Close-TestNotepad/.test(t10c))
+
+console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
+process.exit(checks.length === 0 ? 0 : 1)

@@ -1,0 +1,16 @@
+# headless S4 探针叠加层：启用 credentials，插入本插件，并打开实验性 XAML 组合键回退。
+# 仅用于验证 xamlKeyFallback=auto；默认基线仍是 headless-patch.yml（off）。
+# 前置：headless profile 的 node_modules 里有 dsh-win-computer-use（junction/安装）。
+- id: credentials
+  disabled: false
+
+- insert:
+    - id: dsh-win-computer-use
+      name: dsh-win-computer-use
+      config:
+        surfaceMode: dispatcher
+        ttlMs: 60000
+        maxElements: 120
+        passwordScan: off
+        deliveryMode: background
+        xamlKeyFallback: auto

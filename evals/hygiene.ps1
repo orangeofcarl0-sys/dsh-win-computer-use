@@ -18,8 +18,11 @@ param([switch]$ClearNotepadTabState)
 . (Join-Path $PSScriptRoot 'lib\common.ps1')
 $ErrorActionPreference = 'Continue'
 
-$closed = Close-TaskWindows
+# Report-only: never close windows here (the box is shared; WM_CLOSE on a
+# modified Notepad document pops a save dialog). Use each task's cleanup for
+# HWND-scoped closing.
 $np = @(Get-Process -Name 'Notepad' -ErrorAction SilentlyContinue)
+$npWins = @(Find-WindowsByTitle 'Notepad' -VisibleOnly)
 $pkg = Join-Path $env:LOCALAPPDATA 'Packages'
 $tabDirs = @()
 if (Test-Path $pkg) {
@@ -28,7 +31,7 @@ if (Test-Path $pkg) {
 }
 $bins = @()
 foreach ($d in $tabDirs) { $bins += @(Get-ChildItem -Path $d -Filter '*.bin' -File -ErrorAction SilentlyContinue) }
-Write-Output ("closed_windows=" + $closed)
+Write-Output ("notepad_windows=" + $npWins.Count)
 Write-Output ("notepad_processes=" + $np.Count)
 Write-Output ("tabstate_files=" + $bins.Count + " in " + $tabDirs.Count + " package dir(s)")
 

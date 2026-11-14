@@ -13,6 +13,7 @@ node_modules
 # 系统
 .DS_Store
 dsh-computer-use.md
+.zcode/
 
 # S4 评测产物（真值/报告不入库，AC5）
 evals/report-last.json

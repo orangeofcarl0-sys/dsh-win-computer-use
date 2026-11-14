@@ -77,14 +77,16 @@ evals/
 ## 环境知识（2026-09-08/09 实测，写脚本前先读）
 
 - **PowerShell `Add-Type` 临时文件坑（2026-11-12 实测）**：本机 `TEMP` 指向 `C:\Windows\TEMP` 时，`Add-Type -TypeDefinition` 编译会报“未能找到源文件 C:\Windows\TEMP\*.cs”，导致所有 setup/oracle 失败（不是任务逻辑）。把 `TEMP`/`TMP` 设为 `%LOCALAPPDATA%\Temp` 后 `verify-oracles` **10/10**。
-- **Win11 记事本会恢复上一会话**：`%LOCALAPPDATA%\Packages\Microsoft.WindowsNotepad_*\LocalState\TabState\*.bin` 让未保存标签在下次启动时复活——基线里“幽灵 notepad 窗口”与 t07 级联失败的真机制。`hygiene.ps1 -ClearNotepadTabState` 可清（**会丢未保存文档，含用户自己的，故须显式开启**）；默认只关窗口+报告。
+- **Win11 记事本会恢复上一会话**：`%LOCALAPPDATA%\Packages\Microsoft.WindowsNotepad_*\LocalState\TabState\*.bin` 让未保存标签在下次启动时复活——基线里“幽灵 notepad 窗口”与 t07 级联失败的真机制。`hygiene.ps1 -ClearNotepadTabState` 可清（**会丢未保存文档，含用户自己的，故须显式开启**）；默认只报告窗口，不关闭。
 - **WinUI3 应用 `MainWindowHandle` 恒为 0**（计算器实证）：就绪判定用 UIA（`Test-CalculatorVisible`/`Start-Calculator`），别用 MainWindowHandle。
 - **剪贴板可能被占用**：set 后立即 get 可能为空 → set+verify 重试（t06 setup 已实现）。
 - **打包应用重启竞态**：杀进程后要等它真正消失再启动，并带重试（`Start-Calculator`）。
 - **驱动提权窗口清理不掉**：cua-driver（疑似提权）spawn 的窗口，非提权侧 taskkill/Stop-Process/PostMessage 全失效（UIPI）；`Close-TaskWindows` 只能处理脚本自己启的窗口。这是当前最大的环境噪声源，修复项见 PLAN §10.5。
 - notepad 标签页控件类型是 **TabItem**（不是 ListItem）；窗口标题只显示活动标签。
-- **Win11 记事本上驱动的三条输入通道都可能不可达**（2026-09-16 受控窗口实测）：`hotkey` 走 UIA 加速器扫描 → 4s 超时（"a UIA provider in the target app is likely unresponsive"）；`press_key`（PostMessage）不报错但 `effect:unverifiable`、目标无反应；`invoke_menu` 返回 `menu_path_unavailable`（XAML 菜单驱动走不到）。→ 依赖 Ctrl+S 保存的任务（t01/t05/t06/t10）在该目标上会被驱动层挡住；可用替代是点击工具栏/菜单控件（element 编号点击），或换目标应用验证。插件已把 UIA 超时翻译成"改用点击控件"的可执行指引，并把驱动的 `refusal` 回执识别为失败（此前 menu 会把拒绝当成功上报）。
+- **Win11 记事本上驱动的三条输入通道都可能不可达**（2026-09-16 受控窗口实测 + 2026-11-14 t01）：`hotkey` 走 UIA 加速器扫描 → 4s 超时，或 `could not find a UIA AcceleratorKey`（保存/全选等命令在关闭菜单里）；`press_key`（PostMessage）不报错但 `effect:unverifiable`、目标无反应；`invoke_menu` 返回 `menu_path_unavailable`（XAML 菜单驱动走不到），且 `["文件"]` 可能只回 `unverifiable` 而菜单没开。→ 依赖 Ctrl+S 保存的任务（t01/t05/t06/t10）在该目标上要走“点菜单栏项 → 观察弹出菜单 → 点菜单项”。插件已把两类 hotkey 失败翻译成可执行指引；`xamlKeyFallback: auto`（默认 off）可实验性自动完成“开菜单→点项”，歧义/缺失即停；`computer_menu` 的 `unverifiable` 不再报成功。
 - **记事本进程会被复用**：`notepad.exe` 单进程多标签，自己起的实例可能被用户后续打开的文件占用 → 清理测试窗口要按**标题**匹配，不要按进程名杀（2026-09-16 实测：我的测试进程被用户文档复用）。
+- **2026-11-14 起 Notepad 生命周期安全化**：t01/t05/t06/t10 使用 `Open-TestNotepad`/`Close-TestNotepad`，启动前记录已有 HWND；只有新窗口（owned=true）且未修改才 WM_CLOSE，tab 落进用户窗口时 setup fail closed、cleanup 留窗报告。`Close-TaskWindows` 删除默认 Notepad/无标题/记事本 needles，调用必须带显式模式；`tests/eval-safety.mjs` 静态守门。
+- **t01 预置**：setup 打开唯一空 seed `s4-t01-seed.txt`（task-owned 新窗口），prompt 要求另存为 `target\note.txt`；不再启动“无标题”窗口，避免与用户已有标签混淆。
 - **驱动提权链（2026-09-16 实测，上游 #3607 已附证据）**：`cua-driver.exe` 的二进制清单是 `requireAdministrator` → daemon 恒为 High IL → **`app_launch` 启动的应用继承 High IL**（对照：同一 shell 直接 `Start-Process notepad` 为 Medium IL）→ 非提权客户端 `taskkill`/`Stop-Process`/`WM_CLOSE` 全被拒（UIPI），残骸窗口累积并干扰后续任务观察（基线 t07 级联失败的元凶之一）。驱动**确实能**操作自己启动的 High IL 窗口（提权记事本上 `computer_type` 成功且 `effect:confirmed`），所以"管理员窗口不可操作"的旧说法不成立——真实边界是"客户端清不掉"。且 WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 #3908 的 UIA 超时、`invoke_menu` 报 menu_path_unavailable）→ 只能人工收尾。**评测实践：优先操作已在运行的普通应用；用 `app_launch` 的任务要接受人工收尾成本。**
 - **dsh 0.1.5 UI 变化（2026-09-16 实证）**：`document.execCommand('insertText')` 在 composer 上失效（长度恒 0，会发出空消息）→ 必须走 CDP `Input.insertText`；轮次页脚由 `N 轮 · M 步` 变为 `N 轮 M 步`（无分隔点）；新建会话后页面可能被其他会话视图覆盖 → 发送前必须**二次校验当前会话仍是 0 轮**，回合结束再校验 prompt 标记在活动会话文本里。
 - **「新建会话」点击可能不生效**（视图被钉在历史会话上；2026-09-16 实测：无弹层、无导航、harness 日志无报错，普通点击与 trusted CDP 点击都一样，而同一页面其它按钮点击正常）。**可靠恢复 = 重载客户端**——新加载会直接给出空会话（这也解释了为什么"重启/新开客户端"总能正常跑）。runner 已内置：点击无效 → 重载客户端 → 重试，最多 3 轮，并在日志打印 `session view pinned → reloading client`。
@@ -121,6 +123,8 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 | Round 2（`headless-run.mjs`） | 10min | **4/4** | `wa2` 到点但 oracle pass |
 
 两轮合计 **7/8（87.5%）**；`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。
+
+> 2026-11-14：t01 的坐标/菜单/XAML 回退与 eval 清理安全化已落地，但**真机复跑待跑**——当时桌面有用户未保存的 Notepad 文档，按 fail-closed 规则没有执行 GUI setup。桌面空闲后先 `node evals/verify-oracles.mjs`（10/10），再 `node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10 --patch evals/headless-patch-xamlfallback.yml`，并跑一次默认 patch（off）对照。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

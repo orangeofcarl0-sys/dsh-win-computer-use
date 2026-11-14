@@ -14,21 +14,14 @@ try {
     try { $clip = (Get-Clipboard -Raw) } catch { $clip = '' }
     if ($clip) { $clip = $clip.TrimEnd("`r", "`n") }
   }
-  # pre-stage: blank notepad already open (removes launch cost; clipboard+paste+save remains)
-  Get-Process -Name 'Notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 400
-  Start-Process -FilePath 'notepad.exe'
-  $untitled = ([string][char]0x65E0) + ([string][char]0x6807) + ([string][char]0x9898)
-  $deadline = (Get-Date).AddSeconds(15)
-  $win = @()
-  while ((Get-Date) -lt $deadline) {
-    $win = @(Find-WindowsByTitle $untitled) + @(Find-WindowsByTitle 'Notepad')
-    if ($win.Count -gt 0) { break }
-    Start-Sleep -Milliseconds 500
-  }
+  # Unique empty seed document; never kill existing Notepad windows.
+  $seed = Join-Path $dir 's4-t06-seed.txt'
+  [IO.File]::WriteAllText($seed, '', (New-Object System.Text.UTF8Encoding($false)))
+  $stateFile = Join-Path (Get-TaskDir) 'test-notepad.json'
+  $state = Open-TestNotepad -Path $seed -TitleNeedle 's4-t06-seed.txt' -StateFile $stateFile
   $checks += (Add-Check 'clipboard prepared' ($clip -eq $payload) ('clip=' + $clip))
-  $checks += (Add-Check 'blank notepad opened' ($win.Count -gt 0) (($win | ForEach-Object { $_.title }) -join ' | '))
-  Out-Finish -Ok (($clip -eq $payload) -and ($win.Count -gt 0)) -Checks $checks -Kind 'setup'
+  $checks += (Add-Check 'seed notepad opened as task-owned window' ([bool]$state.ok -and [bool]$state.owned) ("hwnd=$($state.hwnd) title=$($state.title) owned=$($state.owned)"))
+  Out-Finish -Ok (($clip -eq $payload) -and [bool]$state.ok -and [bool]$state.owned) -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'
 }

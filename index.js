@@ -126,6 +126,14 @@ export const Config = z.object({
    * 工具级 foreground=true 可对单次动作强制前台。
    */
   deliveryMode: z.union(['background', 'auto', 'foreground']).default('auto'),
+  /**
+   * XAML/WinUI 组合键失败后的控件回退（实验性，默认 off）：
+   *   off：只返回“改点菜单/控件”的可执行指引；
+   *   auto：对白名单组合（ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o）在严格唯一匹配下
+   *         自动“点菜单栏项 → 观察弹出菜单 → 点目标菜单项”；歧义/缺失即停，
+   *         不自动处理另存为/覆盖对话框，不猜坐标。
+   */
+  xamlKeyFallback: z.union(['off', 'auto']).default('off'),
 })
 
 /** 统一输出 schema：ok + result 文本。 */
@@ -179,7 +187,7 @@ const SCREEN_ORIGIN_FIELDS = {
     ],
     description: '窗口在屏幕上的物理像素原点（= list_windows bounds）；null = 未取到，坐标换算不可用。',
   },
-  coordinateSpace: { type: 'string', description: '本次观察各坐标所处的空间（screen-physical-px = 屏幕物理像素）。' },
+  coordinateSpace: { type: 'string', enum: ['window-screenshot-px', 'screen-physical-px'], description: '本次观察各坐标所处的空间：window-screenshot-px = 窗口截图坐标（computer_click 输入空间）；screen-physical-px = 屏幕物理坐标（缺少 bounds，不能直接点击）。' },
 }
 
 /**
@@ -335,11 +343,13 @@ function observeToolDefs(ctx, cfg, wrap) {
     // 精简版（PLAN-meta-tool 拍板：折叠态常驻工具必须轻）——prose 190 字符 + S3a 协议（协议内容归全局常量）。
     // 成本阶梯等细节靠 mode 参数说明与 S3a 协议承载；输出 schema 不动（dsh 严格校验要求返回字段必须声明）。
     description:
-      '观察屏幕：目标窗口的"编号 + 控件 + 坐标"界面树（AX，零视觉成本），坐标与 computer_click 同空间可直接传。' +
-      '动作前必须先观察取快照（60s 过期）。成本：ax（文本）< screen_zoom 小裁剪 < native 整窗 PNG 直读——' +
-      '读文字用 native，判布局用 ax/zoom。' + S3_ASSERT_PROTOCOL,
+      '观察屏幕：目标窗口的"编号 + 控件 + 坐标"界面树（AX，零视觉成本），文本里的 @(x,y) 与 computer_click 同空间可直接传。' +
+      '动作前必须先观察取快照（60s 过期）；同一快照可连续动作，界面没变不必反复观察。' +
+      '成本：ax（文本）< screen_zoom 小裁剪 < native 整窗 PNG 直读——native 同时返回 AX 编号，读字+定位可一次完成；' +
+      '不要同轮先 ax 再 native（后一次会替换快照 id，旧 snapshot_id 随即失效）。' + S3_ASSERT_PROTOCOL,
     parameters: {
       window: { type: 'string', description: '目标窗口：pid 或标题子串；缺省取最前窗口。' },
+      window_id: { type: 'integer', description: '目标窗口 id（精确匹配；多窗口同 pid 时优先用它，避免选错辅助窗口）。' },
       mode: {
         type: 'string',
         enum: ['ax', 'vision', 'native'],
@@ -363,7 +373,8 @@ function observeToolDefs(ctx, cfg, wrap) {
     name: 'screen_zoom',
     description:
       '区域截图直读：把窗口某块区域裁成 ≤500px JPEG 交给模型看图（~200 tok，远低于整窗 PNG）。' +
-      '用法：①放大细看（小字/图标/图表）；②定位：图内坐标 × crop.scale + crop.x/y + screenOrigin = 屏幕物理像素。' +
+      '用法：①放大细看（小字/图标/图表）；②定位：图内坐标 × crop.scale + crop.x/y = 窗口截图坐标，可直接作为 computer_click 的 x/y；' +
+      'screenOrigin 只用于换算屏幕绝对坐标，点击时不要再加。' +
       '实证：整窗裸定位误差 median>300px 不可依赖，目标主导的小裁剪误差 13-80px——务必让目标占画面主导。' +
       '视觉断言通道提示：本工具是有损 JPEG，小字号数字常不可读（不可读即如实报 unknown）；读文字请用 screen_observe native（无损 PNG）。'
       + S3_ASSERT_PROTOCOL,
@@ -450,7 +461,9 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_key',
-    description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（绑定快照窗口；默认后台 PostMessage 投递，目标窗口无需前台）。调用前必须先 screen_observe。',
+    description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（绑定快照窗口；默认后台 PostMessage 投递，目标窗口无需前台）。调用前必须先 screen_observe。'
+      + 'XAML/WinUI 目标（Win11 记事本等）的组合键常因命令在关闭菜单里而失败；失败回执会给“点菜单栏项→点菜单项”的指引。'
+      + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。',
     parameters: {
       key: { type: 'string', required: true, description: '按键名或组合（示例: return / cmd+c / shift+tab / cmd+shift+p）。' },
       ...SNAPSHOT_ID_PARAM,
@@ -634,12 +647,19 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
     name: 'computer_menu',
     description:
       '菜单路径直调：按精确逐级菜单路径（如 ["文件","另存为"]）经无障碍 API 解析并调用最终项。' +
-      'path 必须是 JSON 字符串（例如 \'["查看","显示"]\'），不是 JavaScript 数组、也不是单个菜单名；' +
-      '失败关闭：缺失/歧义/禁用/结构不匹配即报错，绝不回退像素——比逐级点击菜单更可靠。',
+      '只对已打开/可实时解析的菜单有效；关闭的菜单先用 computer_click 点菜单栏项，再观察弹出菜单并点具体项。' +
+      '失败关闭：缺失/歧义/禁用/结构不匹配即报错，绝不回退像素；effect=unverifiable 会明确报“未确认”，不要重复调用。',
     parameters: {
       pid: { type: 'integer', description: '目标进程 pid。' },
       window_id: { type: 'integer', required: true, description: '目标窗口 id。' },
-      path: { type: 'string', required: true, description: '菜单路径 JSON 字符串数组（逐级、精确、区分大小写），如 ["文件","另存为"]。' },
+      path: {
+        oneOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } },
+        ],
+        required: true,
+        description: '菜单路径：JSON 字符串数组（逐级、精确、区分大小写）或字符串数组，如 ["文件","另存为"]。',
+      },
     },
     output: OUT(),
     execute: wrap('computer_menu', (args) => opsMenu(args)),
@@ -795,6 +815,7 @@ export function apply(ctx, config) {
       .map((p) => new RegExp(p)),
     passwordScan: config.passwordScan || 'auto',
     deliveryMode: config.deliveryMode || 'auto',
+    xamlKeyFallback: config.xamlKeyFallback || 'off',
   }
 
   // 初始化虚拟光标：声明统一会话 + 应用主题（异步，不阻塞插件加载）

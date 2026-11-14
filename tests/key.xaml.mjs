@@ -1,0 +1,178 @@
+/**
+ * computer_key / XAML 组合键专项测试（2026-11-14 t01 复盘）。
+ *
+ * 覆盖：
+ * - XAML 无 AcceleratorKey：默认只给可执行指引，不重复按键、不透传 get_window_state；
+ * - xamlKeyFallback=auto：只在唯一标签下执行“菜单栏项 → 菜单项”两次 token 点击；
+ * - 歧义/缺失/非白名单/非 XAML 不回退；
+ * - foreground/background 投递失败不再 ok:true；suspected_noop 附注记。
+ *
+ * 运行：node tests/key.xaml.mjs
+ */
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { makeWorkCopy, writeStubDriver, loadPlugin, makeCtx, makeChecks, cleanupWork } from './lib/harness.mjs'
+
+const work = makeWorkCopy('keyxaml')
+writeStubDriver(work, `
+export const CUA_BIN = 'stub'
+export const CUA_SESSION = 'keyxaml'
+export const withSession = (a = {}) => a
+export function normalizeMcp(v) { return v }
+export function isBackgroundUnavailable(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  return /background_unavailable|background unavailable/i.test(s)
+}
+export function isForegroundUnavailable(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  return /foreground_unavailable|foreground unavailable/i.test(s)
+}
+export function isUnverified(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  return /unverifiable|delivery_failed|delivery failed/i.test(s) && !/background_unavailable/i.test(s)
+}
+
+export const clicks = []
+let popupOpen = false
+export function resetAll() { clicks.length = 0; popupOpen = false }
+const mode = () => process.env.CUA_KEY_MODE || 'xaml-throw'
+
+export async function cuaDeliver(tool, payload) {
+  if (tool === 'hotkey') {
+    const m = mode()
+    if (m === 'xaml-throw' || m === 'ambiguous' || m === 'no-menu') {
+      throw new Error('cua-driver hotkey 返回非 JSON: hotkey on a modern XAML / UWP target (pid 42, hwnd 7) could not find a UIA AcceleratorKey or (Ctrl+X)-style name hint matching ctrl+s')
+    }
+    if (m === 'xaml-error') {
+      return { value: { error: 'hotkey on a modern XAML / UWP target ... could not find a UIA AcceleratorKey ...' }, note: '' }
+    }
+    if (m === 'foreground') return { value: { code: 'foreground_unavailable', detail: 'stub lock' }, note: '' }
+    if (m === 'background') return { value: { code: 'background_unavailable', detail: 'stub' }, note: '' }
+    if (m === 'suspected') return { value: { effect: 'suspected_noop', code: 'x', reason: 'no change' }, note: '' }
+    if (m === 'other') throw new Error('some other driver failure')
+    return { value: { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }, note: '' }
+  }
+  if (tool === 'click') {
+    clicks.push(payload.element_token)
+    if (payload.element_token === 'm-file') popupOpen = true
+    return { value: { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }, note: '' }
+  }
+  return { value: await cuaCall(tool, payload), note: '' }
+}
+
+export async function cuaCall(tool, args = {}) {
+  switch (tool) {
+    case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
+    case 'list_windows': {
+      const wins = [{ pid: 42, window_id: 7, app_name: 'Stub', title: 'Doc - Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5, is_on_screen: true }]
+      if (popupOpen) wins.push({ pid: 42, window_id: 9, app_name: 'Stub', title: 'Popup', bounds: { x: 200, y: 200, width: 260, height: 300 }, z_index: 9, is_on_screen: true })
+      return { windows: wins }
+    }
+    case 'get_window_state': {
+      if (Number(args.window_id) === 9) {
+        const items = mode() === 'ambiguous'
+          ? [{ element_index: 0, element_token: 'm-save1', role: '菜单项', label: '保存', enabled: true, frame: { x: 210, y: 250, w: 60, h: 20 } },
+             { element_index: 1, element_token: 'm-save2', role: '菜单项', label: '保存', enabled: true, frame: { x: 210, y: 280, w: 60, h: 20 } }]
+          : [{ element_index: 0, element_token: 'm-save', role: '菜单项', label: '保存', enabled: true, frame: { x: 210, y: 250, w: 60, h: 20 } }]
+        return { window: { pid: 42, window_id: 9, app_name: 'Stub', title: 'Popup' }, elements: items, element_count: items.length, screenshot_width: 260, screenshot_height: 300, snapshot_id: 's00000009' }
+      }
+      const els = mode() === 'no-menu'
+        ? [{ element_index: 0, element_token: 'doc', role: 'Document', label: 'text', enabled: true, frame: { x: 120, y: 160, w: 300, h: 300 } }]
+        : [{ element_index: 0, element_token: 'm-file', role: '菜单项', label: '文件', enabled: true, frame: { x: 110, y: 110, w: 50, h: 20 } }]
+      return { window: { pid: 42, window_id: 7, app_name: 'Stub', title: 'Doc - Stub', bounds: { x: 100, y: 100, width: 800, height: 600 } }, elements: els, element_count: els.length, screenshot_width: 800, screenshot_height: 600, snapshot_id: 's00000007' }
+    }
+    case 'get_desktop_state': return { screenshot_width: 800, screenshot_height: 600 }
+    default: return { ok: true }
+  }
+}
+`)
+
+const plugin = await loadPlugin(work)
+const stub = await import(pathToFileURL(join(work, 'lib', 'cua.js')).href)
+const { check, state: checkState } = makeChecks()
+
+async function fresh(cfgExtra = {}) {
+  const { reg, ctx, exec } = makeCtx()
+  plugin.apply(ctx, {
+    ttlMs: 60000, maxElements: 120, observeDedup: 'off', passwordScan: 'off',
+    surfaceMode: 'hybrid', deliveryMode: 'auto', xamlKeyFallback: 'off', ...cfgExtra,
+  })
+  const call = (name, args = {}) => reg.get(name).execute(args, exec)
+  await call('screen_observe', { window: '42', mode: 'ax' })
+  return call
+}
+const reset = (mode) => { stub.resetAll(); process.env.CUA_KEY_MODE = mode }
+
+// 1. 默认 off：只给指引，不点击，不透传 get_window_state
+reset('xaml-throw')
+let call = await fresh({ xamlKeyFallback: 'off' })
+let r = await call('computer_key', { key: 'ctrl+s' })
+check('K1: XAML 无加速键 → ok:false', r.ok === false, r.result)
+check('K2: 指引要求不要重复按键', /不要重复按 ctrl\+s/i.test(r.result || ''), r.result)
+check('K3: 指引包含文件/保存控件路径', /文件/.test(r.result || '') && /保存/.test(r.result || ''), r.result)
+check('K4: 不再透传 get_window_state', !/get_window_state/.test(r.result || ''), r.result)
+check('K5: off 模式零额外点击', stub.clicks.length === 0, stub.clicks.join(','))
+
+// 2. auto：菜单栏项 → 弹出菜单保存项
+reset('xaml-throw')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K6: auto 回退成功回执', r.ok === true && /自动回退/.test(r.result || ''), r.result)
+check('K7: 只点菜单栏项 + 保存项', stub.clicks.join(',') === 'm-file,m-save', stub.clicks.join(','))
+check('K8: 回执要求 screen_observe 确认', /screen_observe/.test(r.result || ''), r.result)
+
+// 3. 结构化 error 形态也识别
+reset('xaml-error')
+call = await fresh({ xamlKeyFallback: 'off' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K9: 结构化 error 也走 XAML 指引', r.ok === false && /XAML\/WinUI/.test(r.result || ''), r.result)
+
+// 4. 歧义菜单项 → 停，不点保存
+reset('ambiguous')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K10: 歧义菜单项 → 失败', r.ok === false && /不唯一|歧义|停止/.test(r.result || ''), r.result)
+check('K11: 歧义时不点保存项', !stub.clicks.includes('m-save1') && !stub.clicks.includes('m-save2'), stub.clicks.join(','))
+
+// 5. 没有菜单栏项 → 不盲点
+reset('no-menu')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K12: 找不到菜单栏项 → 失败', r.ok === false && /没有找到|未执行/.test(r.result || ''), r.result)
+check('K13: 找不到菜单栏项时不点击', stub.clicks.length === 0, stub.clicks.join(','))
+
+// 6. 非白名单组合不回退
+reset('xaml-throw')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+w' })
+check('K14: 非白名单组合只给指引', r.ok === false && stub.clicks.length === 0, r.result)
+
+// 7. 非 XAML 错误不吞（wrap 统一转成 ✗ 回执，不能被误当成 XAML 指引）
+reset('other')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K15: 非 XAML 错误保持原样报错', r.ok === false && /some other driver failure/.test(r.result || '') && !/XAML\/WinUI/.test(r.result || ''), r.result)
+
+// 8. 投递层失败不再 ok:true
+for (const [mode, needle] of [['foreground', /前台锁/], ['background', /后台投递/]]) {
+  reset(mode)
+  call = await fresh({ xamlKeyFallback: 'off' })
+  r = await call('computer_key', { key: 'ctrl+s' })
+  check(`K16: ${mode}_unavailable → ok:false`, r.ok === false && needle.test(r.result || ''), r.result)
+}
+
+// 9. suspected_noop 附注记
+reset('suspected')
+call = await fresh({ xamlKeyFallback: 'off' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K17: suspected_noop → ok:false + 先观察注记', r.ok === false && /可能未生效/.test(r.result || ''), r.result)
+
+// 10. 正常 Win32 hotkey 仍成功
+reset('ok')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K18: 正常 hotkey 成功不受影响', r.ok === true && /已确认/.test(r.result || ''), r.result)
+
+delete process.env.CUA_KEY_MODE
+cleanupWork(work)
+process.exit(checkState.failures > 0 ? 1 : 0)

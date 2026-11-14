@@ -180,6 +180,12 @@ async function runTool(name, args, agent) {
   else {
     const ok = r.value?.ok === true && typeof r.value?.result === 'string' && r.value.result.length > 20
     check('screen_observe(ax) 真实引擎', ok, (r.value?.result ?? '').split('\n')[0]?.slice(0, 110))
+    // 文本行 @ 坐标必须与结构化 elements 同空间（2026-11-14 t01 打偏的根因回归）
+    const m = String(r.value?.result ?? '').match(/\[(\d+)\][^\n]*@\((-?\d+),(-?\d+)\)/)
+    const el = m ? (r.value?.elements || []).find((e) => e.index === Number(m[1])) : null
+    check('观察文本 @ 坐标 == 结构化 elements 坐标',
+      Boolean(m && el && el.x === Number(m[2]) && el.y === Number(m[3])),
+      m ? `text=(${m[2]},${m[3]}) element=(${el?.x},${el?.y})` : 'no @(x,y) in result')
   }
 }
 

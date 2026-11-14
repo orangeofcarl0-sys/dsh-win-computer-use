@@ -7,12 +7,30 @@ try {
   $b = Join-Path $dir 'b.txt'
   [IO.File]::WriteAllText($a, 'AAA-content-original-a', [Text.Encoding]::ASCII)
   [IO.File]::WriteAllText($b, 'BBB-content-original-b', [Text.Encoding]::ASCII)
-  # pre-stage: both files loaded in Notepad. Win11 Notepad may host them as two tabs in ONE
-  # window (title then shows only the active tab), so verify via the UIA tab/list items.
-  Close-TaskWindows | Out-Null
-  Start-Process -FilePath 'notepad.exe' -ArgumentList @($a)
-  Start-Sleep -Milliseconds 1500
-  Start-Process -FilePath 'notepad.exe' -ArgumentList @($b)
+  # Open both files in task-owned Notepad window(s); never kill user Notepad windows.
+  # Win11 Notepad may host them as two tabs in ONE window, so verify via UIA tab items.
+  $state1 = Join-Path (Get-TaskDir) 'test-notepad.json'
+  $state2 = Join-Path (Get-TaskDir) 'test-notepad-2.json'
+  $s1 = Open-TestNotepad -Path $a -TitleNeedle 'a.txt' -StateFile $state1
+  if (-not $s1.ok -or -not $s1.owned) {
+    $checks += (Add-Check 'a.txt opened as task-owned window' $false ("hwnd=$($s1.hwnd) title=$($s1.title) owned=$($s1.owned)"))
+    Out-Finish -Ok $false -Checks $checks -Kind 'setup'
+  }
+  Start-Sleep -Milliseconds 800
+  $s2 = Open-TestNotepad -Path $b -TitleNeedle 'b.txt' -StateFile $state2
+  if (-not $s2.ok) {
+    $checks += (Add-Check 'b.txt opened' $false ("reason=$($s2.reason)"))
+    Out-Finish -Ok $false -Checks $checks -Kind 'setup'
+  }
+  if (-not $s2.owned) {
+    if ([int]$s2.hwnd -ne [int]$s1.hwnd) {
+      $checks += (Add-Check 'b.txt stayed outside user window' $false ("b hwnd=$($s2.hwnd) a hwnd=$($s1.hwnd)"))
+      Out-Finish -Ok $false -Checks $checks -Kind 'setup'
+    }
+    # b.txt is a tab in the task-owned window; record it as owned for cleanup.
+    $s2.owned = $true
+    try { [IO.File]::WriteAllText($state2, ($s2 | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+  }
   $deadline = (Get-Date).AddSeconds(15)
   $tabs = @()
   while ((Get-Date) -lt $deadline) {
@@ -42,7 +60,7 @@ try {
   $hasA = @($tabs | Where-Object { $_ -match 'a\.txt' }).Count -gt 0
   $hasB = @($tabs | Where-Object { $_ -match 'b\.txt' }).Count -gt 0
   $checks += (Add-Check 'files prepared' ((Test-Path $a) -and (Test-Path $b)) ($a + ' ; ' + $b))
-  $checks += (Add-Check 'both documents loaded in Notepad (window or tab)' ($hasA -and $hasB) ('tabs=' + (($tabs | Select-Object -Unique) -join ',')))
+  $checks += (Add-Check 'both documents loaded in task-owned Notepad' ($hasA -and $hasB) ('tabs=' + (($tabs | Select-Object -Unique) -join ',')))
   Out-Finish -Ok ($hasA -and $hasB) -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'

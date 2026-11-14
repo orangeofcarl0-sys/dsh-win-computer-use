@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：22 工具 = 21 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 20；`hybrid` 可见 7 / 隐藏 15。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 10 套 / 232 断言；`npm run check` 16/16；`verify-runtime` 16/16。
+- **测试基线**：`npm test` 14 套 / 281 断言；`npm run check` 17/17；`verify-runtime` 17/17。
 
 ## 2. 文档地图
 
@@ -61,9 +61,10 @@
 ### 4.2 Windows 输入通道
 
 - 经典 Win32（regedit）：`ctrl+f` 3/3 送达。
-- WinUI3（Win11 记事本）：`hotkey` 的 UIA 加速器扫描 **4s 超时**（稳定复现，9/10）；`press_key` 静默不达（`effect:unverifiable`）；`invoke_menu` 报 `menu_path_unavailable`。
-- 替代路径：**点控件（element 编号）** 是可靠通道；保存类操作点菜单/工具栏。
-- 插件把 UIA 超时翻译成“改点控件”的可执行指引；不要把原始引擎错误直接抛给模型。
+- WinUI3（Win11 记事本）：`hotkey` 有两种失败——UIA 加速器扫描 **4s 超时**（稳定复现，9/10）和 `could not find a UIA AcceleratorKey`（命令在关闭菜单里，2026-11-14 t01）；`press_key` 静默不达（`effect:unverifiable`）；`invoke_menu` 报 `menu_path_unavailable`。
+- 替代路径：**点控件（element 编号）** 是可靠通道；保存类操作先点菜单栏项，再观察弹出菜单点具体项。
+- 插件把两类 hotkey 失败都翻译成“改点控件”的可执行指引；`xamlKeyFallback: auto`（默认 off）只做唯一标签的 token 点击，歧义即停，不自动处理另存为/覆盖对话框。
+- 不要把原始引擎错误（尤其 `get_window_state` 建议）直接抛给模型。
 
 ### 4.3 密码框结构位
 
@@ -116,6 +117,7 @@
 - UIA “关闭标签页” `Invoke` 实测 no-op（#3908 同源）。
 - `Start-Process -PassThru` 的 pid 是启动器，可能已退出；据此判断“已关闭”是假阳性。
 - 结论：测试只报告残留标签，人工关闭；`live-action.e2e` 用唯一命名临时文件 + 标题匹配。
+- 2026-11-14：t01/t05/t06/t10 改为 `Open-TestNotepad`/`Close-TestNotepad`：启动前记录已有 HWND，只有“新窗口且未修改”才 WM_CLOSE；无法证明 task-owned 就 fail closed / 留窗报告。`Close-TaskWindows` 不再有默认 Notepad 宽匹配，调用必须带显式模式。
 
 ### 4.10 缓存与工具面
 

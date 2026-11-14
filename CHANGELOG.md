@@ -6,6 +6,29 @@
 
 **2026-11-09/12：安全边界与可复现性修复（P0/P1）+ 工具面收敛 + Windows-first 更名 + 文档体系重写 + dsh 0.2.2 兼容升级**
 
+**2026-11-14：t01 复盘——坐标一致性、菜单未确认、XAML 组合键回退、eval 清理安全化**
+
+### 2026-11-14 Added
+
+- **`xamlKeyFallback`（实验性，默认 `off`）**：XAML/WinUI 组合键失败后，`auto` 可对白名单组合（ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o）自动“点唯一菜单栏项 → 轮询弹出菜单 → 点唯一 enabled 菜单项”；全部 token 点击、后台投递，歧义/缺失即停，不自动处理另存为/覆盖对话框。默认 off 时只返回可执行控件指引。
+- **`lib/keyFallback.js`**：组合键规范化、白名单、菜单项唯一匹配、弹窗轮询、失败回执。
+- **`tests/observe.coords.mjs`（11）**：文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 显式降级。
+- **`tests/key.xaml.mjs`（19）**：两类 XAML 失败、回退开关、歧义/缺失/非白名单、投递层误报成功、suspected_noop。
+- **`tests/menu.receipt.mjs`（7）**：`effect:unverifiable` 不再报成功；数组 path 可用。
+- **`tests/eval-safety.mjs`（11）**：禁止按 Notepad 进程名杀、`Close-TaskWindows` 无显式模式、t01/t05/t06/t10 走 `Open/Close-TestNotepad`。
+- **`evals/headless-patch-xamlfallback.yml`**：仅用于验证自动回退的实验 patch。
+- **`evals/lib/common.ps1`**：`Open-TestNotepad`/`Close-TestNotepad`（HWND/ownership 作用域、未修改才 WM_CLOSE、失败留窗报告）；`Find-WindowsByTitle -VisibleOnly`；`Close-TaskWindows` 删除默认 Notepad/无标题/记事本宽匹配，必须显式 patterns。
+
+### 2026-11-14 Fixed
+
+- **观察文本坐标与点击空间不一致（t01 反复定位根因）**：`renderLine()` 用 driver 原始 frame（屏幕 px），结构化 `elements` 已减窗口原点，头部却声称同空间。文本行改用 `mapElementsForModel()` 的结果；无 bounds 时明确标注 `screen-physical-px` 且不要直接点击；`screen_zoom` 文案改为“换算到窗口截图坐标后直接点击，不要再加 screenOrigin”。
+- **同 pid 多窗口选错辅助窗口**：`pickObserveTarget()` 对 pid 匹配按 on-screen、z_index、标题具体度排序；`screen_observe` 新增 `window_id` 精确匹配；未匹配候选带 window_id。
+- **`computer_menu` 把 `effect:unverifiable` 当成功**：现在返回 `ok:false`，要求先 `screen_observe`，不要重复调用；只有 `confirmed` 才算成功；`path` 支持 JSON 字符串或数组。
+- **XAML 无 AcceleratorKey 未翻译**：新增 `uiaAcceleratorUnavailable()`，与 4s 超时一起走控件指引；不再透传驱动的 `get_window_state` 建议。
+- **`computer_key` 投递层误报成功**：`foreground_unavailable` / `background_unavailable` 返回 `ok:false`；`suspected_noop` 附“先观察”注记并标 suspect；通用路径复用 `settleAction`。
+- **eval setup/cleanup 危及用户 Notepad**：删除 `setup/t01/t05/t06` 的 `Stop-Process` 全量杀；t01 改用唯一空 seed `s4-t01-seed.txt`，t05 用 `draft.txt`，t06 用唯一 seed；t01/t05/t06/t10 cleanup 改为 HWND 作用域关闭；t10 双文件分别记录；`hygiene.ps1` 只报告不关闭；x1 不再无参数 `Close-TaskWindows`。
+- **t01 prompt 歧义**：明确“临时文件 seed / 另存为完整路径 / 第二行后不要回车”。
+
 ### Added
 
 - **更名（2026-11-10）**：包名/仓库名 `dsh-computer-use` → **`dsh-win-computer-use`**，定位为 Windows-first Computer Use；`package.json`、`cordis.patch.yml`、install/uninstall、README/文档与 GitHub 仓库同步更名。旧 GitHub URL 自动 redirect；npm 尚未发布，无历史包名负担。

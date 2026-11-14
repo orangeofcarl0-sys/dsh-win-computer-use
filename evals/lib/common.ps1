@@ -108,7 +108,7 @@ public static class S4W32 {
 "@
 }
 
-function Find-WindowsByTitle([string]$Needle) {
+function Find-WindowsByTitle([string]$Needle, [switch]$VisibleOnly) {
   # UIA root-children window enumeration. Emits PSCustomObject per hit:
   # no output when none -> caller uses @(Find-WindowsByTitle ...) (empty array).
   # (Never return nested arrays from a PS function: pipeline unwrap makes the
@@ -124,10 +124,64 @@ function Find-WindowsByTitle([string]$Needle) {
     $h = 0
     try { $name = [string]$w.Current.Name } catch {}
     try { $h = [int]$w.Current.NativeWindowHandle } catch {}
+    if ($VisibleOnly -and $h -ne 0) {
+      try { if (-not [S4W32]::IsWindowVisible([IntPtr]$h)) { continue } } catch {}
+    }
     if ($name -and $h -ne 0 -and $name.IndexOf($Needle, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
       [PSCustomObject]@{ hwnd = $h; title = $name }
     }
   }
+}
+
+function Open-TestNotepad {
+  # Open a uniquely named test document WITHOUT touching existing Notepad windows.
+  # Records {hwnd,title,owned} to StateFile. owned=false means Notepad opened it
+  # as a tab in an existing window -> cleanup must leave it alone (never close a
+  # window that may also host user tabs).
+  param([string]$Path, [string]$TitleNeedle, [string]$StateFile)
+  $before = @(Find-WindowsByTitle 'Notepad' | ForEach-Object { [int]$_.hwnd })
+  Start-Process -FilePath 'notepad.exe' -ArgumentList @($Path) | Out-Null
+  $deadline = (Get-Date).AddSeconds(15)
+  $hit = $null
+  while ((Get-Date) -lt $deadline) {
+    $hit = @(Find-WindowsByTitle $TitleNeedle -VisibleOnly) | Select-Object -First 1
+    if ($hit) { break }
+    Start-Sleep -Milliseconds 400
+  }
+  if (-not $hit) {
+    return [ordered]@{ ok = $false; hwnd = 0; title = ''; owned = $false; reason = "window not found for $TitleNeedle" }
+  }
+  $owned = -not ($before -contains [int]$hit.hwnd)
+  $state = [ordered]@{
+    ok = $true; hwnd = [int]$hit.hwnd; title = [string]$hit.title; owned = [bool]$owned
+    path = $Path; at = (Get-Date).ToString('o')
+  }
+  if ($StateFile) {
+    try { [IO.File]::WriteAllText($StateFile, ($state | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+  }
+  return $state
+}
+
+function Close-TestNotepad {
+  # Close only the exact HWND recorded by Open-TestNotepad, and only when it is
+  # task-owned and unmodified. Never Stop-Process, never close user tabs, never
+  # confirm a save prompt. Returns {closed,leftover,reason}.
+  param([string]$StateFile)
+  $res = [ordered]@{ closed = $false; leftover = ''; reason = '' }
+  if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.reason = 'no state file'; return $res }
+  try { $s = Get-Content -Raw $StateFile | ConvertFrom-Json } catch { $res.reason = 'bad state file'; return $res }
+  if (-not $s.owned) { $res.reason = 'window not task-owned; left open'; return $res }
+  $hit = @(Find-WindowsByTitle 'Notepad' | Where-Object { [int]$_.hwnd -eq [int]$s.hwnd }) | Select-Object -First 1
+  if (-not $hit) { $res.reason = 'window already gone'; return $res }
+  if (([string]$hit.title).TrimStart().StartsWith('*')) {
+    $res.reason = 'modified document; left open'; $res.leftover = [string]$hit.title; return $res
+  }
+  [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  Start-Sleep -Milliseconds 800
+  $still = @(Find-WindowsByTitle 'Notepad' | Where-Object { [int]$_.hwnd -eq [int]$s.hwnd }) | Select-Object -First 1
+  if ($still) { $res.reason = 'close not confirmed; left open'; $res.leftover = [string]$still.title }
+  else { $res.closed = $true }
+  return $res
 }
 
 function Get-Placement([int]$Hwnd) {
@@ -181,21 +235,21 @@ function Start-Calculator {
 }
 
 function Close-TaskWindows {
-  # Close notepad / explorer windows left by a task: untitled notepads + any window
-  # whose title contains 'Notepad'/'jishibench' (U+8BB0 U+4E8B U+672C) or one of the
-  # extra patterns (folder leaf names).
+  # Close ONLY windows whose titles match explicit, task-specific patterns.
   #
-  # SAFETY (2026-09-17): the box is no longer dedicated -- the same Notepad process
-  # may host the user's own documents, and Win11 Notepad is single-process
-  # multi-window. Kill-by-process-name therefore destroys user data. Default is now
-  # WM_CLOSE (per-window, title-matched) only; force-kill is opt-in via -ForceKill
-  # and must never be used on a shared box. Windows that stay open (modified docs
-  # pop a save dialog) are reported by title instead of being killed.
-  param([string[]]$Patterns = @(), [switch]$ForceKill)
-  $untitled = ([string][char]0x65E0) + ([string][char]0x6807) + ([string][char]0x9898)
-  $jishiben = ([string][char]0x8BB0) + ([string][char]0x4E8B) + ([string][char]0x672C)
+  # SAFETY (2026-11-14 t01): the box is shared and Win11 Notepad is multi-tab.
+  # There are deliberately NO default needles: 'Notepad' matches every Notepad
+  # window (including user documents), and WM_CLOSE on a modified document pops
+  # a save dialog. If no patterns are passed, this function closes nothing and
+  # reports that. For Notepad tasks prefer Open-TestNotepad/Close-TestNotepad,
+  # which are HWND- and ownership-scoped.
+  param([string[]]$Patterns = @())
+  if (-not $Patterns -or $Patterns.Count -eq 0) {
+    Write-Verbose 'Close-TaskWindows: no explicit patterns; refusing to close anything'
+    return 0
+  }
   $found = @()
-  foreach ($needle in (@('Notepad', $untitled, $jishiben) + $Patterns)) {
+  foreach ($needle in $Patterns) {
     foreach ($w in @(Find-WindowsByTitle $needle)) { $found += ,@($w.hwnd, $w.title) }
   }
   $closed = 0
@@ -207,20 +261,9 @@ function Close-TaskWindows {
     $closed++
   }
   if ($closed -gt 0) { Start-Sleep -Milliseconds 800 }
-  if ($ForceKill) {
-    # Legacy behaviour, opt-in only: WM_CLOSE on a modified notepad pops a save dialog
-    # and the window stays. Killing by process name also destroys every other window
-    # of that process (including user documents on a shared box).
-    $needles = @('Notepad', $untitled, $jishiben) + $Patterns
-    Get-Process -Name 'Notepad' -ErrorAction SilentlyContinue | Where-Object {
-      $t = $_.MainWindowTitle
-      ($needles | Where-Object { $t -and $t.IndexOf($_, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count -gt 0
-    } | Stop-Process -Force -ErrorAction SilentlyContinue
-    return $closed
-  }
-  # Report leftovers honestly (title-matched) so the caller can tell the user what stayed.
+  # Report leftovers honestly (only the explicit patterns).
   $left = @()
-  foreach ($needle in (@('Notepad', $untitled, $jishiben) + $Patterns)) {
+  foreach ($needle in $Patterns) {
     foreach ($w in @(Find-WindowsByTitle $needle)) { $left += ,@($w.hwnd, $w.title) }
   }
   $seen2 = @{}

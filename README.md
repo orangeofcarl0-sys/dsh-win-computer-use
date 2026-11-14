@@ -143,7 +143,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 | 工具 | 作用 | 必填 | 常用可选 |
 |---|---|---|---|
-| `screen_observe` | 观察窗口：编号树 / 截图直读 / 视觉描述；未变时回极简回执 | — | `window`、`mode`、`query`、`maxElements`、`force` |
+| `screen_observe` | 观察窗口：编号树 / 截图直读 / 视觉描述；未变时回极简回执 | — | `window`、`window_id`、`mode`、`query`、`maxElements`、`force` |
 | `screen_zoom` | 区域放大 / 树空目标的定位原语（≤500px JPEG） | `window_id` | `pid`、`x1`、`y1`、`x2`、`y2` |
 
 ### 动作
@@ -169,7 +169,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `computer_verify` **H** | 1–8 条结构化谓词 AND 求值；`unknown` 永不算成功 | `window_id`、`expect` | `pid`、`include_screenshot` |
 | `computer_wait_for` | 谓词轮询等待（默认 10s，上限 60s） | `window_id`、`expect` | `pid`、`timeoutMs`、`pollMs` |
 | `computer_clipboard` | 剪贴板读写（write + ctrl+v = 粘贴流） | `action` | `text` |
-| `computer_menu` | 菜单路径直调（fail-closed，不回退像素） | `window_id`、`path` | `pid` |
+| `computer_menu` | 菜单路径直调（fail-closed，不回退像素；`unverifiable` 报“未确认”） | `window_id`、`path`（JSON 字符串或数组） | `pid` |
 | `computer_hover` | 悬停（实验性；`real=true` 才动真实指针） | `x`、`y` | `pid`、`window_id`、`real` |
 | `computer_stop` | 结束驱动会话并锁存全部桌面操作 | — | — |
 | `computer_resume` | 解锁 `stop` 并预热会话（唯一解锁路径） | — | — |
@@ -190,7 +190,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `screen_observe` 的 `@(x,y)` | **window-screenshot-px**（窗口截图物理像素） | 可直接传给 `computer_click(x,y)` |
 | `computer_click(x,y)` / `scroll` / `drag` | **window-screenshot-px** | 与观察输出同一空间 |
 | `element` 编号 | 不涉及坐标 | 走 `element_token`，**首选、最可靠** |
-| `screen_zoom` 图内坐标 | crop-local px | `图内坐标 × crop.scale + crop.x/y` = window-screenshot-px，再点击 |
+| `screen_zoom` 图内坐标 | crop-local px | `图内坐标 × crop.scale + crop.x/y` = window-screenshot-px，**直接点击**，不要再加 `screenOrigin` |
 | `screenOrigin` | 窗口在屏幕上的物理原点 | 只用于换算到屏幕绝对坐标；不是点击输入 |
 
 规则：
@@ -198,7 +198,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 1. **element 路径优先。** `element_token` 由驱动定位，支持后台/隐藏窗口，不受 DPI 混合影响。
 2. **像素路径是 best-effort。** 驱动 0.23.2 的像素点击在混合 DPI 下有实测落点偏差（见 [docs/WINDOWS.md](docs/WINDOWS.md) 与 [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) A7）；像素点击后请用 `screen_observe` / `computer_verify` 复核。
 3. **不要自己乘 2 或加窗口偏移。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。
-4. **用于点击时，zoom 的换算终点是 window-screenshot-px。** `crop.scale` 以驱动返回图尺寸为准（驱动可能做非等比缩放；结果会提示比例不一致）。再加 `screenOrigin` 才是屏幕绝对坐标，不要直接拿它点击。
+4. **用于点击时，zoom 的换算终点是 window-screenshot-px。** `crop.scale` 以驱动返回图尺寸为准（驱动可能做非等比缩放；结果会提示比例不一致）。`screenOrigin` 只用于换算屏幕绝对坐标，点击时**不要**再加。
+5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
 
 ### 投递：后台 → 前台 → 绕锁
 
@@ -214,7 +215,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 - **文本**：`computer_type` 指定 element 时走 UIA `ValuePattern`（XAML/WinUI 主机必需）；不指定 element 时输入到快照窗口当前焦点，回执附“密码保护无法预判焦点”的注记。
 - **设值**：`computer_set_value` 只走 UIA `ValuePattern`；Web/自绘控件可能忽略，回执提示改用 `computer_type` 或点击后输入。
-- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本的 UIA 加速器实测 4s 超时（上游 #3908）——保存这类操作请改走“点菜单/工具栏控件”。
+- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本实测两类失败：UIA 加速器 4s 超时，以及 `could not find a UIA AcceleratorKey`（命令在关闭的菜单里，上游 #3908）。回执会直接给“点菜单栏项 → 点菜单项”的可执行路径；`xamlKeyFallback: auto`（默认 `off`）可实验性自动完成这一步，但只做唯一标签的 token 点击，歧义/缺失即停，不自动处理另存为/覆盖对话框。
 - **长文本/特殊字符**：`computer_clipboard(write)` + `computer_key("ctrl+v")` 是最可靠的粘贴流；剪贴板可能被其它进程占用，read 结果带隐私注记。
 
 ### 快照与安全护栏
@@ -254,6 +255,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
     passwordScan: auto
     extremePatterns: []
     deliveryMode: auto
+    xamlKeyFallback: off
 ```
 
 | 配置项 | 默认 | 说明 |
@@ -272,6 +274,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
 | `extremePatterns` | `[]` | 极危清单（正则源数组）：命中附警告注记，不阻断 |
+| `xamlKeyFallback` | `off` | 实验性：`off` 只给控件路径指引；`auto` 对 `ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o` 自动“点菜单栏项 → 点唯一菜单项”。默认关闭，歧义/缺失即停 |
 | `deliveryMode` | `auto` | 后台/自动/前台投递策略 |
 
 ## 能力边界（诚实说明）
@@ -330,8 +333,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（16/16 JS）
-npm test                           # 10 套离线测试，232 个断言
+npm run check                      # 语法检查 + bash -n（17/17 JS）
+npm test                           # 14 套离线测试，281 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -341,7 +344,7 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
 ```
 
-`npm test` 的 10 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 14 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.coords / key.xaml / menu.receipt / eval-safety / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 

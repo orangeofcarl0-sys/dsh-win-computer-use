@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-14 · `npm test` 10 套 / **232 断言** · `npm run check` **16/16** · `verify-runtime` **16/16**。
+> 最近基线：2026-11-14 · `npm test` 14 套 / **281 断言** · `npm run check` **17/17** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -17,12 +17,12 @@
 
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
-| 语法/安装脚本 | `npm run check` | 16 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 10 套 / 232 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界 |
-| 运行时（真驱动） | `node verify-runtime.mjs` | 16 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段 |
+| 语法/安装脚本 | `npm run check` | 17 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
+| 离线单元/契约 | `npm test` | 14 套 / 281 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、XAML 回退、菜单未确认、eval 安全 |
+| 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
-| 任务级评测 | `node evals/run.mjs --tier smoke` | 10 条任务 | 多步任务收敛、步数/成本、模型行为 |
+| 任务级评测 | `node evals/headless-run.mjs --tier smoke` | 10 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
 | oracle 验证 | `node evals/verify-oracles.mjs` | 10 项 | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
 
 ## 3. 离线套件（`npm test`）
@@ -34,6 +34,10 @@
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复 |
 | `schema.conformance.mjs` | 44 | 22 个工具 / 44 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级形态 |
 | `observe.dedup.mjs` | 18 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
+| `observe.coords.mjs` | 11 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级 |
+| `key.xaml.mjs` | 19 | XAML 无 AcceleratorKey 指引；`xamlKeyFallback=auto` 两次 token 点击；歧义/缺失/非白名单/非 XAML 不回退；前台/后台投递失败不再 ok:true；suspected_noop 注记 |
+| `menu.receipt.mjs` | 7 | `effect:unverifiable` 必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
+| `eval-safety.mjs` | 11 | 禁止按 Notepad 进程名杀；Close-TaskWindows 只按显式模式；t01/t05/t06/t10 走 Open/Close-TestNotepad |
 | `task.tool.mjs` | 18 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
 | `config.plumbing.mjs` | 26 | 16 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；11 组行为哨兵 |
 | `action-bounds.mjs` | 22 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
@@ -81,7 +85,8 @@ node verify-runtime.mjs
 13. vision 无 key 优雅降级；
 14. 坐标语义标注（`窗口截图物理像素`）；
 15. `coordinateSpace === 'window-screenshot-px'`；
-16. `screenOrigin` 元数据存在。
+16. `screenOrigin` 元数据存在；
+17. 文本 `@(x,y)` 与结构化 `elements` 坐标一致。
 
 注意：脚本只读观察，不执行桌面动作；窗口每次从 `list_windows(on_screen_only)` 发现，不写死 PID；选择时跳过 `0×0` shell 弹窗与驱动自身窗口。
 
@@ -132,10 +137,13 @@ node tests/live-action.e2e.mjs 3
 ## 6. S4 任务级评测（`evals/`）
 
 ```bash
-node evals/run.mjs --tier smoke --max-steps 40 --timeout-min 8
-node evals/run.mjs --group authored|waa|all
+node evals/headless-run.mjs --tier smoke --timeout-min 10
+node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10
+node evals/headless-run.mjs --tier all --timeout-min 10
 node evals/verify-oracles.mjs
 ```
+
+> `evals/run.mjs` 是 dsh 0.1.5 时代的 Web UI runner，已退役（默认 exit 2）；仅在调试旧 UI 时用 `--allow-legacy-web`。
 
 - 任务集 10 条：冒烟 4（t01/t04/t07/wa2）+ 核心 6（t03/t05/t06/t09/t10 + x1 委派通道）；退役 7 条见 `evals/README.md`。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
@@ -174,11 +182,11 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 10 套 / 232 ✅ / 0 ❌ |
-| 语法 | 16/16 JS + `bash -n` 两脚本 |
-| 运行时 | `verify-runtime` 16/16（Windows 11，cua-driver 0.23.2） |
-| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4） |
+| 离线 | 14 套 / 281 ✅ / 0 ❌ |
+| 语法 | 17/17 JS + `bash -n` 两脚本 |
+| 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
+| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-14 的 GUI 复跑待用户桌面空闲后执行 |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 10 条 |
-| 打包 | `npm pack --dry-run` 32 文件 |
+| 打包 | `npm pack --dry-run` 33 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

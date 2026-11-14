@@ -2,23 +2,18 @@ param([string]$TaskId = '')
 . (Join-Path $PSScriptRoot '..\lib\common.ps1')
 $checks = @()
 try {
-  $target = Join-Path (New-TaskDir 'target') 'note.txt'
+  $targetDir = New-TaskDir 'target'
+  $target = Join-Path $targetDir 'note.txt'
   if (Test-Path $target) { Remove-Item $target -Force }
-  # pre-stage: a blank Notepad window (removes launch+discovery cost; oracle unchanged)
-  Get-Process -Name 'Notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 400
-  Start-Process -FilePath 'notepad.exe'
-  $untitled = ([string][char]0x65E0) + ([string][char]0x6807) + ([string][char]0x9898)
-  $deadline = (Get-Date).AddSeconds(15)
-  $win = @()
-  while ((Get-Date) -lt $deadline) {
-    $win = @(Find-WindowsByTitle $untitled) + @(Find-WindowsByTitle 'Notepad')
-    if ($win.Count -gt 0) { break }
-    Start-Sleep -Milliseconds 500
-  }
-  $checks += (Add-Check 'blank notepad opened' ($win.Count -gt 0) (($win | ForEach-Object { $_.title }) -join ' | '))
-  $checks += (Add-Check 'target dir prepared, no stale file' (-not (Test-Path $target)) (Join-Path (Get-TaskDir) 'target'))
-  Out-Finish -Ok (($win.Count -gt 0) -and (-not (Test-Path $target))) -Checks $checks -Kind 'setup'
+  # Unique empty seed document: avoids colliding with the user's existing Notepad
+  # windows/tabs and gives cleanup an exact title to track. Never kill Notepad.
+  $seed = Join-Path $targetDir 's4-t01-seed.txt'
+  [IO.File]::WriteAllText($seed, '', (New-Object System.Text.UTF8Encoding($false)))
+  $stateFile = Join-Path (Get-TaskDir) 'test-notepad.json'
+  $state = Open-TestNotepad -Path $seed -TitleNeedle 's4-t01-seed.txt' -StateFile $stateFile
+  $checks += (Add-Check 'seed notepad opened as task-owned window' ([bool]$state.ok -and [bool]$state.owned) ("hwnd=$($state.hwnd) title=$($state.title) owned=$($state.owned)"))
+  $checks += (Add-Check 'target dir prepared, no stale file' (-not (Test-Path $target)) $target)
+  Out-Finish -Ok ([bool]$state.ok -and [bool]$state.owned -and (-not (Test-Path $target))) -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'
 }

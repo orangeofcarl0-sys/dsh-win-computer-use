@@ -1,21 +1,21 @@
 # VERIFICATION — 验证报告
 
 > 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
-> 代码快照：`main` @ 2026-11-10（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。2026-11-12 追加 dsh headless 真机加载证据（§2.1）。
+> 代码快照：`main` @ 2026-11-14（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘与安全化改动。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；dsh 0.2.2 契约审计见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
 
 ## 1. 当前验证矩阵
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **10 套 / 232 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **16/16 JS + 2 个 bash -n** | Windows | `npm run check` |
-| 真驱动运行时 | **16/16** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
+| 离线测试 | **14 套 / 281 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **17/17 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
-| 打包面 | **32 文件**（新增 docs/WINDOWS、docs/TESTING、docs/COMPATIBILITY-0.2.2） | — | `npm pack --dry-run` |
+| 打包面 | **33 文件**（新增 docs/WINDOWS、docs/TESTING、docs/COMPATIBILITY-0.2.2、lib/keyFallback.js） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -31,7 +31,9 @@
 | 强杀锁存（stop/resume） | ✅ 离线 | ✅ 离线 | ✅ 离线 | `tools.smoke` / `dispatcher.test` |
 | `unknown ≠ 成功` | ✅ | ✅ 离线 | ✅ 离线 | `tools.smoke` / `schema.conformance` |
 | 结构密码扫描 | ✅ 真机 9/9 | 不适用 | 不适用 | A6 探针 + `posture.smoke` |
-| WinUI3 输入通道 | ✅ 已定性（hotkey 不可达，改点控件） | 不适用 | 不适用 | 受控窗口实验 + #3908 |
+| WinUI3 输入通道 | ✅ 已定性（hotkey 无 AcceleratorKey/4s 超时，改点控件；可实验性自动回退） | 不适用 | 不适用 | 受控窗口实验 + t01 2026-11-14 + #3908 |
+| 观察坐标一致性 | ✅ 文本 `@(x,y)` == 结构化 `elements` == 点击空间 | — | — | `observe.coords` + `verify-runtime` #17 |
+| 菜单未确认 | ✅ `effect:unverifiable` 不再报成功 | — | — | `menu.receipt` + t01 复盘 |
 | 像素点击落点 | ⚠️ best-effort（A7） | 未标定 | 未标定 | 六轮实验，见 ROADMAP A7 |
 
 ### 1.2 提示缓存 A/B（真实渠道）
@@ -140,7 +142,7 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **10 套 / 232** 断言全绿；`npm run check` 16/16；`npm pack` 32 文件 |
+| 离线 | **14 套 / 281** 断言全绿；`npm run check` 17/17；`npm pack` 33 文件 |
 | 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
@@ -214,17 +216,21 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 10 | 指定窗口未匹配却观察最前窗口 | 静默回退 | `action-bounds` P0-5 |
 | 11 | 观察降噪误判“未变” | 旧哈希只看 label（label 非空时 value 不参与） | `observe.dedup` 值/enabled/selected/actions 变化 |
 | 12 | 投递链测试测的是复刻 | 测试替换了整个 `lib/cua.js` | `delivery-chain` 直接执行真实函数 + `opts.call` |
+| 13 | 文本元素坐标与点击空间不一致（t01 反复定位的根因） | `renderLine()` 用 driver 原始 frame，`mapElementsForModel()` 已减窗口原点，头部却声称同空间 | `observe.coords` + `verify-runtime` #17 |
+| 14 | `computer_menu` 把 `effect:unverifiable` 报成功 | 只判 `refusal`，未判未确认 | `menu.receipt` + t01 2026-11-14 |
+| 15 | eval setup/cleanup 危及用户 Notepad | setup 杀所有 Notepad；cleanup 按标题过滤后杀进程；`Close-TaskWindows` 默认匹配所有 Notepad | `eval-safety` 静态检查 + `Open/Close-TestNotepad` |
 
 ## 4. 未验证 / 未完成
 
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
+| 2026-11-14 真机复跑 | 待跑 | 桌面有用户未保存的 Notepad 文档；按安全规则没有执行 GUI setup（避免把 seed 标签塞进用户窗口） | 保存/关闭后跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
 | 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
 | Linux | 未验证 | 桌面环境/accessibility 栈差异大 | 不在当前承诺范围 |
 | 像素点击 A7 | best-effort | 驱动 0.23.2 混合 DPI 落点缺陷；插件层不可判定 | 等上游；element 路径优先 |
-| WinUI3 hotkey/menu | 不可达 | UIA 加速器 4s 超时（#3908）；`invoke_menu` 可能不可用 | 改点控件；上游跟踪 |
+| WinUI3 hotkey/menu | 部分可达 | 4s 超时 + `could not find a UIA AcceleratorKey`（#3908）；`invoke_menu` 可能不可用 | 默认给控件指引；`xamlKeyFallback: auto` 实验性自动“开菜单→点项”；上游跟踪 |
 | `app_launch` 清理 | 需人工 | 子进程 High IL，非提权侧 UIPI 拒绝关闭 | 任务产出接受人工收尾 |
 | 委派工具约束 | 宿主相关 | 0.2.2 `startActivation` 没有 `toolFilter`；工具集由 Agent Preset/宿主决定 | 插件如实说明；严格限制用宿主 Agent Preset |
 | `computer_task` 工具面 | 真实但有限 | 默认超时 5 分钟、每会话 3 次；子 agent 可能拥有父级能力 | 见 README“委派的能力边界” |
@@ -249,10 +255,10 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 判据：
 
 - `npm test` 退出码 0，且最后每套都打印“全部通过”；
-- `verify-runtime` 的 `结果：16/16 通过`；
+- `verify-runtime` 的 `结果：17/17 通过`；
 - `live-action` 的 `23/23`（会打开临时记事本窗口；不杀进程，残留标签人工关闭）；
 - `verify-oracles` 的 `10/10`；
-- `npm pack --dry-run` 的 total files = 31；
+- `npm pack --dry-run` 的 total files = 32；
 - headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 20 隐藏（本次实测见 §2.1）。
 - 若 `verify-oracles` 的 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp`。
 
