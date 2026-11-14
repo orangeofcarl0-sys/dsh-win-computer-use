@@ -210,7 +210,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 投递失败修复 | `deliveryFailure` + `settleAction` 统一 `ok:false`；L3 retry 失败不再写“完成”；`tests/delivery.failures` 25 项 |
 | 观察失败修复 | notFound/桌面降级/native 失败清快照；suspect 去重强制全量；`tests/observe.failure` 5 项 |
 | Notepad 安全修复 | `Get-NotepadTabs`/`Test-NotepadTabSet`；Open/Close 精确 ExpectedTabs + pid/start time；dirty/leftover；`tests/notepad-tabs` 6 项 |
-| 真机复跑 | **未执行**：当前 Notepad 窗口仍有 2 个用户已修改标签；按 fail-closed 规则不启动 GUI setup。离线/静态/真驱动观察已验证，GUI eval 待桌面干净后跑 |
+| 真机 t01 ×3 | **0/3 执行，3/3 setup error（steps=0）**：seed 落进现有 Notepad 窗口（`owned=False`，窗口仍含 2 个用户已修改标签 + 测试标签）；fail-closed 生效，未运行 dsh | 保存/关闭用户标签并清掉测试标签后重跑；当前窗口不要自动关闭 |
 
 ## 3. 代表性缺陷与守门测试
 
@@ -239,7 +239,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
-| 2026-11-15 真机复跑 | 待跑 | 当前 Notepad 窗口仍有 2 个用户已修改标签 + 6 个测试标签；标签白名单会 fail closed，不能强行跑 GUI | 用户保存/关闭文档后跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
+| 2026-11-15 t01 ×3 | setup error ×3 | 当前 Notepad 窗口仍有 2 个用户已修改标签 + 6 个测试标签；三次 seed 都落进该窗口（`owned=False`），setup fail closed，steps=0，未调用 dsh | 用户保存/关闭用户标签并清掉测试标签后，重跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
 | 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |

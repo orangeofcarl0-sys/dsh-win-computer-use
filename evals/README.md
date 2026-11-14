@@ -124,7 +124,7 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 
 两轮合计 **7/8（87.5%）**；`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。
 
-> 2026-11-15：t01 真机复跑暴露了“新窗口恢复用户标签”的安全漏洞；标签白名单/污染 fail-closed/leftover 已修复。当前桌面仍有用户未保存的 Notepad 标签，**GUI 复跑继续暂缓**。桌面干净后先 `node evals/verify-oracles.mjs`（10/10），再 `node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10 --patch evals/headless-patch-xamlfallback.yml`，并跑一次默认 patch（off）对照。
+> 2026-11-15：t01 真机复跑暴露了“新窗口恢复用户标签”的安全漏洞；标签白名单/污染 fail-closed/leftover 已修复。随后执行 `--tasks t01 --repeats 3`，三次全部在 setup 阶段 error（steps=0）：seed 都落进仍含 2 个用户已修改标签的现有窗口，`owned=False`，fail-closed 正确阻止了 dsh。**GUI 复跑仍需先保存/关闭用户标签并清掉测试标签**；桌面干净后先 `node evals/verify-oracles.mjs`（10/10），再跑三次 auto + 一次默认 off 对照。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

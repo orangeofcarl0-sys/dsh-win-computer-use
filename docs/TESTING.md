@@ -189,7 +189,7 @@ node evals/verify-oracles.mjs
 | 离线 | 18 套 / 333 ✅ / 0 ❌ |
 | 语法 | 17/17 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
-| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-14 的 GUI 复跑待用户桌面空闲后执行 |
+| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 ×3 全部 setup fail closed（当前 Notepad 含用户已修改标签，seed 落入现有窗口，steps=0） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 10 条 |
 | 打包 | `npm pack --dry-run` 34 文件 |
