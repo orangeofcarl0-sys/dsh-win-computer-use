@@ -28,6 +28,13 @@ export function normalizeMcp(v) { return v }
 export function isBackgroundUnavailable(value) { return Boolean(value && value.ok === false && /后台|background/i.test(String(value.result || ''))) }
 export function isForegroundUnavailable(value) { return Boolean(value && value.ok === false && /前台|foreground/i.test(String(value.result || ''))) }
 export function isUnverified(value) { return Boolean(value && value.ok === false && /未验证|unverified/i.test(String(value.result || ''))) }
+export function deliveryFailure(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  if (/foreground_unavailable|foreground unavailable/i.test(s)) return 'foreground'
+  if (/background_unavailable|background unavailable/i.test(s)) return 'background'
+  if (/delivery_failed|delivery failed/i.test(s)) return 'delivery_failed'
+  return null
+}
 export const calls = []
 // 与真实 lib/cua.js 同形：动作链解构 { value, note }，桩返回裸值会让"引擎拒绝"形态测不到
 export async function cuaDeliver(tool, payload, deliveryMode, opts = {}) { return { value: await cuaCall(tool, payload), note: '' } }

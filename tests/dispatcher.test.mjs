@@ -22,6 +22,14 @@ export function isBackgroundUnavailable() { return false }
 export function isForegroundUnavailable() { return false }
 export function isUnverified() { return false }
 
+export function deliveryFailure(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  if (/foreground_unavailable|foreground unavailable/i.test(s)) return 'foreground'
+  if (/background_unavailable|background unavailable/i.test(s)) return 'background'
+  if (/delivery_failed|delivery failed/i.test(s)) return 'delivery_failed'
+  return null
+}
+
 const PNG1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
 const WINDOW = { pid: 42, window_id: 7, app_name: 'Stub', title: 'Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5 }
 const ELEMENTS = [

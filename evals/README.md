@@ -85,7 +85,7 @@ evals/
 - notepad 标签页控件类型是 **TabItem**（不是 ListItem）；窗口标题只显示活动标签。
 - **Win11 记事本上驱动的三条输入通道都可能不可达**（2026-09-16 受控窗口实测 + 2026-11-14 t01）：`hotkey` 走 UIA 加速器扫描 → 4s 超时，或 `could not find a UIA AcceleratorKey`（保存/全选等命令在关闭菜单里）；`press_key`（PostMessage）不报错但 `effect:unverifiable`、目标无反应；`invoke_menu` 返回 `menu_path_unavailable`（XAML 菜单驱动走不到），且 `["文件"]` 可能只回 `unverifiable` 而菜单没开。→ 依赖 Ctrl+S 保存的任务（t01/t05/t06/t10）在该目标上要走“点菜单栏项 → 观察弹出菜单 → 点菜单项”。插件已把两类 hotkey 失败翻译成可执行指引；`xamlKeyFallback: auto`（默认 off）可实验性自动完成“开菜单→点项”，歧义/缺失即停；`computer_menu` 的 `unverifiable` 不再报成功。
 - **记事本进程会被复用**：`notepad.exe` 单进程多标签，自己起的实例可能被用户后续打开的文件占用 → 清理测试窗口要按**标题**匹配，不要按进程名杀（2026-09-16 实测：我的测试进程被用户文档复用）。
-- **2026-11-14 起 Notepad 生命周期安全化**：t01/t05/t06/t10 使用 `Open-TestNotepad`/`Close-TestNotepad`，启动前记录已有 HWND；只有新窗口（owned=true）且未修改才 WM_CLOSE，tab 落进用户窗口时 setup fail closed、cleanup 留窗报告。`Close-TaskWindows` 删除默认 Notepad/无标题/记事本 needles，调用必须带显式模式；`tests/eval-safety.mjs` 静态守门。
+- **2026-11-15 Notepad 标签级安全化**：`Open-TestNotepad`/`Close-TestNotepad` 不再只看“新 HWND”或活动标题 `*`。Win11 会把 `TabState/*.bin` 恢复进新窗口——2026-11-14 的 t01 窗口实际有 8 个标签（2 个用户已修改文档 + 6 个测试文件）。现在必须用 UIA `TabItem` 校验精确 ExpectedTabs、无额外/已修改/未知后缀；任何不符 setup fail closed，cleanup 留窗并写 `~/.dsh/s4-evals/_leftovers/`。`Close-TaskWindows` 删除默认 Notepad/无标题/记事本 needles，调用必须带显式模式；`tests/eval-safety.mjs` + `tests/notepad-tabs.test.mjs` 守门。
 - **t01 预置**：setup 打开唯一空 seed `s4-t01-seed.txt`（task-owned 新窗口），prompt 要求另存为 `target\note.txt`；不再启动“无标题”窗口，避免与用户已有标签混淆。
 - **驱动提权链（2026-09-16 实测，上游 #3607 已附证据）**：`cua-driver.exe` 的二进制清单是 `requireAdministrator` → daemon 恒为 High IL → **`app_launch` 启动的应用继承 High IL**（对照：同一 shell 直接 `Start-Process notepad` 为 Medium IL）→ 非提权客户端 `taskkill`/`Stop-Process`/`WM_CLOSE` 全被拒（UIPI），残骸窗口累积并干扰后续任务观察（基线 t07 级联失败的元凶之一）。驱动**确实能**操作自己启动的 High IL 窗口（提权记事本上 `computer_type` 成功且 `effect:confirmed`），所以"管理员窗口不可操作"的旧说法不成立——真实边界是"客户端清不掉"。且 WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 #3908 的 UIA 超时、`invoke_menu` 报 menu_path_unavailable）→ 只能人工收尾。**评测实践：优先操作已在运行的普通应用；用 `app_launch` 的任务要接受人工收尾成本。**
 - **dsh 0.1.5 UI 变化（2026-09-16 实证）**：`document.execCommand('insertText')` 在 composer 上失效（长度恒 0，会发出空消息）→ 必须走 CDP `Input.insertText`；轮次页脚由 `N 轮 · M 步` 变为 `N 轮 M 步`（无分隔点）；新建会话后页面可能被其他会话视图覆盖 → 发送前必须**二次校验当前会话仍是 0 轮**，回合结束再校验 prompt 标记在活动会话文本里。
@@ -124,7 +124,7 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 
 两轮合计 **7/8（87.5%）**；`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。
 
-> 2026-11-14：t01 的坐标/菜单/XAML 回退与 eval 清理安全化已落地，但**真机复跑待跑**——当时桌面有用户未保存的 Notepad 文档，按 fail-closed 规则没有执行 GUI setup。桌面空闲后先 `node evals/verify-oracles.mjs`（10/10），再 `node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10 --patch evals/headless-patch-xamlfallback.yml`，并跑一次默认 patch（off）对照。
+> 2026-11-15：t01 真机复跑暴露了“新窗口恢复用户标签”的安全漏洞；标签白名单/污染 fail-closed/leftover 已修复。当前桌面仍有用户未保存的 Notepad 标签，**GUI 复跑继续暂缓**。桌面干净后先 `node evals/verify-oracles.mjs`（10/10），再 `node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10 --patch evals/headless-patch-xamlfallback.yml`，并跑一次默认 patch（off）对照。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

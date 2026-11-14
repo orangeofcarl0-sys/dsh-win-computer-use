@@ -100,7 +100,7 @@ Win11 记事本是**单进程多窗口/多标签**，进程可能同时持有用
 3. **UIA 关标签不可靠**：“关闭标签页”按钮存在，但 `Invoke` 实测 no-op（与 #3908 同源）；先 `Select` 也一样。
 4. **`Start-Process -PassThru` 的 pid 是启动器**，可能随即退出；据此判断“已关闭”是假阳性。
 5. 测试脚本只**报告残留标签名**，由人工关闭（选中标签 → Ctrl+W → 不保存）。`tests/live-action.e2e.mjs` 使用唯一命名临时文件窗口做确定性选择，不杀进程。
-6. eval 的 Notepad 任务使用 `Open-TestNotepad` / `Close-TestNotepad`：启动前记录已有 HWND，只有新窗口且未修改才 `WM_CLOSE`；如果文件落进用户已有窗口（`owned=false`），setup fail closed、cleanup 留窗报告。`Close-TaskWindows` 不再有默认 Notepad 宽匹配，调用必须带显式模式。
+6. eval 的 Notepad 任务使用 `Open-TestNotepad` / `Close-TestNotepad`：**新 HWND 不等于干净窗口**——Win11 会把 `TabState/*.bin` 恢复进新窗口。必须按 UIA `TabItem` 校验精确标签集（无额外用户标签、无 modified、后缀可识别）；任一不符 setup fail closed，cleanup 留窗并写 `_leftovers/`，绝不只看活动标题的 `*`。`Close-TaskWindows` 不再有默认 Notepad 宽匹配，调用必须带显式模式。
 
 ## 7. 冒烟矩阵
 

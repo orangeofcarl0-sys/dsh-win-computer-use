@@ -195,7 +195,8 @@ sequenceDiagram
 | 输入形态 | `ok` | 快照标记 | 文本 |
 |---|---|---|---|
 | 正常 + `effect:confirmed` | `true` | `markConsumed` | 一行要点 |
-| `unverifiable` / `delivery_failed` | `true` | `markConsumed` + `markSuspect` | 附“先观察”注记 |
+| `unverifiable` | `true` | `markConsumed` + `markSuspect` | 附“先观察”注记 |
+| `background_unavailable` / `foreground_unavailable` / `delivery_failed` | `false` | 不消费；`delivery_failed` 另标 suspect | “未送达；不要重复，必要时 foreground=true 重试” |
 | `refusal` / `error` / `code` | `false` | 不消费（除非 `suspected_noop`） | 拒绝原因 |
 
 XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
@@ -206,7 +207,7 @@ XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
 | `effect:suspected_noop` | `false` | `markSuspect`，不 `markConsumed` | 附“不要立即重放” |
 | `menu_path_unavailable` 等 | `false` | — | `refusalReceipt` |
 
-`engineRefusal` 统一识别 `effect`（refused/rejected/suspected_noop）、`error`、`refusal.code`、`code=invalid_arguments/unavailable/not_supported`。新增动作只要走 `settleAction`，就不会再出现“拒绝被当成功”的同类缺陷。
+`engineRefusal` 统一识别 `effect`（refused/rejected/suspected_noop）、`error`、`refusal.code`、`code=invalid_arguments/unavailable/not_supported`；`deliveryFailure` 单独识别 `background_unavailable`/`foreground_unavailable`/`delivery_failed`，并在 `settleAction` 的 refusal 分支之前把 `ok` 置为 false。新增动作只要走 `settleAction`，就不会再出现“拒绝/未送达被当成功”的同类缺陷。
 
 ## 6. 观察管线
 
@@ -400,7 +401,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：14 套、281 断言（2026-11-14）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)。
+- 离线：18 套、333 断言（2026-11-15）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

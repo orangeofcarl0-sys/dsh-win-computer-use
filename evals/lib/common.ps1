@@ -27,8 +27,9 @@ function Add-Check {
 
 function Out-Finish {
   # oracle semantics: exit 0 pass / 1 fail / 2 env error. setup/cleanup/simulate: 0 ok / 2 env error.
-  param([bool]$Ok, [object[]]$Checks = @(), [string]$EnvError = '', [string]$Kind = 'oracle')
-  $payload = [ordered]@{ task = $Script:S4TaskId; kind = $Kind; ok = $Ok; envError = $EnvError; checks = $Checks }
+  # dirty=true means cleanup completed but left an unsafe window/tab that it refuses to close.
+  param([bool]$Ok, [object[]]$Checks = @(), [string]$EnvError = '', [string]$Kind = 'oracle', [bool]$Dirty = $false)
+  $payload = [ordered]@{ task = $Script:S4TaskId; kind = $Kind; ok = $Ok; dirty = $Dirty; envError = $EnvError; checks = $Checks }
   [Console]::Out.WriteLine((ConvertTo-Json $payload -Compress -Depth 6))
   try { [Console]::Out.Flush() } catch {}
   if ($EnvError -ne '') { exit 2 }
@@ -104,6 +105,7 @@ public static class S4W32 {
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 }
 "@
 }
@@ -133,12 +135,116 @@ function Find-WindowsByTitle([string]$Needle, [switch]$VisibleOnly) {
   }
 }
 
+function Find-WindowByHwnd([long]$Hwnd) {
+  # HWND-only identity lookup: independent of the (localized/changing) window title.
+  Add-Type -AssemblyName UIAutomationClient
+  $root = [System.Windows.Automation.AutomationElement]::RootElement
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Window)
+  $wins = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+  foreach ($w in $wins) {
+    $h = 0
+    try { $h = [int]$w.Current.NativeWindowHandle } catch {}
+    if ($h -eq [int]$Hwnd) {
+      $name = ''
+      try { $name = [string]$w.Current.Name } catch {}
+      return [PSCustomObject]@{ hwnd = $h; title = $name }
+    }
+  }
+  return $null
+}
+
+function ConvertFrom-NotepadTabName([string]$Name) {
+  # TabItem.Name is "<label>. <unmodified>" / "<label>. <modified>" on this locale.
+  # Unknown suffixes are deliberately kept as unknown -> caller fails closed.
+  $unmod = -join @([char]0x672A, [char]0x4FEE, [char]0x6539)
+  $mod = -join @([char]0x5DF2, [char]0x4FEE, [char]0x6539)
+  $dot = [char]0x3002
+  $m = [regex]::Match([string]$Name, "^(.*?)\s*\.\s*($unmod|$mod)$dot\s*$")
+  if ($m.Success) {
+    return [ordered]@{
+      raw = [string]$Name
+      label = $m.Groups[1].Value.Trim()
+      modified = ($m.Groups[2].Value -eq $mod)
+      known = $true
+    }
+  }
+  return [ordered]@{ raw = [string]$Name; label = ([string]$Name).Trim(); modified = $null; known = $false }
+}
+
+function Get-NotepadTabs([int]$Hwnd) {
+  # Enumerate tabs of ONE window. Empty/unknown is unsafe by contract; never use
+  # a global ".txt" scan, because another window's tabs can satisfy the check.
+  Add-Type -AssemblyName UIAutomationClient
+  $out = @()
+  try {
+    $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd)
+    if (-not $win) { return @() }
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+      [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+      [System.Windows.Automation.ControlType]::TabItem)
+    $items = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+    foreach ($it in $items) {
+      $n = ''
+      try { $n = [string]$it.Current.Name } catch {}
+      if ($n) { $out += (ConvertFrom-NotepadTabName $n) }
+    }
+  } catch {}
+  return @($out)
+}
+
+function Test-NotepadTabLabels([string[]]$TabNames, [string[]]$ExpectedTabs) {
+  # Pure classifier: no UIA/window access, so it can be unit-tested with samples.
+  $tabs = @($TabNames | ForEach-Object { ConvertFrom-NotepadTabName $_ })
+  $expected = @($ExpectedTabs | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Sort-Object)
+  $labels = @($tabs | ForEach-Object { ([string]$_.label).Trim().ToLowerInvariant() } | Sort-Object)
+  $reason = ''
+  if ($tabs.Count -eq 0) { $reason = 'no tabs exposed' }
+  elseif ($tabs.Count -ne $expected.Count) { $reason = "tab count $($tabs.Count) != expected $($expected.Count)" }
+  elseif (@($tabs | Where-Object { -not $_.known }).Count -gt 0) { $reason = 'unknown tab state suffix' }
+  elseif (@($tabs | Where-Object { $_.modified -eq $true }).Count -gt 0) { $reason = 'modified tab present' }
+  elseif (($labels -join "`n") -ne ($expected -join "`n")) { $reason = 'tab labels do not match expected set' }
+  return [ordered]@{
+    ok = ($reason -eq '')
+    reason = $reason
+    tabs = @($tabs)
+    labels = @($tabs | ForEach-Object { $_.label })
+  }
+}
+
+function Test-NotepadTabSet([int]$Hwnd, [string[]]$ExpectedTabs) {
+  # Success requires exact count, exact labels, all known suffixes, and no modified tab.
+  $names = @(Get-NotepadTabs $Hwnd | ForEach-Object { $_.raw })
+  return (Test-NotepadTabLabels -TabNames $names -ExpectedTabs $ExpectedTabs)
+}
+
+function Save-LeftoverState([string]$TaskId, [string]$StateFile, $Result) {
+  # Preserve an unsafe window's identity outside the task dir, because cleanup
+  # deletes the task sandbox/state after this call.
+  $dir = Join-Path $env:USERPROFILE '.dsh\s4-evals\_leftovers'
+  try { if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null } } catch { return '' }
+  $obj = [ordered]@{
+    task = $TaskId
+    at = (Get-Date).ToString('o')
+    stateFile = $StateFile
+    reason = [string]$Result.reason
+    leftover = [string]$Result.leftover
+    tabs = @($Result.tabs)
+  }
+  $p = Join-Path $dir ($TaskId + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.json')
+  try {
+    [IO.File]::WriteAllText($p, ($obj | ConvertTo-Json -Compress -Depth 5), (New-Object System.Text.UTF8Encoding($false)))
+    return $p
+  } catch { return '' }
+}
+
 function Open-TestNotepad {
   # Open a uniquely named test document WITHOUT touching existing Notepad windows.
-  # Records {hwnd,title,owned} to StateFile. owned=false means Notepad opened it
-  # as a tab in an existing window -> cleanup must leave it alone (never close a
-  # window that may also host user tabs).
-  param([string]$Path, [string]$TitleNeedle, [string]$StateFile)
+  # A new HWND is NOT enough: Win11 Notepad restores the previous session's tabs
+  # into the new window. Require the exact expected tab set, all unmodified and
+  # all with a known state suffix; otherwise fail closed and record why.
+  param([string]$Path, [string]$TitleNeedle, [string]$StateFile, [string[]]$ExpectedTabs = @())
   $before = @(Find-WindowsByTitle 'Notepad' | ForEach-Object { [int]$_.hwnd })
   Start-Process -FilePath 'notepad.exe' -ArgumentList @($Path) | Out-Null
   $deadline = (Get-Date).AddSeconds(15)
@@ -149,36 +255,85 @@ function Open-TestNotepad {
     Start-Sleep -Milliseconds 400
   }
   if (-not $hit) {
-    return [ordered]@{ ok = $false; hwnd = 0; title = ''; owned = $false; reason = "window not found for $TitleNeedle" }
+    return [ordered]@{ ok = $false; hwnd = 0; title = ''; owned = $false; safeToClose = $false; reason = "window not found for $TitleNeedle" }
   }
-  $owned = -not ($before -contains [int]$hit.hwnd)
+  $hwnd = [int]$hit.hwnd
+  $owned = -not ($before -contains $hwnd)
+
+  # Give the restore/add-tab path a moment to settle, then require the exact set.
+  $tabCheck = $null
+  for ($i = 0; $i -lt 3; $i++) {
+    $tabCheck = Test-NotepadTabSet -Hwnd $hwnd -ExpectedTabs $ExpectedTabs
+    if ($tabCheck.ok) { break }
+    Start-Sleep -Milliseconds 300
+  }
+  $wpid = 0
+  try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$hwnd, [ref]$wpid) } catch {}
+  $procStart = ''
+  try { $procStart = (Get-Process -Id $wpid -ErrorAction Stop).StartTime.ToString('o') } catch {}
+  $safe = $owned -and $tabCheck.ok
+  $reason = ''
+  if (-not $owned) { $reason = 'window was not newly created' }
+  elseif (-not $tabCheck.ok) { $reason = 'unsafe tab set: ' + [string]$tabCheck.reason }
+
   $state = [ordered]@{
-    ok = $true; hwnd = [int]$hit.hwnd; title = [string]$hit.title; owned = [bool]$owned
-    path = $Path; at = (Get-Date).ToString('o')
+    ok = [bool]$safe
+    hwnd = $hwnd
+    title = [string]$hit.title
+    owned = [bool]$owned
+    safeToClose = [bool]$safe
+    pid = [int]$wpid
+    processStart = $procStart
+    path = $Path
+    expectedTabs = @($ExpectedTabs)
+    tabs = @($tabCheck.tabs | ForEach-Object { $_.raw })
+    reason = $reason
+    at = (Get-Date).ToString('o')
   }
   if ($StateFile) {
-    try { [IO.File]::WriteAllText($StateFile, ($state | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+    try { [IO.File]::WriteAllText($StateFile, ($state | ConvertTo-Json -Compress -Depth 5), (New-Object System.Text.UTF8Encoding($false))) } catch {}
   }
   return $state
 }
 
 function Close-TestNotepad {
-  # Close only the exact HWND recorded by Open-TestNotepad, and only when it is
-  # task-owned and unmodified. Never Stop-Process, never close user tabs, never
-  # confirm a save prompt. Returns {closed,leftover,reason}.
+  # Close only the exact HWND recorded by Open-TestNotepad, and only when the
+  # window is still the same process and its tabs are exactly the expected set,
+  # all unmodified. Never Stop-Process, never close user tabs, never confirm a
+  # save prompt. Returns {closed,leftover,reason,tabs}.
   param([string]$StateFile)
-  $res = [ordered]@{ closed = $false; leftover = ''; reason = '' }
+  $res = [ordered]@{ closed = $false; leftover = ''; reason = ''; tabs = @() }
   if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.reason = 'no state file'; return $res }
   try { $s = Get-Content -Raw $StateFile | ConvertFrom-Json } catch { $res.reason = 'bad state file'; return $res }
   if (-not $s.owned) { $res.reason = 'window not task-owned; left open'; return $res }
-  $hit = @(Find-WindowsByTitle 'Notepad' | Where-Object { [int]$_.hwnd -eq [int]$s.hwnd }) | Select-Object -First 1
+  $hit = Find-WindowByHwnd ([int]$s.hwnd)
   if (-not $hit) { $res.reason = 'window already gone'; return $res }
+
+  # Revalidate process identity (HWND can be reused).
+  $wpid = 0
+  try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$s.hwnd, [ref]$wpid) } catch {}
+  if ($s.pid -and $wpid -and ([int]$s.pid -ne [int]$wpid)) {
+    $res.reason = "pid changed ($($s.pid) -> $wpid); left open"; return $res
+  }
+  $procStart = ''
+  try { $procStart = (Get-Process -Id $wpid -ErrorAction Stop).StartTime.ToString('o') } catch {}
+  if ($s.processStart -and $procStart -and ([string]$s.processStart -ne $procStart)) {
+    $res.reason = 'process start time changed; left open'; return $res
+  }
+
+  $tabCheck = Test-NotepadTabSet -Hwnd ([int]$s.hwnd) -ExpectedTabs @($s.expectedTabs)
+  $res.tabs = @($tabCheck.tabs)
+  if (-not $tabCheck.ok) {
+    $res.reason = 'unsafe tab set: ' + [string]$tabCheck.reason
+    $res.leftover = (@($tabCheck.labels) -join ' | ')
+    return $res
+  }
   if (([string]$hit.title).TrimStart().StartsWith('*')) {
     $res.reason = 'modified document; left open'; $res.leftover = [string]$hit.title; return $res
   }
   [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
   Start-Sleep -Milliseconds 800
-  $still = @(Find-WindowsByTitle 'Notepad' | Where-Object { [int]$_.hwnd -eq [int]$s.hwnd }) | Select-Object -First 1
+  $still = Find-WindowByHwnd ([int]$s.hwnd)
   if ($still) { $res.reason = 'close not confirmed; left open'; $res.leftover = [string]$still.title }
   else { $res.closed = $true }
   return $res

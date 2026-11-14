@@ -21,6 +21,14 @@ export function isUnverified(v) {
   const s = typeof v === 'string' ? v : JSON.stringify(v || {})
   return /unverifiable|delivery_failed|delivery failed/i.test(s) && !/background_unavailable/i.test(s)
 }
+
+export function deliveryFailure(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  if (/foreground_unavailable|foreground unavailable/i.test(s)) return 'foreground'
+  if (/background_unavailable|background unavailable/i.test(s)) return 'background'
+  if (/delivery_failed|delivery failed/i.test(s)) return 'delivery_failed'
+  return null
+}
 export async function cuaDeliver(tool, payload) { return { value: await cuaCall(tool, payload), note: '' } }
 export async function cuaCall(tool, args = {}) {
   if (tool !== 'invoke_menu') return { ok: true }

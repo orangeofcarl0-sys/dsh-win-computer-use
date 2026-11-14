@@ -89,6 +89,12 @@ export const Config = z.object({
   allowedApps: z.array(z.string()).default([]),
   /** 虚拟光标主题 id（空 = 不设置，用引擎默认）。 */
   cursorTheme: z.string().default('com.dsh.computeruse.rainbow'),
+  /**
+   * 虚拟光标滑行动画：
+   *   auto 默认：前台/非后台投递保留 5 段弧线；background 投递不滑行（避免无意义的连续小段移动）；
+   *   off：所有点击都不滑行，直接到目标。
+   */
+  cursorMotion: z.union(['auto', 'off']).default('auto'),
   /** 原生直读截图策略：auto（PNG 超限额时自动降级 zoom JPEG）/ full（始终原图 PNG）/ compact（始终 ≤500px JPEG）。 */
   nativeImage: z.union(['auto', 'full', 'compact']).default('auto'),
   /** Mode D 观察者 provider 路由。 */
@@ -808,6 +814,7 @@ export function apply(ctx, config) {
     supersession: config.supersession || 'note',
     allowedApps: Array.isArray(config.allowedApps) ? config.allowedApps : [],
     cursorTheme: config.cursorTheme,
+    cursorMotion: config.cursorMotion || 'auto',
     nativeImage: config.nativeImage || 'auto',
     visionProvider: config.visionProvider || 'deepseek-official',
     visionModel: config.visionModel || 'deepseek-flash',

@@ -25,6 +25,13 @@ export const CUA_SESSION = 'smoke'
 export const withSession = (a = {}) => a
 export function normalizeMcp(v) { return v }
 export function isUnverified() { return false }
+export function deliveryFailure(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  if (/foreground_unavailable|foreground unavailable/i.test(s)) return 'foreground'
+  if (/background_unavailable|background unavailable/i.test(s)) return 'background'
+  if (/delivery_failed|delivery failed/i.test(s)) return 'delivery_failed'
+  return null
+}
 export const history = []
 export async function cuaCall(tool, args = {}) {
   history.push({ tool, args })

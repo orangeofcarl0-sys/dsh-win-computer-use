@@ -8,60 +8,48 @@ try {
   [IO.File]::WriteAllText($a, 'AAA-content-original-a', [Text.Encoding]::ASCII)
   [IO.File]::WriteAllText($b, 'BBB-content-original-b', [Text.Encoding]::ASCII)
   # Open both files in task-owned Notepad window(s); never kill user Notepad windows.
-  # Win11 Notepad may host them as two tabs in ONE window, so verify via UIA tab items.
+  # Win11 Notepad may host them as two tabs in ONE window, so verify the exact tab
+  # set on the recorded HWND(s), never with a global ".txt" scan.
   $state1 = Join-Path (Get-TaskDir) 'test-notepad.json'
   $state2 = Join-Path (Get-TaskDir) 'test-notepad-2.json'
-  $s1 = Open-TestNotepad -Path $a -TitleNeedle 'a.txt' -StateFile $state1
+  $s1 = Open-TestNotepad -Path $a -TitleNeedle 'a.txt' -StateFile $state1 -ExpectedTabs @('a.txt')
   if (-not $s1.ok -or -not $s1.owned) {
-    $checks += (Add-Check 'a.txt opened as task-owned window' $false ("hwnd=$($s1.hwnd) title=$($s1.title) owned=$($s1.owned)"))
+    $checks += (Add-Check 'a.txt opened as safe task-owned window' $false ("hwnd=$($s1.hwnd) title=$($s1.title) owned=$($s1.owned) reason=$($s1.reason)"))
     Out-Finish -Ok $false -Checks $checks -Kind 'setup'
   }
-  Start-Sleep -Milliseconds 800
-  $s2 = Open-TestNotepad -Path $b -TitleNeedle 'b.txt' -StateFile $state2
-  if (-not $s2.ok) {
+  Start-Sleep -Milliseconds 500
+  $s2 = Open-TestNotepad -Path $b -TitleNeedle 'b.txt' -StateFile $state2 -ExpectedTabs @('b.txt')
+  if (-not $s2.ok -and [int]$s2.hwnd -eq 0) {
     $checks += (Add-Check 'b.txt opened' $false ("reason=$($s2.reason)"))
     Out-Finish -Ok $false -Checks $checks -Kind 'setup'
   }
-  if (-not $s2.owned) {
-    if ([int]$s2.hwnd -ne [int]$s1.hwnd) {
-      $checks += (Add-Check 'b.txt stayed outside user window' $false ("b hwnd=$($s2.hwnd) a hwnd=$($s1.hwnd)"))
-      Out-Finish -Ok $false -Checks $checks -Kind 'setup'
-    }
-    # b.txt is a tab in the task-owned window; record it as owned for cleanup.
-    $s2.owned = $true
-    try { [IO.File]::WriteAllText($state2, ($s2 | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+  $same = ([int]$s2.hwnd -eq [int]$s1.hwnd)
+  if (-not $same -and -not $s2.owned) {
+    $checks += (Add-Check 'b.txt stayed outside user window' $false ("b hwnd=$($s2.hwnd) a hwnd=$($s1.hwnd)"))
+    Out-Finish -Ok $false -Checks $checks -Kind 'setup'
   }
-  $deadline = (Get-Date).AddSeconds(15)
-  $tabs = @()
-  while ((Get-Date) -lt $deadline) {
-    Add-Type -AssemblyName UIAutomationClient
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $cond = New-Object System.Windows.Automation.PropertyCondition(
-      [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-      [System.Windows.Automation.ControlType]::Window)
-    $wins = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
-    $tabs = @()
-    foreach ($w in $wins) {
-      $n = ''
-      try { $n = [string]$w.Current.Name } catch {}
-      if ($n -match '\.txt') {
-        $items = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants,
-          (New-Object System.Windows.Automation.PropertyCondition(
-            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-            [System.Windows.Automation.ControlType]::TabItem)))
-        foreach ($it in $items) { try { $tabs += [string]$it.Current.Name } catch {} }
-      }
-    }
-    $hasA = @($tabs | Where-Object { $_ -match 'a\.txt' }).Count -gt 0
-    $hasB = @($tabs | Where-Object { $_ -match 'b\.txt' }).Count -gt 0
-    if ($hasA -and $hasB) { break }
-    Start-Sleep -Milliseconds 700
-  }
-  $hasA = @($tabs | Where-Object { $_ -match 'a\.txt' }).Count -gt 0
-  $hasB = @($tabs | Where-Object { $_ -match 'b\.txt' }).Count -gt 0
+
+  $expected1 = if ($same) { @('a.txt', 'b.txt') } else { @('a.txt') }
+  $expected2 = if ($same) { @('a.txt', 'b.txt') } else { @('b.txt') }
+  $t1 = Test-NotepadTabSet -Hwnd ([int]$s1.hwnd) -ExpectedTabs $expected1
+  $t2 = if ($same) { $t1 } else { Test-NotepadTabSet -Hwnd ([int]$s2.hwnd) -ExpectedTabs $expected2 }
+  $checks += (Add-Check 'a window tab set exact' $t1.ok ("tabs=" + (@($t1.labels) -join ',')))
+  $checks += (Add-Check 'b window tab set exact' $t2.ok ("tabs=" + (@($t2.labels) -join ',')))
   $checks += (Add-Check 'files prepared' ((Test-Path $a) -and (Test-Path $b)) ($a + ' ; ' + $b))
-  $checks += (Add-Check 'both documents loaded in task-owned Notepad' ($hasA -and $hasB) ('tabs=' + (($tabs | Select-Object -Unique) -join ',')))
-  Out-Finish -Ok ($hasA -and $hasB) -Checks $checks -Kind 'setup'
+  if (-not ($t1.ok -and $t2.ok)) {
+    Out-Finish -Ok $false -Checks $checks -Kind 'setup'
+  }
+
+  # Persist the final expected set for cleanup (same-window case has two tabs).
+  foreach ($pair in @(@($state1, $s1, $expected1, $t1), @($state2, $s2, $expected2, $t2))) {
+    $sf = $pair[0]; $st = $pair[1]; $exp = $pair[2]; $tc = $pair[3]
+    $st.owned = $true
+    $st.safeToClose = [bool]$tc.ok
+    $st.expectedTabs = @($exp)
+    $st.tabs = @($tc.tabs | ForEach-Object { $_.raw })
+    try { [IO.File]::WriteAllText($sf, ($st | ConvertTo-Json -Compress -Depth 5), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+  }
+  Out-Finish -Ok ($t1.ok -and $t2.ok) -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'
 }

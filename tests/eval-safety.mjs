@@ -76,5 +76,13 @@ const t10c = readFileSync(join(evals, 'cleanup', 't10.ps1'), 'utf8')
 check('S6: t10 setup 使用 Open-TestNotepad 两次', (t10s.match(/Open-TestNotepad/g) || []).length >= 2)
 check('S7: t10 cleanup 使用 Close-TestNotepad', /Close-TestNotepad/.test(t10c))
 
+// 6. 标签级安全：必须有纯分类器、UIA 枚举、Open/Close 双重复核
+check('S8: 存在标签枚举与纯分类器', /function Get-NotepadTabs/.test(common) && /function Test-NotepadTabLabels/.test(common))
+check('S9: Open/Close 都复核标签集合', (common.match(/Test-NotepadTabSet\s+-Hwnd/g) || []).length >= 2)
+for (const id of ['t01', 't05', 't06', 't10']) {
+  const setup = readFileSync(join(evals, 'setup', `${id}.ps1`), 'utf8')
+  check(`S10: ${id} setup 显式 ExpectedTabs`, /-ExpectedTabs/.test(setup))
+}
+
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

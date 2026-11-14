@@ -18,7 +18,7 @@ try {
   $seed = Join-Path $dir 's4-t06-seed.txt'
   [IO.File]::WriteAllText($seed, '', (New-Object System.Text.UTF8Encoding($false)))
   $stateFile = Join-Path (Get-TaskDir) 'test-notepad.json'
-  $state = Open-TestNotepad -Path $seed -TitleNeedle 's4-t06-seed.txt' -StateFile $stateFile
+  $state = Open-TestNotepad -Path $seed -TitleNeedle 's4-t06-seed.txt' -StateFile $stateFile -ExpectedTabs @('s4-t06-seed.txt')
   $checks += (Add-Check 'clipboard prepared' ($clip -eq $payload) ('clip=' + $clip))
   $checks += (Add-Check 'seed notepad opened as task-owned window' ([bool]$state.ok -and [bool]$state.owned) ("hwnd=$($state.hwnd) title=$($state.title) owned=$($state.owned)"))
   Out-Finish -Ok (($clip -eq $payload) -and [bool]$state.ok -and [bool]$state.owned) -Checks $checks -Kind 'setup'

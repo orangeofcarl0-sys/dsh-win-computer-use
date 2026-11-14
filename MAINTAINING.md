@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：22 工具 = 21 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 20；`hybrid` 可见 7 / 隐藏 15。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 14 套 / 281 断言；`npm run check` 17/17；`verify-runtime` 17/17。
+- **测试基线**：`npm test` 18 套 / 333 断言；`npm run check` 17/17；`verify-runtime` 17/17。
 
 ## 2. 文档地图
 
@@ -22,6 +22,7 @@
 | [docs/ARCHITECTURE](docs/ARCHITECTURE.md) | 模块、流水线、快照/投递、扩展指南、已知缺口 |
 | [docs/COMPATIBILITY-0.2.2](docs/COMPATIBILITY-0.2.2.md) | dsh 0.2.2 契约矩阵与 P0/P1 兼容缺口 |
 | [docs/WINDOWS](docs/WINDOWS.md) | Windows 工程细节、冒烟矩阵、清理规则 |
+| [docs/RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 宿主/插件/驱动/session/eval 的完整运行时链路与失败语义 |
 | [docs/TESTING](docs/TESTING.md) | 测试分层、断言清单、排障 |
 | [VERIFICATION](VERIFICATION.md) | 验证矩阵、历史证据、未验证项 |
 | [PERMISSIONS](PERMISSIONS.md) | 权限面、网络/凭据/命令、承诺矩阵 |
@@ -118,6 +119,8 @@
 - `Start-Process -PassThru` 的 pid 是启动器，可能已退出；据此判断“已关闭”是假阳性。
 - 结论：测试只报告残留标签，人工关闭；`live-action.e2e` 用唯一命名临时文件 + 标题匹配。
 - 2026-11-14：t01/t05/t06/t10 改为 `Open-TestNotepad`/`Close-TestNotepad`：启动前记录已有 HWND，只有“新窗口且未修改”才 WM_CLOSE；无法证明 task-owned 就 fail closed / 留窗报告。`Close-TaskWindows` 不再有默认 Notepad 宽匹配，调用必须带显式模式。
+- 2026-11-15：**新 HWND 不等于干净窗口**。Win11 会把 `TabState/*.bin` 恢复进新窗口；t01 实测新窗口含 8 个标签（2 个用户已修改文档 + 6 个测试文件），活动标题无 `*`。现在 Open/Close 必须按 UIA `TabItem` 校验精确 ExpectedTabs、无 modified/unknown；不安全就 setup fail closed、cleanup 留窗并写 `_leftovers/`。不要只信活动标题或 HWND 新。
+- 运行 GUI eval 前先确认 Notepad 没有用户标签；当前标签白名单会正确拒绝污染窗口，但那只保护数据，不会让任务通过。
 
 ### 4.10 缓存与工具面
 

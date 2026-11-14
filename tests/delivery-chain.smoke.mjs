@@ -151,5 +151,19 @@ const payload = (extra = {}) => ({
     `calls=${history.length}`)
 }
 
+// ── I: L3 绕锁后仍前台锁拒 → 不得写“重试完成” ───────────────────────
+{
+  const history = freshHistory()
+  const call = async (tool, args = {}) => {
+    history.push({ tool, args })
+    if (tool === 'bring_to_front') return { previous_fg_hwnd: 111 }
+    return (args.delivery_mode === 'background'
+      ? { code: 'background_unavailable' }
+      : { code: 'foreground_unavailable', reason: 'still not foreground' })
+  }
+  const r = await cuaDeliver('scroll', payload(), 'auto', { call })
+  check('I: L3 重试仍失败 → 明确“仍未送达”', /重试仍未送达/.test(r.note) && !/重试完成/.test(r.note), r.note.trim())
+}
+
 console.log(`\n结果：${failures ? '❌ ' + failures + ' 项失败' : '✅ 全部通过'}`)
 process.exit(failures ? 1 : 0)

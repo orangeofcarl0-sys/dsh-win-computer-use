@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-14）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-15）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 
 ## 0.5.7 (未发布)
 
@@ -28,6 +28,28 @@
 - **`computer_key` 投递层误报成功**：`foreground_unavailable` / `background_unavailable` 返回 `ok:false`；`suspected_noop` 附“先观察”注记并标 suspect；通用路径复用 `settleAction`。
 - **eval setup/cleanup 危及用户 Notepad**：删除 `setup/t01/t05/t06` 的 `Stop-Process` 全量杀；t01 改用唯一空 seed `s4-t01-seed.txt`，t05 用 `draft.txt`，t06 用唯一 seed；t01/t05/t06/t10 cleanup 改为 HWND 作用域关闭；t10 双文件分别记录；`hygiene.ps1` 只报告不关闭；x1 不再无参数 `Close-TaskWindows`。
 - **t01 prompt 歧义**：明确“临时文件 seed / 另存为完整路径 / 第二行后不要回车”。
+
+**2026-11-15：runtime/pipeline 复盘——元素点击 TTL/滑行坐标、投递失败语义、Notepad 标签级安全**
+
+### 2026-11-15 Added
+
+- **`docs/RUNTIME-PIPELINE.md`**：宿主启动/工具面/观察/动作/投递/快捷键/Notepad/session 日志的完整链路与失败语义。
+- **`tests/human.click.mjs`（8）**：元素点击 TTL、background 不滑行、foreground 滑行目标=窗口截图坐标、近距离单次移动、tokenless 回退。
+- **`tests/delivery.failures.mjs`（25）**：background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true。
+- **`tests/observe.failure.mjs`（5）**：未找到窗口/桌面降级清旧快照；suspect 后去重强制全量。
+- **`tests/notepad-tabs.test.mjs`（6）**：纯标签分类器：精确/额外用户标签/已修改/未知后缀/双标签/数量不符。
+- **`cursorMotion` 配置（默认 `auto`）**：background 不滑行，前台保留轨迹；近距离只做一次终点移动。
+
+### 2026-11-15 Fixed
+
+- **元素点击绕过 TTL + 滑行坐标错误**：`cacheSnapshot` 存点击空间 x/y（减 `screenOrigin`）；`resolveClickTarget` 检查 `isFresh`；`glideCursor` 目标改为点击空间；tokenless 回退也使用正确坐标。
+- **投递失败仍报成功**：新增 `deliveryFailure()`；`settleAction` 对 `background_unavailable`/`foreground_unavailable`/`delivery_failed` 返回 `ok:false`、不消费快照；纯 `unverifiable` 保持“已送达但未验证”。
+- **L3 假“重试完成”**：`escalateViaBringToFront` 检查 retry 值；仍失败时写“重试仍未送达”。
+- **scroll/drag gate 顺序**：`freshnessGate` 移到投递之前，避免动作已落地却报 `[snapshot_consumed]`。
+- **XAML fallback 对话框误导**：无菜单栏时不再说“去点编辑菜单”，改为 foreground 重试按键/点击输入框后 foreground type。
+- **观察失败保留旧快照**：notFound/桌面降级/native 失败清空旧快照；suspect 去重强制全量。
+- **Notepad 新窗口恢复用户标签**：2026-11-14 t01 的窗口实际有 8 个标签（2 个用户已修改文档 + 6 个测试文件）。`Open/Close-TestNotepad` 改为 UIA TabItem 精确 ExpectedTabs 校验；额外/已修改/未知后缀 setup fail closed，cleanup 留窗并写 `_leftovers/`；cleanup JSON 带 `dirty`。
+- **`analyze-sessions.mjs` 支持 v4**：多 zstd frame 解码；从 `computer_do.arguments.tool` 归因隐藏工具。
 
 ### Added
 

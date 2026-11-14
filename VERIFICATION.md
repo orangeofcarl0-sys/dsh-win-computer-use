@@ -1,21 +1,21 @@
 # VERIFICATION — 验证报告
 
 > 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
-> 代码快照：`main` @ 2026-11-14（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘与安全化改动。
+> 代码快照：`main` @ 2026-11-15（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；dsh 0.2.2 契约审计见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
 
 ## 1. 当前验证矩阵
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **14 套 / 281 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **18 套 / 333 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **17/17 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
-| 打包面 | **33 文件**（新增 docs/WINDOWS、docs/TESTING、docs/COMPATIBILITY-0.2.2、lib/keyFallback.js） | — | `npm pack --dry-run` |
+| 打包面 | **34 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js 等） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -142,7 +142,7 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **14 套 / 281** 断言全绿；`npm run check` 17/17；`npm pack` 33 文件 |
+| 离线 | **18 套 / 333** 断言全绿；`npm run check` 17/17；`npm pack` 34 文件 |
 | 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
@@ -200,6 +200,18 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 
 cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备忘录“打开→点击→输入”闭环；TTL/白名单/危险词/密码保护；home 级 patch 安装与 HMR 热生效。此阶段的安全姿态（危险词审批）已在 0.4.0 删除，相关结论仅作历史。
 
+### 2.3 2026-11-15 — runtime/pipeline 复盘（0.5.7-dev）
+
+| 项 | 结果 |
+|---|---|
+| 真机 t01 证据 | 50 次调用（10 click / 14 key / 7 zoom / 1 set_value / 15 observe），约 6 分钟；8 次执行点击 × 5 段滑行 ≈ 40 次小段指针移动；另存为文件名框出现 `count:3` 三连击 + 8 次 BackSpace（均 `delivery_failed`/unverifiable） |
+| Notepad 污染证据 | 同一窗口 8 个标签：`EF-C1...`、`EF_End...`（均“已修改”用户文档）+ t01/t05/t06/t07/t10 测试文件；窗口标题无 `*`，旧 cleanup 会尝试 WM_CLOSE |
+| 元素点击修复 | `cacheSnapshot` 存点击空间；`resolveClickTarget` 检查 TTL；滑行目标不再偏移 `screenOrigin`；`tests/human.click` 8 项 |
+| 投递失败修复 | `deliveryFailure` + `settleAction` 统一 `ok:false`；L3 retry 失败不再写“完成”；`tests/delivery.failures` 25 项 |
+| 观察失败修复 | notFound/桌面降级/native 失败清快照；suspect 去重强制全量；`tests/observe.failure` 5 项 |
+| Notepad 安全修复 | `Get-NotepadTabs`/`Test-NotepadTabSet`；Open/Close 精确 ExpectedTabs + pid/start time；dirty/leftover；`tests/notepad-tabs` 6 项 |
+| 真机复跑 | **未执行**：当前 Notepad 窗口仍有 2 个用户已修改标签；按 fail-closed 规则不启动 GUI setup。离线/静态/真驱动观察已验证，GUI eval 待桌面干净后跑 |
+
 ## 3. 代表性缺陷与守门测试
 
 | # | 缺陷 | 根因 | 守门 |
@@ -219,12 +231,15 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 13 | 文本元素坐标与点击空间不一致（t01 反复定位的根因） | `renderLine()` 用 driver 原始 frame，`mapElementsForModel()` 已减窗口原点，头部却声称同空间 | `observe.coords` + `verify-runtime` #17 |
 | 14 | `computer_menu` 把 `effect:unverifiable` 报成功 | 只判 `refusal`，未判未确认 | `menu.receipt` + t01 2026-11-14 |
 | 15 | eval setup/cleanup 危及用户 Notepad | setup 杀所有 Notepad；cleanup 按标题过滤后杀进程；`Close-TaskWindows` 默认匹配所有 Notepad | `eval-safety` 静态检查 + `Open/Close-TestNotepad` |
+| 16 | 元素点击绕过 TTL + 滑行偏移 | 快照条目存屏幕坐标；`resolveClickTarget` 不查 `isFresh`；`glideCursor` 目标却是 window-local | `human.click` + `observe.coords` |
+| 17 | 投递失败被当成功 | `engineRefusal` 不认 background/foreground_unavailable/delivery_failed；`settleAction` 全走成功分支 | `delivery.failures` + `delivery-chain` I |
+| 18 | 新 Notepad 窗口恢复用户标签 | 只比较 HWND 新旧；cleanup 只看活动标题 `*` | `notepad-tabs` + `eval-safety` S8-S10 |
 
 ## 4. 未验证 / 未完成
 
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
-| 2026-11-14 真机复跑 | 待跑 | 桌面有用户未保存的 Notepad 文档；按安全规则没有执行 GUI setup（避免把 seed 标签塞进用户窗口） | 保存/关闭后跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
+| 2026-11-15 真机复跑 | 待跑 | 当前 Notepad 窗口仍有 2 个用户已修改标签 + 6 个测试标签；标签白名单会 fail closed，不能强行跑 GUI | 用户保存/关闭文档后跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
 | 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |

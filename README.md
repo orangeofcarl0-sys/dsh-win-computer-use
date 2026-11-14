@@ -249,6 +249,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
     supersession: note
     allowedApps: []
     cursorTheme: com.dsh.computeruse.rainbow
+    cursorMotion: auto
     nativeImage: auto
     visionProvider: deepseek-official
     visionModel: deepseek-flash
@@ -270,6 +271,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `supersession` | `note` | 同快照连击：`note` / `enforce` / `off` |
 | `allowedApps` | `[]` | 操作类工具的应用白名单；空 = 不限制 |
 | `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
+| `cursorMotion` | `auto` | `auto`：前台点击保留滑行，background 不滑行，近距离不画弧；`off`：全部不滑行 |
 | `nativeImage` | `auto` | `auto` 超附件限额自动降级 / `full` 原图 / `compact` 始终 ≤500px JPEG |
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
@@ -319,7 +321,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `[index_out_of_range]` | 编号不属于当前快照 | 重新观察取新编号 |
 | `element_not_visible` | 目标不可见/已变化；也可能是驱动误报 | 先 `screen_observe` / `computer_verify` 复核；WinUI 改走点控件 |
 | `suspected_noop` | 引擎受理但怀疑未生效 | 不要立即重放；先观察再决定 |
-| `background_unavailable` | 目标输入栈丢弃后台事件 | `deliveryMode: auto` 会自动前台；或单次 `foreground: true` |
+| `background_unavailable` | 目标输入栈丢弃后台事件 | 回执为 `ok:false`；用 `deliveryMode: auto` 自动前台，或单次 `foreground: true`；不要重复同一动作 |
+| `delivery_failed` | 投递未确认（常见于后台按键） | 先 `screen_observe`，必要时 `foreground: true` 重试一次 |
 | `foreground_unavailable` | Windows 前台锁拦截 | 自动升级 L3；仍失败时先让目标前置 |
 | UIA accelerator 超时 | WinUI/XAML 组合键通道不可达（#3908） | 改点菜单/按钮；或稍后重试 |
 | `native` 被拒 | 当前模型未声明 image 输入 | 换视觉模型或用 `mode:"vision"` |
@@ -334,7 +337,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（17/17 JS）
-npm test                           # 14 套离线测试，281 个断言
+npm test                           # 18 套离线测试，333 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -344,13 +347,14 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
 ```
 
-`npm test` 的 14 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.coords / key.xaml / menu.receipt / eval-safety / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 18 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / delivery.failures / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 
 | 文档 | 读者 | 内容 |
 |---|---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 贡献者 | 模块、工具面、请求/观察流水线、投递链、快照状态机、扩展指南 |
+| [docs/RUNTIME-PIPELINE.md](docs/RUNTIME-PIPELINE.md) | 贡献者/排障 | 宿主→插件→驱动→session→eval 的完整链路、失败语义、日志解码 |
 | [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md) | 升级审查 | dsh 0.2.2 契约矩阵、P0/P1 兼容缺口、升级顺序 |
 | [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 用户/贡献者 | 完整性级别、前台锁、输入通道、坐标/DPI、清理规则、冒烟矩阵 |
 | [docs/TESTING.md](docs/TESTING.md) | 贡献者 | 离线/真机/评测三层测试、断言清单、排障与新增测试 |
