@@ -2,7 +2,7 @@
 
 > 范围：本插件在 **dsh 0.2.2-rc.1** 上的清单/加载、工具契约、宿主服务、执行上下文、PTC 工具面与评测工具链。
 > 环境：Windows 11 x64 · dsh `0.2.2-rc.1` · `@deepseek-ai/dsh-tools 0.2.2-rc.1` · `schemastery 3.19.0` · cua-driver 0.23.2。
-> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 22 套 419 断言 + S4 数据。
+> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 22 套 457 断言 + S4 数据。
 
 ## 1. 结论
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | **P0** | `computer_task` 只认 `ctx.subagents.start()`，0.2.2 只有 `startActivation()` | ✅ 已改为 `startActivation`；真机成功拉起子 agent 并返回结构化结果 |
 | **P1** | 默认 `visionModel` 不在 0.2.2 模型目录 | ✅ 默认 `deepseek-flash`；真机 vision 成功 |
-| **P1** | `nativeImage:auto` 未覆盖 `maxImageDimension`/`maxImagePixels` | ✅ 已纳入 compact 判定；单测覆盖 |
+| **P1** | `nativeImage:auto` 未覆盖 `maxImageDimension`/`maxImagePixels` | ✅ 已纳入超限判定；驱动 0.23.2 不能整窗 zoom，超限明确失败；单测覆盖 |
 | **P1** | PTC 工具面未验证 | ✅ `run_code` 内 `computer_do` 与 native 图片均真机通过 |
 | **P2** | `toolFilter` 文案/工具描述仍暗示可限制 | ✅ 已改为“宿主能力相关”，0.2.2 明确无此参数 |
 | **P2** | `dsh.compatibility.dsh` 无上限 | ✅ 改为 `>=0.2.2-rc.1 <0.3.0` |
@@ -71,9 +71,9 @@ computer_task(goal="只回复 OK，不要操作桌面", timeout_min=2)
 
 ### P1 — 附件 dimension/pixels
 
-- `lib/observe.js` `commitScreenshot` 的 compact 判定现在覆盖：字节数、单边 `maxImageDimension`、总像素 `maxImagePixels`。
-- `nativeImage:auto` 超限走整窗 zoom JPEG；`full` 仍尊重用户显式原图选择。
-- 单测 N1：4000×3000 截图 + `maxImageDimension=1000` → `zoom` 被调用，native 结果 compact。
+- `lib/observe.js` `commitScreenshot` 的判定现在覆盖：字节数、单边 `maxImageDimension`、总像素 `maxImagePixels`。
+- cua-driver 0.23.2 的 `zoom` 只能裁 ≤500px 宽区域，无法整窗缩放；`nativeImage:auto/compact` 超限时明确失败并提示 ax/vision 或 `screen_zoom`，不再假装 compact。
+- 单测 N1：4000×3000 截图 + `maxImageDimension=1000` → 明确失败、零 `zoom` 调用。
 
 ### P1 — PTC 真机验证
 
@@ -109,7 +109,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 | PTC + `computer_task` | `tools.computer_do({action:'call',tool:'computer_task',...})` 成功拉起子 agent；直接 `tools.computer_task` 为 `undefined`（SDK 只绑定可见工具，预期行为） |
 | `computer_task` | 0.2.2 `startActivation` 真机拉起子 agent，返回结构化 `OK`，dispose 正常 |
 | 桌面动作 smoke | 两轮 **7/8**（Round 2 4/4；`wa2` 对时间预算敏感） |
-| 离线契约 | 22 套 **419** 断言；schema 22 工具 / 44 场景 |
+| 离线契约 | 22 套 **457** 断言；schema 22 工具 / 44 场景 |
 | S4 oracle | 10/10（含 `x1`） |
 | 打包 | 37 文件（新增 compat 报告 + keyFallback + loopGuard + RUNTIME-PIPELINE + trajectory + windowMap） |
 
@@ -124,7 +124,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 ## 6. 复现命令
 
 ```bash
-npm test; echo "test=$?"                 # 419 断言
+npm test; echo "test=$?"                 # 457 断言
 npm run check; echo "check=$?"           # 20/20
 node verify-runtime.mjs                  # 17/17
 node evals/headless-run.mjs --tier smoke --timeout-min 10

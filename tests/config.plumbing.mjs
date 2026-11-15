@@ -289,13 +289,18 @@ const observeArgs = { window: '4242', mode: 'ax' }
   check('B10 maxTaskCalls=1 第二次委派被拒', first.ok === true && second.ok === false && /上限/.test(second.result), `started=${started}`)
 }
 
-// B11 visionProvider/visionModel/nativeImage：观察者路由与紧凑图标注
+// B11 visionProvider/visionModel/nativeImage：观察者路由；compact 明确不可用
 {
-  const t = await freshConfig({ visionProvider: 'sentinel-provider', visionModel: 'sentinel-model', nativeImage: 'compact' })
+  const t = await freshConfig({ visionProvider: 'sentinel-provider', visionModel: 'sentinel-model', nativeImage: 'full' })
   const v = await t.call('screen_observe', { window: '4242', mode: 'vision' })
   const txt = t.raw(v)
   check('B11 visionProvider/visionModel 决定观察者', txt.includes('sentinel-provider/sentinel-model'), txt.slice(0, 80))
-  check('B11 nativeImage=compact 走紧凑图', txt.includes('紧凑图'), txt.slice(0, 80))
+
+  const tc = await freshConfig({ nativeImage: 'compact' })
+  const vc = await tc.call('screen_observe', { window: '4242', mode: 'native' })
+  const txtc = tc.raw(vc)
+  check('B11 nativeImage=compact 不再假装紧凑图', vc.ok === false
+    && /紧凑截图不可用/.test(String(vc.result || '')) && !/紧凑图）/.test(txtc), txtc.slice(0, 120))
 }
 
 console.log(`\n结果：${state.failures ? '❌ ' + state.failures + ' 项失败' : '✅ 全部通过'}`)

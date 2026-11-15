@@ -30,13 +30,15 @@ export async function cuaDeliver(tool, payload) { return { value: await cuaCall(
 
 const DOC = { pid: 42, window_id: 8, app_name: 'Stub', title: 'Doc - Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5, is_on_screen: true }
 const HELPER = { pid: 42, window_id: 7, app_name: 'Stub', title: 'Stub', bounds: { x: 0, y: 0, width: 223, height: 32 }, z_index: 0, is_on_screen: true }
+const OVERLAY = { pid: 99, window_id: 99, app_name: 'cua-driver.exe', title: 'Cua.AgentCursorOverlay.default', bounds: { x: 0, y: 0, width: 5120, height: 1600 }, z_index: 99, is_on_screen: true }
+const CODEX_OVERLAY = { pid: 98, window_id: 98, app_name: 'codex-computer-use.exe', title: 'Codex Computer Use Cursor Overlay', bounds: { x: 0, y: 0, width: 5120, height: 1600 }, z_index: 98, is_on_screen: true }
 
 export async function cuaCall(tool, args = {}) {
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
     case 'list_windows': {
       const noBounds = process.env.CUA_NO_BOUNDS === '1'
-      return { windows: [HELPER, noBounds ? { ...DOC, bounds: undefined } : DOC] }
+      return { windows: [HELPER, noBounds ? { ...DOC, bounds: undefined } : DOC, OVERLAY, CODEX_OVERLAY] }
     }
     case 'get_window_state': {
       const win = Number(args.window_id) === Number(DOC.window_id) ? DOC : HELPER
@@ -94,6 +96,15 @@ try {
 } finally {
   delete process.env.CUA_NO_BOUNDS
 }
+
+// 4. agent overlay 不是可选目标
+call = await fresh()
+o = await call('screen_observe', { mode: 'ax' })
+check('C12: 无参数不选 agent overlay', o.ok === true && o.window?.windowId !== 99, `windowId=${o.window?.windowId}`)
+o = await call('screen_observe', { window: 'Cua.AgentCursorOverlay.default', mode: 'ax' })
+check('C13: 显式 overlay 被拒绝', o.ok === false && /覆盖层/.test(String(o.result || '')), String(o.result || '').slice(0, 80))
+o = await call('screen_observe', { window: 'Codex Computer Use Cursor Overlay', mode: 'ax' })
+check('C14: Codex overlay 也被拒绝', o.ok === false && /覆盖层/.test(String(o.result || '')), String(o.result || '').slice(0, 80))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

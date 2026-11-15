@@ -121,7 +121,9 @@ function session(mode) {
   await s.call('screen_observe', { window: 'Stub' })
   r = await s.call('computer_do', { action: 'call', tool: 'screen_zoom', args: { pid: 42, window_id: 7, x1: 0, y1: 0, x2: 100, y2: 80 } })
   check('A15 screen_zoom 图片经 dispatcher 透传', r.ok === true && r.image && String(r.image.mediaType).startsWith('image/'), `ok=${r.ok} image=${r.image ? r.image.mediaType : 'none'} result=${String(r.result).slice(0, 80)}`)
-  check('A15b screen_zoom data 保留 crop/scale', r.data && r.data.crop && typeof r.data.crop.scale === 'number', JSON.stringify(r.data))
+  check('A15b screen_zoom data 保留 crop/fromZoom/坐标空间', Boolean(r.data && r.data.crop
+    && r.data.crop.x === 0 && r.data.crop.y === 0 && r.data.fromZoom === true
+    && r.data.coordinateSpace === 'zoom-image-px' && !('scale' in r.data.crop)), JSON.stringify(r.data))
   const apps = await s.call('computer_do', { action: 'call', tool: 'app_list', args: {} })
   check('A15c app_list data 保留 apps', apps.ok === true && Array.isArray(apps.data?.apps), JSON.stringify(apps.data))
   const blocks = s.reg.get('computer_do').output.render({}, r)

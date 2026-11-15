@@ -8,6 +8,43 @@
 
 **2026-11-14：t01 复盘——坐标一致性、菜单未确认、XAML 组合键回退、eval 清理安全化**
 
+**2026-11-15：观察真值与 t05 模态隔离——overlay 过滤、快照连续性、zoom from_zoom、compact 明确失败、同 pid 对话框清理**
+
+**2026-11-16：输入回读与保存门禁——阻止部分输入/错字后误保存；Codex overlay、菜单提示、app_launch 语义**
+
+### 2026-11-16 Added
+
+- **输入回读**：`computer_type`/`computer_set_value` 在投递失败、unverified、suspected_noop 或已有未确认输入时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 逐字比较（CRLF 归一；set_value 精确、type 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文。
+- **`inputUnconfirmed` 保存门禁**：状态独立于 snapshot，跨刷新存活；`guard` 只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径），允许 type/set_value、Ctrl+A/C/V/X/Z 和非保存点击。回读一致、同窗口 native observe 或 screen_zoom 清除。
+- **`tests/action.echo.mjs` E15-E20**：输入回读一致/不一致/无法回读、保存门禁、修正解除、set_value 回读、Document 正文不泄露。`observe.truth` T17-T19：Document 正文隐藏、顶层菜单栏不误报、真正弹出菜单才提示。`observe.coords` C14：Codex overlay 拒绝。`tools.smoke` G2d/G2e：menu 路径分隔/顶层编号指引。
+
+### 2026-11-16 Fixed
+
+- **`computer_type` 部分输入后被按字符数误判成功**：t01 r2 无 element type → synthetic_events → delivery_failed，界面出现 33 字符但内容损坏；现在回读不一致会设置 inputUnconfirmed，保存被阻止，模型必须修正或 native/zoom 核对。
+- **Codex overlay 仍被默认观察**：`isAgentOverlayWindow` 增加 `codex-computer-use`、`Codex Computer Use Cursor Overlay`、包含 `cursor overlay` 的标题。
+- **顶层菜单栏误报“菜单已打开”**：只统计非顶层菜单栏的 MenuItem；真正的弹出菜单才提示。
+- **Document 正文可经 label 回退泄露**：Document/AXTextArea 不再用 value 充当 label。
+- **`app_launch` 启动成功但前置失败被当成启动失败**：`ok` 只看启动；前置失败写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）。Windows `creates_new_instance` 描述为 no-op。
+- **`set_value` 回执暗示已持久化**：增加 ValuePattern 可能不置脏的说明；不再给无效的 foreground=true 建议，改提示用 computer_type 重试。
+- **menu 字符串路径**：接受 `"文件/保存"`；`menu_path_unavailable` 时给出快照里顶层菜单栏项编号。
+- **验证**：离线 22 套 / 457 断言全绿；`verify-oracles` 10/10；t01 ×3 **3/3 pass**（99/9/10 步）、t05 ×3 **3/3 pass**（26/28/19 步，dirty=false、TabState restored）；`from_zoom` 真机探针 crop 160×100 → 图 224×140，图中心点击成功写 marker。
+
+### 2026-11-15 Added
+
+- **`from_zoom`**（click/double/right）：`screen_zoom` 后可直接把图内坐标交给 `computer_click(x,y,from_zoom=true)`，由驱动按 padding/缩放映射回窗口坐标；插件按 pid 记录最近 zoom，要求同 pid/window 且晚于当前观察。`computer_type` 不提供该参数。
+- **`Get-ModalTestWindows`**（eval）：在直接 `GW_OWNER` 之外，用 owner 链或“主窗 disabled + `GetLastActivePopup`”证明同 pid 顶层对话框归属；`Close-TestNotepad`/`Dismiss-TestSavePrompt` 只处理已证明的测试模态窗，标题只用于报告。
+- **`tests/posture.smoke.mjs` F3/F4**：只传 `window_id` 时 zoom 仍带 resolved pid；>500px 宽在插件侧快速失败。**`human.click` H9-H11**：from_zoom 映射/零滑行/缺失与跨窗口拒绝。**`observe.coords` C12/C13**：overlay 不入选/显式拒绝。
+
+### 2026-11-15 Fixed
+
+- **agent 光标覆盖层污染观察目标**：`pickObserveTarget` 过滤 `Cua.AgentCursorOverlay*`，候选列表同样不列；显式指定给专门错误。t01 r3 曾连续 4 次观察它并清掉有效快照。
+- **失败观察清空有效快照**：`picked.notFound` 与不同窗口的桌面降级/`mode.fail` 保留旧快照并提示仍有效；只有同 pid/window 失败才清空。
+- **`screen_zoom` 丢 resolved pid**：只传 `window_id` 时首次 zoom 不再报 `Missing required integer field pid`；目标不存在或 pid/window 不匹配 fail closed。
+- **zoom 坐标映射偏移**：驱动 0.23.2 会加约 20% padding 并在超 500px 时缩放；插件不再用请求 crop 手算 `scale`，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，`crop` 仅表示请求区域。
+- **native/compact 整窗 zoom 不可实现**：驱动请求区域宽上限 500px；`nativeImage=auto/compact` 超限时明确失败并提示 ax/vision 或 `screen_zoom`，不再假装 compact 成功。
+- **t05 同 pid 另存为对话框残留**：cleanup 现在能识别并关闭已证明归属的 WinUI 文件对话框，避免 `dirty=true` 与 TabState restore 被残留 Notepad 阻塞。
+- **投递/边界加固**：keyFallback token 点击补 `window_id`；app_launch 前置选 `launched.windows` 的可见主窗；`engineRefusal` 识别 `ok:false/success:false/supported:false/error_code`；clipboard `supported:false` 不再假成功；restoreForeground 用全量 `list_windows` 查 pid；`refreshSnapshotState` 使用快照 `maxElements` 并把同编号 role 变化视为结构性变化。
+
 ### 2026-11-14 Added
 
 - **`xamlKeyFallback`（实验性，默认 `off`）**：XAML/WinUI 组合键失败后，`auto` 可对白名单组合（ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o）自动“点唯一菜单栏项 → 轮询弹出菜单 → 点唯一 enabled 菜单项”；全部 token 点击、后台投递，歧义/缺失即停，不自动处理另存为/覆盖对话框。默认 off 时只返回可执行控件指引。

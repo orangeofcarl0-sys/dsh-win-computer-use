@@ -59,8 +59,8 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 | 驱动元素 `frame` | 屏幕物理像素 | A6 复核：标题栏 y=806 vs 窗口原点 y=780 |
 | `get_window_state` 截图 | 窗口 `bounds` 的 1:1 物理像素裁剪 | 同窗口 bounds 1906×1166 == 截图 1906×1166 |
 | `screen_observe` 输出 `@(x,y)` | window-screenshot-px | 已在输出时减去 `screenOrigin`；可直接点击 |
-| `screen_zoom` 图内坐标 | crop-local px | `× crop.scale + crop.x/y` = window-screenshot-px |
-| `screen_zoom` 输出图 | 驱动恒定约 1.2× 上采样；裁剪宽 ≤500px | `scale` 以驱动返回图尺寸为准，不要用附件归一化尺寸 |
+| `screen_zoom` 图内坐标 | zoom-image-px | 直接 `computer_click(x=,y=,from_zoom=true)`；驱动按 padding/缩放映射，插件不再手算 |
+| `screen_zoom` 输出图 | 请求区域宽 ≤500px；驱动自动加约 20% padding，超 500px 时缩放 | 结果带 `fromZoom=true`；`crop` 只是请求区域，不是换算基准 |
 
 `screen_observe` 的文本行 `@(x,y)` 与结构化 `elements[].x/y` 必须完全一致，都是减过 `screenOrigin` 的点击空间；2026-11-14 t01 的“反复定位”根因就是文本行漏了换算。取不到窗口 `bounds` 时不会假装可点击：头部会标注“屏幕物理像素，不要直接用于 computer_click”，`coordinateSpace` 为 `screen-physical-px`。
 
@@ -72,7 +72,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 ## 5. 观察与结构密码扫描
 
-- `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建快照。
+- `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建新快照；如果已有新鲜旧快照，会明确提示它仍有效（只有同窗口失败才清空）。
 - 窗口级 `get_window_state` 失败 → `get_desktop_state` 桌面级降级：`mode=desktop-visual`、`visualOnly=true`，坐标是桌面像素，**不能直接用于窗口动作**。
 - `driverAccess` 来自 `check_permissions`（只读）：`elevated`、`integrityLevel`、`uia`、`postMessage`；结果头会显示权限面摘要。
 - `passwordScan: auto`（Windows）在观察时 spawn：

@@ -108,6 +108,8 @@ public static class S4W32 {
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetLastActivePopup(IntPtr h);
 }
 "@
 }
@@ -188,6 +190,40 @@ function Get-OwnedWindows([int]$Hwnd) {
     }
   }
   return @($out)
+}
+
+function Get-ModalTestWindows([int]$Hwnd, [int]$TargetPid) {
+  # Modal dialogs that can be proven to belong to the test window. Win11 Notepad's
+  # WinUI file dialog is a same-pid top-level window whose GW_OWNER may be 0; direct
+  # Get-OwnedWindows therefore misses it (2026-11-15 t05). Accept only:
+  #   1) direct/indirect owner chain reaches the test HWND; or
+  #   2) the test main window is disabled and GetLastActivePopup points at the candidate.
+  # Never select by title alone; title is for reporting only.
+  $out = @()
+  foreach ($d in @(Get-OwnedWindows $Hwnd)) { $out += $d }
+  $enabled = $true
+  try { $enabled = [bool][S4W32]::IsWindowEnabled([IntPtr]$Hwnd) } catch {}
+  $popup = 0
+  try { $popup = [int][S4W32]::GetLastActivePopup([IntPtr]$Hwnd) } catch {}
+  foreach ($w in @(Get-TopLevelWindows)) {
+    $h = [int]$w.hwnd
+    if ($h -le 0 -or $h -eq $Hwnd) { continue }
+    $p = 0
+    try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$h, [ref]$p) } catch {}
+    if ($TargetPid -gt 0 -and [int]$p -ne $TargetPid) { continue }
+    try { if (-not [S4W32]::IsWindowVisible([IntPtr]$h)) { continue } } catch {}
+    $proof = $false
+    $owner = [int][S4W32]::GetWindow([IntPtr]$h, 4)
+    for ($i = 0; $i -lt 8 -and $owner -ne 0; $i++) {
+      if ($owner -eq $Hwnd) { $proof = $true; break }
+      $owner = [int][S4W32]::GetWindow([IntPtr]$owner, 4)
+    }
+    if (-not $proof -and -not $enabled -and $popup -eq $h) { $proof = $true }
+    if ($proof) {
+      $out += [pscustomobject]@{ hwnd = $h; title = [string]$w.title }
+    }
+  }
+  return @($out | Sort-Object hwnd -Unique)
 }
 
 function Close-WindowUia([int]$Hwnd) {
@@ -484,12 +520,12 @@ function Open-TestNotepad {
   return $state
 }
 
-function Dismiss-TestSavePrompt([int]$Hwnd) {
-  # Click "Don't Save" (localized via code points) on a save-changes dialog owned by
-  # the test HWND. Only called after the tab allowlist has proven every tab is a
-  # test file; user tabs never reach this path.
+function Dismiss-TestSavePrompt([int]$Hwnd, [int]$TargetPid = 0) {
+  # Click "Don't Save" (localized via code points) on a proven modal dialog of the
+  # test window. Get-ModalTestWindows only returns windows whose ownership/modal
+  # relation to the test HWND is proven; title alone is never used for selection.
   $noSave = -join @([char]0x4E0D, [char]0x4FDD, [char]0x5B58)
-  foreach ($d in @(Get-OwnedWindows $Hwnd)) {
+  foreach ($d in @(Get-ModalTestWindows $Hwnd $TargetPid)) {
     try {
       $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$d.hwnd)
       $cond = New-Object System.Windows.Automation.PropertyCondition(
@@ -665,11 +701,13 @@ function Close-TestNotepad {
     $res.reason = 'modified document; left open'; $res.leftover = [string]$hit.title; return $res
   }
   # Close task-owned modal dialogs first. The tab check above already proved this
-  # window contains only unmodified test tabs, so an owned dialog cannot be holding
-  # user data. Without this, WM_CLOSE to the main window is ignored and the dialog
-  # survives the run (2026-11-15 t01 timeout left a Save As dialog on screen).
+  # window contains only unmodified test tabs, so a modal proven to belong to the
+  # test window cannot be holding user data. Same-pid WinUI dialogs (Save As) may
+  # have GW_OWNER=0; Get-ModalTestWindows adds the disabled-main/GetLastActivePopup
+  # proof. Without this, WM_CLOSE to the main window is ignored and the dialog
+  # survives (2026-11-15 t05).
   for ($pass = 0; $pass -lt 3; $pass++) {
-    $owned = @(Get-OwnedWindows ([int]$s.hwnd))
+    $owned = @(Get-ModalTestWindows ([int]$s.hwnd) ([int]$s.pid))
     if ($owned.Count -eq 0) { break }
     foreach ($d in $owned) {
       if (-not (Close-WindowUia ([int]$d.hwnd))) {
@@ -679,7 +717,7 @@ function Close-TestNotepad {
     $res.dialogsClosed = [int]$res.dialogsClosed + $owned.Count
     Start-Sleep -Milliseconds 500
   }
-  $stillOwned = @(Get-OwnedWindows ([int]$s.hwnd))
+  $stillOwned = @(Get-ModalTestWindows ([int]$s.hwnd) ([int]$s.pid))
   if ($stillOwned.Count -gt 0) {
     $res.reason = 'owned dialog did not close; left open'
     $res.leftover = (@($stillOwned | ForEach-Object { $_.title }) -join ' | ')
@@ -692,7 +730,7 @@ function Close-TestNotepad {
   for ($i = 0; $i -lt 3; $i++) {
     if (-not (Test-WindowAlive ([int]$s.hwnd))) { break }
     if (-not $AllowDiscardTestOnlyModified) { break }
-    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd))) { break }
+    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd) ([int]$s.pid))) { break }
     Start-Sleep -Milliseconds 800
   }
   $still = Test-WindowAlive ([int]$s.hwnd)
@@ -855,10 +893,15 @@ function Close-TestExplorer {
   $wpid = 0
   try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$s.hwnd, [ref]$wpid) } catch {}
   if ($s.pid -and $wpid -and ([int]$s.pid -ne [int]$wpid)) { $res.reason = "pid changed ($($s.pid) -> $wpid)"; return $res }
-  if (-not (Close-WindowUia ([int]$s.hwnd))) {
-    [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  # Explorer can take >800ms to finish its close animation; retry the state-scoped
+  # HWND a few times instead of reporting dirty on the first slow close (t03 flake).
+  for ($i = 0; $i -lt 4; $i++) {
+    if (-not (Test-WindowAlive ([int]$s.hwnd))) { $res.closed = $true; return $res }
+    if (-not (Close-WindowUia ([int]$s.hwnd))) {
+      [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    }
+    Start-Sleep -Milliseconds 800
   }
-  Start-Sleep -Milliseconds 800
   if (Test-WindowAlive ([int]$s.hwnd)) {
     $res.reason = 'close not confirmed'; $res.title = if ($w) { [string]$w.title } else { '' }
   } else { $res.closed = $true }
@@ -928,7 +971,7 @@ function Close-TestPaint {
   Start-Sleep -Milliseconds 800
   for ($i = 0; $i -lt 3; $i++) {
     if (-not (Test-WindowAlive ([int]$s.hwnd))) { break }
-    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd))) { break }
+    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd) ([int]$s.pid))) { break }
     Start-Sleep -Milliseconds 800
   }
   $still = Test-WindowAlive ([int]$s.hwnd)

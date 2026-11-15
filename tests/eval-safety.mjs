@@ -87,8 +87,8 @@ for (const id of ['t01', 't05', 't06', 't07', 't10']) {
 // 7. 模态对话框：只关 owned（GW_OWNER），且在最终 WM_CLOSE 之前
 check('S11: 存在 owned 对话框枚举', /function Get-OwnedWindows/.test(common) && /GetWindow\(\[IntPtr\]\$h, 4\)/.test(common))
 const closeFn = (common.match(/function Close-TestNotepad\s*\{[\s\S]*?\n\}/) || [''])[0]
-check('S12: Close-TestNotepad 先关 owned 对话框', /Get-OwnedWindows/.test(closeFn)
-  && closeFn.indexOf('Get-OwnedWindows') < closeFn.lastIndexOf('PostMessage'))
+check('S12: Close-TestNotepad 先关模态/owned 对话框', /Get-(ModalTest|Owned)Windows/.test(closeFn)
+  && closeFn.indexOf('Get-ModalTestWindows') < closeFn.lastIndexOf('PostMessage'))
 check('S13: 关闭走 UIA WindowPattern，WM_CLOSE 仅兜底', /function Close-WindowUia/.test(common)
   && /WindowPattern/.test(common) && closeFn.indexOf('Close-WindowUia') < closeFn.lastIndexOf('PostMessage'))
 for (const id of ['t01', 't05', 't06', 't07', 't10']) {
@@ -127,6 +127,21 @@ check('S19: t10 失败返回前先写 state', /Write-TestState/.test(t10Setup)
 const t04Setup = readFileSync(join(evals, 'setup', 't04.ps1'), 'utf8')
 check('S20: t04 setup 建目录并写 calculator state', /New-TaskDir/.test(t04Setup)
   && /test-calculator\.json/.test(t04Setup) && /Write-TestState/.test(t04Setup))
+
+// 9. 同 pid 模态对话框：必须证明归属，不能按标题/pid 裸关
+const modalFn = (common.match(/function Get-ModalTestWindows[^{]*\{[\s\S]*?\n\}/) || [''])[0]
+check('S21: 存在 Get-ModalTestWindows 且含 pid + 模态证明', modalFn.length > 0
+  && /GetWindowThreadProcessId/.test(modalFn)
+  && /IsWindowEnabled/.test(modalFn)
+  && /GetLastActivePopup/.test(modalFn)
+  && /GetWindow\(\[IntPtr\]\$owner, 4\)/.test(modalFn), modalFn.slice(0, 120))
+check('S22: Close-TestNotepad 使用模态窗口判定', /Get-ModalTestWindows/.test(closeFn)
+  && closeFn.indexOf('Get-ModalTestWindows') < closeFn.lastIndexOf('PostMessage'))
+check('S23: 模态判定不按标题单独关窗', modalFn.length > 0
+  && !/另存为|Save As|保存/.test(modalFn))
+const dismissFn = (common.match(/function Dismiss-TestSavePrompt[^{]*\{[\s\S]*?\n\}/) || [''])[0]
+check('S24: 保存提示只处理已证明模态窗', /Get-ModalTestWindows/.test(dismissFn)
+  && /noSave|Don.t Save/.test(dismissFn))
 
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

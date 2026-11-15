@@ -153,10 +153,23 @@ const fakeLlm = { resolveModelInfo: async () => ({ inputModalities: ['image', 't
 const ctxZoom = { get: (k) => (k === 'attachments' ? fakeAtt : k === 'llm' ? fakeLlm : null) }
 const execZoom = { agent: { options: { provider: 'p', model: 'm' } } }
 const z = await screenZoom(ctxZoom, { pid: 1, window_id: 2, x1: 100, y1: 200, x2: 200, y2: 280 }, cfg, execZoom)
-check('F1: zoom 返回 crop 元数据（原点+尺寸）+ window-screenshot-px', z.ok === true && z.crop?.x === 100 && z.crop?.y === 200 && z.crop?.w === 100 && z.crop?.h === 80 && z.coordinateSpace === 'window-screenshot-px')
-check('F2: crop.scale = 裁剪宽/返回图宽 = 2', z.crop?.scale === 2 && /定位用法/.test(z.result || ''))
+check('F1: zoom 返回请求 crop + zoom-image-px', z.ok === true && z.crop?.x === 100 && z.crop?.y === 200 && z.crop?.w === 100 && z.crop?.h === 80
+  && z.fromZoom === true && z.coordinateSpace === 'zoom-image-px', JSON.stringify(z.crop))
+check('F2: from_zoom 指引且不再输出手工 scale', z.fromZoom === true && !('scale' in (z.crop || {}))
+  && /from_zoom=true/.test(z.result || '') && /padding/.test(z.result || ''), String(z.result || '').slice(0, 120))
 
-// N. dsh 0.2.2 附件限额：maxImageDimension 超限时 native auto 必须走 compact
+const zNoPid = await screenZoom(ctxZoom, { window_id: 2, x1: 0, y1: 0, x2: 100, y2: 80 }, cfg, execZoom)
+const lastZoom = [...history].reverse().find((h) => h.tool === 'zoom') || {}
+check('F3: 只传 window_id 时 zoom 仍带 resolved pid', zNoPid.ok === true && lastZoom.args?.pid === 1,
+  JSON.stringify(lastZoom.args || null))
+const zoomBeforeWide = history.filter((h) => h.tool === 'zoom').length
+const zWide = await screenZoom(ctxZoom, { pid: 1, window_id: 2, x1: 0, y1: 0, x2: 600, y2: 100 }, cfg, execZoom)
+const zoomAfterWide = history.filter((h) => h.tool === 'zoom').length
+check('F4: >500px 宽在插件侧快速失败（零驱动调用）', zWide.ok === false
+  && /500px/.test(zWide.result || '') && zoomAfterWide === zoomBeforeWide,
+  `zoom ${zoomBeforeWide}->${zoomAfterWide} ${String(zWide.result || '').slice(0, 80)}`)
+
+// N. dsh 0.2.2 附件限额：cua-driver 0.23.2 不能整窗 zoom，compact 必须明确失败
 const nativeAtt = {
   imageLimits: { maxImageBytes: 5 * 1024 * 1024, maxImageDimension: 1000, maxImagePixels: 4_000_000 },
   saveImage: async (o) => ({ attachmentId: 'a-native', mediaType: o.mediaType, bytes: o.data.length, width: 50, height: 40, name: o.name }),
@@ -167,9 +180,9 @@ const execNative = { agent: { options: { provider: 'p', model: 'm' } } }
 const beforeZoom = history.filter((h) => h.tool === 'zoom').length
 const n = await screenObserve(ctxNative, { mode: 'native', force: true }, { ...cfg, nativeImage: 'auto' }, execNative)
 const afterZoom = history.filter((h) => h.tool === 'zoom').length
-check('N1: native 超 maxImageDimension 自动 compact（走 zoom）',
-  n.ok === true && n.mode === 'native' && n.image?.attachmentId === 'a-native' && afterZoom > beforeZoom,
-  `zoom ${beforeZoom}->${afterZoom}`)
+check('N1: native 超限不再假装 compact（明确失败、零 zoom）',
+  n.ok === false && /紧凑截图不可用/.test(n.result || '') && afterZoom === beforeZoom,
+  `zoom ${beforeZoom}->${afterZoom} result=${String(n.result || '').slice(0, 80)}`)
 
 // E. 姿态结构断言（源码级：无 permissionMode 残留、默认值翻转、无 approval 残留）
 const yml = readFileSync(join(root, 'cordis.patch.yml'), 'utf8')

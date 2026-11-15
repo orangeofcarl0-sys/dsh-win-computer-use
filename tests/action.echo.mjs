@@ -25,8 +25,9 @@ export function isUnverified(v) {
 }
 export function deliveryFailure() { return null }
 
-export const es = { title: 's4-t01-seed.txt - Notepad', status: '0 个字符' }
+export const es = { title: 's4-t01-seed.txt - Notepad', status: '0 个字符', role: 'Button', body: '' }
 export const clicks = []
+export const frontCalls = []
 const WINDOW = () => ({
   pid: 42, window_id: 7, app_name: 'Notepad', title: es.title,
   bounds: { x: 0, y: 0, width: 800, height: 600 }, z_index: 5, is_on_screen: true,
@@ -39,14 +40,34 @@ export async function cuaDeliver(tool, payload) {
   if (tool === 'click' && process.env.CUA_UNVERIFIED === '1') {
     return { value: { ok: true, effect: 'unverifiable', delivery: { mode: payload.delivery_mode || 'background' } }, note: '' }
   }
+  if (tool === 'type_text') {
+    const mode = process.env.CUA_INPUT_MODE || 'good'
+    if (mode === 'good') es.body = String(payload.text || '')
+    else if (mode === 'corrupt') es.body = String(payload.text || '').replace('line ', ' ')
+    // mode=none: 保持原正文，模拟部分/未送达
+    const unverified = process.env.CUA_UNVERIFIED === '1' || mode !== 'good'
+    return {
+      value: unverified
+        ? { ok: true, effect: 'unverifiable', delivery: { mode: payload.delivery_mode || 'background' } }
+        : { ok: true, effect: 'confirmed', delivery: { mode: payload.delivery_mode || 'background' } },
+      note: '',
+    }
+  }
   return { value: { ok: true, effect: 'confirmed', delivery: { mode: payload.delivery_mode || 'background' } }, note: '' }
 }
 export async function cuaCall(tool, args = {}) {
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
     case 'list_windows': return { windows: [WINDOW()] }
-    case 'launch_app': return { pid: 123, running: true, active: false }
+    case 'launch_app': return {
+      pid: 123, running: true, active: false,
+      windows: [
+        { window_id: 78, is_on_screen: false, minimized: true, title: 'hidden' },
+        { window_id: 77, is_on_screen: true, minimized: false, title: 'main' },
+      ],
+    }
     case 'bring_to_front': {
+      frontCalls.push(args)
       if (process.env.CUA_LAUNCH_MODE === 'refused') return { ok: true, effect: 'refused', code: 'foreground_unavailable' }
       return { ok: true, effect: 'confirmed' }
     }
@@ -54,9 +75,10 @@ export async function cuaCall(tool, args = {}) {
       const els = [
         { element_index: 0, element_token: 'save', role: 'Button', label: '保存(S)', frame: { x: 700, y: 500, w: 0, h: 0 }, enabled: true },
         { element_index: 1, element_token: 'yes', role: 'Button', label: '是(Y)', frame: { x: 357, y: 171, w: 0, h: 0 }, enabled: true },
-        { element_index: 2, element_token: 'no', role: 'Button', label: '否(N)', frame: { x: 465, y: 171, w: 0, h: 0 }, enabled: true },
+        { element_index: 2, element_token: 'no', role: es.role, label: '否(N)', frame: { x: 465, y: 171, w: 0, h: 0 }, enabled: true },
         { element_index: 3, element_token: 'name', role: 'Edit', label: '文件名:', value: 's4-t01-seed.txt', frame: { x: 400, y: 300, w: 200, h: 30 }, enabled: true },
         { element_index: 4, element_token: 'status', role: 'Text', label: es.status, frame: { x: 100, y: 550, w: 100, h: 20 } },
+        { element_index: 5, element_token: 'doc', role: 'Document', label: '文本编辑器', value: es.body, frame: { x: 100, y: 100, w: 600, h: 400 } },
       ]
       return {
         window: WINDOW(), elements: els, element_count: els.length,
@@ -64,6 +86,12 @@ export async function cuaCall(tool, args = {}) {
       }
     }
     case 'get_desktop_state': return { screenshot_width: 800, screenshot_height: 600 }
+    case 'set_value': {
+      const mode = process.env.CUA_INPUT_MODE || 'good'
+      if (mode === 'good') es.body = String(args.value || '')
+      else if (mode === 'corrupt') es.body = String(args.value || '').slice(0, -2)
+      return { ok: true, effect: process.env.CUA_UNVERIFIED === '1' ? 'unverifiable' : 'confirmed' }
+    }
     default: return { ok: true }
   }
 }
@@ -134,8 +162,10 @@ process.env.CUA_LAUNCH_MODE = 'refused'
 const launched = await call('computer_do', {
   action: 'call', tool: 'app_launch', args: { name: 'Stub', bring_to_front: true },
 })
-check('E9: app_launch 前置被拒 → ok:false + 前置未确认', launched.ok === false
-  && /前置未确认/.test(raw(launched)) && !/已前置/.test(raw(launched)), raw(launched))
+check('E9: app_launch 启动成功但前置被拒 → ok:true + 前置未确认', launched.ok === true
+  && /启动成功，但前置未确认/.test(raw(launched)) && !/已前置/.test(raw(launched)), raw(launched))
+check('E9b: app_launch 前置带可见主窗 window_id', stub.frontCalls[0]?.window_id === 77,
+  JSON.stringify(stub.frontCalls[0] || null))
 delete process.env.CUA_LAUNCH_MODE
 
 // 9. stale_element_token：清空旧快照，下一次动作必须重新观察
@@ -164,6 +194,83 @@ const v2 = await call('computer_click', { element: 2, snapshot_id: obs.snapshotI
 delete process.env.CUA_UNVERIFIED
 check('E13: 未变化复核提示不要重复', v2.ok === true
   && /动作后复核/.test(raw(v2)) && /未观察到变化/.test(raw(v2)), raw(v2))
+
+;({ call, obs } = await fresh({ verifyAfterAction: 'auto', actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+stub.es.role = 'Edit'
+const v3 = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
+delete process.env.CUA_UNVERIFIED
+stub.es.role = 'Button'
+const afterStruct = await call('computer_click', { element: 2 })
+check('E14: 复核发现同编号 role 变化 → 清快照', /界面结构已变化/.test(raw(v3))
+  && afterStruct.ok === false && /snapshot_missing/.test(String(afterStruct.result || '')), raw(v3))
+
+// 11. 输入回读 + 保存门禁（t01 r2 类：部分/错字输入后不能保存）
+const TEXT = 'S4-T01 line one.\nS4-T01 line two.'
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+process.env.CUA_INPUT_MODE = 'good'
+const typedGood = await call('computer_type', { text: TEXT })
+delete process.env.CUA_INPUT_MODE
+delete process.env.CUA_UNVERIFIED
+const saveAfterGood = await call('computer_click', { element: 0 })
+check('E15: 输入回读一致 → 可保存', typedGood.ok === true && /输入回读：一致/.test(raw(typedGood))
+  && saveAfterGood.ok === true, raw(typedGood))
+
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+process.env.CUA_INPUT_MODE = 'corrupt'
+const typedBad = await call('computer_type', { text: TEXT })
+const saveBad = await call('computer_click', { element: 0 })
+const keyBad = await call('computer_key', { key: 'ctrl+s' })
+const menuBad = await call('computer_do', { action: 'call', tool: 'computer_menu', args: { window_id: 7, path: ['文件', '保存'] } })
+const axObs = await call('screen_observe', { window_id: 7, mode: 'ax' })
+const saveAfterAx = await call('computer_click', { element: 0 })
+delete process.env.CUA_INPUT_MODE
+delete process.env.CUA_UNVERIFIED
+check('E16: 输入回读不一致 → 保存类动作被拒', typedBad.ok === true && /输入回读：不一致/.test(raw(typedBad))
+  && saveBad.ok === false && /input_unconfirmed/.test(raw(saveBad))
+  && keyBad.ok === false && /input_unconfirmed/.test(raw(keyBad))
+  && menuBad.ok === false && /input_unconfirmed/.test(raw(menuBad)), raw(saveBad))
+check('E17: 普通 ax observe 不清除输入门禁', axObs.ok === true && saveAfterAx.ok === false && /input_unconfirmed/.test(raw(saveAfterAx)), raw(saveAfterAx))
+
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+process.env.CUA_INPUT_MODE = 'corrupt'
+await call('computer_type', { text: TEXT })
+process.env.CUA_INPUT_MODE = 'good'
+const corrected = await call('computer_type', { text: TEXT })
+const saveCorrected = await call('computer_click', { element: 0 })
+delete process.env.CUA_INPUT_MODE
+delete process.env.CUA_UNVERIFIED
+check('E18: 修正后回读一致 → 解除保存门禁', corrected.ok === true && /输入回读：一致/.test(raw(corrected))
+  && saveCorrected.ok === true, raw(corrected))
+
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+process.env.CUA_INPUT_MODE = 'corrupt'
+const svBad = await call('computer_do', { action: 'call', tool: 'computer_set_value', args: { element: 5, value: 'abc' } })
+const saveAfterSv = await call('computer_click', { element: 0 })
+delete process.env.CUA_INPUT_MODE
+delete process.env.CUA_UNVERIFIED
+check('E19: set_value 回读不一致 → 保存被拒', svBad.ok === true && /输入回读：不一致/.test(raw(svBad))
+  && saveAfterSv.ok === false && /input_unconfirmed/.test(raw(saveAfterSv)), raw(svBad))
+
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+process.env.CUA_INPUT_MODE = 'good'
+const svGood = await call('computer_do', { action: 'call', tool: 'computer_set_value', args: { element: 5, value: 'abc' } })
+delete process.env.CUA_INPUT_MODE
+delete process.env.CUA_UNVERIFIED
+const saveAfterSvGood = await call('computer_click', { element: 0 })
+check('E19b: set_value 回读一致 → 可保存', /输入回读：一致/.test(raw(svGood))
+  && saveAfterSvGood.ok === true, raw(svGood))
+
+// 12. Document 正文不出现在模型可见树/回执
+;({ call, obs } = await fresh())
+stub.es.body = 'SECRET-BODY-123'
+const docObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+check('E20: Document 正文不泄露到 observation', docObs.ok === true && !/SECRET-BODY-123/.test(raw(docObs)), raw(docObs).slice(0, 160))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

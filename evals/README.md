@@ -29,7 +29,7 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 | id | 任务 | 被测能力 | 预置 | 基线步数 |
 |---|---|---|---|---|
 | t03 | 资源管理器重命名文件 | 就地文件操作 | 资源管理器已停在目标目录 | 59（timeout） |
-| t05 | 另存为 + ANSI 编码 | **另存为对话框/编码下拉（最大缺口）** | 源文件已用记事本打开 | 50（timeout） |
+| t05 | 另存为 + ANSI 编码 | 另存为对话框/编码下拉（长尾能力缺口） | 源文件已用记事本打开 | 50（旧失败样本）；最新 3/3 pass（26/28/19 步） |
 | t06 | 剪贴板粘贴保存 | 剪贴板链路 | 剪贴板已置 + 空白记事本已开 | 57（timeout） |
 | t09 | 画图填充纯红并保存 | 图形表面 + 像素级 oracle | 画图已开 | 57（timeout） |
 | t10 | 两文档内容互换 | **多文档/多窗口状态管理（最大缺口）** | 两文件已载入记事本 | 48（timeout） |
@@ -88,8 +88,8 @@ evals/
 - **Win11 记事本上驱动的三条输入通道都可能不可达**（2026-09-16 受控窗口实测 + 2026-11-14 t01）：`hotkey` 走 UIA 加速器扫描 → 4s 超时，或 `could not find a UIA AcceleratorKey`（保存/全选等命令在关闭菜单里）；`press_key`（PostMessage）不报错但 `effect:unverifiable`、目标无反应；`invoke_menu` 返回 `menu_path_unavailable`（XAML 菜单驱动走不到），且 `["文件"]` 可能只回 `unverifiable` 而菜单没开。→ 依赖 Ctrl+S 保存的任务（t01/t05/t06/t10）在该目标上要走“点菜单栏项 → 观察弹出菜单 → 点菜单项”。插件已把两类 hotkey 失败翻译成可执行指引；`xamlKeyFallback: auto`（默认 off）可实验性自动完成“开菜单→点项”，歧义/缺失即停；`computer_menu` 的 `unverifiable` 不再报成功。
 - **记事本进程会被复用**：`notepad.exe` 单进程多标签，自己起的实例可能被用户后续打开的文件占用 → 清理测试窗口要按**标题**匹配，不要按进程名杀（2026-09-16 实测：我的测试进程被用户文档复用）。
 - **2026-11-15 Notepad 标签级安全化**：`Open-TestNotepad`/`Close-TestNotepad` 不再只看“新 HWND”或活动标题 `*`。Win11 会把 `TabState/*.bin` 恢复进新窗口——2026-11-14 的 t01 窗口实际有 8 个标签（2 个用户已修改文档 + 6 个测试文件）。现在必须用 UIA `TabItem` 校验精确 ExpectedTabs、无额外/已修改/未知后缀；任何不符 setup fail closed，cleanup 留窗并写 `~/.dsh/s4-evals/_leftovers/`。`Close-TaskWindows` 删除默认 Notepad/无标题/记事本 needles，调用必须带显式模式；`tests/eval-safety.mjs` + `tests/notepad-tabs.test.mjs` 守门。
-- **2026-11-15 轨迹驱动第二轮（模态对话框 + dirty）**：`Close-TestNotepad` 在标签校验通过后，先关闭 GW_OWNER=测试 HWND 的 `另存为`/`确认另存为` 模态窗口，再对主窗 `WM_CLOSE`；否则主窗关闭会被模态循环忽略，对话框残留到下一次 run。`headless-run.mjs` 消费 cleanup JSON 的 `dirty`：`rec.dirty=true`，pass 改记 `dirty`，汇总打印 `dirty=N`，退出码非 0——环境不干净不再算干净通过。
-- **t01 预置（2026-11-15 起）**：setup 直接预开空 `target\note.txt`（task-owned 新窗口），prompt 改为输入后“文件→保存”原地保存；不再走 Save As（Win11 文件名框/覆盖确认在驱动 UIA 路径下不可靠）。Save As 覆盖保留在 t05。
+- **2026-11-15 轨迹驱动第二轮（模态对话框 + dirty）**：`Close-TestNotepad` 在标签校验通过后，用 `Get-ModalTestWindows` 关闭已证明归属的测试模态窗（直接 owner、owner 链、或主窗 disabled + `GetLastActivePopup`），再对主窗 `WM_CLOSE`；同 pid 但未证明归属的窗口一律留窗。`headless-run.mjs` 消费 cleanup JSON 的 `dirty`：`rec.dirty=true`，pass 改记 `dirty`，汇总打印 `dirty=N`，退出码非 0——环境不干净不再算干净通过。
+- **t01 预置（2026-11-15 起）**：setup 直接预开空 `target\note.txt`（task-owned 新窗口），prompt 改为输入后“文件→保存”原地保存；不再走 Save As（Win11 文件名框/覆盖确认在驱动 UIA 路径下不可靠）。Save As 覆盖保留在 t05；t05 于 2026-11-15/16 连续 **3/3 pass**（26/28/19 步，cleanup clean，TabState restored）。
 - **驱动提权链（2026-09-16 实测，上游 #3607 已附证据）**：`cua-driver.exe` 的二进制清单是 `requireAdministrator` → daemon 恒为 High IL → **`app_launch` 启动的应用继承 High IL**（对照：同一 shell 直接 `Start-Process notepad` 为 Medium IL）→ 非提权客户端 `taskkill`/`Stop-Process`/`WM_CLOSE` 全被拒（UIPI），残骸窗口累积并干扰后续任务观察（基线 t07 级联失败的元凶之一）。驱动**确实能**操作自己启动的 High IL 窗口（提权记事本上 `computer_type` 成功且 `effect:confirmed`），所以"管理员窗口不可操作"的旧说法不成立——真实边界是"客户端清不掉"。且 WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 #3908 的 UIA 超时、`invoke_menu` 报 menu_path_unavailable）→ 只能人工收尾。**评测实践：优先操作已在运行的普通应用；用 `app_launch` 的任务要接受人工收尾成本。**
 - **dsh 0.1.5 UI 变化（2026-09-16 实证）**：`document.execCommand('insertText')` 在 composer 上失效（长度恒 0，会发出空消息）→ 必须走 CDP `Input.insertText`；轮次页脚由 `N 轮 · M 步` 变为 `N 轮 M 步`（无分隔点）；新建会话后页面可能被其他会话视图覆盖 → 发送前必须**二次校验当前会话仍是 0 轮**，回合结束再校验 prompt 标记在活动会话文本里。
 - **「新建会话」点击可能不生效**（视图被钉在历史会话上；2026-09-16 实测：无弹层、无导航、harness 日志无报错，普通点击与 trusted CDP 点击都一样，而同一页面其它按钮点击正常）。**可靠恢复 = 重载客户端**——新加载会直接给出空会话（这也解释了为什么"重启/新开客户端"总能正常跑）。runner 已内置：点击无效 → 重载客户端 → 重试，最多 3 轮，并在日志打印 `session view pinned → reloading client`。
@@ -131,7 +131,9 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 >
 > 2026-11-15 后续：`tabstate.ps1` 备份/恢复 + `Close-OrphanTestNotepads` + UIA 关闭完成后，t01 改为**原地保存**（预开空 `target\note.txt`，输入后“文件→保存”）。`--tasks t01 --repeats 3` **3/3 pass**：37/18/19 步，273.4/121.7/104.2s，每次 1 次 `move_cursor`，无 timeout/dirty，tabstate restored。旧 Save As 语义仍受 Win11 文件名框（`type`/`set_value` 返回 confirmed/unverifiable 但值不变）与对话框叠层影响，Save As 覆盖保留在 t05。
 >
-> 2026-11-15 P2 轮：t10 的确定性 orphan 误关（`evalOwned` 绕过 seed）用 `-ProtectHwnd` + 唯一 seed 要求 + 失败前写 state/首窗消失重绑修复；t04 Calculator 改为扫描所有 UIA 顶层窗口的 `CalculatorResults`，t06 clipboard 改为 8 次 round-trip 并在失败时返回 ENV；t03/wa2/t09 改为状态化 `Open/Close-TestExplorer|Paint`，不再宽 `Close-TaskWindows` 或按 `mspaint` 进程名杀。`verify-oracles` 本机 **10/10 PASS**（tabstate restored，无 dirty）。
+> 2026-11-15 P2 轮：t10 的确定性 orphan 误关（`evalOwned` 绕过 seed）用 `-ProtectHwnd` + 唯一 seed 要求 + 失败前写 state/首窗消失重绑修复；t04 Calculator 改为扫描所有 UIA 顶层窗口的 `CalculatorResults`，t06 clipboard 改为 8 次 round-trip 并在失败时返回 ENV；t03/wa2/t09 改为状态化 `Open/Close-TestExplorer|Paint`，不再宽 `Close-TaskWindows` 或按 `mspaint` 进程名杀。`verify-oracles` 2026-11-15 18:40 复跑 **10/10 PASS**（tabstate restored，无 dirty）；此前 14-39 run 曾因 t03 Explorer 慢关闭 9/10，已加 Close-TestExplorer 重试。
+>
+> 2026-11-15/16 观察真值轮：t01 ×3 修复前 **2/3**（r2 11 fail，`computer_type` 无 element + delivery_failed 后模型按 33 字符保存），加入输入回读/保存门禁后 **3/3 pass**（99/9/10 步）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored）。三次 t01 均无 overlay 被 observe、无 screen_zoom missing pid、无 snapshot_missing；r1 实际使用 1 次 `from_zoom`。
 >
 > 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。第二轮修正了 `computer_do` 外壳重复计数，并增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`；分析命令：`node evals/analyze-trajectory.mjs <file>`。
 

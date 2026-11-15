@@ -41,9 +41,10 @@ export function deliveryFailure(v) {
 }
 
 export const clicks = []
+export const clickPayloads = []
 export const presses = []
 let popupOpen = false
-export function resetAll() { clicks.length = 0; presses.length = 0; popupOpen = false }
+export function resetAll() { clicks.length = 0; clickPayloads.length = 0; presses.length = 0; popupOpen = false }
 const mode = () => process.env.CUA_KEY_MODE || 'xaml-throw'
 
 export async function cuaDeliver(tool, payload) {
@@ -63,6 +64,7 @@ export async function cuaDeliver(tool, payload) {
   }
   if (tool === 'click') {
     clicks.push(payload.element_token)
+    clickPayloads.push(payload)
     if (payload.element_token === 'm-file') popupOpen = true
     return { value: { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }, note: '' }
   }
@@ -137,6 +139,8 @@ call = await fresh({ xamlKeyFallback: 'auto' })
 r = await call('computer_key', { key: 'ctrl+s' })
 check('K6: auto 回退成功回执', r.ok === true && /自动回退/.test(r.result || ''), r.result)
 check('K7: 只点菜单栏项 + 保存项', stub.clicks.join(',') === 'm-file,m-save', stub.clicks.join(','))
+check('K7b: 菜单栏/弹出项点击带各自 window_id', stub.clickPayloads[0]?.window_id === 7
+  && stub.clickPayloads[1]?.window_id === 9, JSON.stringify(stub.clickPayloads.map((p) => p.window_id)))
 check('K8: 回执要求 screen_observe 确认', /screen_observe/.test(r.result || ''), r.result)
 
 // 3. 结构化 error 形态也识别

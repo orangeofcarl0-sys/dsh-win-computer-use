@@ -40,7 +40,7 @@ S4 eval:
   - 只注册 surface 可见子集：
     - `dispatcher`：`computer_do` + `screen_observe`（隐藏 20）；
     - `hybrid`：再加 click/type/key/scroll/verify（隐藏 15）。
-- 隐藏工具只存在于 `computer_do` 的闭包；`computer_do({action:'call'})` 直接 `def.execute`，绕过宿主 output schema/timeout/post-execute，只透传 `ok/result/image`。
+- 隐藏工具只存在于 `computer_do` 的闭包；`computer_do({action:'call'})` 直接 `def.execute`，绕过宿主 output schema/timeout/post-execute，透传 `ok/result/image/data`。
 - 宿主把插件返回的 `{ok:false}` 仍看作成功的 tool result（`isError` 不置位）；只有参数/输出 schema 错误是 host error。**失败语义必须由回执文字自己承担。**
 - 同一会话工具列表稳定；每步重建 system prompt 但工具列表不变，保护 prompt cache。
 - 插件没有声明 `timeoutMs`；驱动挂死会一直占用 step，只有 runner 的 timeout/taskkill 能结束。
@@ -69,6 +69,7 @@ pickObserveTarget
 - 状态差分只保留一行：`自上次观察：标题 “a” → “*a”；[1] 输入框 “seed” → “note”；[2] 文本 “0 个字符” → “33 个字符”；[3] 输入框 值变化（隐藏）`。时间/行列噪声按 `normalizeForHash` 归一；文档正文只报“文档内容变化”。
 - 缺 `bounds` 时：`screenOrigin=null`、`coordinateSpace=screen-physical-px`，头部明确警告“不要直接点击”。
 - 同 pid 多窗口：`window_id` 精确匹配优先；否则按 on-screen、z_index、标题具体度排序。同标题匹配多个窗口时头部/降噪 stub 都明确提示 `目标匹配 N 个窗口`，要求改用 `window_id`。
+- 目标列表排除插件自己的 `Cua.AgentCursorOverlay*` 光标覆盖层；显式指定 overlay 返回专门错误。失败观察的快照策略：`picked.none` 清空；`picked.notFound` 保留新鲜旧快照并提示；桌面降级/`mode.fail` 只有失败目标与当前快照同 pid/window 时才清空。
 - 权限面 30s 缓存；`apply`/降级时清空。去重仍发生在驱动工作之后，但 stub 现在带关键控件，模型不必为“编号在哪”再 force/native。
 - 未找到目标、窗口级观察失败、桌面降级、native 失败：清空旧快照，避免动作继续落到旧窗口。
 - `dedupEvaluate` 的 suspect 必须在 `cacheSnapshot` 之前捕获；安装新快照会清 suspect。
@@ -104,6 +105,7 @@ humanAction / type / key / scroll / drag / set_value
   - `off`：所有点击不滑行；
   - background 投递在任何模式下都不滑行。
 - 同窗口同目标 16px/2s 内再次点击：完全跳过滑行（连续点击同一按钮不再产生一串小段移动）。
+- `from_zoom=true` 的 click/double/right：x/y 是 zoom 图像坐标；插件校验 lastZoom 与当前快照同 pid/window、zoom 不早于观察，跳过滑行，payload 带 `from_zoom:true` 由驱动映射；缺失/过期/跨窗口返回 `[zoom_missing]/[zoom_stale]`。`element` 与 `from_zoom` 互斥。
 - `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式 + 同一 count，5s 内重复，且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照。观察到变化会清除该窗口的重复计数；`double_click` 不拦。
 - `count:3` 不会自动变成三次点击；它是一次 `click` payload 的 count 参数，是否支持取决于驱动/目标。
 
@@ -122,7 +124,11 @@ humanAction / type / key / scroll / drag / set_value
 - 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。这样点错按钮（例如把“否”当“是”）在回执里立刻可见。
 - 输入/设值同样回显目标元素或窗口焦点。
 - 回执文字是模型唯一可靠的状态证据：目标回显 + 下一次观察差分共同承担“动作是否生效”。
-- `verifyAfterAction=auto`（实验性，默认 off）：对 element 路径的 click/type/set_value/key，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。默认关闭，等 A/B。
+- `verifyAfterAction=auto`（实验性，默认 off）：对 element 路径的 click/type/set_value/key，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删/同编号 role 变化）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。默认关闭，等 A/B。
+- **输入回读（默认开启，仅失败/未验证路径）**：`type_text`/`set_value` 结果为 delivery 失败、unverifiable、suspected_noop，或该窗口已有 inputUnconfirmed 时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 与请求文本做 **CRLF→LF 逐字比较**（set_value 精确相等；type_text 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文；不一致/无法回读（投递失败时）设置 `inputUnconfirmed`。
+- **保存门禁**：`guard` 在 inputUnconfirmed 时只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径）；type/set_value、Ctrl+A/C/V/X/Z、非保存点击放行。回读一致、同窗口 native observe 或 screen_zoom 会清除门禁；普通 ax observe 不清除。
+- `app_launch`：启动成功即 `ok:true`，前置失败只写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）；避免把可选前置失败误判为启动失败而重复启动。
+- `computer_menu`：path 支持 `"文件/保存"`；`menu_path_unavailable` 时若快照里有对应顶层菜单栏项，回执给出具体 `element=<编号>`。
 
 ### 4.4 快照语义
 
@@ -130,6 +136,8 @@ humanAction / type / key / scroll / drag / set_value
 - `enforce`：已消费快照的第二次动作被拒绝；所有动作应在投递前求值。
 - 元素点击现在同样受 TTL 约束；过期直接 `[snapshot_expired]`。
 - `markConsumed` 只记录最后一次动作；`markSuspect` 表示状态不确定，不阻断后续动作。
+- `screen_zoom` 不再手算 `crop.scale`：驱动 0.23.2 会加约 20% padding 并可能缩放，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，点击必须用 `computer_click(x,y,from_zoom=true)`；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且晚于当前观察。整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。请求区域宽 >500px 在插件侧直接失败，不调用驱动。
+- `nativeImage=auto/compact` 不再做整窗 zoom：驱动 zoom 区域宽上限 500px，无法整窗缩放；超限时明确失败并提示改 ax/vision 或 screen_zoom。
 
 ## 5. 快捷键/XAML
 
@@ -159,7 +167,7 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
   - 按精确 HWND 查找（不看标题）；
   - 校验 pid/start time；
   - 重新枚举标签，必须等于 expectedTabs 且无 modified/unknown；cleanup 传 `-AllowDiscardTestOnlyModified` 时，允许丢弃“全部标签都在任务 allowedTabs 内”的测试修改（用户标签仍失败并留窗）；
-  - 通过后先关闭 owned 模态对话框（`Get-OwnedWindows`，GW_OWNER=测试 HWND；标签已证明全是测试文件），否则主窗关闭会被忽略、`另存为` 残留；
+  - 通过后先关闭测试模态对话框（`Get-ModalTestWindows`：直接 owned + 同 pid 顶层窗口的 owner 链/主窗 disabled+GetLastActivePopup 证明；标签已证明全是测试文件），否则主窗关闭会被忽略、`另存为` 残留；未证明归属的同 pid 窗口一律留窗；
   - 关闭优先 `UIA WindowPattern.Close`，WM_CLOSE 仅兜底：Win11 Notepad 对非提权客户端的 WM_CLOSE 会静默忽略（2026-11-15 实测）；修改中的测试文档由 `Dismiss-TestSavePrompt` 点“不保存”；
   - 只有 safeToClose 才关闭；否则留窗并写 `_leftovers/<task>-<stamp>.json`。
 - `Close-OrphanTestNotepads`：全局测试文件名白名单 + **至少一个唯一 seed**；只有全部标签都是测试文件才关闭，用户标签/未知后缀/通用名单独出现时留窗报告。`-ProtectHwnd` 保护当前 setup 已开的窗口（t10 的 a.txt）；不再仅凭 `evalOwned` 关闭通用文件名窗口。空的无标题窗口仅在 eval 期间创建时才关。
@@ -225,7 +233,7 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 | 轨迹计数翻倍 | 已修：`computer_do` 透明；新增耗时/未验证/stub/每次点击移动数 | ✅ |
 | 每次观察重复 check_permissions | 已修：30s 缓存 | ✅ |
 | 同标题多窗口静默取最前 | 已修：头部/stub 警告“匹配 N 个，改用 window_id” | ✅ |
-| 残留另存为对话框 | 已修：cleanup 先关 owned 对话框；runner 消费 dirty | ✅ |
+| 残留另存为对话框 | 已修：cleanup 用模态归属证明关同 pid 对话框；runner 消费 dirty | ✅ |
 | L3 恢复调用缺 pid | 已修：windowMap 查 pid；未知补 list_windows；恢复失败如实注记 | ✅ |
 | `ok:true+effect:"refused"` 当成功 | 已修：bring_to_front/launch/menu 统一按 refusal/effect 判定 | ✅ |
 | `app_launch` 假“已前置” | 已修：只有 confirmed 才写已前置；前置被拒返回 ok:false | ✅ |
@@ -238,13 +246,19 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 | t04/t06 环境阻塞 | 已修：Calculator 全窗口扫描/不杀可见实例；clipboard round-trip 8 次 + EnvError | ✅ 10/10 |
 | Explorer/Paint 宽匹配/进程名杀 | 已修：状态化 Open/Close；t09 不再杀 mspaint | ✅ |
 | 动作后无状态证据 | 实验性 `verifyAfterAction=auto`（默认 off） | ⏳ A/B |
-| 观察失败保留旧快照 | 已修：清空 | ✅ |
+| 失败观察清空旧快照 | 已修：notFound/不同窗口降级保留；同窗口失败才清 | ✅ |
 | suspect 去重 stub | 已修：`suspectBefore` 强制全量 | ✅ |
 | Notepad 新窗口含用户标签 | 已修：标签白名单 + fail closed + leftover | ✅ |
-| `computer_menu` 无 effect 仍可能成功 | P2 | 未处理 |
-| `computer_do` 丢结构化字段 | P2 | 未处理 |
-| runner cleanup 永远 Ok | 已加 `dirty`；runner 尚未消费 | P2 |
-| t03/wa2/t07 宽匹配 | P2 | 未处理 |
+| agent overlay 被当作目标 | 已修：目标/候选过滤 + 显式拒绝 | ✅ |
+| `screen_zoom` 丢 resolved pid | 已修：只传 window_id 也使用解析后的 pid | ✅ |
+| `screen_zoom` crop/scale 映射偏移 | 已修：from_zoom 交给驱动；crop 仅请求区域 | ✅ |
+| native/compact 整窗 zoom 不可实现 | 已修：明确失败 + 提示 screen_zoom/ax/vision | ✅ |
+| t05 同 pid 另存为对话框残留 | 已修：模态归属证明（owner 链/disabled+GetLastActivePopup） | ✅ |
+| 部分输入/错字后被误保存 | 已修：输入回读 + inputUnconfirmed 保存门禁；不一致/无法回读只拦保存意图 | ✅ |
+| Codex overlay 仍被默认观察 | 已修：叠加 `codex-computer-use` / `Cursor Overlay` 过滤 | ✅ |
+| 顶层菜单栏误报“菜单已打开” | 已修：只统计非顶层菜单栏的 MenuItem | ✅ |
+| Document 正文可经 label 回退泄露 | 已修：Document/AXTextArea 不再用 value 充当 label | ✅ |
+| app_launch 前置失败被当成启动失败 | 已修：ok 只看启动；前置失败写注记并输出 window_id | ✅ |
 
 ## 9. 失败语义速查
 

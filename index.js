@@ -44,7 +44,7 @@ const defineTool = (options) => {
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { resetCursorMotion } from './lib/human.js'
 import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
-import { getSnapshot } from './lib/snapshot.js'
+import { getSnapshot, resetInputGuard } from './lib/snapshot.js'
 import { resetWindowMap } from './lib/windowMap.js'
 import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
@@ -119,7 +119,12 @@ export const Config = z.object({
    * 文本类只记长度+哈希；驱动结果只记摘要。环境变量 DSH_CU_TRAJECTORY_FILE 可覆盖。
    */
   trajectoryFile: z.string().default(''),
-  /** 原生直读截图策略：auto（PNG 超限额时自动降级 zoom JPEG）/ full（始终原图 PNG）/ compact（始终 ≤500px JPEG）。 */
+  /**
+   * 原生直读截图策略：
+   *   auto = 截图超附件限额时回退 ax/vision（cua-driver 0.23.2 的 zoom 不能整窗缩放，不做 compact）；
+   *   full = 始终原图 PNG；
+   *   compact = 显式要求紧凑图；当前驱动不支持整窗缩放，会返回可执行错误，请改用 screen_zoom。
+   */
   nativeImage: z.union(['auto', 'full', 'compact']).default('auto'),
   /** Mode D 观察者 provider 路由。 */
   visionProvider: z.string().default('deepseek-official'),
@@ -217,7 +222,7 @@ const SCREEN_ORIGIN_FIELDS = {
     ],
     description: '窗口在屏幕上的物理像素原点（= list_windows bounds）；null = 未取到，坐标换算不可用。',
   },
-  coordinateSpace: { type: 'string', enum: ['window-screenshot-px', 'screen-physical-px'], description: '本次观察各坐标所处的空间：window-screenshot-px = 窗口截图坐标（computer_click 输入空间）；screen-physical-px = 屏幕物理坐标（缺少 bounds，不能直接点击）。' },
+  coordinateSpace: { type: 'string', enum: ['window-screenshot-px', 'screen-physical-px', 'zoom-image-px'], description: '本次观察各坐标所处的空间：window-screenshot-px = 窗口截图坐标（computer_click 输入空间）；screen-physical-px = 屏幕物理坐标（缺少 bounds，不能直接点击）；zoom-image-px = screen_zoom 返回图坐标（点击时传 from_zoom=true，由驱动换算）。' },
 }
 
 /**
@@ -310,6 +315,18 @@ const FOREGROUND_PARAM = {
   foreground: {
     type: 'boolean',
     description: '可选：强制前台投递（用后自动恢复原前台；更慢：会移动指针并短暂切换焦点）。仅当后台确认未生效或对话框需要真实焦点时使用，不要默认开启。',
+  },
+}
+
+/**
+ * from_zoom：x/y 是否来自最近一次 screen_zoom 返回图。
+ * 驱动会按 zoom 的 padding/缩放把图内坐标换算回窗口坐标；插件不再手算 scale。
+ * 只对 click/double/right 开放（type 没有坐标输入）。
+ */
+const FROM_ZOOM_PARAM = {
+  from_zoom: {
+    type: 'boolean',
+    description: '可选：x/y 是最近一次 screen_zoom 返回图的像素坐标（不是窗口截图坐标）。true 时由驱动换算；必须与 element 互斥，且 zoom 必须晚于当前观察、同 pid/window。',
   },
 }
 
@@ -425,9 +442,9 @@ function observeToolDefs(ctx, cfg, wrap) {
   {
     name: 'screen_zoom',
     description:
-      '区域截图直读：把窗口某块区域裁成 ≤500px JPEG 交给模型看图（~200 tok，远低于整窗 PNG）。' +
-      '用法：①放大细看（小字/图标/图表）；②定位：图内坐标 × crop.scale + crop.x/y = 窗口截图坐标，可直接作为 computer_click 的 x/y；' +
-      'screenOrigin 只用于换算屏幕绝对坐标，点击时不要再加。' +
+      '区域截图直读：把窗口某块区域（宽 ≤500px）裁成 JPEG 交给模型看图（~200 tok，远低于整窗 PNG）。' +
+      '用法：①放大细看（小字/图标/图表）；②定位：图内坐标直接作为 computer_click(x=,y=, from_zoom=true)，由驱动换算回窗口截图坐标。' +
+      '驱动会自动加约 20% padding 并可能缩放，所以不要用 crop 自己算比例；screenOrigin 只用于屏幕绝对坐标，点击时不要再加。' +
       '实证：整窗裸定位误差 median>300px 不可依赖，目标主导的小裁剪误差 13-80px——务必让目标占画面主导。' +
       '视觉断言通道提示：本工具是有损 JPEG，小字号数字常不可读（不可读即如实报 unknown）；读文字请用 screen_observe native（无损 PNG）。'
       + S3_ASSERT_PROTOCOL,
@@ -436,7 +453,7 @@ function observeToolDefs(ctx, cfg, wrap) {
       window_id: { type: 'integer', required: true, description: '目标窗口 id（screen_observe 或 app_list 输出）。' },
       x1: { type: 'integer', description: '可选：区域左边界（整窗截图像素），默认 0。' },
       y1: { type: 'integer', description: '可选：区域上边界，默认 0。' },
-      x2: { type: 'integer', description: '可选：区域右边界，默认窗口截图宽。' },
+      x2: { type: 'integer', description: '可选：区域右边界，默认窗口截图宽；x2-x1 必须 ≤500。' },
       y2: { type: 'integer', description: '可选：区域下边界，默认窗口截图高。' },
     },
     output: { ...OUT({
@@ -446,9 +463,12 @@ function observeToolDefs(ctx, cfg, wrap) {
         properties: {
           x: { type: 'integer' }, y: { type: 'integer' },
           w: { type: 'integer' }, h: { type: 'integer' },
-          scale: { type: 'number', description: '整窗区域宽 / 返回图宽；图内坐标 × scale + crop.x/y = 整窗截图像素坐标' },
         },
-        description: '本图对应的整窗区域与换算比例（定位原语）。',
+        description: '本次请求的整窗截图区域（信息用途；返回图含驱动 padding，真实映射由 from_zoom 完成）。',
+      },
+      fromZoom: {
+        type: 'boolean',
+        description: 'true = 本图坐标必须用 computer_click(x=,y=, from_zoom=true)；false = 整窗回退图，坐标就是窗口截图坐标。',
       },
       ...SCREEN_ORIGIN_FIELDS,
       // 降级路径（窗口级观测被拒 → desktopFallback）会回本组字段，schema 必须容纳
@@ -465,31 +485,31 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。不要无条件加 foreground=true（前台点击更慢且会移动指针）。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, count: { type: 'integer', description: '可选：点击次数，默认 1。' } },
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。不要无条件加 foreground=true（前台点击更慢且会移动指针）。',
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
   },
 
   {
     name: 'computer_double_click',
-    description: '双击：element 编号 或 x/y 坐标（后台投递，不抢焦点）。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM },
+    description: '双击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true。',
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM },
     output: OUT(),
     execute: wrap('computer_double_click', (args, cfg2) => doubleClick(args, cfg2)),
   },
 
   {
     name: 'computer_right_click',
-    description: '右键点击：element 编号 或 x/y 坐标（后台投递，不抢焦点）。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM },
+    description: '右键点击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true。',
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM },
     output: OUT(),
     execute: wrap('computer_right_click', (args, cfg2) => rightClick(args, cfg2)),
   },
 
   {
     name: 'computer_type',
-    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。注意：不要在密码框使用——密码必须由用户本人输入。',
+    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
     parameters: {
       text: { type: 'string', required: true, description: '要输入的文本。' },
       element: TARGET_PARAMS.element,
@@ -604,10 +624,13 @@ function actionToolDefs(ctx, cfg, wrap) {
       },
       creates_new_instance: {
         type: 'boolean',
-        description: '可选：强制启动新实例（open -n），用于并发多会话隔离。',
+        description: '可选：请求新实例。Windows 驱动当前为 no-op（ShellExecuteEx/激活通常总是新进程），不能保证复用已有实例。',
       },
     },
-    output: OUT({ pid: { oneOf: [{ type: 'integer' }, { type: 'null' }] } }),
+    output: OUT({
+      pid: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
+      window_id: { oneOf: [{ type: 'integer' }, { type: 'null' }], description: '启动后找到的可见主窗 window_id；没有窗口时为 null。' },
+    }),
     execute: wrap('app_launch', (args) => launchApp(args)),
   },
   ]
@@ -711,7 +734,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
           { type: 'array', items: { type: 'string' } },
         ],
         required: true,
-        description: '菜单路径：JSON 字符串数组（逐级、精确、区分大小写）或字符串数组，如 ["文件","另存为"]。',
+        description: '菜单路径：JSON 字符串数组（逐级、精确、区分大小写）、字符串数组，或 "文件/保存" 这种 /、› 分隔的字符串，如 ["文件","另存为"]。',
       },
     },
     output: OUT(),
@@ -756,7 +779,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
 
 /**
  * computer_do 路由后的结构化数据：旧实现只透传 ok/result/image，screen_zoom 的
- * crop/scale、verify.results、app_list.apps、task.structured 等都会丢。
+ * crop/fromZoom、verify.results、app_list.apps、task.structured 等都会丢。
  * 这里显式声明允许的字段，宿主 additionalProperties:false 校验不会误杀。
  */
 const ROUTED_DATA_SCHEMA = {
@@ -776,9 +799,9 @@ const ROUTED_DATA_SCHEMA = {
       properties: {
         x: { type: 'integer' }, y: { type: 'integer' },
         w: { type: 'integer' }, h: { type: 'integer' },
-        scale: { type: 'number' },
       },
     },
+    fromZoom: { type: 'boolean' },
     apps: {
       type: 'array',
       items: {
@@ -794,6 +817,7 @@ const ROUTED_DATA_SCHEMA = {
     results: VERIFY_RESULT.results,
     text: { oneOf: [{ type: 'string' }, { type: 'null' }] },
     pid: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
+    window_id: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
     attempts: { type: 'integer' },
     waitedMs: { type: 'integer' },
     structured: { oneOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
@@ -914,6 +938,7 @@ export function apply(ctx, config) {
   resetLoopGuard()
   resetCursorMotion()
   resetTaskCalls()   // 委派预算按会话重置
+  resetInputGuard()  // 输入未确认门禁按会话重置
   const cfg = {
     ttlMs: config.ttlMs,
     maxElements: config.maxElements,

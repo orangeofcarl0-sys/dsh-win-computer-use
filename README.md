@@ -144,15 +144,15 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | 工具 | 作用 | 必填 | 常用可选 |
 |---|---|---|---|
 | `screen_observe` | 观察窗口：编号树 / 截图直读 / 视觉描述；未变时回极简回执 | — | `window`、`window_id`、`mode`、`query`、`maxElements`、`force` |
-| `screen_zoom` | 区域放大 / 树空目标的定位原语（≤500px JPEG） | `window_id` | `pid`、`x1`、`y1`、`x2`、`y2` |
+| `screen_zoom` | 区域放大 / 树空目标的定位原语（请求区域宽 ≤500px JPEG） | `window_id` | `pid`、`x1`、`y1`、`x2`、`y2` |
 
 ### 动作
 
 | 工具 | 作用 | 必填 | 常用可选 |
 |---|---|---|---|
-| `computer_click` **H** | 点击元素编号或窗口截图坐标 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`count` |
-| `computer_double_click` | 双击 | `element` 或 `x,y` | `snapshot_id`、`foreground` |
-| `computer_right_click` | 右键 | `element` 或 `x,y` | `snapshot_id`、`foreground` |
+| `computer_click` **H** | 点击元素编号或窗口截图坐标 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`count` |
+| `computer_double_click` | 双击 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom` |
+| `computer_right_click` | 右键 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom` |
 | `computer_type` **H** | 输入文本；指定 element 时走 UIA `ValuePattern`，否则输入到快照窗口当前焦点 | `text` | `element`、`snapshot_id`、`foreground` |
 | `computer_set_value` | 直接设值（UIA `ValuePattern`；文本框/滑块/下拉优先） | `element`、`value` | `snapshot_id` |
 | `computer_key` **H** | 按键/快捷键（组合键走 `hotkey`；绑定快照窗口） | `key` | `snapshot_id`、`foreground` |
@@ -190,7 +190,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `screen_observe` 的 `@(x,y)` | **window-screenshot-px**（窗口截图物理像素） | 可直接传给 `computer_click(x,y)` |
 | `computer_click(x,y)` / `scroll` / `drag` | **window-screenshot-px** | 与观察输出同一空间 |
 | `element` 编号 | 不涉及坐标 | 走 `element_token`，**首选、最可靠** |
-| `screen_zoom` 图内坐标 | crop-local px | `图内坐标 × crop.scale + crop.x/y` = window-screenshot-px，**直接点击**，不要再加 `screenOrigin` |
+| `screen_zoom` 图内坐标 | zoom-image-px | 加 `from_zoom=true` 直接传给 `computer_click(x,y,from_zoom=true)`，由驱动换算；**不要**再手算 `crop.scale`，也不要加 `screenOrigin` |
 | `screenOrigin` | 窗口在屏幕上的物理原点 | 只用于换算到屏幕绝对坐标；不是点击输入 |
 
 规则：
@@ -198,7 +198,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 1. **element 路径优先。** `element_token` 由驱动定位，支持后台/隐藏窗口，不受 DPI 混合影响。
 2. **像素路径是 best-effort。** 驱动 0.23.2 的像素点击在混合 DPI 下有实测落点偏差（见 [docs/WINDOWS.md](docs/WINDOWS.md) 与 [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) A7）；像素点击后请用 `screen_observe` / `computer_verify` 复核。
 3. **不要自己乘 2 或加窗口偏移。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。
-4. **用于点击时，zoom 的换算终点是 window-screenshot-px。** `crop.scale` 以驱动返回图尺寸为准（驱动可能做非等比缩放；结果会提示比例不一致）。`screenOrigin` 只用于换算屏幕绝对坐标，点击时**不要**再加。
+4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。
 5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
 
 ### 观察真相：当前值 + 状态差分
@@ -209,7 +209,11 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
   - 时间/行列噪声（`12:34`、`行 1，列 1`）会被归一，不会误报变化；密码变化只报“值变化（隐藏）”。
 - 同标题多窗口（多个“另存为”对话框）会在头部/降噪 stub 明确写“目标匹配 N 个窗口”，要求改用 `window_id`，不静默只取最前。
 - 窗口匹配支持中英别名：`记事本 ↔ Notepad`、`计算器 ↔ Calculator`、`画图 ↔ Paint`、`文件资源管理器 ↔ Explorer`；`matchCount` 按 title+app 并集计算，多窗口同样警告。
-- `computer_do` 路由隐藏工具时保留结构化 `data`：`screen_zoom` 的 `crop/screenOrigin/coordinateSpace`、`verify` 的 `status/results`、`app_list.apps`、`task.structured`、`clipboard.text` 等不再丢失。
+- `computer_do` 路由隐藏工具时保留结构化 `data`：`screen_zoom` 的 `crop/fromZoom/screenOrigin/coordinateSpace`、`verify` 的 `status/results`、`app_list.apps`、`task.structured`、`clipboard.text` 等不再丢失。
+- 目标选择会排除插件自己的 `Cua.AgentCursorOverlay*`、`Codex Computer Use Cursor Overlay` 等光标覆盖层；`notFound`/不同窗口的失败观察不会清空仍然有效的旧快照（同窗口失败才清）。
+- 输入回读：`computer_type`/`computer_set_value` 在投递失败、unverified 或已有未确认输入时，用 Document/TextArea/Edit 的 value 逐字复核（CRLF 归一）；回执只报“一致/不一致/无法回读”和长度，不打印正文。
+- 保存门禁：回读不一致/无法回读时，只拦 Ctrl+S、保存/另存为按钮和保存菜单；`type`/`set_value`、Ctrl+A/C/V/X/Z、非保存点击仍可用。回读一致、同窗口 native observe 或 screen_zoom 解除。
+- `app_launch` 启动成功即 `ok:true`；前置失败只写“启动成功，但前置未确认”，并输出 `window_id`，避免重复启动。
 
 ### 动作回执与重复点击
 
@@ -300,7 +304,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `actionGuard` | `on` | 同一窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`；`off` 关闭 |
 | `verifyAfterAction` | `off` | 实验性：`auto` 对 element 路径的 click/type/set_value/key，在 unverifiable/suspected_noop 后抓一次无截图状态，把差分写进回执；结构性变化清快照。每次约 +2s，默认关闭，等 A/B 数据 |
 | `trajectoryFile` | 空 | 非空时写 CU 轨迹 JSONL（文本只留 len/hash，驱动只留摘要）；也可用 `DSH_CU_TRAJECTORY_FILE` |
-| `nativeImage` | `auto` | `auto` 超附件限额自动降级 / `full` 原图 / `compact` 始终 ≤500px JPEG |
+| `nativeImage` | `auto` | `auto` 超附件限额回退 ax/vision（驱动 zoom 不能整窗缩放）/ `full` 原图 / `compact` 显式要求紧凑图，当前驱动会返回可执行错误 |
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
 | `extremePatterns` | `[]` | 极危清单（正则源数组）：命中附警告注记，不阻断 |
@@ -365,7 +369,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（20/20 JS）
-npm test                           # 22 套离线测试，419 个断言
+npm test                           # 22 套离线测试，457 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \

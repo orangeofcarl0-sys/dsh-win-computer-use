@@ -29,6 +29,8 @@ export const ws = {
   status: '0 个字符',
   password: 'hunter2',
   extra: false,
+  doc: 'SECRET-DOC-BODY',
+  popup: false,
 }
 
 const WINDOW = () => ({
@@ -55,6 +57,15 @@ export async function cuaCall(tool, args = {}) {
         { element_index: 1, element_token: 'name', role: 'Edit', label: '文件名:', value: ws.value, frame: { x: 600, y: 550, w: 300, h: 30 }, enabled: true },
         { element_index: 2, element_token: 'status', role: 'Text', label: ws.status, frame: { x: 180, y: 1130, w: 100, h: 20 } },
         { element_index: 3, element_token: 'pw', role: 'Edit', label: '密码:', value: ws.password, frame: { x: 600, y: 500, w: 300, h: 24 }, is_password: true },
+        { element_index: 4, element_token: 'doc', role: 'Document', label: '', value: ws.doc, frame: { x: 160, y: 160, w: 600, h: 400 } },
+        { element_index: 5, element_token: 'm-file', role: 'MenuItem', label: '文件', frame: { x: 110, y: 110, w: 50, h: 20 } },
+        { element_index: 6, element_token: 'm-edit', role: 'MenuItem', label: '编辑', frame: { x: 160, y: 110, w: 50, h: 20 } },
+        { element_index: 7, element_token: 'm-view', role: 'MenuItem', label: '查看', frame: { x: 210, y: 110, w: 50, h: 20 } },
+        ...(ws.popup ? [
+          { element_index: 8, element_token: 'p-save', role: 'MenuItem', label: '保存', frame: { x: 110, y: 130, w: 80, h: 20 } },
+          { element_index: 9, element_token: 'p-saveas', role: 'MenuItem', label: '另存为', frame: { x: 110, y: 150, w: 80, h: 20 } },
+          { element_index: 10, element_token: 'p-close', role: 'MenuItem', label: '退出', frame: { x: 110, y: 170, w: 80, h: 20 } },
+        ] : []),
       ]
       return {
         window: WINDOW(), elements: els, element_count: els.length,
@@ -122,6 +133,15 @@ const alias = await call('screen_observe', { window: '记事本', mode: 'ax' })
 check('T15: 中文别名匹配 Notepad', alias.ok === true && alias.window?.app === 'Notepad', raw(alias).split('\n')[0])
 const exe = await call('screen_observe', { window: 'Notepad.exe', mode: 'ax' })
 check('T16: .exe 别名匹配', exe.ok === true && exe.window?.pid === 42, raw(exe).split('\n')[0])
+
+// 7. Document 正文不外显；顶层菜单栏不等于“菜单已打开”
+const docObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+check('T17: Document 正文不泄露', docObs.ok === true && !/SECRET-DOC-BODY/.test(raw(docObs)), raw(docObs).slice(0, 160))
+check('T18: 顶层菜单栏不误报“菜单已打开”', !/菜单已打开/.test(raw(docObs)), raw(docObs).split('\n').slice(0, 8).join(' | '))
+stub.ws.popup = true
+const popupObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+check('T19: 真正弹出菜单项才提示', /菜单已打开/.test(raw(popupObs)), raw(popupObs).split('\n').slice(0, 8).join(' | '))
+stub.ws.popup = false
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

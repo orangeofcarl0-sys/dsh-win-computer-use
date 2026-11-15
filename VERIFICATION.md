@@ -8,11 +8,12 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 419 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **22 套 / 457 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **20/20 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
-| S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
+| S4 oracle 双向验证 | **10/10**（2026-11-15 18:40 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
+| S4 真机任务 | **t01 3/3 pass**（99/9/10 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
 | 打包面 | **37 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
@@ -137,12 +138,12 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | `computer_task` API 形状 | ✅ 运行时扁平 spec（类型声明的嵌套 `request` 不可用）；rc.2 无 `list()`，provider 用 `getProvider` 探测 |
 | `computer_task` 契约测试 | ✅ `tests/task.tool` T1–T9：请求构造/结果映射/预算/无服务/outputSchema 降级/失败/无 API |
 | vision 默认 | ✅ `deepseek-flash`；真机观察者返回“视觉理解”段 |
-| native 附件限额 | ✅ `maxImageDimension`/`maxImagePixels` 纳入 compact；`tests/posture` N1 |
-| G1/G5 | ✅ scroll/drag 校验 `snapshot_id`（`action-bounds` G1）；zoom `coordinateSpace=window-screenshot-px` |
+| native 附件限额 | ✅ `maxImageDimension`/`maxImagePixels` 纳入判定；驱动 0.23.2 不能整窗 zoom，compact 明确失败；`tests/posture` N1 |
+| G1/G5 | ✅ scroll/drag 校验 `snapshot_id`（`action-bounds` G1）；zoom `coordinateSpace=zoom-image-px` + `fromZoom` |
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **22 套 / 419** 断言全绿；`npm run check` 20/20；`npm pack` 37 文件 |
+| 离线 | **22 套 / 457** 断言全绿；`npm run check` 20/20；`npm pack` 37 文件 |
 | 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
@@ -220,8 +221,13 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 真机 t01（原地保存 ×3） | **3/3 pass**：steps 37/18/19，err 1/0/1，unverified 12/4/4，duration 273.4/121.7/104.2s；每次 1 `move_cursor` / 0px；无 timeout、无 dirty；tabstate restored | 2026-11-15 16:46；轨迹无 repeat_action，只有 repeat_observe（同一窗口连续观察） |
 | verify-oracles（2026-11-15 P2 复跑） | **10/10 PASS**：t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；tabstate restored，各任务 cleanup 无 dirty | t10 ProtectHwnd/state 重绑、t04 全窗口扫描、t06 clipboard round-trip、Explorer/Paint 状态化全部生效 |
 | 真机 t01（P2 后 3x） | **2/3 pass**：r1 9 steps / r2 13 steps pass；r3 66 steps fail（内容不匹配，模型在菜单/剪贴板间抖动） | 原地保存语义未变；保存证据已加入 prompt；另一次提示词变体因模型工具抖动被人工停止，未计分 |
-| 真机 t05（Save As 单跑） | fail：50 steps / 2 err / 17 unverified / dirty；oracle 文件不存在 | Win11 Save As 文件名框在驱动 UIA/type 路径下仍不可靠；保留 t05 作为失败样本，t01 用原地保存 |
-| P2 运行时修复 | L3 恢复带 pid（windowMap）；bring_to_front refused 判失败；app_launch/menu/clipboard/hover 不再假成功；stale token 清快照；computer_do data；窗口别名；监控 loop 语义修正 | `npm test` 22 套 / 419 断言；verify-runtime 17/17 |
+| 真机 t05（旧 Save As 失败样本） | fail：50 steps / 2 err / 17 unverified / dirty；oracle 文件不存在 | Win11 Save As 文件名框在驱动 UIA/type 路径下仍不可靠；保留 t05 作为失败样本，t01 用原地保存 |
+| 真机 t01（观察真值轮 ×3，修复后） | **3/3 pass**：r1 99 steps pass；r2 9 steps pass；r3 10 steps pass；oracle 均 exact match | 三次均无 overlay 被 observe、无 screen_zoom missing pid、无 snapshot_missing；r1 实际使用 1 次 `from_zoom` |
+| 真机 t05（观察真值轮 ×3） | **3/3 pass**：26/28/19 steps，err 1/2/0，unverified 11/10/9；oracle 3/3；cleanup `dirty=false`；tabstate restored | 2026-11-15 18:59；Save As 连续通过，输入回读/保存门禁未误拦 |
+| 输入回读/保存门禁（离线） | **457 断言全绿**；action.echo 覆盖一致/不一致/无法回读、保存门禁、修正解除、set_value 回读、Document 不泄露 | `npm test`；from_zoom 真机探针另见下 |
+| from_zoom 真机探针 | **pass**：请求 crop 160×100 → 返回 224×140；图中心 (112,70) 点击按钮成功写 marker | `node evals/probe-from-zoom.mjs`；证明驱动 padding/缩放映射可用 |
+| verify-oracles（2026-11-15 18:40 复跑） | **10/10 PASS**：10 项全部 setup/emptyFail/simPass/repeat/cleanup；tabstate restored | t03 Explorer 慢关闭重试生效；此前 14-39 run 曾 9/10，15-02 run 在 t10 setup 被人工暂停 |
+| P2 运行时修复 | L3 恢复带 pid（windowMap）；bring_to_front refused 判失败；app_launch/menu/clipboard/hover 不再假成功；stale token 清快照；computer_do data；窗口别名；监控 loop 语义修正 | `npm test` 22 套 / 419 断言（当时）；verify-runtime 17/17 |
 
 ## 3. 代表性缺陷与守门测试
 

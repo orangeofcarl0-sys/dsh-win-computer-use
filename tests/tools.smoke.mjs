@@ -51,11 +51,16 @@ export async function cuaCall(tool, args = {}) {
   const mode = process.env.CUA_OPS_MODE || ''
   if (tool === 'clipboard_write') {
     if (mode === 'clipboard-fail') return { capability: 'clipboard.write', error_code: 'clipboard_unavailable' }
+    if (mode === 'clipboard-unsupported') return { supported: false }
     return { types: ['text'] }
   }
-  if (tool === 'clipboard_read') return { types: ['text'], text: args.include_text === false ? null : '剪贴板内容' }
+  if (tool === 'clipboard_read') {
+    if (mode === 'clipboard-unsupported') return { supported: false }
+    return { types: ['text'], text: args.include_text === false ? null : '剪贴板内容' }
+  }
   if (tool === 'invoke_menu') {
     if (mode === 'menu-missing') return { ok: true, invoked: true }
+    if (mode === 'menu-refusal') return { refusal: { code: 'menu_path_unavailable', message: 'segment not found' } }
     return { ok: true, effect: 'confirmed', invoked: true }
   }
   if (tool === 'move_cursor') {
@@ -134,9 +139,34 @@ check('F2: real → scope=desktop', r.ok === true && history.at(-1).args.scope =
 process.env.CUA_OPS_MODE = 'clipboard-fail'
 r = await clipboard({ action: 'write', text: 'x' })
 check('G1: clipboard error_code → ok:false', r.ok === false && /写入失败/.test(r.result), r.result)
+process.env.CUA_OPS_MODE = 'clipboard-unsupported'
+r = await clipboard({ action: 'write', text: 'x' })
+check('G1b: clipboard supported:false → ok:false', r.ok === false && /supported:false/.test(r.result), r.result)
+r = await clipboard({ action: 'read' })
+check('G1c: clipboard read supported:false → ok:false', r.ok === false && /supported:false/.test(r.result), r.result)
+delete process.env.CUA_OPS_MODE
 process.env.CUA_OPS_MODE = 'menu-missing'
 r = await menu({ pid: 1, window_id: 2, path: ['文件', '保存'] })
 check('G2: menu effect 缺失 → ok:false', r.ok === false && /未确认/.test(r.result), r.result)
+const { engineRefusal } = await import(libUrl('engine.js'))
+check('G2b: engineRefusal ok:false 不再漏判', /ok:false/.test(engineRefusal({ ok: false, code: 'op_failed', reason: 'stub' }) || ''))
+check('G2c: engineRefusal supported:false 不再漏判', /unsupported/.test(engineRefusal({ supported: false }) || ''))
+process.env.CUA_OPS_MODE = ''
+history.length = 0
+r = await menu({ window_id: 2, path: '文件/保存' })
+const inv = history.find((h) => h.tool === 'invoke_menu')
+check('G2d: menu 字符串 / 分隔可解析', r.ok === true && Array.isArray(inv?.args?.path)
+  && inv.args.path.join('>') === '文件>保存', JSON.stringify(inv?.args?.path || null))
+const snapMod = await import(libUrl('snapshot.js'))
+snapMod.setSnapshot({
+  at: Date.now(), ttlMs: 60000, pid: 1, windowId: 2, appName: 'A', snapshotId: 's1',
+  entries: new Map([[3, { token: 'm-file', role: 'MenuItem', label: '文件' }]]),
+})
+process.env.CUA_OPS_MODE = 'menu-refusal'
+r = await menu({ pid: 1, window_id: 2, path: ['文件', '保存'] })
+check('G2e: menu_path_unavailable 给出菜单栏编号', r.ok === false && /编号 \[3\]/.test(String(r.result || '')), r.result)
+delete process.env.CUA_OPS_MODE
+snapMod.clearSnapshot()
 process.env.CUA_OPS_MODE = 'hover-refusal'
 r = await hover({ pid: 1, window_id: 2, x: 100, y: 200 })
 check('G3: hover refusal → ok:false', r.ok === false && /拒绝/.test(r.result), r.result)

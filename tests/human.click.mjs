@@ -51,6 +51,7 @@ export async function cuaCall(tool, args = {}) {
 const plugin = await loadPlugin(work)
 const stub = await import(pathToFileURL(join(work, 'lib', 'cua.js')).href)
 const snapMod = await import(pathToFileURL(join(work, 'lib', 'snapshot.js')).href)
+const obsMod = await import(pathToFileURL(join(work, 'lib', 'observe.js')).href)
 const { check, state: checkState } = makeChecks()
 
 async function fresh(cfgExtra = {}) {
@@ -119,6 +120,30 @@ const snap = snapMod.getSnapshot()
 snap.at = Date.now() - 120000
 r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
 check('H8: 元素点击过期拒绝', r.ok === false && /\[snapshot_expired\]/.test(r.result || ''), r.result)
+
+// 6. from_zoom：图内坐标 + 驱动映射 + 零滑行；无/跨窗口 zoom 拒绝
+;({ call, obs } = await fresh({ deliveryMode: 'foreground' }))
+obsMod.noteZoom(42, 7, { imageW: 280, imageH: 140 })
+r = await call('computer_click', { x: 10, y: 20, from_zoom: true })
+const fz = stub.clicks[0] || {}
+check('H9: from_zoom 点击透传图内坐标/window_id', r.ok === true && fz.from_zoom === true
+  && fz.x === 10 && fz.y === 20 && fz.window_id === 7, JSON.stringify(fz))
+check('H9b: from_zoom 不做可视滑行', stub.moves.length === 0, `moves=${stub.moves.length}`)
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+obsMod.clearZoom()
+r = await call('computer_click', { x: 10, y: 20, from_zoom: true })
+check('H10: 无 zoom 图 → zoom_missing', r.ok === false && /\[zoom_missing\]/.test(String(r.result || '')), String(r.result || '').slice(0, 90))
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+obsMod.noteZoom(42, 99, { imageW: 100, imageH: 100 })
+r = await call('computer_click', { x: 10, y: 20, from_zoom: true })
+check('H10b: 跨窗口 zoom → zoom_missing', r.ok === false && /\[zoom_missing\]/.test(String(r.result || '')), String(r.result || '').slice(0, 90))
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+obsMod.noteZoom(42, 7, { imageW: 280, imageH: 140 })
+r = await call('computer_click', { element: 0, x: 10, y: 20, from_zoom: true })
+check('H11: element + from_zoom 互斥', r.ok === false && /二选一/.test(String(r.result || '')), String(r.result || '').slice(0, 90))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)
