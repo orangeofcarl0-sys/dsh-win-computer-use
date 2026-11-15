@@ -24,6 +24,7 @@ trajectoryStart({ file, meta: { test: true } })
 
 await runTool('computer_type', { text: 'TOP-SECRET-TEXT', element: 0 }, async () => {
   logDriverCall('move_cursor', { x: 10, y: 20 }, 3, { ok: true }, null)
+  logDriverCall('click', { delivery_mode: 'foreground' }, 2, { ok: true }, null)
   return { ok: true, result: '输入完成' }
 })
 await runTool('screen_observe', { window: 'Notepad', mode: 'ax' }, async () => {
@@ -34,6 +35,16 @@ await runTool('screen_observe', { window: 'Notepad', mode: 'ax' }, async () => {
 })
 for (let i = 0; i < 3; i++) {
   await runTool('computer_click', { element: 0, snapshot_id: 's1' }, async () => ({ ok: true, result: '点击完成' }))
+}
+// dispatcher 外壳透明：外层 computer_do 不记事件，只记内层真实工具
+await runTool('computer_do', { action: 'call', tool: 'computer_key', args: { key: 'return' } }, async () => {
+  await runTool('computer_key', { key: 'return' }, async () => ({ ok: true, result: '按键完成 · unverifiable' }))
+  return { ok: true, result: '[computer_key] 按键完成' }
+})
+await runTool('screen_observe', { window: 'Notepad', mode: 'ax' }, async () => ({ ok: true, result: '状态未变（快照 s1）' }))
+// 被 guard 抑制的动作不算“真实重复动作”，也不应触发 repeat_action loop
+for (let i = 0; i < 3; i++) {
+  await runTool('computer_click', { element: 99 }, async () => ({ ok: false, result: '✗ [repeat_suppressed] 与 1s 前的相同点击重复' }))
 }
 const summary = trajectoryStop()
 const lines = readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l))
@@ -46,7 +57,15 @@ check('T4: 驱动调用归属工具', lines.some((e) => e.type === 'driver' && e
 check('T5: 驱动结果摘要不含 AX 树', lines.some((e) => e.type === 'driver' && e.tool === 'get_window_state' && e.elementCount === 3 && !e.elements))
 check('T6: 重复动作触发 loop', lines.some((e) => e.type === 'loop' && e.kind === 'repeat_action' && e.count >= 3))
 check('T7: session_end 带摘要', lines.some((e) => e.type === 'session_end' && e.tools >= 5))
-check('T8: summary 计数正确', summary && summary.actions >= 4 && summary.observes === 1 && summary.moveCount === 1)
+check('T8: summary 计数正确', summary && summary.actions >= 5 && summary.observes === 2 && summary.moveCount === 1)
+check('T9: computer_do 外壳透明', !lines.some((e) => e.type === 'tool_start' && e.name === 'computer_do') && summary.tools === 10,
+  `tools=${summary.tools}`)
+check('T10: unverified / observeStub 计数', summary.unverified === 1 && summary.observeStubs === 1,
+  `unverified=${summary.unverified} stubs=${summary.observeStubs}`)
+check('T11: movesPerClick / deliveryModes', summary.movesPerClick === 1 && summary.deliveryModes.foreground === 1,
+  JSON.stringify({ movesPerClick: summary.movesPerClick, deliveryModes: summary.deliveryModes }))
+check('T12: suppressed 不触发 repeat_action', summary.suppressed === 3
+  && !lines.some((e) => e.type === 'loop' && e.signature === 'act:computer_click:99'), `suppressed=${summary.suppressed}`)
 
 rmSync(dir, { recursive: true, force: true })
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : '❌ ' + checks.length + ' 项失败'}`)

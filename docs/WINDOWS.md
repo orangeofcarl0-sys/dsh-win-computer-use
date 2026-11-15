@@ -96,11 +96,14 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
 Win11 记事本是**单进程多窗口/多标签**，进程可能同时持有用户未保存文档。因此：
 
 1. **绝不按进程名杀**（`Stop-Process -Name Notepad` 会连用户文档一起杀）。
-2. **不要用 WM_CLOSE 批量关**：已修改文档会弹“另存为”，该对话框 UIA 子树可能为空，无人值守时会把对话框留在桌面上；关闭会遍历每个已修改文档的保存流程，比不清理更危险。
+2. **不要用 WM_CLOSE 批量关**：已修改文档会弹“另存为”，无人值守时会把对话框留在桌面上；关闭会遍历每个已修改文档的保存流程，比不清理更危险。对测试窗口，`Close-TestNotepad` 只在标签校验通过（全是测试文件且未修改）后，先关 `GW_OWNER=测试 HWND` 的模态对话框，再关主窗；用户窗口仍不自动关。
 3. **UIA 关标签不可靠**：“关闭标签页”按钮存在，但 `Invoke` 实测 no-op（与 #3908 同源）；先 `Select` 也一样。
 4. **`Start-Process -PassThru` 的 pid 是启动器**，可能随即退出；据此判断“已关闭”是假阳性。
 5. 测试脚本只**报告残留标签名**，由人工关闭（选中标签 → Ctrl+W → 不保存）。`tests/live-action.e2e.mjs` 使用唯一命名临时文件窗口做确定性选择，不杀进程。
 6. eval 的 Notepad 任务使用 `Open-TestNotepad` / `Close-TestNotepad`：**新 HWND 不等于干净窗口**——Win11 会把 `TabState/*.bin` 恢复进新窗口。必须按 UIA `TabItem` 校验精确标签集（无额外用户标签、无 modified、后缀可识别）；任一不符 setup fail closed，cleanup 留窗并写 `_leftovers/`，绝不只看活动标题的 `*`。`Close-TaskWindows` 不再有默认 Notepad 宽匹配，调用必须带显式模式。
+7. **preflight 不把测试标签加进用户窗口**：`Open-TestNotepad` 在启动前若发现任何 Notepad 窗口（且不是本任务显式允许的第一个 HWND），直接 fail closed，不启动。
+8. **TabState 隔离**：`evals/lib/tabstate.ps1 backup|restore` 把用户 TabState 全部 bin 搬到 `_tabstate-backup/`，每个任务启动前清掉上一个任务的 eval bin，跑完恢复。没有它，任务 N 的 seed/draft/workfile 会被任务 N+1 恢复（2026-11-15 实测 cascade）。**运行 eval 期间不要用 Notepad 编辑用户文档**。
+9. **关闭用 UIA，WM_CLOSE 只兜底**：Win11 Notepad 对非提权客户端的 WM_CLOSE 静默忽略；`Close-WindowUia`（`WindowPattern.Close`）可靠。测试窗口标签全是测试文件时才允许丢弃修改（cleanup 的 `-AllowDiscardTestOnlyModified`）。
 
 ## 7. 冒烟矩阵
 
@@ -164,7 +167,8 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | `cua-driver` 启动失败/ENOENT | 不在 PATH 或未安装 | 设 `CUA_DRIVER_BIN`；确认 daemon 在跑 |
 | 窗口级观察被拒，返回 `desktop-visual` | 权限/UIPI/目标不可访问 | 换普通窗口；桌面坐标不能直接点击 |
 | `background_unavailable` | Chromium/Electron/GTK/VCL 等丢弃后台事件 | `deliveryMode: auto` 自动前台；或 `foreground:true` |
-| `foreground_unavailable` | 前台锁 | 自动 L3；仍失败先让目标前置 |
+| `foreground_unavailable` | 前台锁（对话框常见） | 自动 L3；`foreground:true` 也会升级（要求 payload 有 `pid+window_id`）；仍失败先让目标前置 |
+| `[repeat_suppressed]` | 同一窗口/目标/投递模式 5s 内重复，且观察未变化 | 先 `screen_observe`；确认要再点就换目标或 `count=2`；`actionGuard:off` 可关 |
 | `alt+f4`/hotkey 4s 超时 | WinUI3 UIA 加速器不可达（#3908） | 点菜单/工具栏控件；或稍后重试；可试 `xamlKeyFallback: auto` |
 | `could not find a UIA AcceleratorKey` | 命令在关闭菜单里（保存/全选等）；PostMessage 被忽略 | 点菜单栏项打开菜单，再点具体菜单项；不要重复按键 |
 | `menu_path_unavailable` | XAML 菜单驱动走不到 | 改点控件；不要回退像素 |

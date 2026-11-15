@@ -11,6 +11,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)))
+const TABSTATE = join(root, 'lib', 'tabstate.ps1')
+const TEMP = process.env.S4_TEMP || join(process.env.LOCALAPPDATA || process.env.USERPROFILE || '', 'Temp')
+const ENV = { ...process.env, TEMP, TMP: TEMP }
 const ORACLE_IDS = readdirSync(join(root, 'tasks'))
   .filter((f) => f.endsWith('.md'))
   .map((f) => f.replace(/\.md$/, '').split('-')[0])
@@ -18,10 +21,11 @@ const ORACLE_IDS = readdirSync(join(root, 'tasks'))
 
 const POWERSHELL = process.env.S4_POWERSHELL || 'powershell.exe'
 
-function runPs(script, id, timeoutMs = 120000) {
+function runPsArgs(script, args, timeoutMs = 120000) {
   return new Promise((resolve) => {
-    const p = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, id], {
+    const p = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args], {
       cwd: root,
+      env: ENV,
       windowsHide: true,
     })
     let out = ''
@@ -37,11 +41,25 @@ function runPs(script, id, timeoutMs = 120000) {
   })
 }
 
+function runPs(script, id, timeoutMs = 120000) {
+  return runPsArgs(script, [id], timeoutMs)
+}
+
 function parseJson(out) {
   const lines = out.split(/\r?\n/).filter((l) => l.trim().startsWith('{'))
   if (lines.length === 0) return null
   try { return JSON.parse(lines[lines.length - 1]) } catch { return null }
 }
+
+// Same isolation as headless-run: user TabState is backed up before any setup and
+// restored after all tasks. Without it, task N's tabs leak into task N+1.
+const tb = await runPsArgs(TABSTATE, ['backup'], 60000)
+const tbJson = parseJson(tb.out)
+if (!tbJson?.ok) {
+  console.error(`tabstate backup failed: ${tbJson?.reason || tb.err || tb.code}`)
+  process.exit(2)
+}
+console.log(`tabstate backup: ${tbJson.backup || '(none)'} moved=${tbJson.moved ?? 0}${tbJson.already ? ' (already active)' : ''}`)
 
 const results = []
 let failed = 0
@@ -87,5 +105,12 @@ for (const id of ORACLE_IDS) {
   results.push(rec)
 }
 
-console.log(`\nverify-oracles: ${ORACLE_IDS.length - failed}/${ORACLE_IDS.length} PASS`)
+const tr = await runPsArgs(TABSTATE, ['restore'], 60000)
+const trJson = parseJson(tr.out)
+if (!trJson?.ok) {
+  console.error(`tabstate restore failed: ${trJson?.reason || tr.err || tr.code}`)
+  if (trJson?.backup) console.error(`backup kept at: ${trJson.backup}`)
+  failed++
+}
+console.log(`\nverify-oracles: ${ORACLE_IDS.length - failed}/${ORACLE_IDS.length} PASS${trJson?.ok ? '' : ' (tabstate restore failed)'}`)
 process.exit(failed ? 1 : 0)

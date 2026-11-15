@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.dirname(ROOT)
 const PS = process.env.S4_POWERSHELL || 'powershell.exe'
+const TABSTATE = path.join(ROOT, 'lib', 'tabstate.ps1')
 const DSH_ENTRY = process.env.DSH_BIN || path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 const TEMP = process.env.S4_TEMP || path.join(process.env.LOCALAPPDATA || homedir(), 'Temp')
 const ENV = { ...process.env, TEMP, TMP: TEMP }
@@ -102,6 +103,17 @@ async function ps(kind, id) {
   return { code: r.code, json, stderr: r.stderr }
 }
 
+/** Notepad TabState 隔离：备份用户会话，每个任务前清 eval bin，跑完恢复。 */
+async function tabState(action) {
+  const r = await run(PS, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', TABSTATE, action], { timeoutMs: 60000 })
+  let json = null
+  for (const line of r.stdout.split(/\r?\n/)) {
+    if (!line.trim().startsWith('{')) continue
+    try { json = JSON.parse(line) } catch {}
+  }
+  return { code: r.code, json, stderr: r.stderr }
+}
+
 function parseEvents(text) {
   const events = []
   for (const line of text.split(/\r?\n/)) {
@@ -138,7 +150,7 @@ async function runOne(task) {
     id: task.id, group: task.group, tier: task.tier,
     verdict: 'error', steps: 0, toolErrors: 0, unverified: 0,
     timedOut: false, turn: null, final: '', oracle: null,
-    setup: null, cleanup: null, notes: [],
+    setup: null, cleanup: null, dirty: false, notes: [],
   }
   const cl0 = await ps('cleanup', task.id)
   const su = await ps('setup', task.id)
@@ -146,6 +158,10 @@ async function runOne(task) {
   if (su.code !== 0) {
     rec.notes.push('setup: ' + String(su.json?.envError || su.stderr || su.code).slice(0, 300))
     rec.cleanup = (await ps('cleanup', task.id)).json
+    if (rec.cleanup?.dirty) {
+      rec.dirty = true
+      rec.notes.push('cleanup dirty after setup failure')
+    }
     return rec
   }
 
@@ -178,6 +194,14 @@ async function runOne(task) {
   rec.oracle = orc.json || { code: orc.code }
   rec.verdict = orc.code === 0 ? 'pass' : orc.code === 1 ? 'fail' : 'error'
   rec.cleanup = (await ps('cleanup', task.id)).json
+  if (rec.cleanup?.dirty) {
+    // Cleanup refused to close an unsafe window/tab. The task may still have passed,
+    // but the environment is contaminated; do not count it as a clean pass.
+    rec.dirty = true
+    const details = (rec.cleanup.checks || []).filter((c) => c && c.ok === false).map((c) => c.detail || c.name).join('; ')
+    rec.notes.push(('cleanup dirty: ' + details).slice(0, 300))
+    if (rec.verdict === 'pass') rec.verdict = 'dirty'
+  }
   return rec
 }
 runOne.round = 1
@@ -200,6 +224,16 @@ console.log(`headless S4: ${tasks.length} tasks, tier=${tierArg}, repeats=${repe
 console.log(`dsh=${DSH_ENTRY}`)
 console.log(`logs=${logDir}`)
 
+// TabState 隔离必须在任何 setup 之前：否则 Win11 Notepad 会把上一个任务的
+// seed/draft/workfile 恢复进下一个任务的窗口，setup 必然 fail closed。
+const tb = await tabState('backup')
+if (!tb.json?.ok) {
+  console.error(`tabstate backup failed: ${tb.json?.reason || tb.stderr || tb.code}`)
+  console.error('close all Notepad windows (including windowless Notepad processes) and retry')
+  process.exit(2)
+}
+console.log(`tabstate backup: ${tb.json.backup || '(none)'} moved=${tb.json.moved ?? 0}${tb.json.already ? ' (already active)' : ''}`)
+
 const runs = []
 for (let r = 0; r < repeats; r++) {
   runOne.round = r + 1
@@ -207,9 +241,15 @@ for (let r = 0; r < repeats; r++) {
     const rec = await runOne(task)
     rec.repeat = r + 1
     runs.push(rec)
-    console.log(`\n== ${task.id} r${r + 1} -> ${rec.verdict} steps=${rec.steps} err=${rec.toolErrors} unverified=${rec.unverified}${rec.timedOut ? ' timeout' : ''}${rec.turn ? ' turn=' + rec.turn : ''}`)
+    console.log(`\n== ${task.id} r${r + 1} -> ${rec.verdict} steps=${rec.steps} err=${rec.toolErrors} unverified=${rec.unverified}${rec.timedOut ? ' timeout' : ''}${rec.dirty ? ' dirty' : ''}${rec.turn ? ' turn=' + rec.turn : ''}`)
     if (rec.oracle?.checks) console.log('   oracle:', rec.oracle.checks.map((c) => `${c.name}=${c.ok}`).join(' '))
   }
+}
+
+const tr = await tabState('restore')
+if (!tr.json?.ok) {
+  console.error(`tabstate restore failed: ${tr.json?.reason || tr.stderr || tr.code}`)
+  if (tr.json?.backup) console.error(`backup kept at: ${tr.json.backup}; close test Notepad windows then run: powershell -File evals/lib/tabstate.ps1 restore`)
 }
 
 const summary = {
@@ -219,6 +259,7 @@ const summary = {
   tier: tierArg,
   timeoutMin,
   repeats,
+  tabState: { backup: tb.json, restore: tr.json },
   runs,
 }
 fs.mkdirSync(path.dirname(reportPath), { recursive: true })
@@ -229,6 +270,8 @@ const pass = scored.filter((r) => r.verdict === 'pass').length
 const fail = scored.filter((r) => r.verdict === 'fail').length
 const errors = runs.filter((r) => r.verdict === 'error').length
 const timeouts = runs.filter((r) => r.timedOut).length
-console.log(`\nheadless S4: pass=${pass} fail=${fail} error=${errors} total=${runs.length} timeout=${timeouts}`)
+const dirty = runs.filter((r) => r.dirty).length
+const restoreOk = Boolean(tr.json?.ok)
+console.log(`\nheadless S4: pass=${pass} fail=${fail} error=${errors} dirty=${dirty} total=${runs.length} timeout=${timeouts} tabstate=${restoreOk ? 'restored' : 'RESTORE_FAILED'}`)
 console.log(`report -> ${reportPath}`)
-process.exit(errors ? 1 : 0)
+process.exit(errors || dirty || !restoreOk ? 1 : 0)

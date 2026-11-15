@@ -201,6 +201,19 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 4. **用于点击时，zoom 的换算终点是 window-screenshot-px。** `crop.scale` 以驱动返回图尺寸为准（驱动可能做非等比缩放；结果会提示比例不一致）。`screenOrigin` 只用于换算屏幕绝对坐标，点击时**不要**再加。
 5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
 
+### 观察真相：当前值 + 状态差分
+
+- 输入类控件（`Edit`/`ComboBox`/`Spinner`/`Slider`/`AXTextField`）的当前值会出现在文本行 `值="..."` 与结构化 `elements[].value`。密码框不显示值；Document/AXTextArea 不展示正文。
+  - 例：`[77] 输入框 "文件名:" 值="s4-t01-seed.txt" @(708,575)`——模型不会再把旧文件名当成空框直接点保存。
+- 每次观察附一行 `自上次观察：...`：标题变化、输入值变化、状态栏字符数、元素增删。动作回执是 `unverifiable` 时，这一行就是“动作是否生效”的证据。
+  - 时间/行列噪声（`12:34`、`行 1，列 1`）会被归一，不会误报变化；密码变化只报“值变化（隐藏）”。
+- 同标题多窗口（多个“另存为”对话框）会在头部/降噪 stub 明确写“目标匹配 N 个窗口”，要求改用 `window_id`，不静默只取最前。
+
+### 动作回执与重复点击
+
+- 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。
+- `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式，5s 内重复且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照；观察到变化后放行。`double_click` 不拦；`actionGuard: off` 可关闭。
+
 ### 投递：后台 → 前台 → 绕锁
 
 | `deliveryMode` | 行为 |
@@ -209,13 +222,13 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `background` | 全程后台；不可用时返回结构化错误 + `foreground=true` 升级指引 |
 | `foreground` | 始终前台（短暂焦点交换，驱动负责恢复） |
 
-单次动作可用 `foreground: true` 覆盖。L3 的例外：`hotkey` 不做绕锁重试（XAML 先验拒绝会同样失败）；没有 `pid` 的目标不升级。`bring_to_front` 未返回 `previous_fg_hwnd` 时，回执会明确写“原前台未恢复”，不会假装成功。
+单次动作可用 `foreground: true` 覆盖，但不要默认开启：前台点击更慢（会移动指针并短暂切换焦点）。强制前台遇到 `foreground_unavailable` 时同样走 L3（`bring_to_front` 精确到 `pid+window_id` → 前台重试 → 恢复原前台）；`hotkey` 也适用。没有 `pid+window_id` 的目标不升级；`bring_to_front` 未返回 `previous_fg_hwnd` 时，回执会明确写“原前台未恢复”，不会假装成功。
 
 ### 输入通道
 
 - **文本**：`computer_type` 指定 element 时走 UIA `ValuePattern`（XAML/WinUI 主机必需）；不指定 element 时输入到快照窗口当前焦点，回执附“密码保护无法预判焦点”的注记。
 - **设值**：`computer_set_value` 只走 UIA `ValuePattern`；Web/自绘控件可能忽略，回执提示改用 `computer_type` 或点击后输入。
-- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本实测两类失败：UIA 加速器 4s 超时，以及 `could not find a UIA AcceleratorKey`（命令在关闭的菜单里，上游 #3908）。回执会直接给“点菜单栏项 → 点菜单项”的可执行路径；`xamlKeyFallback: auto`（默认 `off`）可实验性自动完成这一步，但只做唯一标签的 token 点击，歧义/缺失即停，不自动处理另存为/覆盖对话框。
+- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本实测两类失败：UIA 加速器 4s 超时，以及 `could not find a UIA AcceleratorKey`（命令在关闭的菜单里，上游 #3908）。回执会直接给“点菜单栏项 → 点菜单项”的可执行路径；`xamlKeyFallback: auto`（默认 `off`）可实验性自动完成这一步，但只做唯一标签的 token 点击，歧义/缺失即停，不自动处理另存为/覆盖对话框的填写。对话框（无菜单栏）已前台时，auto 会对 `ctrl+a/c/v/x/z` 额外尝试一次前台 `press_key`，并回执要求先观察输入框当前值。
 - **长文本/特殊字符**：`computer_clipboard(write)` + `computer_key("ctrl+v")` 是最可靠的粘贴流；剪贴板可能被其它进程占用，read 结果带隐私注记。
 
 ### 快照与安全护栏
@@ -251,6 +264,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
     allowedApps: []
     cursorTheme: com.dsh.computeruse.rainbow
     cursorMotion: auto
+    actionGuard: on
     trajectoryFile: ''
     nativeImage: auto
     visionProvider: deepseek-official
@@ -273,13 +287,14 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `supersession` | `note` | 同快照连击：`note` / `enforce` / `off` |
 | `allowedApps` | `[]` | 操作类工具的应用白名单；空 = 不限制 |
 | `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
-| `cursorMotion` | `auto` | `auto`：前台点击保留滑行，background 不滑行，近距离不画弧；`off`：全部不滑行 |
+| `cursorMotion` | `auto` | `auto`：前景最多 1 次移动（驱动单次 2–3s，5 段会拖到 15–18s/点击）；`human`：保留 5 段弧线；`off`：不移动。background 始终不滑行；同目标 16px/2s 内跳过 |
+| `actionGuard` | `on` | 同一窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`；`off` 关闭 |
 | `trajectoryFile` | 空 | 非空时写 CU 轨迹 JSONL（文本只留 len/hash，驱动只留摘要）；也可用 `DSH_CU_TRAJECTORY_FILE` |
 | `nativeImage` | `auto` | `auto` 超附件限额自动降级 / `full` 原图 / `compact` 始终 ≤500px JPEG |
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
 | `extremePatterns` | `[]` | 极危清单（正则源数组）：命中附警告注记，不阻断 |
-| `xamlKeyFallback` | `off` | 实验性：`off` 只给控件路径指引；`auto` 对 `ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o` 自动“点菜单栏项 → 点唯一菜单项”。默认关闭，歧义/缺失即停 |
+| `xamlKeyFallback` | `off` | 实验性：`off` 只给控件路径指引；`auto` 对 `ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o` 自动“点菜单栏项 → 点唯一菜单项”；对话框无菜单栏且已前台时对编辑类组合额外尝试一次前台 `press_key`。歧义/缺失即停 |
 | `deliveryMode` | `auto` | 后台/自动/前台投递策略 |
 
 ## 能力边界（诚实说明）
@@ -339,18 +354,18 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（18/18 JS）
-npm test                           # 19 套离线测试，346 个断言
+npm run check                      # 语法检查 + bash -n（19/19 JS）
+npm test                           # 22 套离线测试，394 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')"   # 真机 dsh 加载（headless 需先启用 credentials）
 node tests/live-action.e2e.mjs 3   # 真桌面动作闭环（会打开临时记事本窗口）
 npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可用；10 分钟/条）
-node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
+node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 10/10；2026-11-15 本机 7/10，t04/t06/t10 环境问题）
 ```
 
-`npm test` 的 19 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / delivery.failures / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 

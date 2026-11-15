@@ -56,6 +56,32 @@
 - **Notepad 新窗口恢复用户标签**：2026-11-14 t01 的窗口实际有 8 个标签（2 个用户已修改文档 + 6 个测试文件）。`Open/Close-TestNotepad` 改为 UIA TabItem 精确 ExpectedTabs 校验；额外/已修改/未知后缀 setup fail closed，cleanup 留窗并写 `_leftovers/`；cleanup JSON 带 `dirty`。
 - **`analyze-sessions.mjs` 支持 v4**：多 zstd frame 解码；从 `computer_do.arguments.tool` 归因隐藏工具。
 
+**2026-11-15（轨迹驱动第二轮）：观察值/状态差分、目标回显、重复点击抑制、强制前台 L3、指针降噪、监控准确性**
+
+### Added
+
+- **`tests/observe.truth.mjs`（14）**：输入框当前值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告。
+- **`tests/action.echo.mjs`（8）**：坐标点击回显最近元素（`(465,171)` → 否(N)）、元素回显、重复点击抑制、观察变化放行、`actionGuard=off`、double_click 不拦。
+- **`tests/delivery.foreground.mjs`（13）**：真实 `cuaDeliver` 在 force + `foreground_unavailable`（含驱动抛异常）时用 `pid+window_id` 走 L3；重试失败如实报未送达；hotkey 同样升级；非 foreground 异常保持抛出。
+- **`lib/loopGuard.js` + `actionGuard`（默认 `on`）**：同窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`，不消耗快照；观察变化清除计数。
+- **`cursorMotion: human`**：保留 5 段弧线；`auto` 改为前景单次移动；同目标 16px/2s 内跳过滑行。
+- **观察 `changedSinceLast` / `changes`**：`自上次观察` 一行差分；输入类 `elements.value`；schema 同步声明。
+- **轨迹监控新统计**：`computer_do` 外壳透明、`unverified`/`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`。
+
+### Fixed
+
+- **另存为文件名盲区（t01 循环主因）**：`mapElementsForModel`/`renderLine` 旧实现用 `label || value`，输入框只显示“文件名:”，隐藏了框内 `s4-t01-seed.txt`；模型点保存触发“确认另存为”，又把 `(465,171)`（否(N)）当“是”。现在值单列输出（密码/文档正文除外），动作回执回显目标。
+- **unverifiable 无状态证据**：每次观察附标题/输入值/状态栏字符数/元素增删差分；模型不必因“不确定”反复重输、重观察。
+- **强制前台绕过 L3**：`cuaDeliver` 在 force 时遇到 `foreground_unavailable` 直接返回；现在只要 payload 有 `pid+window_id`，同样 `bring_to_front` → 前台重试 → 恢复原前台；token 点击也带 `window_id`。
+- **对话框已前台仍建议 foreground**：`tryXamlKeyFallback`/`xamlKeyGuidance` 增加 foreground/hasMenuBar 判断；无菜单栏对话框改为“点输入框 → computer_type”；`auto` 对编辑类组合额外尝试前台 `press_key`。
+- **指针 5 段滑行 15–18s/点击**：驱动单次 `move_cursor` 2–3s，旧实现 5 段；`auto` 改为单次，`human` 显式保留轨迹。
+- **轨迹计数翻倍**：`computer_do` 与内层工具重复记录，58 次调用显示 115；外壳透明，摘要改为真实调用数。
+- **每次观察重复 check_permissions**：30s 缓存，减少固定 2s/次。
+- **同标题多窗口静默取最前**：头部/stub 明确“匹配 N 个，改用 window_id”。
+- **残留另存为对话框**：`Close-TestNotepad` 在标签校验通过后先关 owned 模态对话框；`headless-run` 消费 `cleanup.dirty`，pass 改记 `dirty` 并非 0 退出。
+- **t01 Save As 语义不稳定**：Win11 Save As 文件名框在驱动 UIA/type 路径下会返回 confirmed/unverifiable 但值不变，Ctrl+A 前台被锁，旧另存为/覆盖确认对话框叠层。t01 改为 setup 预开空 `target\note.txt`、输入后“文件→保存”原地保存；`--repeats 3` **3/3 pass**（37/18/19 步，273/122/104s，每次 1 次 move_cursor）。Save As 覆盖保留在 t05。
+- **Notepad TabState 跨任务污染**：新增 `evals/lib/tabstate.ps1 backup|restore`，runner 在任何 setup 前备份用户 TabState、每个任务前清 eval bin、跑完恢复；`Open-TestNotepad` 增加“已有 Notepad 窗口则 fail closed，不把测试标签加进用户窗口”的 preflight；`Close-OrphanTestNotepads` 只关全局测试白名单 + 唯一 seed（或 eval 期间创建）的窗口；关闭优先 UIA `WindowPattern.Close`（WM_CLOSE 被 Win11 Notepad 忽略），cleanup 可丢弃测试标签的修改。
+
 ### Added
 
 - **更名（2026-11-10）**：包名/仓库名 `dsh-computer-use` → **`dsh-win-computer-use`**，定位为 Windows-first Computer Use；`package.json`、`cordis.patch.yml`、install/uninstall、README/文档与 GitHub 仓库同步更名。旧 GitHub URL 自动 redirect；npm 尚未发布，无历史包名负担。

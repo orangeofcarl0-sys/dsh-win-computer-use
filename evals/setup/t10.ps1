@@ -18,7 +18,7 @@ try {
     Out-Finish -Ok $false -Checks $checks -Kind 'setup'
   }
   Start-Sleep -Milliseconds 500
-  $s2 = Open-TestNotepad -Path $b -TitleNeedle 'b.txt' -StateFile $state2 -ExpectedTabs @('b.txt')
+  $s2 = Open-TestNotepad -Path $b -TitleNeedle 'b.txt' -StateFile $state2 -ExpectedTabs @('b.txt') -AllowExistingHwnd @([int]$s1.hwnd)
   if (-not $s2.ok -and [int]$s2.hwnd -eq 0) {
     $checks += (Add-Check 'b.txt opened' $false ("reason=$($s2.reason)"))
     Out-Finish -Ok $false -Checks $checks -Kind 'setup'

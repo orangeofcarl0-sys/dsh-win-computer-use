@@ -106,6 +106,7 @@ public static class S4W32 {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
 }
 "@
 }
@@ -153,6 +154,45 @@ function Find-WindowByHwnd([long]$Hwnd) {
     }
   }
   return $null
+}
+
+function Get-OwnedWindows([int]$Hwnd) {
+  # Top-level windows whose GW_OWNER is the given HWND (Save As / confirm dialogs).
+  # UIA root children avoid a managed callback closure over script state.
+  Add-Type -AssemblyName UIAutomationClient
+  $root = [System.Windows.Automation.AutomationElement]::RootElement
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Window)
+  $wins = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+  $out = @()
+  foreach ($w in $wins) {
+    $h = 0
+    try { $h = [int]$w.Current.NativeWindowHandle } catch {}
+    if ($h -eq 0) { continue }
+    $owner = [IntPtr]::Zero
+    try { $owner = [S4W32]::GetWindow([IntPtr]$h, 4) } catch {}
+    if ([int]$owner -eq [int]$Hwnd) {
+      $name = ''
+      try { $name = [string]$w.Current.Name } catch {}
+      $out += [PSCustomObject]@{ hwnd = $h; title = $name }
+    }
+  }
+  return @($out)
+}
+
+function Close-WindowUia([int]$Hwnd) {
+  # Win11 Notepad ignores WM_CLOSE from a non-elevated client (UIPI), but the UIA
+  # WindowPattern.Close path works through the automation broker. Prefer it;
+  # callers fall back to PostMessage(WM_CLOSE) if UIA is unavailable.
+  try {
+    Add-Type -AssemblyName UIAutomationClient
+    $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd)
+    if (-not $win) { return $false }
+    $wp = $win.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+    $wp.Close()
+    return $true
+  } catch { return $false }
 }
 
 function ConvertFrom-NotepadTabName([string]$Name) {
@@ -219,9 +259,13 @@ function Test-NotepadTabSet([int]$Hwnd, [string[]]$ExpectedTabs) {
   return (Test-NotepadTabLabels -TabNames $names -ExpectedTabs $ExpectedTabs)
 }
 
-function Test-NotepadTabAllowed([string[]]$TabNames, [string[]]$AllowedTabs, [int]$ExpectedCount) {
+function Test-NotepadTabAllowed {
   # Cleanup variant: the tab may have been renamed by Save As (seed -> note.txt),
   # so require the original count and a label from the allowed set, not one exact name.
+  # -AllowModified is used by cleanup: every label is already proven to be in the
+  # task's allowed test set, so discarding test-only edits is safe; a user tab still
+  # fails the label check and leaves the window open.
+  param([string[]]$TabNames, [string[]]$AllowedTabs, [int]$ExpectedCount, [switch]$AllowModified)
   $tabs = @($TabNames | ForEach-Object { ConvertFrom-NotepadTabName $_ })
   $allowed = @($AllowedTabs | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Sort-Object -Unique)
   $labels = @($tabs | ForEach-Object { ([string]$_.label).Trim().ToLowerInvariant() })
@@ -229,7 +273,7 @@ function Test-NotepadTabAllowed([string[]]$TabNames, [string[]]$AllowedTabs, [in
   if ($tabs.Count -eq 0) { $reason = 'no tabs exposed' }
   elseif ($ExpectedCount -ge 0 -and $tabs.Count -ne $ExpectedCount) { $reason = "tab count $($tabs.Count) != expected $ExpectedCount" }
   elseif (@($tabs | Where-Object { -not $_.known }).Count -gt 0) { $reason = 'unknown tab state suffix' }
-  elseif (@($tabs | Where-Object { $_.modified -eq $true }).Count -gt 0) { $reason = 'modified tab present' }
+  elseif (@($tabs | Where-Object { $_.modified -eq $true }).Count -gt 0 -and -not $AllowModified) { $reason = 'modified tab present' }
   elseif (@($labels | Where-Object { $allowed -notcontains $_ }).Count -gt 0) { $reason = 'tab label not in allowed final set' }
   return [ordered]@{
     ok = ($reason -eq '')
@@ -259,6 +303,24 @@ function Clear-TestNotepadTabState([string]$StateDir = '') {
     } catch {}
   }
   return $removed
+}
+
+function Clear-TestTabStateForLaunch {
+  # When evals/lib/tabstate.ps1 has backed up the user's TabState (marker exists),
+  # delete ALL bins left by the previous eval task. Without this, task N's test tabs
+  # are restored into task N+1's window (draft/workfile/a.txt cascade, 2026-11-15).
+  # Without the marker, only test-path bins are touched (never a user session).
+  $stateDir = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsNotepad_8wekyb3d8bbwe\LocalState\TabState'
+  $marker = Join-Path $env:USERPROFILE '.dsh\s4-evals\_tabstate-active.json'
+  if (-not (Test-Path $stateDir)) { return 0 }
+  if (Test-Path $marker) {
+    $removed = 0
+    foreach ($f in @(Get-ChildItem $stateDir -Filter '*.bin' -File -ErrorAction SilentlyContinue)) {
+      try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop; $removed++ } catch {}
+    }
+    return $removed
+  }
+  return (Clear-TestNotepadTabState $stateDir)
 }
 
 function Write-TestState([string]$Path, $State) {
@@ -305,11 +367,28 @@ function Open-TestNotepad {
   # A new HWND is NOT enough: Win11 Notepad restores the previous session's tabs
   # into the new window. Require the exact expected tab set, all unmodified and
   # all with a known state suffix; otherwise fail closed and record why.
-  param([string]$Path, [string]$TitleNeedle, [string]$StateFile, [string[]]$ExpectedTabs = @(), [string[]]$FinalTabs = @())
-  # Remove only prior test tabs from TabState; otherwise a new window restores
+  param([string]$Path, [string]$TitleNeedle, [string]$StateFile, [string[]]$ExpectedTabs = @(), [string[]]$FinalTabs = @(), [int[]]$AllowExistingHwnd = @())
+  # Recover from a previous run's test-only windows before preflight. This is what
+  # stops the "failed t01 leaves a modified seed tab, next setup restores it" cascade.
+  $orphan = Close-OrphanTestNotepads
+  if ($orphan.closed -gt 0) { Start-Sleep -Milliseconds 500 }
+  # Remove prior test tabs from TabState; otherwise a new window restores
   # note.txt/draft.txt/etc. and the exact tab-set check (correctly) fails.
-  [void](Clear-TestNotepadTabState)
-  $before = @(Find-WindowsByTitle 'Notepad' | ForEach-Object { [int]$_.hwnd })
+  # In eval mode (backup marker present) this clears all eval-created bins.
+  [void](Clear-TestTabStateForLaunch)
+  $beforeWins = @(Find-WindowsByTitle 'Notepad')
+  $before = @($beforeWins | ForEach-Object { [int]$_.hwnd })
+  # Preflight: launching notepad.exe while another Notepad window exists can add the
+  # test document as a tab to that window (possibly a user document). Fail closed
+  # BEFORE launching; t10 may explicitly allow its own first HWND.
+  $foreign = @($beforeWins | Where-Object { $AllowExistingHwnd -notcontains [int]$_.hwnd })
+  if ($foreign.Count -gt 0) {
+    $titles = (@($foreign | ForEach-Object { $_.title }) -join ' | ')
+    return [ordered]@{
+      ok = $false; hwnd = 0; title = ''; owned = $false; safeToClose = $false
+      reason = "existing Notepad window(s); refusing to add a test tab (close them first): $titles"
+    }
+  }
   Start-Process -FilePath 'notepad.exe' -ArgumentList @($Path) | Out-Null
   $deadline = (Get-Date).AddSeconds(15)
   $hit = $null
@@ -366,13 +445,127 @@ function Open-TestNotepad {
   return $state
 }
 
+function Dismiss-TestSavePrompt([int]$Hwnd) {
+  # Click "Don't Save" (localized via code points) on a save-changes dialog owned by
+  # the test HWND. Only called after the tab allowlist has proven every tab is a
+  # test file; user tabs never reach this path.
+  $noSave = -join @([char]0x4E0D, [char]0x4FDD, [char]0x5B58)
+  foreach ($d in @(Get-OwnedWindows $Hwnd)) {
+    try {
+      $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$d.hwnd)
+      $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Button)
+      foreach ($b in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+        $n = ''
+        try { $n = [string]$b.Current.Name } catch {}
+        if ($n.IndexOf($noSave) -ge 0 -or $n -match "Don.t Save") {
+          try {
+            $p = $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+            $p.Invoke()
+            return $true
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+  return $false
+}
+
+# Known test document labels. Orphan cleanup only closes a window when EVERY tab
+# is in this set AND at least one tab is a unique test seed; a user tab or a bare
+# generic name (note.txt/a.txt) is never auto-closed.
+$script:TestNotepadLabels = @(
+  's4-t01-seed.txt', 'note.txt', 'draft.txt', 'out-ansi.txt',
+  's4-t06-seed.txt', 'pasted.txt', 'workfile.txt', 'a.txt', 'b.txt', 'deleg.txt'
+)
+$script:TestNotepadSeeds = @('s4-t01-seed.txt', 's4-t06-seed.txt', 'workfile.txt')
+
+function Close-OrphanTestNotepads {
+  # Recover from a previous run's test-only windows (e.g. a failed save left a
+  # modified seed plus restored test tabs). Strict allowlist + at least one unique
+  # seed; user tabs are left alone and reported. Returns {closed,leftover,details}.
+  param()
+  $closed = 0
+  $leftover = @()
+  $details = @()
+  # In eval mode (tabstate.ps1 backup active), a Notepad process started after the
+  # backup is eval-owned; this also covers windows whose only tab is draft.txt/a.txt.
+  $evalStart = $null
+  $marker = Join-Path $env:USERPROFILE '.dsh\s4-evals\_tabstate-active.json'
+  if (Test-Path $marker) {
+    try { $m = Get-Content $marker -Raw | ConvertFrom-Json; $evalStart = [datetime]$m.at } catch {}
+  }
+  foreach ($w in @(Find-WindowsByTitle 'Notepad')) {
+    $wpid = 0
+    try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$w.hwnd, [ref]$wpid) } catch {}
+    $start = ''
+    try { $start = (Get-Process -Id $wpid -ErrorAction Stop).StartTime.ToString('o') } catch {}
+    $evalOwned = $false
+    if ($evalStart -and $start) {
+      try { $evalOwned = ([datetime]$start -ge $evalStart) } catch {}
+    }
+    $tabs = @(Get-NotepadTabs ([int]$w.hwnd))
+    if ($tabs.Count -eq 0) {
+      # An empty, untitled window created during the eval run (e.g. app_launch
+      # fallback) has no document to lose; close it via UIA. A pre-existing empty
+      # window may belong to the user, so leave it.
+      if ($evalOwned) {
+        if (Close-WindowUia ([int]$w.hwnd)) {
+          Start-Sleep -Milliseconds 500
+          if (-not (Find-WindowByHwnd ([int]$w.hwnd))) {
+            $closed++
+            $details += ("hwnd={0} closed empty eval window" -f $w.hwnd)
+            continue
+          }
+        }
+      }
+      $leftover += ("hwnd={0} title={1} tabs=none" -f $w.hwnd, $w.title)
+      continue
+    }
+    $labels = @($tabs | ForEach-Object { ([string]$_.label).Trim().ToLowerInvariant() })
+    $unknown = @($tabs | Where-Object { -not $_.known })
+    $allowed = $true
+    foreach ($l in $labels) {
+      if ($script:TestNotepadLabels -notcontains $l) { $allowed = $false; break }
+    }
+    $hasSeed = $false
+    foreach ($l in $labels) {
+      if ($script:TestNotepadSeeds -contains $l) { $hasSeed = $true; break }
+    }
+
+    if (-not $allowed -or $unknown.Count -gt 0 -or (-not $hasSeed -and -not $evalOwned)) {
+      $leftover += ("hwnd={0} title={1} tabs={2}" -f $w.hwnd, $w.title, (($tabs | ForEach-Object { $_.raw }) -join ' | '))
+      continue
+    }
+    $tmp = Join-Path $env:TEMP ('s4-orphan-' + [guid]::NewGuid().ToString('N') + '.json')
+    $state = [ordered]@{
+      ok = $true; hwnd = [int]$w.hwnd; title = [string]$w.title; owned = $true; safeToClose = $true
+      pid = [int]$wpid; processStart = $start
+      expectedTabs = @(); allowedTabs = @($labels); tabCount = $labels.Count
+      tabs = @($tabs | ForEach-Object { $_.raw }); reason = 'orphan test-only window'
+    }
+    if (-not (Write-TestState $tmp $state)) { $leftover += ("hwnd={0} state write failed" -f $w.hwnd); continue }
+    $r = Close-TestNotepad -StateFile $tmp -AllowDiscardTestOnlyModified
+    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    if ($r.closed) {
+      $closed++
+      $details += ("hwnd={0} closed discarded={1} tabs={2}" -f $w.hwnd, $r.discarded, (($tabs | ForEach-Object { $_.raw }) -join ' | '))
+    } else {
+      $leftover += ("hwnd={0} close failed: {1}" -f $w.hwnd, $r.reason)
+    }
+  }
+  return [ordered]@{ closed = $closed; leftover = @($leftover); details = @($details) }
+}
+
 function Close-TestNotepad {
   # Close only the exact HWND recorded by Open-TestNotepad, and only when the
-  # window is still the same process and its tabs are exactly the expected set,
-  # all unmodified. Never Stop-Process, never close user tabs, never confirm a
-  # save prompt. Returns {closed,leftover,reason,tabs}.
-  param([string]$StateFile)
-  $res = [ordered]@{ closed = $false; leftover = ''; reason = ''; tabs = @() }
+  # window is still the same process and its tabs are exactly the expected set.
+  # -AllowDiscardTestOnlyModified: cleanup may discard edits when every tab label is
+  # in the task's allowed test set; a user tab still fails the label check and stays
+  # open. Never Stop-Process. Returns {closed,leftover,reason,tabs,dialogsClosed}.
+  param([string]$StateFile, [switch]$AllowDiscardTestOnlyModified)
+  $res = [ordered]@{ closed = $false; leftover = ''; reason = ''; tabs = @(); dialogsClosed = 0; discarded = $false }
   if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.reason = 'no state file'; return $res }
   $s = Read-TestState $StateFile
   if (-not $s) {
@@ -399,7 +592,7 @@ function Close-TestNotepad {
   if ($s.allowedTabs) {
     $names = @(Get-NotepadTabs ([int]$s.hwnd) | ForEach-Object { $_.raw })
     $expectedCount = if ($null -ne $s.tabCount) { [int]$s.tabCount } else { @($s.expectedTabs).Count }
-    $tabCheck = Test-NotepadTabAllowed -TabNames $names -AllowedTabs @($s.allowedTabs) -ExpectedCount $expectedCount
+    $tabCheck = Test-NotepadTabAllowed -TabNames $names -AllowedTabs @($s.allowedTabs) -ExpectedCount $expectedCount -AllowModified:$AllowDiscardTestOnlyModified
   } else {
     # Old state files have no allowedTabs: preserve the strict exact-set behavior.
     $tabCheck = Test-NotepadTabSet -Hwnd ([int]$s.hwnd) -ExpectedTabs @($s.expectedTabs)
@@ -410,14 +603,48 @@ function Close-TestNotepad {
     $res.leftover = (@($tabCheck.labels) -join ' | ')
     return $res
   }
-  if (([string]$hit.title).TrimStart().StartsWith('*')) {
+  $modifiedTabs = @($tabCheck.tabs | Where-Object { $_.modified -eq $true }).Count -gt 0
+  if ((([string]$hit.title).TrimStart().StartsWith('*') -or $modifiedTabs) -and -not $AllowDiscardTestOnlyModified) {
     $res.reason = 'modified document; left open'; $res.leftover = [string]$hit.title; return $res
   }
-  [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  # Close task-owned modal dialogs first. The tab check above already proved this
+  # window contains only unmodified test tabs, so an owned dialog cannot be holding
+  # user data. Without this, WM_CLOSE to the main window is ignored and the dialog
+  # survives the run (2026-11-15 t01 timeout left a Save As dialog on screen).
+  for ($pass = 0; $pass -lt 3; $pass++) {
+    $owned = @(Get-OwnedWindows ([int]$s.hwnd))
+    if ($owned.Count -eq 0) { break }
+    foreach ($d in $owned) {
+      if (-not (Close-WindowUia ([int]$d.hwnd))) {
+        [void][S4W32]::PostMessage([IntPtr]$d.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+      }
+    }
+    $res.dialogsClosed = [int]$res.dialogsClosed + $owned.Count
+    Start-Sleep -Milliseconds 500
+  }
+  $stillOwned = @(Get-OwnedWindows ([int]$s.hwnd))
+  if ($stillOwned.Count -gt 0) {
+    $res.reason = 'owned dialog did not close; left open'
+    $res.leftover = (@($stillOwned | ForEach-Object { $_.title }) -join ' | ')
+    return $res
+  }
+  if (-not (Close-WindowUia ([int]$s.hwnd))) {
+    [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  }
   Start-Sleep -Milliseconds 800
+  for ($i = 0; $i -lt 3; $i++) {
+    if (-not (Find-WindowByHwnd ([int]$s.hwnd))) { break }
+    if (-not $AllowDiscardTestOnlyModified) { break }
+    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd))) { break }
+    Start-Sleep -Milliseconds 800
+  }
   $still = Find-WindowByHwnd ([int]$s.hwnd)
-  if ($still) { $res.reason = 'close not confirmed; left open'; $res.leftover = [string]$still.title }
-  else { $res.closed = $true }
+  if ($still) {
+    $res.reason = 'close not confirmed; left open'; $res.leftover = [string]$still.title
+  } else {
+    $res.closed = $true
+    $res.discarded = [bool]$modifiedTabs
+  }
   return $res
 }
 
@@ -494,7 +721,10 @@ function Close-TaskWindows {
   foreach ($e in $found) {
     if ($seen.ContainsKey($e[0])) { continue }
     $seen[$e[0]] = $true
-    [void][S4W32]::PostMessage([IntPtr]$e[0], 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    # Win11 Notepad ignores WM_CLOSE from a non-elevated client; UIA WindowPattern.Close works.
+    if (-not (Close-WindowUia ([int]$e[0]))) {
+      [void][S4W32]::PostMessage([IntPtr]$e[0], 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    }
     $closed++
   }
   if ($closed -gt 0) { Start-Sleep -Milliseconds 800 }

@@ -5,20 +5,14 @@ try {
   $dir = New-TaskDir
   $f = Join-Path $dir 'workfile.txt'
   if (-not (Test-Path $f)) { Set-Content -Path $f -Value '' -Encoding ASCII -NoNewline }
-  # close any stale workfile notepad from a previous run
-  $stale = @(Find-WindowsByTitle 'workfile.txt')
-  foreach ($w in $stale) { [void][S4W32]::PostMessage([IntPtr]$w.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
-  if ($stale.Count -gt 0) { Start-Sleep -Milliseconds 800 }
-  Start-Process -FilePath 'notepad.exe' -ArgumentList @($f)
-  $deadline = (Get-Date).AddSeconds(15)
-  $win = @()
-  while ((Get-Date) -lt $deadline) {
-    $win = @(Find-WindowsByTitle 'workfile.txt')
-    if ($win.Count -gt 0) { break }
-    Start-Sleep -Milliseconds 500
-  }
-  $checks += (Add-Check 'workfile.txt notepad opened' ($win.Count -gt 0) (($win | ForEach-Object { $_.title }) -join ' | '))
-  Out-Finish -Ok ($win.Count -gt 0) -Checks $checks -Kind 'setup'
+  # Use the same HWND/ownership + exact-tab-set contract as the other Notepad tasks.
+  # Preflight fails closed if any other Notepad window exists (never add a test tab
+  # to a user window); cleanup discards test-only edits and closes via UIA.
+  $stateFile = Join-Path (Get-TaskDir) 'test-notepad.json'
+  $s = Open-TestNotepad -Path $f -TitleNeedle 'workfile.txt' -StateFile $stateFile -ExpectedTabs @('workfile.txt')
+  $ok = [bool]$s.ok -and [bool]$s.owned
+  $checks += (Add-Check 'workfile.txt notepad opened as task-owned window' $ok ("hwnd=$($s.hwnd) title=$($s.title) owned=$($s.owned) reason=$($s.reason)"))
+  Out-Finish -Ok $ok -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'
 }

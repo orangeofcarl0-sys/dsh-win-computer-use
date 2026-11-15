@@ -63,7 +63,7 @@ check('S3: Close-TaskWindows 无默认 Notepad 宽匹配', fn.length > 0
   && !/\$jishiben/.test(fn), fn.slice(0, 120))
 
 // 4. Notepad 生命周期走 Open/Close-TestNotepad
-for (const id of ['t01', 't05', 't06']) {
+for (const id of ['t01', 't05', 't06', 't07']) {
   const setup = readFileSync(join(evals, 'setup', `${id}.ps1`), 'utf8')
   const cleanup = readFileSync(join(evals, 'cleanup', `${id}.ps1`), 'utf8')
   check(`S4: ${id} setup 使用 Open-TestNotepad`, /Open-TestNotepad/.test(setup))
@@ -79,10 +79,25 @@ check('S7: t10 cleanup 使用 Close-TestNotepad', /Close-TestNotepad/.test(t10c)
 // 6. 标签级安全：必须有纯分类器、UIA 枚举、Open/Close 双重复核
 check('S8: 存在标签枚举与纯分类器', /function Get-NotepadTabs/.test(common) && /function Test-NotepadTabLabels/.test(common))
 check('S9: Open/Close 都复核标签集合', (common.match(/Test-NotepadTabSet\s+-Hwnd/g) || []).length >= 2)
-for (const id of ['t01', 't05', 't06', 't10']) {
+for (const id of ['t01', 't05', 't06', 't07', 't10']) {
   const setup = readFileSync(join(evals, 'setup', `${id}.ps1`), 'utf8')
   check(`S10: ${id} setup 显式 ExpectedTabs`, /-ExpectedTabs/.test(setup))
 }
+
+// 7. 模态对话框：只关 owned（GW_OWNER），且在最终 WM_CLOSE 之前
+check('S11: 存在 owned 对话框枚举', /function Get-OwnedWindows/.test(common) && /GetWindow\(\[IntPtr\]\$h, 4\)/.test(common))
+const closeFn = (common.match(/function Close-TestNotepad\s*\{[\s\S]*?\n\}/) || [''])[0]
+check('S12: Close-TestNotepad 先关 owned 对话框', /Get-OwnedWindows/.test(closeFn)
+  && closeFn.indexOf('Get-OwnedWindows') < closeFn.lastIndexOf('PostMessage'))
+check('S13: 关闭走 UIA WindowPattern，WM_CLOSE 仅兜底', /function Close-WindowUia/.test(common)
+  && /WindowPattern/.test(common) && closeFn.indexOf('Close-WindowUia') < closeFn.lastIndexOf('PostMessage'))
+for (const id of ['t01', 't05', 't06', 't07', 't10']) {
+  const cleanup = readFileSync(join(evals, 'cleanup', `${id}.ps1`), 'utf8')
+  check(`S14: ${id} cleanup 允许丢弃测试标签修改`, /-AllowDiscardTestOnlyModified/.test(cleanup))
+}
+const openFn = (common.match(/function Open-TestNotepad\s*\{[\s\S]*?\n\}/) || [''])[0]
+check('S15: Open-TestNotepad 先 preflight 再启动', /existing Notepad window/.test(openFn)
+  && openFn.indexOf('existing Notepad window') < openFn.indexOf('Start-Process'))
 
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

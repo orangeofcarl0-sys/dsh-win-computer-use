@@ -42,29 +42,46 @@ let errors = 0
 let refusals = 0
 let deliveryFailures = 0
 let stale = 0
+let unverified = 0
+let observeStubs = 0
+let suppressed = 0
 let observes = 0
 let actions = 0
 let loops = []
 let start = null
 let end = null
+let clicks = 0
+const toolMs = {}
+const toolCountsRaw = {}
+const deliveryModes = {}
 
 for (const e of events) {
   if (e.type === 'session_start') start = e.ms
   if (e.type === 'session_end') end = e.ms
   if (e.type === 'tool_end') {
-    toolCounts[e.name] = (toolCounts[e.name] || 0) + 1
-    // computer_do 是路由壳；为避免同一动作的错误/计数翻倍，统计只算隐藏工具。
+    // computer_do 是路由壳；新轨迹已不记录外壳，这里保留兼容过滤。
     if (e.name !== 'computer_do') {
+      toolCounts[e.name] = (toolCounts[e.name] || 0) + 1
+      toolCountsRaw[e.name] = (toolCountsRaw[e.name] || 0) + 1
+      toolMs[e.name] = (toolMs[e.name] || 0) + (Number(e.dur) || 0)
       if (!e.ok) errors++
       if (e.refusal) refusals++
       if (e.deliveryFailure) deliveryFailures++
       if (e.snapshotMismatch) stale++
+      if (e.unverified) unverified++
+      if (e.observeStub) observeStubs++
+      if (e.suppressed) suppressed++
       if (e.name === 'screen_observe' || e.name === 'screen_zoom') observes++
       else actions++
+      if (/click/.test(e.name)) clicks++
     }
   }
   if (e.type === 'driver') {
     driverCounts[e.tool] = (driverCounts[e.tool] || 0) + 1
+    if (['click', 'type_text', 'set_value', 'hotkey', 'press_key', 'scroll', 'drag'].includes(e.tool)
+      && e.args && typeof e.args.delivery_mode === 'string') {
+      deliveryModes[e.args.delivery_mode] = (deliveryModes[e.args.delivery_mode] || 0) + 1
+    }
     if (e.tool === 'move_cursor' && e.ok && e.args) {
       const x = Number(e.args.x)
       const y = Number(e.args.y)
@@ -91,8 +108,14 @@ const summary = {
   refusals,
   deliveryFailures,
   staleSnapshots: stale,
+  unverified,
+  observeStubs,
+  suppressed,
+  deliveryModes,
+  toolAvgMs: Object.fromEntries(Object.entries(toolMs).map(([k, v]) => [k, Math.round(v / (toolCountsRaw[k] || 1))])),
   moves,
   moveDistancePx: Math.round(moveDistance),
+  movesPerClick: clicks ? +(moves / clicks).toFixed(1) : null,
   loops: loops.map((l) => ({ kind: l.kind, tool: l.tool, signature: l.signature, count: l.count, ratio: l.ratio })),
 }
 
@@ -104,9 +127,12 @@ if (jsonOut) {
 console.log('trajectory:', file)
 console.log('events:', summary.events, 'duration:', summary.durationMs != null ? (summary.durationMs / 1000).toFixed(1) + 's' : '?')
 console.log('tools:', Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
-console.log('observes=', observes, 'actions=', actions, 'ratio=', summary.observeActionRatio)
+console.log('observes=', observes, 'actions=', actions, 'ratio=', summary.observeActionRatio,
+  'stubs=', observeStubs, 'unverified=', unverified, 'suppressed=', suppressed)
 console.log('drivers:', Object.entries(driverCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
-console.log('pointer: moves=', moves, 'distance=', summary.moveDistancePx + 'px')
+console.log('pointer: moves=', moves, 'distance=', summary.moveDistancePx + 'px', 'moves/click=', summary.movesPerClick)
+console.log('delivery:', Object.entries(deliveryModes).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
+console.log('tool-avg-ms:', Object.entries(summary.toolAvgMs).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
 console.log('errors=', errors, 'refusals=', refusals, 'deliveryFailures=', deliveryFailures, 'staleSnapshots=', stale)
 if (loops.length) {
   console.log('loops:')

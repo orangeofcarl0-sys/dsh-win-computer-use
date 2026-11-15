@@ -4,7 +4,7 @@ $checks = @()
 $dirty = $false
 try {
   $stateFile = Join-Path (Get-TaskDir) 'test-notepad.json'
-  $r = Close-TestNotepad -StateFile $stateFile
+  $r = Close-TestNotepad -StateFile $stateFile -AllowDiscardTestOnlyModified
   if (-not $r.closed -and $r.reason -ne 'window already gone') {
     $left = Save-LeftoverState -TaskId $TaskId -StateFile $stateFile -Result $r
     $labels = @($r.tabs | ForEach-Object { $_.label }) -join ','

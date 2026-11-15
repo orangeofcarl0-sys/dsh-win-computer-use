@@ -61,6 +61,7 @@ evals/
   verify-oracles.mjs   oracle 独立验证（AC2）：setup→oracle 必须 fail；simulate→oracle 必须 pass
   lib/
     common.ps1         PS 共享前置：沙箱根、JSON 输出、路径约定（所有 PS1 dot-source）
+    tabstate.ps1       Notepad TabState backup/restore（隔离用户会话，防任务间标签串味）
     cdp.mjs            零依赖 CDP 客户端（Node 22 原生 WebSocket，驱动 headless Chrome）
   tasks/<id>.md        任务定义：prompt 原文 + 元数据（WAA 组含溯源头）
   setup/<id>.ps1       预置状态（幂等，先自清理）
@@ -70,6 +71,7 @@ evals/
 ```
 
 - `<id>`：自编组 `t01`…`t10`，WAA 本地化组 `wa1`…`wa6`（文件名主干即 id）。
+- **运行前置**：所有 Notepad 窗口（含无窗口的 Notepad 进程）必须关闭。`headless-run.mjs` / `verify-oracles.mjs` 会先调用 `lib/tabstate.ps1 backup` 把用户 TabState 移到 `~/.dsh/s4-evals/_tabstate-backup/`，每个 setup 前清掉上一个任务的 eval bin，跑完 restore。手动跑 setup 时可用 `powershell -File evals/lib/tabstate.ps1 backup|restore|status`。若进程被杀导致未 restore，先关测试窗口再执行 restore。
 - **PS1 一律 ASCII-only**（PowerShell 5.1 把无 BOM 脚本按 ANSI 解析，中文注释会炸解析器）——中文只进 .md。
 - 沙箱根：`%USERPROFILE%\.dsh\s4-evals\<id>\`。任务涉及"Documents/Desktop/Pictures"的一律本地化为沙箱内对应子目录（防动用户真实文件），改动点记入任务 md 溯源说明。
 - 判定原则（不可妥协）：oracle 绝不用模型自评，全部 PS/Win32 确定性读；setup/oracle 与被测动作解耦（runner 直调）。
@@ -86,7 +88,8 @@ evals/
 - **Win11 记事本上驱动的三条输入通道都可能不可达**（2026-09-16 受控窗口实测 + 2026-11-14 t01）：`hotkey` 走 UIA 加速器扫描 → 4s 超时，或 `could not find a UIA AcceleratorKey`（保存/全选等命令在关闭菜单里）；`press_key`（PostMessage）不报错但 `effect:unverifiable`、目标无反应；`invoke_menu` 返回 `menu_path_unavailable`（XAML 菜单驱动走不到），且 `["文件"]` 可能只回 `unverifiable` 而菜单没开。→ 依赖 Ctrl+S 保存的任务（t01/t05/t06/t10）在该目标上要走“点菜单栏项 → 观察弹出菜单 → 点菜单项”。插件已把两类 hotkey 失败翻译成可执行指引；`xamlKeyFallback: auto`（默认 off）可实验性自动完成“开菜单→点项”，歧义/缺失即停；`computer_menu` 的 `unverifiable` 不再报成功。
 - **记事本进程会被复用**：`notepad.exe` 单进程多标签，自己起的实例可能被用户后续打开的文件占用 → 清理测试窗口要按**标题**匹配，不要按进程名杀（2026-09-16 实测：我的测试进程被用户文档复用）。
 - **2026-11-15 Notepad 标签级安全化**：`Open-TestNotepad`/`Close-TestNotepad` 不再只看“新 HWND”或活动标题 `*`。Win11 会把 `TabState/*.bin` 恢复进新窗口——2026-11-14 的 t01 窗口实际有 8 个标签（2 个用户已修改文档 + 6 个测试文件）。现在必须用 UIA `TabItem` 校验精确 ExpectedTabs、无额外/已修改/未知后缀；任何不符 setup fail closed，cleanup 留窗并写 `~/.dsh/s4-evals/_leftovers/`。`Close-TaskWindows` 删除默认 Notepad/无标题/记事本 needles，调用必须带显式模式；`tests/eval-safety.mjs` + `tests/notepad-tabs.test.mjs` 守门。
-- **t01 预置**：setup 打开唯一空 seed `s4-t01-seed.txt`（task-owned 新窗口），prompt 要求另存为 `target\note.txt`；不再启动“无标题”窗口，避免与用户已有标签混淆。
+- **2026-11-15 轨迹驱动第二轮（模态对话框 + dirty）**：`Close-TestNotepad` 在标签校验通过后，先关闭 GW_OWNER=测试 HWND 的 `另存为`/`确认另存为` 模态窗口，再对主窗 `WM_CLOSE`；否则主窗关闭会被模态循环忽略，对话框残留到下一次 run。`headless-run.mjs` 消费 cleanup JSON 的 `dirty`：`rec.dirty=true`，pass 改记 `dirty`，汇总打印 `dirty=N`，退出码非 0——环境不干净不再算干净通过。
+- **t01 预置（2026-11-15 起）**：setup 直接预开空 `target\note.txt`（task-owned 新窗口），prompt 改为输入后“文件→保存”原地保存；不再走 Save As（Win11 文件名框/覆盖确认在驱动 UIA 路径下不可靠）。Save As 覆盖保留在 t05。
 - **驱动提权链（2026-09-16 实测，上游 #3607 已附证据）**：`cua-driver.exe` 的二进制清单是 `requireAdministrator` → daemon 恒为 High IL → **`app_launch` 启动的应用继承 High IL**（对照：同一 shell 直接 `Start-Process notepad` 为 Medium IL）→ 非提权客户端 `taskkill`/`Stop-Process`/`WM_CLOSE` 全被拒（UIPI），残骸窗口累积并干扰后续任务观察（基线 t07 级联失败的元凶之一）。驱动**确实能**操作自己启动的 High IL 窗口（提权记事本上 `computer_type` 成功且 `effect:confirmed`），所以"管理员窗口不可操作"的旧说法不成立——真实边界是"客户端清不掉"。且 WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 #3908 的 UIA 超时、`invoke_menu` 报 menu_path_unavailable）→ 只能人工收尾。**评测实践：优先操作已在运行的普通应用；用 `app_launch` 的任务要接受人工收尾成本。**
 - **dsh 0.1.5 UI 变化（2026-09-16 实证）**：`document.execCommand('insertText')` 在 composer 上失效（长度恒 0，会发出空消息）→ 必须走 CDP `Input.insertText`；轮次页脚由 `N 轮 · M 步` 变为 `N 轮 M 步`（无分隔点）；新建会话后页面可能被其他会话视图覆盖 → 发送前必须**二次校验当前会话仍是 0 轮**，回合结束再校验 prompt 标记在活动会话文本里。
 - **「新建会话」点击可能不生效**（视图被钉在历史会话上；2026-09-16 实测：无弹层、无导航、harness 日志无报错，普通点击与 trusted CDP 点击都一样，而同一页面其它按钮点击正常）。**可靠恢复 = 重载客户端**——新加载会直接给出空会话（这也解释了为什么"重启/新开客户端"总能正常跑）。runner 已内置：点击无效 → 重载客户端 → 重试，最多 3 轮，并在日志打印 `session view pinned → reloading client`。
@@ -124,9 +127,13 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 
 两轮合计 **7/8（87.5%）**；`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。
 
-> 2026-11-15：t01 真机复跑暴露了“新窗口恢复用户标签”的安全漏洞；标签白名单/污染 fail-closed/leftover 已修复。随后执行 `--tasks t01 --repeats 3`，三次全部在 setup 阶段 error（steps=0）：seed 都落进仍含 2 个用户已修改标签的现有窗口，`owned=False`，fail-closed 正确阻止了 dsh。**GUI 复跑仍需先保存/关闭用户标签并清掉测试标签**；桌面干净后先 `node evals/verify-oracles.mjs`（10/10），再跑三次 auto + 一次默认 off 对照。
+> 2026-11-15：t01 真机复跑暴露了“新窗口恢复用户标签”的安全漏洞；标签白名单/污染 fail-closed/leftover 已修复。随后执行 `--tasks t01 --repeats 3`，三次全部在 setup 阶段 error（steps=0）：seed 都落进仍含 2 个用户已修改标签的现有窗口，`owned=False`，fail-closed 正确阻止了 dsh。**GUI 复跑仍需先保存/关闭用户标签并清掉测试标签**。
 >
-> 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。分析命令：`node evals/analyze-trajectory.mjs <file>`。
+> 2026-11-15 后续：`tabstate.ps1` 备份/恢复 + `Close-OrphanTestNotepads` + UIA 关闭完成后，t01 改为**原地保存**（预开空 `target\note.txt`，输入后“文件→保存”）。`--tasks t01 --repeats 3` **3/3 pass**：37/18/19 步，273.4/121.7/104.2s，每次 1 次 `move_cursor`，无 timeout/dirty，tabstate restored。旧 Save As 语义仍受 Win11 文件名框（`type`/`set_value` 返回 confirmed/unverifiable 但值不变）与对话框叠层影响，Save As 覆盖保留在 t05。
+>
+> 2026-11-15 `verify-oracles` 本机 **7/10**：t01/t03/t05/t07/t09/wa2/x1 PASS；t04 Calculator 窗口未出现（环境）、t06 系统剪贴板 `clipboard_unavailable`（driver 同样报错）、t10 `a` 窗口 tab 集为空（单独 setup 可过，Win11 Notepad 合并时序）。这不是插件退归；t10 的时序加固留待后续。
+>
+> 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。第二轮修正了 `computer_do` 外壳重复计数，并增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`；分析命令：`node evals/analyze-trajectory.mjs <file>`。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

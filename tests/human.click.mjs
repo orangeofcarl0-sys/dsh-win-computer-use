@@ -73,12 +73,29 @@ check('H1: background 点击成功', r.ok === true, r.result)
 check('H2: background 零 move_cursor', stub.moves.length === 0, `moves=${stub.moves.length}`)
 check('H3: token 点击不传 x/y', stub.clicks.length === 1 && stub.clicks[0].element_token === 'tok0' && stub.clicks[0].x === undefined, JSON.stringify(stub.clicks[0]))
 
-// 2. foreground：滑行目标是窗口截图坐标（70,72），不是屏幕坐标（170,172）
+// 2. foreground：auto 只做一次终点移动（目标是窗口截图坐标 70,72，不是屏幕坐标 170,172）
 ;({ call, obs } = await fresh({ deliveryMode: 'foreground' }))
 r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
 const last = stub.moves[stub.moves.length - 1]
-check('H4: foreground 保留 5 段滑行', stub.moves.length === 5, `moves=${stub.moves.length}`)
+check('H4: foreground auto 只做 1 次移动', stub.moves.length === 1, `moves=${stub.moves.length}`)
 check('H5: 滑行终点 = 窗口截图坐标', last && last.x === 70 && last.y === 72, JSON.stringify(last))
+
+// 2b. human：显式开启后保留 5 段弧线
+;({ call, obs } = await fresh({ deliveryMode: 'foreground', cursorMotion: 'human' }))
+r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+check('H4b: human 模式保留 5 段滑行', stub.moves.length === 5, `moves=${stub.moves.length}`)
+
+// 2c. off：完全不动
+;({ call, obs } = await fresh({ deliveryMode: 'foreground', cursorMotion: 'off' }))
+r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+check('H4c: off 模式零移动', stub.moves.length === 0, `moves=${stub.moves.length}`)
+
+// 2d. 同目标 2s 内第二次点击：跳过滑行（actionGuard 关闭，单独验证指针逻辑）
+;({ call, obs } = await fresh({ deliveryMode: 'foreground', actionGuard: 'off' }))
+await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+const firstMoves = stub.moves.length
+await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+check('H4d: 同目标第二次点击不再移动', firstMoves === 1 && stub.moves.length === 1, `moves=${stub.moves.length}`)
 
 // 3. 近距离：只移动一次
 // get_cursor_position 是屏幕坐标；窗口原点 (100,100)，所以本地 (70,72) = 屏幕 (170,172)

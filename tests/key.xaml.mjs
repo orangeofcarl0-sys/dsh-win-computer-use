@@ -41,8 +41,9 @@ export function deliveryFailure(v) {
 }
 
 export const clicks = []
+export const presses = []
 let popupOpen = false
-export function resetAll() { clicks.length = 0; popupOpen = false }
+export function resetAll() { clicks.length = 0; presses.length = 0; popupOpen = false }
 const mode = () => process.env.CUA_KEY_MODE || 'xaml-throw'
 
 export async function cuaDeliver(tool, payload) {
@@ -64,6 +65,11 @@ export async function cuaDeliver(tool, payload) {
     clicks.push(payload.element_token)
     if (payload.element_token === 'm-file') popupOpen = true
     return { value: { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }, note: '' }
+  }
+  if (tool === 'press_key') {
+    presses.push(payload)
+    if (process.env.CUA_KEY_PRESS_FAIL === '1') return { value: { code: 'foreground_unavailable', detail: 'stub lock' }, note: '' }
+    return { value: { ok: true, effect: 'confirmed', delivery: { mode: 'foreground' } }, note: '' }
   }
   return { value: await cuaCall(tool, payload), note: '' }
 }
@@ -109,7 +115,11 @@ async function fresh(cfgExtra = {}) {
   await call('screen_observe', { window: '42', mode: 'ax' })
   return call
 }
-const reset = (mode) => { stub.resetAll(); process.env.CUA_KEY_MODE = mode }
+const reset = (mode) => {
+  stub.resetAll()
+  process.env.CUA_KEY_MODE = mode
+  delete process.env.CUA_KEY_PRESS_FAIL
+}
 
 // 1. 默认 off：只给指引，不点击，不透传 get_window_state
 reset('xaml-throw')
@@ -180,6 +190,31 @@ reset('ok')
 call = await fresh({ xamlKeyFallback: 'auto' })
 r = await call('computer_key', { key: 'ctrl+s' })
 check('K18: 正常 hotkey 成功不受影响', r.ok === true && /已确认/.test(r.result || ''), r.result)
+
+// 11. 对话框（无菜单栏）+ 已前台：实验性 press_key 回退
+reset('no-menu')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+a', foreground: true })
+check('K19: 对话框 ctrl+a 已前台 → press_key 回退', r.ok === true && /press_key/.test(r.result || ''), r.result)
+check('K20: press_key 带 ctrl + window_id', stub.presses.length === 1
+  && stub.presses[0].key === 'a'
+  && Array.isArray(stub.presses[0].modifiers) && stub.presses[0].modifiers.includes('ctrl')
+  && stub.presses[0].window_id === 7, JSON.stringify(stub.presses[0] || null))
+
+// 12. 对话框未显式前台：也尝试一次 press_key（避免“点击→Ctrl+A 被拒”循环）
+reset('no-menu')
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+a' })
+check('K21: 对话框未显式前台也尝试 press_key', r.ok === true
+  && /press_key/.test(r.result || '') && stub.presses.length === 1, r.result)
+
+// 13. press_key 仍失败：如实给 foreground=true 指引，不假报成功
+reset('no-menu')
+process.env.CUA_KEY_PRESS_FAIL = '1'
+call = await fresh({ xamlKeyFallback: 'auto' })
+r = await call('computer_key', { key: 'ctrl+a' })
+check('K22: press_key 失败 → foreground=true 指引', r.ok === false
+  && /foreground=true/.test(r.result || '') && stub.presses.length === 1, r.result)
 
 delete process.env.CUA_KEY_MODE
 cleanupWork(work)

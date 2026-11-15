@@ -87,7 +87,9 @@ for (const [form, expectBrief] of [['summary', false], ['brief', true]]) {
   const o1 = await call('screen_observe', { window: 'Stub' })
   const o2 = await call('screen_observe', { window: 'Stub' })
   const drop = 1 - raw(o2).length / raw(o1).length
-  check(`AC1(${form}) 未变第2次为 stub 且降幅≥80%`, isStub(o2) && drop >= 0.8,
+  // 2026-11-15：stub 增加“关键控件/自上次观察差分”，以便模型无需重观察即可继续动作；
+  // 降幅目标从 80% 调整为 65%（仍然是数量级更小，且省掉 6s 的重观察）。
+  check(`AC1(${form}) 未变第2次为 stub 且降幅≥65%`, isStub(o2) && drop >= 0.65,
     `${raw(o1).length}→${raw(o2).length} (${Math.round(drop * 100)}%)`)
   check(`AC1(${form}) stub 含快照 id 且声明编号有效`, /快照 s\d+/.test(raw(o2)) && /编号仍有效/.test(raw(o2)))
   check(`AC5(${form}) ${expectBrief ? 'brief 无摘要行' : 'summary 含摘要行'}`,
@@ -100,7 +102,9 @@ for (const [form, expectBrief] of [['summary', false], ['brief', true]]) {
   const call = await fresh({ observeDedup: 'off' })
   const a = await call('screen_observe', { window: 'Stub' })
   const b = await call('screen_observe', { window: 'Stub' })
-  check('AC5(off) 永不降噪', !isStub(b) && raw(a).length === raw(b).length, `${raw(a).length}/${raw(b).length}`)
+  // off 仍全量；第二次多一行“自上次观察：无可见变化”（状态差分），长度允许小幅增长。
+  check('AC5(off) 永不降噪且带差分', !isStub(b) && /自上次观察：无可见变化/.test(raw(b))
+    && Math.abs(raw(b).length - raw(a).length) <= 30, `${raw(a).length}/${raw(b).length}`)
 }
 
 // ── AC2：变化必全量（元素集合 / 标题 / 语义字段）────────────────────

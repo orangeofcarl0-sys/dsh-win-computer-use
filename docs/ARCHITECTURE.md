@@ -56,9 +56,11 @@ flowchart LR
 | 文件 | 关键导出 | 职责 | 依赖 |
 |---|---|---|---|
 | `index.js` | `Config`、`apply`、`toolDefinitions` | 配置 schema；四组工具定义数组；`defineTool` 投影；`apply()` 注册可见工具；`wrap()` 统一管线；`computer_do` 元工具 | 全部 lib |
-| `lib/observe.js` | `screenObserve`、`screenZoom`、`dedupEvaluate`、`dedupReset` | 目标选择、抓树、桌面降级、模式决策、结构密码标记、快照缓存、渲染、降噪、zoom 裁剪 | cua / snapshot / attach / vision / passwordScan / roles |
-| `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp` | 动作实现；快照/窗口解析；投递；回执 | cua / human / receipt / snapshot / engine |
-| `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf` | 虚拟光标滑行；element_token / 像素点击；坐标适配 | cua / snapshot |
+| `lib/observe.js` | `screenObserve`、`screenZoom`、`dedupEvaluate`、`dedupReset` | 目标选择、抓树、桌面降级、模式决策、结构密码标记、状态差分、快照缓存、渲染、降噪、zoom 裁剪 | cua / snapshot / attach / vision / passwordScan / roles |
+| `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp` | 动作实现；快照/窗口解析；目标回显；投递；回执 | cua / human / receipt / snapshot / engine |
+| `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf`、`describeClickTarget`、`nearestEntry` | 虚拟光标滑行（auto/human/off）；element_token / 像素点击；坐标适配；目标回显 | cua / snapshot |
+| `lib/loopGuard.js` | `checkRepeat`、`noteObserveChange`、`resetLoopGuard` | 同窗口/目标/投递模式 5s 重复点击抑制；观察变化清除 | human |
+| `lib/trajectory.js` | `trajectoryStart`、`runTool`、`logDriverCall`、`trajectorySummary`、`sanitizeArgs` | CU 轨迹 JSONL：脱敏、驱动归属、loop/耗时/未验证/移动数 | node:fs / node:async_hooks |
 | `lib/ops.js` | `createOpsState`、`gate`、`stop`、`resume`、`verifyOnce`、`waitFor`、`clipboard`、`menu`、`hover` | 确定性验证、轮询、剪贴板、菜单直调、悬停、强杀锁存 | cua / snapshot / attach / engine / receipt |
 | `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`DELEGATION_RECIPE` | 子 agent 委派（0.2.2 `startActivation`）、能力降级、超时/预算、结构化结果映射 | 宿主 `subagents` |
 | `lib/guard.js` | `guard`、`extremeNote` | 无快照拒绝、白名单、密码三态、极危注记 | snapshot / roles |
@@ -261,7 +263,8 @@ flowchart TD
 
 - 驱动 `get_window_state` 的截图是窗口 `bounds` 的 1:1 物理像素裁剪（实测同尺寸）。
 - 原始元素 `frame` 是屏幕物理像素；`mapElementsForModel` 在输出时减去 `screenOrigin`（`bounds.x/y`），得到 window-screenshot-px。
-- 快照内部仍保留原始坐标（密码标记/结构扫描用屏幕坐标），模型看到的是换算后的坐标。
+- 快照条目 x/y 存**点击空间**（已减 `screenOrigin`）；原始 frame 只在当次观察内用于密码标记/渲染。模型看到的文本、结构化 elements、快照条目、点击输入四者同空间。
+- 输入类元素的当前值进入文本 `值="..."` 与 `elements.value`（密码/文档正文除外）；每次观察附 `自上次观察` 差分（标题/值/状态栏/元素增删），供 unverifiable 动作确认。
 - `screen_zoom` 输出 `crop{x,y,w,h,scale}`：图内坐标 `× scale + crop.x/y` = window-screenshot-px。`screenOrigin` 只用于再换算到屏幕绝对坐标。
 - `screen_zoom` 输出 `crop{x,y,w,h,scale}`：图内坐标 `× scale + crop.x/y` = window-screenshot-px（`coordinateSpace` 字段同此）；再加 `screenOrigin` 才是屏幕绝对坐标。
 
@@ -275,7 +278,7 @@ flowchart TD
 4. 上次观察后没有动作消费快照（`consumedBefore === false`）；
 5. 没有 `force`、没有 `query`。
 
-命中时返回 `summary`（含前 10 个 `index:role` 摘要）或 `brief`（单行）；`force=true` 走全量并刷新哈希。`dedupReset()` 在每次 `apply()` 调用时清空。
+命中时返回 `summary`（前 10 个 `index:role` 摘要 + 关键控件 `[编号] 角色 "标签" 值=...`）或 `brief`（单行）；结构化 `elements` 复用上次映射结果，模型不必为“编号在哪”再 force/native。全量与 stub 都带 `自上次观察` 差分和 `changedSinceLast`；`force=true` 走全量并刷新哈希。`dedupReset()` 在每次 `apply()` 调用时清空降噪/差分/权限缓存。
 
 ## 7. 快照与新鲜度
 
@@ -401,7 +404,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：19 套、346 断言（2026-11-15）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：22 套、394 断言（2026-11-15）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

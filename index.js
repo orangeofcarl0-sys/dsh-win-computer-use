@@ -42,6 +42,9 @@ const defineTool = (options) => {
 }
 
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
+import { resetCursorMotion } from './lib/human.js'
+import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
+import { getSnapshot } from './lib/snapshot.js'
 import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
 import {
@@ -92,10 +95,17 @@ export const Config = z.object({
   cursorTheme: z.string().default('com.dsh.computeruse.rainbow'),
   /**
    * 虚拟光标滑行动画：
-   *   auto 默认：前台/非后台投递保留 5 段弧线；background 投递不滑行（避免无意义的连续小段移动）；
+   *   auto 默认：前台最多 1 次 move_cursor（驱动单次移动约 2–3s，5 段弧线会让一次点击多花 10s+）；
+   *   human：保留 5 段弧线（演示/需要轨迹感时显式开启）；
    *   off：所有点击都不滑行，直接到目标。
+   * background 投递在任何模式下都不滑行。
    */
-  cursorMotion: z.union(['auto', 'off']).default('auto'),
+  cursorMotion: z.union(['off', 'auto', 'human']).default('auto'),
+  /**
+   * 重复点击抑制（默认 on）：同一窗口 + 同一目标 + 同一投递模式，5s 内重复且期间观察未报告
+   * 界面变化 → 直接拒绝并提示先观察。只作用于 click/right_click；double_click 有明确语义不拦。
+   */
+  actionGuard: z.union(['on', 'off']).default('on'),
   /**
    * Computer Use 轨迹监控（默认关闭）：非空路径时把工具/驱动调用写成 JSONL。
    * 文本类只记长度+哈希；驱动结果只记摘要。环境变量 DSH_CU_TRAJECTORY_FILE 可覆盖。
@@ -233,6 +243,7 @@ const DESKTOP_FALLBACK_FIELDS = {
       properties: {
         index: { type: 'integer' }, role: { type: 'string' },
         label: { type: 'string' },
+        value: { type: 'string', description: '输入类控件的当前值（密码/文档正文不外显）。' },
         x: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
         y: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
       },
@@ -290,7 +301,7 @@ function renderWithImage(_args, value) {
 const FOREGROUND_PARAM = {
   foreground: {
     type: 'boolean',
-    description: '可选：强制前台投递（用后自动恢复原前台）；默认按 deliveryMode。',
+    description: '可选：强制前台投递（用后自动恢复原前台；更慢：会移动指针并短暂切换焦点）。仅当后台确认未生效或对话框需要真实焦点时使用，不要默认开启。',
   },
 }
 
@@ -375,6 +386,28 @@ function observeToolDefs(ctx, cfg, wrap) {
       ...DESKTOP_FALLBACK_FIELDS,
       screenshotFile: { oneOf: [{ type: 'string' }, { type: 'null' }] },
       snapshotId: { oneOf: [{ type: 'string' }, { type: 'null' }], description: '本次观察的快照 id（动作可携带 snapshot_id 声明证据基线）。' },
+      changedSinceLast: {
+        oneOf: [{ type: 'boolean' }, { type: 'null' }],
+        description: '自上次观察同一窗口以来内容是否变化；null = 首次观察（无基线）。',
+      },
+      changes: {
+        oneOf: [
+          {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              changed: { type: 'boolean' },
+              titleChanged: { type: 'boolean' },
+              added: { type: 'integer' },
+              removed: { type: 'integer' },
+              changedCount: { type: 'integer' },
+              summary: { type: 'string' },
+            },
+          },
+          { type: 'null' },
+        ],
+        description: '状态差分摘要（标题/输入值/状态栏/元素增删）；用于确认上一步动作是否生效。',
+      },
       ...SCREEN_ORIGIN_FIELDS,
       ...IMAGE_FIELD,
     }), render: renderWithImage },
@@ -424,7 +457,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。',
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。不要无条件加 foreground=true（前台点击更慢且会移动指针）。',
     parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, count: { type: 'integer', description: '可选：点击次数，默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
@@ -807,7 +840,9 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
 }
 
 export function apply(ctx, config) {
-  dedupReset()   // 每次 apply 视为全新会话状态（降噪缓存随会话走，避免陈旧哈希被复用）
+  dedupReset()   // 每次 apply 视为全新会话状态（降噪/差分/权限缓存随会话走）
+  resetLoopGuard()
+  resetCursorMotion()
   resetTaskCalls()   // 委派预算按会话重置
   const cfg = {
     ttlMs: config.ttlMs,
@@ -821,6 +856,7 @@ export function apply(ctx, config) {
     allowedApps: Array.isArray(config.allowedApps) ? config.allowedApps : [],
     cursorTheme: config.cursorTheme,
     cursorMotion: config.cursorMotion || 'auto',
+    actionGuard: config.actionGuard || 'on',
     trajectoryFile: config.trajectoryFile || '',
     nativeImage: config.nativeImage || 'auto',
     visionProvider: config.visionProvider || 'deepseek-official',
@@ -870,7 +906,13 @@ export function apply(ctx, config) {
         }
         const g = guard(cfg, toolName, args)
         if (!g.ok) return { ok: false, result: `✗ ${g.reason}` }
+        // 重复点击抑制：不消耗快照、不落动作；只打断“同一目标连续点击且界面未变”的循环。
+        const repeat = checkRepeat(toolName, args, getSnapshot(), cfg)
+        if (repeat) return repeat
         const v = await impl(args, cfg, exec)
+        if (toolName === 'screen_observe' && v && v.window && typeof v.changedSinceLast === 'boolean') {
+          noteObserveChange(`${v.window.pid}:${v.window.windowId}`, v.changedSinceLast)
+        }
         return g.note && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${g.note}` } : v
       } catch (err) {
         return { ok: false, result: `✗ ${err.message}` }
