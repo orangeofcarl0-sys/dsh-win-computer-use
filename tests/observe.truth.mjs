@@ -139,6 +139,8 @@ check('T16: .exe 别名匹配', exe.ok === true && exe.window?.pid === 42, raw(e
 const docObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
 check('T17: Document 正文不泄露', docObs.ok === true && !/SECRET-DOC-BODY/.test(raw(docObs)), raw(docObs).slice(0, 160))
 check('T18: 顶层菜单栏不误报“菜单已打开”', !/菜单已打开/.test(raw(docObs)), raw(docObs).split('\n').slice(0, 8).join(' | '))
+check('T20: 文档提示含“不置脏”语义', /UIA 注入可能不置“未保存”标记/.test(raw(docObs))
+  && /不要据此判断输入失败/.test(raw(docObs)), raw(docObs).split('\n').slice(0, 8).join(' | '))
 stub.ws.popup = true
 const popupObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
 check('T19: 真正弹出菜单项才提示', /菜单已打开/.test(raw(popupObs)), raw(popupObs).split('\n').slice(0, 8).join(' | '))

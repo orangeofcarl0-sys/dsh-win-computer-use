@@ -55,10 +55,13 @@ let clicks = 0
 const toolMs = {}
 const toolCountsRaw = {}
 const deliveryModes = {}
+const toolNameById = new Map()
+const snapshotReadsByTool = {}
 
 for (const e of events) {
   if (e.type === 'session_start') start = e.ms
   if (e.type === 'session_end') end = e.ms
+  if (e.type === 'tool_start' && e.id) toolNameById.set(e.id, e.name)
   if (e.type === 'tool_end') {
     // computer_do 是路由壳；新轨迹已不记录外壳，这里保留兼容过滤。
     if (e.name !== 'computer_do') {
@@ -80,6 +83,11 @@ for (const e of events) {
   }
   if (e.type === 'driver') {
     driverCounts[e.tool] = (driverCounts[e.tool] || 0) + 1
+    // get_window_state 的归属：观察 / verifyAfterAction 复核 / 输入回读 / XAML 回退扫描。
+    if (e.tool === 'get_window_state') {
+      const owner = toolNameById.get(e.parent) || 'unknown'
+      snapshotReadsByTool[owner] = (snapshotReadsByTool[owner] || 0) + 1
+    }
     if (['click', 'type_text', 'set_value', 'hotkey', 'press_key', 'scroll', 'drag'].includes(e.tool)
       && e.args && typeof e.args.delivery_mode === 'string') {
       deliveryModes[e.args.delivery_mode] = (deliveryModes[e.args.delivery_mode] || 0) + 1
@@ -103,6 +111,7 @@ const summary = {
   durationMs: start != null ? (end != null ? end - start : (events.at(-1)?.ms || 0) - start) : null,
   tools: toolCounts,
   drivers: driverCounts,
+  snapshotReadsByTool,
   observes,
   actions,
   observeActionRatio: actions ? +(observes / actions).toFixed(2) : null,
@@ -133,6 +142,7 @@ console.log('tools:', Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map
 console.log('observes=', observes, 'actions=', actions, 'ratio=', summary.observeActionRatio,
   'stubs=', observeStubs, 'changedObserves=', changedObserves, 'unverified=', unverified, 'suppressed=', suppressed)
 console.log('drivers:', Object.entries(driverCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
+console.log('snapshot-reads:', Object.entries(snapshotReadsByTool).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
 console.log('pointer: moves=', moves, 'distance=', summary.moveDistancePx + 'px', 'moves/click=', summary.movesPerClick)
 console.log('delivery:', Object.entries(deliveryModes).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
 console.log('tool-avg-ms:', Object.entries(summary.toolAvgMs).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')

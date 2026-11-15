@@ -109,9 +109,10 @@ export const Config = z.object({
   actionGuard: z.union(['on', 'off']).default('on'),
   /**
    * 动作后自动复核（实验性，默认 off）：
-   * auto = 对 element 路径的 click/type/set_value/key，在 unverifiable/suspected_noop 后
+   * auto = 对 click/double_click/right_click（含坐标）与 key，在 unverifiable/suspected_noop 后
    *        抓一次无截图窗口状态，把差分写进回执；结构性变化清快照，避免旧编号点错。
-   * 每次复核约 +2s；默认关闭，A/B 确认收益后再考虑默认。
+   *        type/set_value 的输入回读独立于本开关（不可信时总会执行）。
+   * 每次复核约 +2s，且会刷新快照 token/TTL；默认关闭，A/B 确认收益后再考虑默认。
    */
   verifyAfterAction: z.union(['off', 'auto']).default('off'),
   /**
@@ -169,6 +170,15 @@ export const Config = z.object({
    *         不自动处理另存为/覆盖对话框，不猜坐标。
    */
   xamlKeyFallback: z.union(['off', 'auto']).default('off'),
+  /**
+   * XAML/WinUI 前台按键回退（实验性，默认 off）：
+   *   auto = hotkey 的 UIA 加速器不可用时，对 ctrl+a / alt+f 允许一次前台 press_key。
+   *          ctrl+a 在 xamlKeyFallback=auto 时仍优先“编辑→全选”菜单路径，仅菜单不可用时兜底；
+   *          想让 press 优先，可把 xamlKeyFallback 设为 off。
+   *          alt+f 直接前台 press_key 打开“文件”菜单（成功后清空快照）。
+   *          不包含 alt+tab：foreground press_key 会真实切走前台，切窗口请用 app_launch/bring_to_front。
+   */
+  xamlPressFallback: z.union(['off', 'auto']).default('off'),
 })
 
 /** 统一输出 schema：ok + result 文本。 */
@@ -509,7 +519,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_type',
-    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
+    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
     parameters: {
       text: { type: 'string', required: true, description: '要输入的文本。' },
       element: TARGET_PARAMS.element,
@@ -962,6 +972,7 @@ export function apply(ctx, config) {
     passwordScan: config.passwordScan || 'auto',
     deliveryMode: config.deliveryMode || 'auto',
     xamlKeyFallback: config.xamlKeyFallback || 'off',
+    xamlPressFallback: config.xamlPressFallback || 'off',
   }
 
   // 初始化虚拟光标：声明统一会话 + 应用主题（异步，不阻塞插件加载）

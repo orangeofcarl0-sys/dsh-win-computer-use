@@ -79,6 +79,14 @@ export async function cuaCall(tool, args = {}) {
         { element_index: 3, element_token: 'name', role: 'Edit', label: '文件名:', value: 's4-t01-seed.txt', frame: { x: 400, y: 300, w: 200, h: 30 }, enabled: true },
         { element_index: 4, element_token: 'status', role: 'Text', label: es.status, frame: { x: 100, y: 550, w: 100, h: 20 } },
         { element_index: 5, element_token: 'doc', role: 'Document', label: '文本编辑器', value: es.body, frame: { x: 100, y: 100, w: 600, h: 400 } },
+        { element_index: 6, element_token: 'file-menu', role: 'MenuItem', label: '文件', frame: { x: 100, y: 100, w: 60, h: 20 }, enabled: true },
+        ...(process.env.CUA_MENU_POPUP === '1'
+          ? [
+              { element_index: 7, element_token: 'm-new', role: 'MenuItem', label: '新建', frame: { x: 110, y: 130, w: 60, h: 20 }, enabled: true },
+              { element_index: 8, element_token: 'm-open', role: 'MenuItem', label: '打开', frame: { x: 110, y: 155, w: 60, h: 20 }, enabled: true },
+              { element_index: 9, element_token: 'm-save', role: 'MenuItem', label: '保存', frame: { x: 110, y: 180, w: 60, h: 20 }, enabled: true },
+            ]
+          : []),
       ]
       return {
         window: WINDOW(), elements: els, element_count: els.length,
@@ -271,6 +279,56 @@ check('E19b: set_value 回读一致 → 可保存', /输入回读：一致/.test
 stub.es.body = 'SECRET-BODY-123'
 const docObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
 check('E20: Document 正文不泄露到 observation', docObs.ok === true && !/SECRET-BODY-123/.test(raw(docObs)), raw(docObs).slice(0, 160))
+
+// 13. 菜单栏点击专用反馈（后台点击常 unverified）
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+const menuClick = await call('computer_click', { element: 6 })
+delete process.env.CUA_UNVERIFIED
+check('E21: 菜单栏点击 unverified → 菜单专用注记', menuClick.ok === true
+  && /菜单栏点击未验证/.test(raw(menuClick))
+  && !/（未验证：先 screen_observe 一次/.test(raw(menuClick)), raw(menuClick))
+
+;({ call, obs } = await fresh({ actionGuard: 'off', verifyAfterAction: 'auto' }))
+process.env.CUA_UNVERIFIED = '1'
+process.env.CUA_MENU_POPUP = '1'
+const menuAuto = await call('computer_click', { element: 6 })
+delete process.env.CUA_MENU_POPUP
+delete process.env.CUA_UNVERIFIED
+check('E22: auto 复核检测到弹出菜单项', menuAuto.ok === true
+  && /动作后复核：检测到弹出菜单项/.test(raw(menuAuto)), raw(menuAuto))
+
+;({ call, obs } = await fresh({ actionGuard: 'off', verifyAfterAction: 'auto' }))
+process.env.CUA_UNVERIFIED = '1'
+const menuNo = await call('computer_click', { element: 6 })
+delete process.env.CUA_UNVERIFIED
+check('E23: auto 复核未检测到弹出项 → 提示可能已关/独立窗口', menuNo.ok === true
+  && /未检测到弹出菜单项/.test(raw(menuNo)) && /独立弹出窗口/.test(raw(menuNo)), raw(menuNo))
+
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+const menuCoord = await call('computer_click', { x: 130, y: 110 })
+delete process.env.CUA_UNVERIFIED
+check('E24: 坐标命中菜单栏项 → 菜单专用注记', menuCoord.ok === true
+  && /菜单栏点击未验证/.test(raw(menuCoord)), raw(menuCoord))
+
+// 14. 文档输入“不置脏”提示（少量静态注记，不加驱动调用）
+;({ call, obs } = await fresh())
+const typeDoc = await call('computer_type', { element: 5, text: 'hello' })
+check('E25: type 到 Document → 不置脏提示', typeDoc.ok === true
+  && /文档输入说明/.test(raw(typeDoc)) && /不置“未保存”标记/.test(raw(typeDoc))
+  && !/SECRET-BODY/.test(raw(typeDoc)), raw(typeDoc))
+const typeEdit = await call('computer_type', { element: 3, text: 'x' })
+check('E26: type 到 Edit → 不出现文档提示', typeEdit.ok === true
+  && !/文档输入说明/.test(raw(typeEdit)), raw(typeEdit))
+const typeFocus = await call('computer_type', { text: 'y' })
+check('E27: 无 element + 快照有 Document → 文档提示', typeFocus.ok === true
+  && /文档输入说明/.test(raw(typeFocus)), raw(typeFocus))
+
+;({ call, obs } = await fresh())
+const svNote = await call('computer_do', { action: 'call', tool: 'computer_set_value', args: { element: 5, value: 'abc' } })
+check('E28: set_value 成功 → 不置脏语义', svNote.ok === true
+  && /设值说明/.test(raw(svNote)) && /不要据此判断失败/.test(raw(svNote)), raw(svNote))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)
