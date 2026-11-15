@@ -94,6 +94,19 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - **Alt+Tab 只在 foreground `press_key` 下生效**（真实 OS 切换）；`hotkey` 会 4s 超时。任务里优先用 `app_list`/`bring_to_front`/`app_launch` 切窗口，不要依赖 Alt+Tab。
 - 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须用 observe/verify 复核，不能把 unverifiable 当成功。
 
+插件映射（0.5.7-dev）：
+
+| 配置 | Ctrl+A | Alt+F | 说明 |
+|---|---|---|---|
+| `xamlKeyFallback=auto` | “编辑→全选”后台 token 点击；无菜单栏时对 `ctrl+a` 走前台 `press_key` | 只给控件指引 | 既有行为；对话框 press 分支始终 foreground |
+| `xamlPressFallback=auto` | 前台 `press_key`（菜单回退关闭时直接走） | 前台 `press_key` 打开文件菜单 | 只在前台通道发送；background 会把裸键插入正文 |
+| 两者都 `auto` | 菜单优先；菜单栏/菜单项不可用或打开点击失败时才 press | 前台 `press_key` | 想 press 优先可把 `xamlKeyFallback` 设为 `off` |
+
+- `alt+f` 成功后清空快照，强制重新观察取菜单项编号；若快照已显示弹出菜单项则拒绝发送，避免把菜单关掉。
+- press 失败回执写“前台 `press_key` 也未能发送 …”，不再建议刚试过的 `foreground=true`。
+- `alt+tab` 永不自动回退：foreground `press_key` 会真实切走前台；切窗口用 `app_launch`/`bring_to_front`。
+- 顶层菜单栏点击在 `effect:unverifiable` 时给菜单专用注记（不要重复点同一菜单栏项）；`verifyAfterAction=auto` 时同窗口复核会报告“检测到弹出菜单项/未检测到”，但不额外扫描独立 popup 窗口。
+
 ## 5. 观察与结构密码扫描
 
 - `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建新快照；如果已有新鲜旧快照，会明确提示它仍有效（只有同窗口失败才清空）。

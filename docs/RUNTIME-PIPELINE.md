@@ -124,7 +124,7 @@ humanAction / type / key / scroll / drag / set_value
 - 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。这样点错按钮（例如把“否”当“是”）在回执里立刻可见。
 - 输入/设值同样回显目标元素或窗口焦点。
 - 回执文字是模型唯一可靠的状态证据：目标回显 + 下一次观察差分共同承担“动作是否生效”。
-- `verifyAfterAction=auto`（实验性，默认 off）：对 element 路径的 click/type/set_value/key，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删/同编号 role 变化）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。默认关闭，等 A/B。
+- `verifyAfterAction=auto`（实验性，默认 off）：对 `click/double_click/right_click`（含坐标）与 `key`，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删/同编号 role 变化）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。复核会刷新 `at`（延长 TTL）与差分历史；`supersession=enforce` 下可能与 `markConsumed` 组合出 `[snapshot_consumed]`。`type/set_value` 的输入回读独立于本开关。2026-11-16 首轮 A/B 10/10 pass，auto 中位略优但尾部 533s、每轮多 2-12 次复核，默认仍 off。
 - **输入回读（默认开启，仅失败/未验证路径）**：`type_text`/`set_value` 结果为 delivery 失败、unverifiable、suspected_noop，或该窗口已有 inputUnconfirmed 时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 与请求文本做 **CRLF→LF 逐字比较**（set_value 精确相等；type_text 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文；不一致/无法回读（投递失败时）设置 `inputUnconfirmed`。
 - **保存门禁**：`guard` 在 inputUnconfirmed 时只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径）；type/set_value、Ctrl+A/C/V/X/Z、非保存点击放行。回读一致、同窗口 native observe 或 screen_zoom 会清除门禁；普通 ax observe 不清除。
 - `app_launch`：启动成功即 `ok:true`，前置失败只写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）；避免把可选前置失败误判为启动失败而重复启动。
@@ -149,6 +149,8 @@ humanAction / type / key / scroll / drag / set_value
   - 未前台：先建议 `foreground:true` 重试一次；
   - 已前台：不再重复“用 foreground”，改为“点击输入框（element=编号）→ computer_type(element=编号, text=完整内容）”；
   - `xamlKeyFallback=auto` 且已前台时，对 ctrl+a/c/v/x/z 额外尝试一次 `press_key`（带 modifiers + window_id，前台）作为实验性回退；成功/未验证回执要求先观察输入框当前值。
+- `xamlPressFallback: auto`（实验性，默认 off）：对 `ctrl+a` / `alt+f` 允许一次前台 `press_key`。两者都开时 `ctrl+a` 仍菜单优先，仅菜单栏/菜单项不可用或打开点击失败时 press；`xamlKeyFallback=off` 可强制 press 优先。`alt+f` 直接 press、成功后清快照；快照已显示弹出菜单时拒绝，避免关菜单。press 失败明确写“前台 press_key 也未能发送”，不再建议 `foreground=true`。不含 Alt+Tab。
+- 顶层菜单栏点击的 `unverifiable` 用菜单专用注记（可能已开/未开，不要重复点同一项）；`verifyAfterAction=auto` 时同窗口复核报告“检测到弹出菜单项/未检测到”，不额外扫描独立 popup 窗口。
 - 对话框里 hotkey 的失败是“UIA 加速器不存在”，与 `foreground_unavailable` 是两类问题；后者仍走 force 前台 L3。
 
 ## 6. Eval / Notepad 生命周期
@@ -245,7 +247,7 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 | cleanup 缺 state 假 dirty | 已修：无 state = 无窗口可清，不 dirty；runner 消费 dirty | ✅ |
 | t04/t06 环境阻塞 | 已修：Calculator 全窗口扫描/不杀可见实例；clipboard round-trip 8 次 + EnvError | ✅ 10/10 |
 | Explorer/Paint 宽匹配/进程名杀 | 已修：状态化 Open/Close；t09 不再杀 mspaint | ✅ |
-| 动作后无状态证据 | 实验性 `verifyAfterAction=auto`（默认 off） | ⏳ A/B |
+| 动作后无状态证据 | 实验性 `verifyAfterAction=auto`（默认 off） | ⏳ 首轮 A/B 10/10，默认仍 off |
 | 失败观察清空旧快照 | 已修：notFound/不同窗口降级保留；同窗口失败才清 | ✅ |
 | suspect 去重 stub | 已修：`suspectBefore` 强制全量 | ✅ |
 | Notepad 新窗口含用户标签 | 已修：标签白名单 + fail closed + leftover | ✅ |

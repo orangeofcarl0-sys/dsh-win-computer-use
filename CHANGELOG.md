@@ -12,6 +12,24 @@
 
 **2026-11-16：输入回读与保存门禁——阻止部分输入/错字后误保存；Codex overlay、菜单提示、app_launch 语义**
 
+**2026-11-16（第二轮）：WinUI opt-in 前台 press 回退、菜单状态反馈、文档“不置脏”提示**
+
+### 2026-11-16 Added（第二轮）
+
+- **`xamlPressFallback`（实验性，默认 `off`）**：UIA 加速器不可用时，对 `ctrl+a` / `alt+f` 允许一次前台 `press_key`（带 pid/window_id，forceForeground）。两者都开时 `ctrl+a` 仍菜单优先，仅菜单栏/菜单项不可用或打开点击失败时 press；`xamlKeyFallback=off` 可强制 press 优先。`alt+f` 成功后清空快照；快照已显示弹出菜单时拒绝发送，避免关菜单。不含 Alt+Tab（foreground 会真实切走前台）。
+- **`lib/menu.js`**：共享 `isMenuRole` / `isTopMenuBarLabel` / `isAppMenuBarLabel` / `menuStateOf`（同窗口三态：`true/false/null`，阈值仍为非顶层菜单项 >=3），观察头部、XAML 回退、点击复核共用，避免正则漂移。
+- **菜单专用反馈**：顶层菜单栏点击 `unverifiable` 时用 `MENU_CLICK_NOTE` 替换通用未验证注记；`verifyAfterAction=auto` 时同一次 `get_window_state` 顺带报告“检测到弹出菜单项/未检测到（可能已关闭或独立窗口）”，不额外扫描 popup 窗口。
+- **`DOCUMENT_INPUT_NOTE`**：`computer_type` 目标为 Document/TextArea（或无 element 但快照有文档）时提示“UIA 注入可能不置‘未保存’标记；不要据此判断失败，保存仍会写入”，阻止 t01 r1 类“用查找替换强制置脏”的绕路；观察头部同步补该语义。`SET_VALUE_NOTE` 也改为“不要据此判断失败，保存前用回读/观察核对正文”。
+- **`evals/analyze-trajectory.mjs`**：新增 `snapshotReadsByTool`，按 `driver.parent` 归属统计 `get_window_state`，用于 A/B 区分 verifyAfterAction 复核与普通观察。
+- **测试**：`key.xaml` 33（alt+f 默认/opt-in、ctrl+a 菜单优先与 press-only、press 失败不误导、菜单已开拒绝、非 XAML 不吞）；`action.echo` 30（菜单专用注记/复核菜单态、文档不置脏、set_value 语义）；`observe.truth` 20。离线 **22 套 / 477 断言**，语法 **21/21**。
+- **verifyAfterAction 首轮 A/B**：t01 ×3 + t05 ×2 每臂，**10/10 pass**。t01 off 9/19/52 步（61.6/117.1/377.3s），auto 66/15/8 步（533.2/98.1/60.9s）；t05 off 24/34 步（146.1/217.5s），auto 22/26 步（145.3/209.5s）。auto 中位略优，但区间重叠、有 533s 尾部且每轮多 2-12 次 click 复核；**默认保持 off**。原始 report/trajectory 在 gitignored 的 `evals/headless-runs/ab/`，不入库。
+
+### 2026-11-16 Fixed（第二轮）
+
+- **`alt+f` 没有任何回退**：此前 `TARGETS` 早退直接给通用指引；现在 `xamlPressFallback=auto` 可前台 `press_key` 打开文件菜单，默认 off 时给“点文件菜单栏项”的具体路径。
+- **对话框 `press_key` 失败后仍建议 `foreground=true`**：该路径本就是 forced foreground；现在明确返回“前台 press_key 也未能发送”，改给 computer_type/控件路径。
+- **`verifyAfterAction` 文档与实现不一致**：文档称覆盖 type/set_value，实际只覆盖 click/double/right/key（含坐标）；文档已校正，并注明输入回读独立于该开关、复核会刷新 token/TTL。
+
 ### 2026-11-16 Added
 
 - **输入回读**：`computer_type`/`computer_set_value` 在投递失败、unverified、suspected_noop 或已有未确认输入时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 逐字比较（CRLF 归一；set_value 精确、type 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文。
@@ -29,7 +47,7 @@
 - **`set_value` 回执暗示已持久化**：增加 ValuePattern 可能不置脏的说明；不再给无效的 foreground=true 建议，改提示用 computer_type 重试。
 - **轨迹监控把观察提示当动作失败**：`screen_observe` 头部的“delivery_failed/丢字”提示被 `resultSummary` 误计为观察本身的 delivery/unverified（r1 显示 33 delivery/72 unverified，实际动作仅 2 delivery/41 unverified）。现在只对动作工具解析错误标记，观察工具只记 ok/stub/changed。
 - **menu 字符串路径**：接受 `"文件/保存"`；`menu_path_unavailable` 时给出快照里顶层菜单栏项编号。
-- **验证**：离线 22 套 / 457 断言全绿；`verify-oracles` 10/10；t01 ×3 **3/3 pass**（99/9/10 步）、t05 ×3 **3/3 pass**（26/28/19 步，dirty=false、TabState restored）；`from_zoom` 真机探针 crop 160×100 → 图 224×140，图中心点击成功写 marker。
+- **验证**：离线 22 套 / 458 断言全绿（第二轮后 477）；`verify-oracles` 10/10；t01 ×3 **3/3 pass**（99/9/10 步）、t05 ×3 **3/3 pass**（26/28/19 步，dirty=false、TabState restored）；`from_zoom` 真机探针 crop 160×100 → 图 224×140，图中心点击成功写 marker。
 
 ### 2026-11-15 Added
 

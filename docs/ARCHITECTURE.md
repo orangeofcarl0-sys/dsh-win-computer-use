@@ -207,6 +207,7 @@ XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
 1. 驱动抛错或返回 `could not find a UIA AcceleratorKey` / 4s 超时；
 2. `xamlKeyFallback: off`（默认）→ 直接返回“点菜单栏项 → 点菜单项”的指引，不透传 `get_window_state`；
 3. `xamlKeyFallback: auto` → 只对白名单组合，先找同 pid 窗口里现成的唯一菜单项，否则点快照里唯一的菜单栏项，轮询弹出菜单，点唯一的 enabled 目标项；全部 token 点击、后台投递；歧义/缺失立即停止；成功后清空快照并要求重新观察；不自动处理另存为/覆盖对话框。
+4. `xamlPressFallback: auto` → 对 `ctrl+a` / `alt+f` 允许一次前台 `press_key`（带 pid/window_id，forceForeground）。两者都开时 `ctrl+a` 仍菜单优先，菜单不可用才 press；`alt+f` 直接 press、成功后清快照。只在前台通道发送（background 会把裸键插入 WinUI 正文）；不含 Alt+Tab；press 失败明确返回 `ok:false`，不再建议 `foreground=true`。
 | `effect:suspected_noop` | `false` | `markSuspect`，不 `markConsumed` | 附“不要立即重放” |
 | `menu_path_unavailable` 等 | `false` | — | `refusalReceipt` |
 
@@ -405,7 +406,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：22 套、458 断言（2026-11-15）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：22 套、477 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

@@ -1,22 +1,22 @@
 # VERIFICATION — 验证报告
 
 > 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
-> 代码快照：`main` @ 2026-11-15（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘。
+> 代码快照：`main` @ 2026-11-16（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘；2026-11-16 追加 WinUI 键鼠通道、opt-in press 回退与菜单/文档反馈。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；dsh 0.2.2 契约审计见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
 
 ## 1. 当前验证矩阵
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 458 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **20/20 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **22 套 / 477 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **21/21 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-15 18:40 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | S4 真机任务 | **t01 3/3 pass**（99/9/10 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
-| 打包面 | **37 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
+| 打包面 | **38 文件**（新增 lib/menu.js；含 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -227,6 +227,8 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 输入回读/保存门禁（离线） | **458 断言全绿**；action.echo 覆盖一致/不一致/无法回读、保存门禁、修正解除、set_value 回读、Document 不泄露 | `npm test`；from_zoom 真机探针另见下 |
 | from_zoom 真机探针 | **pass**：请求 crop 160×100 → 返回 224×140；图中心 (112,70) 点击按钮成功写 marker | `node evals/probe-from-zoom.mjs`；证明驱动 padding/缩放映射可用 |
 | WinUI 键鼠通道探针 | **Ctrl+A**：hotkey 两模式失败；press_key bg 未选中且插入裸 `a`；press_key fg / 编辑→全选均选中全文。**Alt+F**：仅 press_key fg 打开文件菜单。**Alt+Tab**：仅 press_key fg 切换前台 | `node evals/probe-winui-keys.mjs`；矩阵见 docs/WINDOWS.md §4.1 |
+| 第二轮离线（2026-11-16） | **22 套 / 477 断言全绿**；`key.xaml` 33（alt+f 默认/opt-in、ctrl+a 菜单优先/press-only、press 失败不误导、菜单已开拒绝）、`action.echo` 30（菜单专用注记/复核菜单态、文档不置脏、set_value 语义）、`observe.truth` 20（文档不置脏提示） | `npm test`；语法 21/21；pack 38 文件 |
+| verifyAfterAction A/B（2026-11-16） | **10/10 pass**：t01 off 9/19/52 步、61.6/117.1/377.3s；auto 66/15/8 步、533.2/98.1/60.9s；t05 off 24/34 步；auto 22/26 步。中位数 auto 略好（t01 15 步/98.1s vs 19 步/117.1s；t05 24 步/177.4s vs 29 步/181.8s），但区间重叠、auto 有 533s 尾部且每轮多 2-12 次 click 复核；默认保持 `off` | 原始 report/trajectory 在 `evals/headless-runs/ab/`（gitignored），不入库 |
 | verify-oracles（2026-11-15 18:40 复跑） | **10/10 PASS**：10 项全部 setup/emptyFail/simPass/repeat/cleanup；tabstate restored | t03 Explorer 慢关闭重试生效；此前 14-39 run 曾 9/10，15-02 run 在 t10 setup 被人工暂停 |
 | P2 运行时修复 | L3 恢复带 pid（windowMap）；bring_to_front refused 判失败；app_launch/menu/clipboard/hover 不再假成功；stale token 清快照；computer_do data；窗口别名；监控 loop 语义修正 | `npm test` 22 套 / 419 断言（当时）；verify-runtime 17/17 |
 

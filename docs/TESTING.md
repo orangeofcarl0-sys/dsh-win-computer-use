@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-16 · `npm test` 22 套 / **458 断言** · `npm run check` **20/20** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-16 · `npm test` 22 套 / **477 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -17,8 +17,8 @@
 
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
-| 语法/安装脚本 | `npm run check` | 20 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 458 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认、轨迹监控、eval 安全、Notepad 标签分类 |
+| 语法/安装脚本 | `npm run check` | 21 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
+| 离线单元/契约 | `npm test` | 22 套 / 477 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -36,20 +36,20 @@
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
 | `schema.conformance.mjs` | 44 | 22 个工具 / 44 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
-| `observe.truth.mjs` | 19 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开” |
+| `observe.truth.mjs` | 20 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示 |
 | `observe.coords.mjs` | 14 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
 | `human.click.mjs` | 16 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/零滑行/缺失与跨窗口拒绝 |
-| `action.echo.mjs` | 22 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、app_launch 启动成功+前置未确认/window_id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露 |
+| `action.echo.mjs` | 30 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、app_launch 启动成功+前置未确认/window_id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示 |
 | `delivery.failures.mjs` | 25 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true |
 | `delivery.foreground.mjs` | 13 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出 |
-| `key.xaml.mjs` | 24 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败指引） |
+| `key.xaml.mjs` | 33 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败不再建议 foreground=true）；alt+f/ctrl+a 的 xamlPressFallback 前景回退、菜单优先、清快照与菜单已开拒绝 |
 | `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
 | `trajectory.test.mjs` | 15 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe、观察提示不伪造 delivery/unverified |
 | `eval-safety.mjs` | 41 | 禁止按 Notepad/mspaint 进程名杀；Explorer/Paint 状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
-| `config.plumbing.mjs` | 25 | 20 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵 |
+| `config.plumbing.mjs` | 25 | 21 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵 |
 | `action-bounds.mjs` | 21 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
 | `dispatcher.test.mjs` | 33 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 结构化字段、工具面稳定、宿主 schema |
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
@@ -161,6 +161,26 @@ node evals/verify-oracles.mjs
 - 报告（`evals/report-last.json`）是**真值产物，不入库**；仓库只进 runner/任务/oracle。
 - 基线不是通过率承诺：2026-09-16 冒烟组首次运行 t07 pass、其余 timeout，瓶颈在执行面（多窗口/对话框）而非模型档位。
 
+### 6.1 verifyAfterAction A/B（2026-11-16）
+
+只改配置，不改插件默认值。两份 patch 除 `verifyAfterAction` 外必须完全一致；实验 patch 放 `evals/headless-runs/ab/`（`.gitignore` 已覆盖该目录），不提交。
+
+```bash
+# off 臂
+node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 12 \
+  --patch evals/headless-patch.yml --report evals/headless-runs/ab/off-t01.json
+# auto 臂（patch 只多 verifyAfterAction: auto）
+node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 12 \
+  --patch evals/headless-runs/ab/verify-auto.yml --report evals/headless-runs/ab/auto-t01.json
+```
+
+- 交替跑 off/auto（可每轮 `--repeats 1`）抵消机器漂移；两臂不要并发。
+- 指标：report 的 `verdict/steps/toolErrors/unverified/dirty/timedOut`；对每轮 `trajectory` 跑 `node evals/analyze-trajectory.mjs <file> --json`，取 `durationMs/observeActionRatio/observeStubs/loops/staleSnapshots/drivers.get_window_state/snapshotReadsByTool`。
+- `snapshotReadsByTool` 按 `driver.parent` 归属统计 `get_window_state`：`computer_click` 的计数含 verifyAfterAction 复核与 XAML 回退扫描；两臂差异主要来自复核。
+- 决策规则：auto 的 pass 数不低于 off、中位 steps/duration 不恶化超过约 15%，且至少改善一项（stale/重复点击/未验证后绕路）才建议后续考虑默认；否则保持 `off`。3 轮只作方向性判断。
+- **2026-11-16 首轮结果**：10/10 pass。t01 off 9/19/52 步、61.6/117.1/377.3s；auto 66/15/8 步、533.2/98.1/60.9s。t05 off 24/34 步、146.1/217.5s；auto 22/26 步、145.3/209.5s。auto 中位略优，但区间重叠、auto 有 533s 尾部、每轮多 2-12 次 click 复核；默认保持 `off`。
+- 注意：`supersession=enforce` 下复核刷新 + `markConsumed` 可能产生 `[snapshot_consumed]`；A/B 用默认 `note`。
+
 ## 7. 新增测试/工具
 
 新增工具时至少补：
@@ -192,11 +212,11 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 458 ✅ / 0 ❌ |
-| 语法 | 20/20 JS + `bash -n` 两脚本 |
+| 离线 | 22 套 / 477 ✅ / 0 ❌ |
+| 语法 | 21/21 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 修复后 **3/3 pass**（99/9/10 步）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；任务集 10 条 |
-| 打包 | `npm pack --dry-run` 37 文件 |
+| 打包 | `npm pack --dry-run` 38 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

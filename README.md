@@ -220,7 +220,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 - 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。
 - `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式，5s 内重复且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照；观察到变化后放行。`double_click` 不拦；`actionGuard: off` 可关闭。
 - `stale_element_token`：驱动报告编号失效时清空旧快照，回执明确写“请 screen_observe 获取新编号，不要重试旧编号”；`keyFallback` 打开菜单前重新抓菜单栏 token，避免自己的回退把 token 用旧。
-- `verifyAfterAction`（实验性，默认 `off`）：`auto` 时对 unverifiable 的 element 动作抓一次无截图状态，回执附 `动作后复核：...`；结构性变化清快照，防止旧编号点错。默认关闭，等 A/B。
+- `verifyAfterAction`（实验性，默认 `off`）：`auto` 时对 `click/double_click/right_click`（含坐标）与 `key` 的 unverifiable/suspected_noop 抓一次无截图状态，回执附 `动作后复核：...`；结构性变化清快照，防止旧编号点错。`type/set_value` 的输入回读独立于本开关（不可信时总会执行）。2026-11-16 首轮 A/B 10/10 pass，auto 中位略优但尾部更慢、每轮多 2-12 次复核，默认仍 `off`。
 
 ### 投递：后台 → 前台 → 绕锁
 
@@ -240,7 +240,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 
 - **文本**：`computer_type` 指定 element 时走 UIA `ValuePattern`（XAML/WinUI 主机必需）；不指定 element 时输入到快照窗口当前焦点，回执附“密码保护无法预判焦点”的注记。
 - **设值**：`computer_set_value` 只走 UIA `ValuePattern`；Web/自绘控件可能忽略，回执提示改用 `computer_type` 或点击后输入。
-- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本实测两类失败：UIA 加速器 4s 超时，以及 `could not find a UIA AcceleratorKey`（命令在关闭的菜单里，上游 #3908）。回执会直接给“点菜单栏项 → 点菜单项”的可执行路径；`xamlKeyFallback: auto`（默认 `off`）可实验性自动完成这一步，但只做唯一标签的 token 点击，歧义/缺失即停，不自动处理另存为/覆盖对话框的填写。对话框（无菜单栏）已前台时，auto 会对 `ctrl+a/c/v/x/z` 额外尝试一次前台 `press_key`，并回执要求先观察输入框当前值。
+- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本实测两类失败：UIA 加速器 4s 超时，以及 `could not find a UIA AcceleratorKey`（命令在关闭的菜单里，上游 #3908）。回执会直接给“点菜单栏项 → 点菜单项”的可执行路径；`xamlKeyFallback: auto`（默认 `off`）可实验性自动完成这一步，但只做唯一标签的 token 点击，歧义/缺失即停，不自动处理另存为/覆盖对话框的填写。对话框（无菜单栏）已前台时，auto 会对 `ctrl+a/c/v/x/z` 额外尝试一次前台 `press_key`，并回执要求先观察输入框当前值。`xamlPressFallback: auto`（默认 `off`）额外允许 `ctrl+a` / `alt+f` 走一次前台 `press_key`（Alt+Tab 不支持）；失败会明确说“前台 press_key 也未能发送”，不会建议刚试过的 `foreground=true`。
 - **长文本/特殊字符**：`computer_clipboard(write)` + `computer_key("ctrl+v")` 是最可靠的粘贴流；剪贴板可能被其它进程占用，read 结果带隐私注记。
 
 ### 快照与安全护栏
@@ -286,6 +286,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
     extremePatterns: []
     deliveryMode: auto
     xamlKeyFallback: off
+    xamlPressFallback: off
 ```
 
 | 配置项 | 默认 | 说明 |
@@ -302,13 +303,14 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
 | `cursorMotion` | `auto` | `auto`：前景最多 1 次移动（驱动单次 2–3s，5 段会拖到 15–18s/点击）；`human`：保留 5 段弧线；`off`：不移动。background 始终不滑行；同目标 16px/2s 内跳过 |
 | `actionGuard` | `on` | 同一窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`；`off` 关闭 |
-| `verifyAfterAction` | `off` | 实验性：`auto` 对 element 路径的 click/type/set_value/key，在 unverifiable/suspected_noop 后抓一次无截图状态，把差分写进回执；结构性变化清快照。每次约 +2s，默认关闭，等 A/B 数据 |
+| `verifyAfterAction` | `off` | 实验性：`auto` 对 `click/double_click/right_click`（含坐标）与 `key` 的 unverifiable/suspected_noop 抓一次无截图状态，把差分写进回执；结构性变化清快照。每次约 +2s，且会刷新快照 token/TTL；`type/set_value` 的输入回读独立于本开关。2026-11-16 A/B 10/10，auto 中位略优但尾部更慢，默认仍 `off` |
 | `trajectoryFile` | 空 | 非空时写 CU 轨迹 JSONL（文本只留 len/hash，驱动只留摘要）；也可用 `DSH_CU_TRAJECTORY_FILE` |
 | `nativeImage` | `auto` | `auto` 超附件限额回退 ax/vision（驱动 zoom 不能整窗缩放）/ `full` 原图 / `compact` 显式要求紧凑图，当前驱动会返回可执行错误 |
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
 | `extremePatterns` | `[]` | 极危清单（正则源数组）：命中附警告注记，不阻断 |
 | `xamlKeyFallback` | `off` | 实验性：`off` 只给控件路径指引；`auto` 对 `ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o` 自动“点菜单栏项 → 点唯一菜单项”；对话框无菜单栏且已前台时对编辑类组合额外尝试一次前台 `press_key`。歧义/缺失即停 |
+| `xamlPressFallback` | `off` | 实验性：`auto` 对 `ctrl+a` / `alt+f` 在 UIA 加速器不可用时允许一次**前台** `press_key`。两者都开时 `ctrl+a` 仍菜单优先，仅菜单不可用时兜底；想 press 优先可把 `xamlKeyFallback` 设为 `off`。`alt+f` 成功打开文件菜单后清快照。不含 Alt+Tab |
 | `deliveryMode` | `auto` | 后台/自动/前台投递策略 |
 
 ## 能力边界（诚实说明）
@@ -368,8 +370,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（20/20 JS）
-npm test                           # 22 套离线测试，458 个断言
+npm run check                      # 语法检查 + bash -n（21/21 JS）
+npm test                           # 22 套离线测试，477 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
