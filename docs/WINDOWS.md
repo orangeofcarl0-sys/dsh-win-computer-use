@@ -70,6 +70,30 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - **像素路径是 best-effort**：点击后必须用 `screen_observe` / `computer_verify` 复核；不要把它当“零标定命中”。
 - 不要把 `screenOrigin` 加进点击坐标——它是换算到屏幕绝对坐标的基准，不是点击输入。
 
+### 4.1 WinUI3 键鼠通道实测（2026-11-16）
+
+`node evals/probe-winui-keys.mjs` 在 Win11 Notepad（WinUI3）测试窗上验证 Ctrl+A / Alt+F / Alt+Tab；判定：Ctrl+A 用 UIA `TextPattern.GetSelection()` 覆盖全文，Alt+F 用 AX 树是否出现弹出菜单项，Alt+Tab 用 `GetForegroundWindow` HWND 是否变化。
+
+| 组合 | 通道 | 驱动结果 | 实际效果 |
+|---|---|---|---|
+| Ctrl+A | `hotkey` background/foreground | 抛 `could not find a UIA AcceleratorKey`（扫描 44 元素） | 无选择 |
+| Ctrl+A | `press_key` + ctrl，background | `effect:unverifiable` | 无选择，且把裸 `a` 插入正文（textLen 27→28）——**不要用** |
+| Ctrl+A | `press_key` + ctrl，foreground | `effect:unverifiable` | 选中全文（28/28） |
+| Ctrl+A | 点“编辑”菜单（background）→ 点“全选”（background） | 均 `effect:unverifiable` | 选中全文（28/28）——推荐回退 |
+| Alt+F | `hotkey` background/foreground | `could not find a UIA AcceleratorKey` | 菜单未打开 |
+| Alt+F | `press_key` + alt，background | `effect:unverifiable` | 菜单未打开 |
+| Alt+F | `press_key` + alt，foreground | `effect:unverifiable` | 文件菜单打开（新建标签页/新建窗口/打开/保存…） |
+| Alt+Tab | `hotkey` background/foreground | `UIA accelerator scan exceeded 4000ms` | 前台 HWND 不变 |
+| Alt+Tab | `press_key` + alt，background | `effect:unverifiable` | 前台 HWND 不变 |
+| Alt+Tab | `press_key` + alt，foreground | `effect:unverifiable` | 前台切换到 ZCode（HWND 变化）——可用但会真的切走 |
+
+结论：
+
+- **Ctrl+A 的可靠回退是“点编辑菜单 → 全选”**，不是前台裸 `press_key`；后者虽然能选中，但 background 变体会把裸键插入正文。插件 `xamlKeyFallback` 的对话框 `press_key` 分支始终走 foreground，避免该污染。
+- **Alt+F 只在 foreground `press_key` 下可靠**；`hotkey` 走 UIA AcceleratorKey 扫描，WinUI3 上不可达。
+- **Alt+Tab 只在 foreground `press_key` 下生效**（真实 OS 切换）；`hotkey` 会 4s 超时。任务里优先用 `app_list`/`bring_to_front`/`app_launch` 切窗口，不要依赖 Alt+Tab。
+- 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须用 observe/verify 复核，不能把 unverifiable 当成功。
+
 ## 5. 观察与结构密码扫描
 
 - `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建新快照；如果已有新鲜旧快照，会明确提示它仍有效（只有同窗口失败才清空）。

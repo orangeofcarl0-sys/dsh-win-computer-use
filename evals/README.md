@@ -135,6 +135,8 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 >
 > 2026-11-15/16 观察真值轮：t01 ×3 修复前 **2/3**（r2 11 fail，`computer_type` 无 element + delivery_failed 后模型按 33 字符保存），加入输入回读/保存门禁后 **3/3 pass**（99/9/10 步）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored）。三次 t01 均无 overlay 被 observe、无 screen_zoom missing pid、无 snapshot_missing；r1 实际使用 1 次 `from_zoom`。
 >
+> 2026-11-16 WinUI 键鼠成测试：`node evals/probe-winui-keys.mjs`（Ctrl+A/Alt+F/Alt+Tab × hotkey/press_key/菜单回退）。结果见 `docs/WINDOWS.md §4.1`：Ctrl+A 可靠回退是“编辑→全选”或 press_key foreground；Alt+F 仅 press_key foreground；Alt+Tab 仅 press_key foreground（会真实切前台）。`press_key` + 修饰键 background 会插入裸键，不能用于组合键。
+>
 > 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。第二轮修正了 `computer_do` 外壳重复计数，并增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`；分析命令：`node evals/analyze-trajectory.mjs <file>`。
 
 ## 运行期语义（试跑定案 2026-09-07）

@@ -17,6 +17,7 @@
 - **输入回读**：`computer_type`/`computer_set_value` 在投递失败、unverified、suspected_noop 或已有未确认输入时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 逐字比较（CRLF 归一；set_value 精确、type 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文。
 - **`inputUnconfirmed` 保存门禁**：状态独立于 snapshot，跨刷新存活；`guard` 只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径），允许 type/set_value、Ctrl+A/C/V/X/Z 和非保存点击。回读一致、同窗口 native observe 或 screen_zoom 清除。
 - **`tests/action.echo.mjs` E15-E20**：输入回读一致/不一致/无法回读、保存门禁、修正解除、set_value 回读、Document 正文不泄露。`observe.truth` T17-T19：Document 正文隐藏、顶层菜单栏不误报、真正弹出菜单才提示。`observe.coords` C14：Codex overlay 拒绝。`tools.smoke` G2d/G2e：menu 路径分隔/顶层编号指引。
+- **`evals/probe-winui-keys.mjs`**：WinUI3 键鼠通道矩阵——Ctrl+A/Alt+F/Alt+Tab 的 hotkey、press_key(background/foreground)、菜单回退；用 UIA TextPattern selection、弹出菜单项、GetForegroundWindow 判定真实效果。结果见 docs/WINDOWS.md §4.1。
 
 ### 2026-11-16 Fixed
 
@@ -26,6 +27,7 @@
 - **Document 正文可经 label 回退泄露**：Document/AXTextArea 不再用 value 充当 label。
 - **`app_launch` 启动成功但前置失败被当成启动失败**：`ok` 只看启动；前置失败写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）。Windows `creates_new_instance` 描述为 no-op。
 - **`set_value` 回执暗示已持久化**：增加 ValuePattern 可能不置脏的说明；不再给无效的 foreground=true 建议，改提示用 computer_type 重试。
+- **轨迹监控把观察提示当动作失败**：`screen_observe` 头部的“delivery_failed/丢字”提示被 `resultSummary` 误计为观察本身的 delivery/unverified（r1 显示 33 delivery/72 unverified，实际动作仅 2 delivery/41 unverified）。现在只对动作工具解析错误标记，观察工具只记 ok/stub/changed。
 - **menu 字符串路径**：接受 `"文件/保存"`；`menu_path_unavailable` 时给出快照里顶层菜单栏项编号。
 - **验证**：离线 22 套 / 457 断言全绿；`verify-oracles` 10/10；t01 ×3 **3/3 pass**（99/9/10 步）、t05 ×3 **3/3 pass**（26/28/19 步，dirty=false、TabState restored）；`from_zoom` 真机探针 crop 160×100 → 图 224×140，图中心点击成功写 marker。
 

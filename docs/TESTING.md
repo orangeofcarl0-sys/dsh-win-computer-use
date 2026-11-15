@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-16 · `npm test` 22 套 / **457 断言** · `npm run check` **20/20** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-16 · `npm test` 22 套 / **458 断言** · `npm run check` **20/20** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -18,8 +18,10 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 20 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 457 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认、轨迹监控、eval 安全、Notepad 标签分类 |
+| 离线单元/契约 | `npm test` | 22 套 / 458 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
+| WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
+| from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
 | 任务级评测 | `node evals/headless-run.mjs --tier smoke` | 10 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
@@ -43,7 +45,7 @@
 | `delivery.foreground.mjs` | 13 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出 |
 | `key.xaml.mjs` | 24 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败指引） |
 | `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
-| `trajectory.test.mjs` | 14 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe |
+| `trajectory.test.mjs` | 15 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe、观察提示不伪造 delivery/unverified |
 | `eval-safety.mjs` | 41 | 禁止按 Notepad/mspaint 进程名杀；Explorer/Paint 状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
@@ -190,7 +192,7 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 457 ✅ / 0 ❌ |
+| 离线 | 22 套 / 458 ✅ / 0 ❌ |
 | 语法 | 20/20 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 修复后 **3/3 pass**（99/9/10 步）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |

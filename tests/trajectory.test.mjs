@@ -60,6 +60,10 @@ for (let i = 0; i < 3; i++) {
 for (let i = 0; i < 3; i++) {
   await runTool('computer_click', { element: 99 }, async () => ({ ok: false, result: '✗ [repeat_suppressed] 与 1s 前的相同点击重复' }))
 }
+// 观察回执里的“delivery_failed/丢字”提示不是观察本身的投递失败/未验证
+await runTool('screen_observe', { window: 'Notepad', mode: 'ax', query: 'hint' }, async () => ({
+  ok: true, result: '文档窗口提示：无 element 的焦点输入在 WinUI 可能 delivery_failed/丢字', window: { pid: 1, windowId: 2 },
+}))
 const summary = trajectoryStop()
 const lines = readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l))
 const text = readFileSync(file, 'utf8')
@@ -71,11 +75,13 @@ check('T4: 驱动调用归属工具', lines.some((e) => e.type === 'driver' && e
 check('T5: 驱动结果摘要不含 AX 树', lines.some((e) => e.type === 'driver' && e.tool === 'get_window_state' && e.elementCount === 3 && !e.elements))
 check('T6: 重复动作触发 loop', lines.some((e) => e.type === 'loop' && e.kind === 'repeat_action' && e.count >= 3))
 check('T7: session_end 带摘要', lines.some((e) => e.type === 'session_end' && e.tools >= 5))
-check('T8: summary 计数正确', summary && summary.actions >= 5 && summary.observes === 8 && summary.moveCount === 1)
-check('T9: computer_do 外壳透明', !lines.some((e) => e.type === 'tool_start' && e.name === 'computer_do') && summary.tools === 16,
+check('T8: summary 计数正确', summary && summary.actions >= 5 && summary.observes === 9 && summary.moveCount === 1)
+check('T9: computer_do 外壳透明', !lines.some((e) => e.type === 'tool_start' && e.name === 'computer_do') && summary.tools === 17,
   `tools=${summary.tools}`)
 check('T10: unverified / observeStub 计数', summary.unverified === 1 && summary.observeStubs === 4,
   `unverified=${summary.unverified} stubs=${summary.observeStubs}`)
+check('T10b: 观察提示不伪造 delivery/unverified', summary.deliveryFailures === 0 && summary.unverified === 1,
+  `deliveryFailures=${summary.deliveryFailures} unverified=${summary.unverified}`)
 check('T11: movesPerClick / deliveryModes', summary.movesPerClick === 1 && summary.deliveryModes.foreground === 1,
   JSON.stringify({ movesPerClick: summary.movesPerClick, deliveryModes: summary.deliveryModes }))
 check('T12: suppressed 不触发 repeat_action', summary.suppressed === 3

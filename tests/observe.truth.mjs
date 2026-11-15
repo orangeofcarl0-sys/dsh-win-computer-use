@@ -61,10 +61,11 @@ export async function cuaCall(tool, args = {}) {
         { element_index: 5, element_token: 'm-file', role: 'MenuItem', label: '文件', frame: { x: 110, y: 110, w: 50, h: 20 } },
         { element_index: 6, element_token: 'm-edit', role: 'MenuItem', label: '编辑', frame: { x: 160, y: 110, w: 50, h: 20 } },
         { element_index: 7, element_token: 'm-view', role: 'MenuItem', label: '查看', frame: { x: 210, y: 110, w: 50, h: 20 } },
+        { element_index: 8, element_token: 'm-system', role: 'MenuItem', label: '系统', frame: { x: 90, y: 90, w: 30, h: 20 } },
         ...(ws.popup ? [
-          { element_index: 8, element_token: 'p-save', role: 'MenuItem', label: '保存', frame: { x: 110, y: 130, w: 80, h: 20 } },
-          { element_index: 9, element_token: 'p-saveas', role: 'MenuItem', label: '另存为', frame: { x: 110, y: 150, w: 80, h: 20 } },
-          { element_index: 10, element_token: 'p-close', role: 'MenuItem', label: '退出', frame: { x: 110, y: 170, w: 80, h: 20 } },
+          { element_index: 9, element_token: 'p-save', role: 'MenuItem', label: '保存', frame: { x: 110, y: 130, w: 80, h: 20 } },
+          { element_index: 10, element_token: 'p-saveas', role: 'MenuItem', label: '另存为', frame: { x: 110, y: 150, w: 80, h: 20 } },
+          { element_index: 11, element_token: 'p-close', role: 'MenuItem', label: '退出', frame: { x: 110, y: 170, w: 80, h: 20 } },
         ] : []),
       ]
       return {
