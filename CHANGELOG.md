@@ -60,8 +60,8 @@
 
 ### Added
 
-- **`tests/observe.truth.mjs`（14）**：输入框当前值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告。
-- **`tests/action.echo.mjs`（8）**：坐标点击回显最近元素（`(465,171)` → 否(N)）、元素回显、重复点击抑制、观察变化放行、`actionGuard=off`、double_click 不拦。
+- **`tests/observe.truth.mjs`（16）**：输入框当前值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名。
+- **`tests/action.echo.mjs`（13）**：坐标/元素回显、重复点击抑制、观察变化放行、`actionGuard=off`、double_click 不拦、app_launch 前置 refused、stale 清快照、verifyAfterAction 差分。
 - **`tests/delivery.foreground.mjs`（13）**：真实 `cuaDeliver` 在 force + `foreground_unavailable`（含驱动抛异常）时用 `pid+window_id` 走 L3；重试失败如实报未送达；hotkey 同样升级；非 foreground 异常保持抛出。
 - **`lib/loopGuard.js` + `actionGuard`（默认 `on`）**：同窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`，不消耗快照；观察变化清除计数。
 - **`cursorMotion: human`**：保留 5 段弧线；`auto` 改为前景单次移动；同目标 16px/2s 内跳过滑行。
@@ -81,6 +81,18 @@
 - **残留另存为对话框**：`Close-TestNotepad` 在标签校验通过后先关 owned 模态对话框；`headless-run` 消费 `cleanup.dirty`，pass 改记 `dirty` 并非 0 退出。
 - **t01 Save As 语义不稳定**：Win11 Save As 文件名框在驱动 UIA/type 路径下会返回 confirmed/unverifiable 但值不变，Ctrl+A 前台被锁，旧另存为/覆盖确认对话框叠层。t01 改为 setup 预开空 `target\note.txt`、输入后“文件→保存”原地保存；`--repeats 3` **3/3 pass**（37/18/19 步，273/122/104s，每次 1 次 move_cursor）。Save As 覆盖保留在 t05。
 - **Notepad TabState 跨任务污染**：新增 `evals/lib/tabstate.ps1 backup|restore`，runner 在任何 setup 前备份用户 TabState、每个任务前清 eval bin、跑完恢复；`Open-TestNotepad` 增加“已有 Notepad 窗口则 fail closed，不把测试标签加进用户窗口”的 preflight；`Close-OrphanTestNotepads` 只关全局测试白名单 + 唯一 seed（或 eval 期间创建）的窗口；关闭优先 UIA `WindowPattern.Close`（WM_CLOSE 被 Win11 Notepad 忽略），cleanup 可丢弃测试标签的修改。
+- **L3 恢复原前台缺 pid**：`bring_to_front` 恢复只传 `{session,window_id}`，15/15 次被驱动 `missing pid` 拒绝仍写“已恢复”。新增 `lib/windowMap.js`，恢复时查 `previous_fg_hwnd→pid`（未知补 `list_windows`）；失败如实写“原前台恢复未确认/未恢复”。
+- **`ok:true + effect:"refused"` 当成功**：`bring_to_front`/`app_launch`/`computer_menu` 统一按 `engineRefusal`/effect 判定；`app_launch` 只有 confirmed 才写“已前置”，否则 `ok:false`；menu effect 缺失不再落到成功；clipboard/hover 检查 refusal/error_code；stop/resume 驱动失败如实注记/保持锁存。
+- **stale_element_token 后继续用旧编号**：`settleAction` 识别 stale 后 `clearSnapshot()`，回执要求重新 observe；`keyFallback` 点菜单栏前重新抓唯一菜单栏 token，避免回退自身把 token 用旧。
+- **`computer_do` 丢结构化字段**：新增 `data` 输出（crop/screenOrigin/apps/status/results/text/pid/structured 等），screen_zoom/verify/app_list/task/clipboard 路由不再丢 metadata。
+- **窗口中文别名**：`记事本/Notepad`、`计算器/Calculator`、`画图/Paint`、`文件资源管理器/Explorer`；matchCount 按 title+app 并集警告。
+- **轨迹监控误报**：`repeat_observe` 只统计连续、同一 windowId、`changedSinceLast!==true` 的观察；`repeat_action` 排除 refusal/deliveryFailure/snapshotMismatch/suppressed；签名含 text hash/投递模式；`topRepeats` 保留峰值。
+- **t10 orphan 误关**：`Close-OrphanTestNotepads -ProtectHwnd` + 当前 setup 已开 HWND 保护；orphan 不再仅凭 `evalOwned` 关通用文件名；`Wait-NotepadTabSet`/失败前写 state/首窗消失重绑 b 窗。
+- **cleanup 假 dirty**：无 state 文件 = 无窗口可清，不再写 `_leftovers`；`verify-oracles` 消费 `dirty/ok`，cleanup 放 `finally`，env error/timeout 也清理；`headless-run` 消费初始/最终 cleanup，timeout 不跑 oracle。
+- **t04/t06 环境阻塞**：Calculator 扫描所有 UIA 顶层窗口的 `CalculatorResults`，可见则不杀；t06 clipboard round-trip 8 次，失败在开 Notepad 前返回 EnvError。
+- **Explorer/Paint 安全**：新增 `Open/Close-TestExplorer`、`Open/Close-TestPaint` 状态化 HWND/PID；t03/wa2 不再宽 `Close-TaskWindows`，t09 不再按 mspaint 进程名杀；Paint 已有用户进程时 fail closed。
+- **`verifyAfterAction`（实验性，默认 off）**：element 动作 unverifiable 后抓一次无截图状态，回执附差分；结构性变化清快照，值变化保留 logical snapshot_id 换新 token；等 A/B 后再考虑默认。
+- **驱动调用超时**：`rawCall` 30s 超时（`CUA_CALL_TIMEOUT_MS` 可覆盖），避免挂死 step；runner timeout 等 `taskkill /T /F` 完成。
 
 ### Added
 

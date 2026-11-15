@@ -105,6 +105,7 @@ public static class S4W32 {
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
 }
@@ -154,6 +155,14 @@ function Find-WindowByHwnd([long]$Hwnd) {
     }
   }
   return $null
+}
+
+function Test-WindowAlive([int]$Hwnd) {
+  # UIA root-children lookup can miss an existing HWND (Calculator/ApplicationFrameHost,
+  # elevated windows). Win32 IsWindow is the authoritative liveness check.
+  if ($Hwnd -le 0) { return $false }
+  try { if ([S4W32]::IsWindow([IntPtr]$Hwnd)) { return $true } } catch {}
+  return [bool](Find-WindowByHwnd $Hwnd)
 }
 
 function Get-OwnedWindows([int]$Hwnd) {
@@ -323,6 +332,25 @@ function Clear-TestTabStateForLaunch {
   return (Clear-TestNotepadTabState $stateDir)
 }
 
+function Test-ClipboardRoundTrip {
+  # Clipboard can be locked/redirected for a whole session. Retry longer than the
+  # old 4x600ms, capture the last error, and let the caller classify it as ENV
+  # before opening Notepad (t06 otherwise leaves side effects).
+  param([string]$Text, [int]$Retries = 8)
+  $last = ''
+  for ($i = 0; $i -lt $Retries; $i++) {
+    try { Set-Clipboard -Value $Text } catch { $last = $_.Exception.Message }
+    Start-Sleep -Milliseconds 600
+    try {
+      $got = Get-Clipboard -Raw
+      if ($null -ne $got) { $got = ([string]$got).TrimEnd("`r", "`n") }
+      if ($got -eq $Text) { return [ordered]@{ ok = $true; text = [string]$got; error = '' } }
+      $last = "got=[$got]"
+    } catch { $last = $_.Exception.Message }
+  }
+  return [ordered]@{ ok = $false; text = ''; error = $last }
+}
+
 function Write-TestState([string]$Path, $State) {
   # Explicit UTF-8 (no BOM), one line, no silent partial files.
   try {
@@ -362,6 +390,21 @@ function Save-LeftoverState([string]$TaskId, [string]$StateFile, $Result) {
   } catch { return '' }
 }
 
+function Wait-NotepadTabSet {
+  # Poll the exact tab set for up to TimeoutMs. Win11 Notepad tab restore/animation
+  # can exceed the old 3x300ms window, especially right after a launch/merge.
+  param([int]$Hwnd, [string[]]$ExpectedTabs = @(), [int]$TimeoutMs = 3000)
+  $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
+  $last = $null
+  while ((Get-Date) -lt $deadline) {
+    $last = Test-NotepadTabSet -Hwnd $Hwnd -ExpectedTabs $ExpectedTabs
+    if ($last.ok) { return $last }
+    Start-Sleep -Milliseconds 300
+  }
+  if (-not $last) { $last = Test-NotepadTabSet -Hwnd $Hwnd -ExpectedTabs $ExpectedTabs }
+  return $last
+}
+
 function Open-TestNotepad {
   # Open a uniquely named test document WITHOUT touching existing Notepad windows.
   # A new HWND is NOT enough: Win11 Notepad restores the previous session's tabs
@@ -370,7 +413,7 @@ function Open-TestNotepad {
   param([string]$Path, [string]$TitleNeedle, [string]$StateFile, [string[]]$ExpectedTabs = @(), [string[]]$FinalTabs = @(), [int[]]$AllowExistingHwnd = @())
   # Recover from a previous run's test-only windows before preflight. This is what
   # stops the "failed t01 leaves a modified seed tab, next setup restores it" cascade.
-  $orphan = Close-OrphanTestNotepads
+  $orphan = Close-OrphanTestNotepads -ProtectHwnd $AllowExistingHwnd
   if ($orphan.closed -gt 0) { Start-Sleep -Milliseconds 500 }
   # Remove prior test tabs from TabState; otherwise a new window restores
   # note.txt/draft.txt/etc. and the exact tab-set check (correctly) fails.
@@ -404,12 +447,8 @@ function Open-TestNotepad {
   $owned = -not ($before -contains $hwnd)
 
   # Give the restore/add-tab path a moment to settle, then require the exact set.
-  $tabCheck = $null
-  for ($i = 0; $i -lt 3; $i++) {
-    $tabCheck = Test-NotepadTabSet -Hwnd $hwnd -ExpectedTabs $ExpectedTabs
-    if ($tabCheck.ok) { break }
-    Start-Sleep -Milliseconds 300
-  }
+  $tabCheck = Wait-NotepadTabSet -Hwnd $hwnd -ExpectedTabs $ExpectedTabs -TimeoutMs 3000
+  $script:TestNotepadProtected[[int]$hwnd] = $true
   $wpid = 0
   try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$hwnd, [ref]$wpid) } catch {}
   $procStart = ''
@@ -485,7 +524,13 @@ function Close-OrphanTestNotepads {
   # Recover from a previous run's test-only windows (e.g. a failed save left a
   # modified seed plus restored test tabs). Strict allowlist + at least one unique
   # seed; user tabs are left alone and reported. Returns {closed,leftover,details}.
-  param()
+  # -ProtectHwnd: windows opened earlier in the CURRENT setup (t10 a.txt) must not
+  # be closed by the next Open-TestNotepad call.
+  param([int[]]$ProtectHwnd = @())
+  if (-not $script:TestNotepadProtected) { $script:TestNotepadProtected = @{} }
+  $protected = @{}
+  foreach ($h in @($ProtectHwnd)) { $protected[[int]$h] = $true }
+  foreach ($h in @($script:TestNotepadProtected.Keys)) { $protected[[int]$h] = $true }
   $closed = 0
   $leftover = @()
   $details = @()
@@ -497,6 +542,7 @@ function Close-OrphanTestNotepads {
     try { $m = Get-Content $marker -Raw | ConvertFrom-Json; $evalStart = [datetime]$m.at } catch {}
   }
   foreach ($w in @(Find-WindowsByTitle 'Notepad')) {
+    if ($protected.ContainsKey([int]$w.hwnd)) { continue }
     $wpid = 0
     try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$w.hwnd, [ref]$wpid) } catch {}
     $start = ''
@@ -534,7 +580,10 @@ function Close-OrphanTestNotepads {
       if ($script:TestNotepadSeeds -contains $l) { $hasSeed = $true; break }
     }
 
-    if (-not $allowed -or $unknown.Count -gt 0 -or (-not $hasSeed -and -not $evalOwned)) {
+    # Safety: evalOwned alone is NOT enough for tabbed windows with generic names
+    # (a.txt/note.txt/draft.txt). Require a unique test seed; t10's a+b window is
+    # protected by -ProtectHwnd / its cleanup state instead.
+    if (-not $allowed -or $unknown.Count -gt 0 -or -not $hasSeed) {
       $leftover += ("hwnd={0} title={1} tabs={2}" -f $w.hwnd, $w.title, (($tabs | ForEach-Object { $_.raw }) -join ' | '))
       continue
     }
@@ -566,7 +615,14 @@ function Close-TestNotepad {
   # open. Never Stop-Process. Returns {closed,leftover,reason,tabs,dialogsClosed}.
   param([string]$StateFile, [switch]$AllowDiscardTestOnlyModified)
   $res = [ordered]@{ closed = $false; leftover = ''; reason = ''; tabs = @(); dialogsClosed = 0; discarded = $false }
-  if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.reason = 'no state file'; return $res }
+  if (-not $StateFile -or -not (Test-Path $StateFile)) {
+    # Nothing was opened by this task (or the state was already removed): there is
+    # no HWND to close. Treat as clean, not dirty; a late/untracked window is handled
+    # by Close-OrphanTestNotepads on the next setup.
+    $res.closed = $true
+    $res.reason = 'no state file (nothing to close)'
+    return $res
+  }
   $s = Read-TestState $StateFile
   if (-not $s) {
     $len = 0
@@ -574,8 +630,9 @@ function Close-TestNotepad {
     $res.reason = "bad state file (len=$len)"; return $res
   }
   if (-not $s.owned) { $res.reason = 'window not task-owned; left open'; return $res }
+  if (-not (Test-WindowAlive ([int]$s.hwnd))) { $res.closed = $true; $res.reason = 'window already gone'; return $res }
   $hit = Find-WindowByHwnd ([int]$s.hwnd)
-  if (-not $hit) { $res.reason = 'window already gone'; return $res }
+  if (-not $hit) { $hit = [pscustomobject]@{ hwnd = [int]$s.hwnd; title = '' } }
 
   # Revalidate process identity (HWND can be reused).
   $wpid = 0
@@ -633,14 +690,16 @@ function Close-TestNotepad {
   }
   Start-Sleep -Milliseconds 800
   for ($i = 0; $i -lt 3; $i++) {
-    if (-not (Find-WindowByHwnd ([int]$s.hwnd))) { break }
+    if (-not (Test-WindowAlive ([int]$s.hwnd))) { break }
     if (-not $AllowDiscardTestOnlyModified) { break }
     if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd))) { break }
     Start-Sleep -Milliseconds 800
   }
-  $still = Find-WindowByHwnd ([int]$s.hwnd)
+  $still = Test-WindowAlive ([int]$s.hwnd)
   if ($still) {
-    $res.reason = 'close not confirmed; left open'; $res.leftover = [string]$still.title
+    $res.reason = 'close not confirmed; left open'
+    $st = Find-WindowByHwnd ([int]$s.hwnd)
+    $res.leftover = if ($st) { [string]$st.title } else { '(UIA title unavailable)' }
   } else {
     $res.closed = $true
     $res.discarded = [bool]$modifiedTabs
@@ -655,47 +714,231 @@ function Get-Placement([int]$Hwnd) {
   return $p
 }
 
-function Test-CalculatorVisible {
-  # Win11 Calculator is WinUI3: Process.MainWindowHandle stays 0 - probe UIA instead
+function Get-CalculatorWindow {
+  # Win11 Calculator is WinUI3 and its top-level class varies (ApplicationFrameWindow
+  # vs WinUIDesktopWin32WindowClass). Scan ALL top-level Window controls for the
+  # CalculatorResults automation id instead of hard-coding one class.
   try {
     Add-Type -AssemblyName UIAutomationClient
     $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'ApplicationFrameWindow')
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+      [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+      [System.Windows.Automation.ControlType]::Window)
     $wins = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
-    $idCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'CalculatorResults')
+    $idCond = New-Object System.Windows.Automation.PropertyCondition(
+      [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'CalculatorResults')
     foreach ($w in $wins) {
-      $f = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $idCond)
-      if ($f.Count -gt 0) { return $true }
+      $f = $w.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $idCond)
+      if (-not $f) { continue }
+      $h = 0
+      try { $h = [int]$w.Current.NativeWindowHandle } catch {}
+      $n = ''
+      try { $n = [string]$w.Current.Name } catch {}
+      $p = 0
+      if ($h -ne 0) { try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$h, [ref]$p) } catch {} }
+      return [pscustomobject]@{ hwnd = $h; title = $n; pid = $p; element = $f }
     }
   } catch {}
-  return $false
+  return $null
+}
+
+function Test-CalculatorVisible {
+  return [bool](Get-CalculatorWindow)
 }
 
 function Start-Calculator {
-  # kill any instance, wait until really gone, then launch with retries until UIA sees the window.
-  # Returns the CalculatorApp pid when visible, else $null.
-  Get-Process -Name 'CalculatorApp' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  $deadline = (Get-Date).AddSeconds(8)
-  while ((Get-Date) -lt $deadline) {
-    if (-not (Get-Process -Name 'CalculatorApp' -ErrorAction SilentlyContinue)) { break }
-    Start-Sleep -Milliseconds 300
+  # Prefer an already-visible Calculator (do not kill it); otherwise try to clear a
+  # stale CalculatorApp once and launch calc.exe. Returns the visible pid, else $null.
+  $existing = Get-CalculatorWindow
+  if ($existing) { return [int]$existing.pid }
+  $p = @(Get-Process -Name 'CalculatorApp' -ErrorAction SilentlyContinue)
+  if ($p.Count -gt 0) {
+    $p | Stop-Process -Force -ErrorAction SilentlyContinue
+    $deadline = (Get-Date).AddSeconds(5)
+    while ((Get-Date) -lt $deadline) {
+      if (-not (Get-Process -Name 'CalculatorApp' -ErrorAction SilentlyContinue)) { break }
+      Start-Sleep -Milliseconds 300
+    }
   }
-  Start-Sleep -Milliseconds 800
-  $launched = $false
+  Start-Sleep -Milliseconds 500
+  try { Start-Process -FilePath 'calc.exe' } catch {}
   $deadline = (Get-Date).AddSeconds(30)
   while ((Get-Date) -lt $deadline) {
-    if (-not (Get-Process -Name 'CalculatorApp' -ErrorAction SilentlyContinue)) {
-      Start-Process -FilePath 'calc.exe'
-      $launched = $true
-    }
-    if (Test-CalculatorVisible) {
-      $p = Get-Process -Name 'CalculatorApp' -ErrorAction SilentlyContinue | Select-Object -First 1
-      if ($p) { return $p.Id }
-      return 0
-    }
+    $w = Get-CalculatorWindow
+    if ($w) { return [int]$w.pid }
     Start-Sleep -Milliseconds 600
   }
   return $null
+}
+
+function Get-TopLevelWindows {
+  # All top-level UIA Window controls with a native HWND (used by state-scoped
+  # Explorer/Paint lifecycle helpers; never used for broad closes).
+  Add-Type -AssemblyName UIAutomationClient
+  $root = [System.Windows.Automation.AutomationElement]::RootElement
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Window)
+  $wins = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+  $out = @()
+  foreach ($w in $wins) {
+    $h = 0
+    try { $h = [int]$w.Current.NativeWindowHandle } catch {}
+    if ($h -eq 0) { continue }
+    $n = ''
+    try { $n = [string]$w.Current.Name } catch {}
+    $out += [pscustomobject]@{ hwnd = $h; title = $n }
+  }
+  return @($out)
+}
+
+function Open-TestExplorer {
+  # Launch Explorer at Path (or select SelectFile) and require a NEW HWND whose
+  # title contains one of TitleNeedle. Never closes or reuses an existing window.
+  param([string]$Path, [string[]]$TitleNeedle = @(), [string]$StateFile, [string]$SelectFile = '')
+  $before = @(Get-TopLevelWindows | ForEach-Object { [int]$_.hwnd })
+  try {
+    if ($SelectFile) {
+      Start-Process -FilePath 'explorer.exe' -ArgumentList @(('/select,"' + $SelectFile + '"')) | Out-Null
+    } else {
+      Start-Process -FilePath 'explorer.exe' -ArgumentList @($Path) | Out-Null
+    }
+  } catch {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = $_.Exception.Message }
+  }
+  $deadline = (Get-Date).AddSeconds(15)
+  $hit = $null
+  while ((Get-Date) -lt $deadline) {
+    foreach ($w in @(Get-TopLevelWindows)) {
+      if ($before -contains [int]$w.hwnd) { continue }
+      $candPid = 0
+      try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$w.hwnd, [ref]$candPid) } catch {}
+      $candProc = ''
+      try { $candProc = (Get-Process -Id $candPid -ErrorAction Stop).ProcessName } catch {}
+      if ($candProc -and $candProc -ne 'explorer') { continue }
+      foreach ($n in @($TitleNeedle)) {
+        if ([string]$w.title -and ([string]$w.title).IndexOf([string]$n, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+          $hit = $w
+          break
+        }
+      }
+      if ($hit) { break }
+    }
+    if ($hit) { break }
+    Start-Sleep -Milliseconds 400
+  }
+  if (-not $hit) {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = 'new explorer window not found' }
+  }
+  $hwnd = [int]$hit.hwnd
+  $wpid = 0
+  try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$hwnd, [ref]$wpid) } catch {}
+  $start = ''
+  try { $start = (Get-Process -Id $wpid -ErrorAction Stop).StartTime.ToString('o') } catch {}
+  $state = [ordered]@{
+    ok = $true; hwnd = $hwnd; title = [string]$hit.title; owned = $true
+    pid = [int]$wpid; processStart = $start; path = $Path; selectFile = $SelectFile
+    at = (Get-Date).ToString('o')
+  }
+  if ($StateFile) { [void](Write-TestState $StateFile $state) }
+  return $state
+}
+
+function Close-TestExplorer {
+  param([string]$StateFile)
+  $res = [ordered]@{ closed = $false; reason = ''; title = '' }
+  if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.closed = $true; $res.reason = 'no state file (nothing to close)'; return $res }
+  $s = Read-TestState $StateFile
+  if (-not $s -or -not $s.owned) { $res.reason = 'not task-owned'; return $res }
+  if (-not (Test-WindowAlive ([int]$s.hwnd))) { $res.closed = $true; $res.reason = 'window already gone'; return $res }
+  $w = Find-WindowByHwnd ([int]$s.hwnd)
+  $wpid = 0
+  try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$s.hwnd, [ref]$wpid) } catch {}
+  if ($s.pid -and $wpid -and ([int]$s.pid -ne [int]$wpid)) { $res.reason = "pid changed ($($s.pid) -> $wpid)"; return $res }
+  if (-not (Close-WindowUia ([int]$s.hwnd))) {
+    [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  }
+  Start-Sleep -Milliseconds 800
+  if (Test-WindowAlive ([int]$s.hwnd)) {
+    $res.reason = 'close not confirmed'; $res.title = if ($w) { [string]$w.title } else { '' }
+  } else { $res.closed = $true }
+  return $res
+}
+
+function Open-TestPaint {
+  # State-scoped Paint lifecycle. If any mspaint process already exists, fail closed;
+  # never Stop-Process by name. Only a process started here may be stopped by PID.
+  param([string]$StateFile)
+  $existing = @(Get-Process -Name 'mspaint' -ErrorAction SilentlyContinue)
+  if ($existing.Count -gt 0) {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = 'existing mspaint process; close Paint first (never killed automatically)' }
+  }
+  $before = @(Get-TopLevelWindows | ForEach-Object { [int]$_.hwnd })
+  try { Start-Process -FilePath 'mspaint.exe' | Out-Null } catch {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = $_.Exception.Message }
+  }
+  $deadline = (Get-Date).AddSeconds(20)
+  $hit = $null
+  $launchedPids = @()
+  while ((Get-Date) -lt $deadline) {
+    $paintPids = @(Get-Process -Name 'mspaint' -ErrorAction SilentlyContinue | ForEach-Object { [int]$_.Id })
+    if ($paintPids.Count -gt 0) {
+      $launchedPids = @(@($launchedPids) + @($paintPids) | Sort-Object -Unique)
+      foreach ($w in @(Get-TopLevelWindows)) {
+        if ($before -contains [int]$w.hwnd) { continue }
+        $wpid = 0
+        try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$w.hwnd, [ref]$wpid) } catch {}
+        if ($paintPids -contains [int]$wpid) { $hit = $w; break }
+      }
+    }
+    if ($hit) { break }
+    Start-Sleep -Milliseconds 500
+  }
+  if (-not $hit) {
+    # Preflight guaranteed no mspaint existed; these PIDs were launched here.
+    foreach ($id in @($launchedPids)) {
+      try { Stop-Process -Id ([int]$id) -Force -ErrorAction SilentlyContinue } catch {}
+    }
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = 'new paint window not found' }
+  }
+  $hwnd = [int]$hit.hwnd
+  $wpid = 0
+  try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$hwnd, [ref]$wpid) } catch {}
+  $start = ''
+  try { $start = (Get-Process -Id $wpid -ErrorAction Stop).StartTime.ToString('o') } catch {}
+  $state = [ordered]@{
+    ok = $true; hwnd = $hwnd; title = [string]$hit.title; owned = $true
+    pid = [int]$wpid; processStart = $start; at = (Get-Date).ToString('o')
+  }
+  if ($StateFile) { [void](Write-TestState $StateFile $state) }
+  return $state
+}
+
+function Close-TestPaint {
+  param([string]$StateFile)
+  $res = [ordered]@{ closed = $false; reason = ''; title = '' }
+  if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.closed = $true; $res.reason = 'no state file (nothing to close)'; return $res }
+  $s = Read-TestState $StateFile
+  if (-not $s -or -not $s.owned) { $res.reason = 'not task-owned'; return $res }
+  if (-not (Test-WindowAlive ([int]$s.hwnd))) { $res.closed = $true; $res.reason = 'window already gone'; return $res }
+  $w = Find-WindowByHwnd ([int]$s.hwnd)
+  if (-not (Close-WindowUia ([int]$s.hwnd))) {
+    [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  }
+  Start-Sleep -Milliseconds 800
+  for ($i = 0; $i -lt 3; $i++) {
+    if (-not (Test-WindowAlive ([int]$s.hwnd))) { break }
+    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd))) { break }
+    Start-Sleep -Milliseconds 800
+  }
+  $still = Test-WindowAlive ([int]$s.hwnd)
+  if ($still) {
+    $res.reason = 'close not confirmed'; $res.title = if ($w) { [string]$w.title } else { '' }
+  } else {
+    $res.closed = $true
+    if ($s.pid) { try { Stop-Process -Id ([int]$s.pid) -Force -ErrorAction SilentlyContinue } catch {} }
+  }
+  return $res
 }
 
 function Close-TaskWindows {

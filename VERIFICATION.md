@@ -8,14 +8,14 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 394 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **19/19 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **22 套 / 419 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **20/20 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
-| 打包面 | **36 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js 等） | — | `npm pack --dry-run` |
+| 打包面 | **37 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -142,7 +142,7 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **22 套 / 394** 断言全绿；`npm run check` 19/19；`npm pack` 36 文件 |
+| 离线 | **22 套 / 419** 断言全绿；`npm run check` 20/20；`npm pack` 37 文件 |
 | 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
@@ -213,12 +213,15 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 真机 t01 ×3 | **0/3 执行，3/3 setup error（steps=0）**：seed 落进现有 Notepad 窗口（`owned=False`，窗口仍含 2 个用户已修改标签 + 测试标签）；fail-closed 生效，未运行 dsh | 保存/关闭用户标签并清掉测试标签后重跑；当前窗口不要自动关闭 |
 | CU 轨迹监控 | **✅ 首个真机样本**：443 events / 589.5s；34 observe / 39 action；53 `move_cursor` / 7257px；自动标记 repeat_action、observe_burst、repeat_observe | `tests/trajectory` + `evals/analyze-trajectory.mjs` |
 | 监控下的 t01 | fail：76 steps / 8 errors / 15 unverified / timeout；轨迹显示 3 次重复 click、3 次连续 observe、另存为窗口重复 native+ax 观察 | 桌面干净后按轨迹的 loop 点继续修 |
-| 轨迹驱动第二轮（离线） | **22 套 / 394 断言全绿**；`observe.truth` 14（输入值/差分/密码隐藏/同标题警告）、`action.echo` 8（目标回显/重复抑制）、`delivery.foreground` 13（force L3，含驱动抛异常；非 foreground 异常保持抛出）、`human.click` 11（auto 1 次/human 5 段/off 0 次/同目标跳过）、`key.xaml` 23（对话框 press_key）、`trajectory` 12（外壳透明/未验证/stub/suppressed/移动数）、`eval-safety` 29（UIA 关闭/owned 对话框/测试标签丢弃） | 真机 t01 单跑 + 三次复跑见下 |
+| 轨迹驱动第二轮（离线） | **22 套 / 419 断言全绿**；`observe.truth` 16（输入值/差分/密码隐藏/同标题警告）、`action.echo` 13（目标回显/重复抑制）、`delivery.foreground` 13（force L3，含驱动抛异常；非 foreground 异常保持抛出）、`human.click` 11（auto 1 次/human 5 段/off 0 次/同目标跳过）、`key.xaml` 23（对话框 press_key）、`trajectory` 14（外壳透明/未验证/stub/suppressed/移动数）、`eval-safety` 37（UIA 关闭/owned 对话框/测试标签丢弃） | 真机 t01 单跑 + 三次复跑见下 |
 | 真机 t01（修复后第 1 次） | **pass**：58 steps / 4 err / 15 unverified / 354.2s；26 observe / 30 action；2 `move_cursor` / 248px；无 timeout、无 dirty | 对比修复前：76 steps / 589.5s / 53 moves / 7257px |
 | 真机 t01（修复后第 2 次） | **pass**：42 steps / 4 err / 12 unverified / 233.9s；19 observe / 22 action；0 `move_cursor`；Ctrl+A 三连循环消失 | 剩余局部 loop：type:77（stale→foreground 失败→background 成功）、click:6（mismatch→suppressed→成功） |
 | 真机 t01（原地保存，单跑） | **pass**：31 steps / 1 err / 8 unverified / 184.5s；12 observe / 8 click / 5 zoom；1 `move_cursor` / 0px；tabstate restored | 2026-11-15 16:42；Save As 语义改由 t05 覆盖 |
 | 真机 t01（原地保存 ×3） | **3/3 pass**：steps 37/18/19，err 1/0/1，unverified 12/4/4，duration 273.4/121.7/104.2s；每次 1 `move_cursor` / 0px；无 timeout、无 dirty；tabstate restored | 2026-11-15 16:46；轨迹无 repeat_action，只有 repeat_observe（同一窗口连续观察） |
-| verify-oracles（2026-11-15 复跑） | **7/10**：t01/t03/t05/t07/t09/wa2/x1 PASS；t04 Calculator 窗口未出现；t06 `clipboard_unavailable`（系统剪贴板不可用，driver 也返回该错误）；t10 `a` 窗口 tab 集为空（单独 setup 通过） | t04/t06 为本机环境；t10 为 Win11 Notepad 合并时序，后续单独加固 |
+| verify-oracles（2026-11-15 P2 复跑） | **10/10 PASS**：t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；tabstate restored，各任务 cleanup 无 dirty | t10 ProtectHwnd/state 重绑、t04 全窗口扫描、t06 clipboard round-trip、Explorer/Paint 状态化全部生效 |
+| 真机 t01（P2 后 3x） | **2/3 pass**：r1 9 steps / r2 13 steps pass；r3 66 steps fail（内容不匹配，模型在菜单/剪贴板间抖动） | 原地保存语义未变；保存证据已加入 prompt；另一次提示词变体因模型工具抖动被人工停止，未计分 |
+| 真机 t05（Save As 单跑） | fail：50 steps / 2 err / 17 unverified / dirty；oracle 文件不存在 | Win11 Save As 文件名框在驱动 UIA/type 路径下仍不可靠；保留 t05 作为失败样本，t01 用原地保存 |
+| P2 运行时修复 | L3 恢复带 pid（windowMap）；bring_to_front refused 判失败；app_launch/menu/clipboard/hover 不再假成功；stale token 清快照；computer_do data；窗口别名；监控 loop 语义修正 | `npm test` 22 套 / 419 断言；verify-runtime 17/17 |
 
 ## 3. 代表性缺陷与守门测试
 

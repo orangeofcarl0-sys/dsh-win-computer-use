@@ -233,6 +233,6 @@ check('I9: 执行侧接线（validate/gate 入口 + settleAction 单一消费出
   && /markConsumed\(tool\)/.test(receiptSrc)
   && /markSuspect\(tool\)/.test(receiptSrc)
   && /xamlKeyGuidance\(args\.key/.test(actionsSrc)
-  && /snapshotId: state\.snapshot_id/.test(observeSrc))
+  && /snapshotId: logicalSnapshotId \?\? state\.snapshot_id/.test(observeSrc))
 
 process.exit(failures > 0 ? 1 : 0)

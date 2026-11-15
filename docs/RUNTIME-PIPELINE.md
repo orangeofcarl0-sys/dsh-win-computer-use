@@ -113,13 +113,16 @@ humanAction / type / key / scroll / drag / set_value
 - `settleAction` 在这类值上返回 `ok:false`，不消费快照；`delivery_failed` 另标 suspect。
 - 普通 `effect:unverifiable` 仍是“已送达但未验证”：`ok:true` + `UNVERIFIED_NOTE`（先观察、界面已变勿重复；确认未变再考虑 foreground）。
 - 强制前台（`foreground:true` / `deliveryMode=foreground`）遇到 `foreground_unavailable` 时，只要 payload 有 `pid+window_id`，同样执行一次 L3：`bring_to_front` → 前台重试 → 恢复原前台。hotkey 也适用；XAML Accelerator 拒绝不升级。
+- L3 恢复原前台：`previous_fg_hwnd` 只有 hwnd，而 `bring_to_front` 要求 `pid+window_id`。`windowMap` 在每次 `list_windows` 时记录 `window_id→pid`；恢复时查 map，未知补一次 `list_windows`。恢复失败/pid 未知时写“原前台恢复未确认/未恢复”，不再假称成功。`bring_to_front` 的 `ok:true + effect:"refused"` 也按拒绝处理。
 - L3 只有 retry 不是 delivery failure/refusal 时才写“重试完成”；否则写“重试仍未送达”。
+- `stale_element_token`：驱动报告编号失效时 `clearSnapshot()`，回执要求重新 observe，不再用旧编号重试；`keyFallback` 点菜单栏前用 `windowState` 重新取唯一菜单栏 token。
 
 ### 4.3 动作回执
 
 - 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。这样点错按钮（例如把“否”当“是”）在回执里立刻可见。
 - 输入/设值同样回显目标元素或窗口焦点。
 - 回执文字是模型唯一可靠的状态证据：目标回显 + 下一次观察差分共同承担“动作是否生效”。
+- `verifyAfterAction=auto`（实验性，默认 off）：对 element 路径的 click/type/set_value/key，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。默认关闭，等 A/B。
 
 ### 4.4 快照语义
 
@@ -159,7 +162,8 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
   - 通过后先关闭 owned 模态对话框（`Get-OwnedWindows`，GW_OWNER=测试 HWND；标签已证明全是测试文件），否则主窗关闭会被忽略、`另存为` 残留；
   - 关闭优先 `UIA WindowPattern.Close`，WM_CLOSE 仅兜底：Win11 Notepad 对非提权客户端的 WM_CLOSE 会静默忽略（2026-11-15 实测）；修改中的测试文档由 `Dismiss-TestSavePrompt` 点“不保存”；
   - 只有 safeToClose 才关闭；否则留窗并写 `_leftovers/<task>-<stamp>.json`。
-- `Close-OrphanTestNotepads`：全局测试文件名白名单 + 至少一个唯一 seed（或进程启动时间晚于 eval 备份时间）；只有全部标签都是测试文件才关闭，用户标签/未知后缀/通用名单独出现时留窗报告。空的无标题窗口仅在 eval 期间创建时才关。
+- `Close-OrphanTestNotepads`：全局测试文件名白名单 + **至少一个唯一 seed**；只有全部标签都是测试文件才关闭，用户标签/未知后缀/通用名单独出现时留窗报告。`-ProtectHwnd` 保护当前 setup 已开的窗口（t10 的 a.txt）；不再仅凭 `evalOwned` 关闭通用文件名窗口。空的无标题窗口仅在 eval 期间创建时才关。
+- `Open-TestExplorer`/`Close-TestExplorer`、`Open-TestPaint`/`Close-TestPaint`：状态化 HWND/PID/start 生命周期；t03/wa2/t09 不再用 `Close-TaskWindows` 宽匹配或按 `mspaint` 进程名杀。Paint 已有用户进程时 fail closed，不杀。
 - Win11 Notepad 会从 `TabState/*.bin` 恢复上次会话；**新 HWND 不等于干净窗口**。当前 t01 窗口曾出现 8 个标签：2 个用户已修改文档 + 6 个测试文件。
 - `evals/lib/tabstate.ps1 backup|restore`：eval 前把用户 TabState 全部 bin 备份到 `~/.dsh/s4-evals/_tabstate-backup/`，每个任务启动前删除上一个任务留下的 eval bin（`Clear-TestTabStateForLaunch`），跑完 restore。没有这层隔离，任务 N 的 seed/draft/workfile 会被任务 N+1 恢复，形成跨任务污染。
 - `Close-TaskWindows` 只接受显式 patterns；无 patterns 不关闭任何窗口。
@@ -193,8 +197,9 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 - 事件：`session_start`、`tool_start`、`tool_end`、`driver`、`loop`、`session_end`。
 - `computer_do` 外壳透明：只记录内层真实工具；`summary.tools` 不再把 58 次调用显示成 115。
 - `tool_end` 带 `unverified` / `observeStub` 标记；摘要增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`。
-- 自动 loop 标记：
-  - `repeat_action` / `repeat_observe`：60s 内同一签名≥3 次；
+- 自动 loop 标记（2026-11-15 修正后）：
+  - `repeat_observe`：连续、同一 windowId/mode、且 `changedSinceLast !== true` 的观察≥3 次；动作后的复核观察不算 loop；
+  - `repeat_action`：只统计真实执行的动作（排除 refusal/deliveryFailure/snapshotMismatch/suppressed），签名含 text hash 与投递模式；
   - `observe_burst`：连续≥3 次观察没有动作；
   - `relocate_ratio`：观察/动作≥2.5 且动作≥5；
   - `pointer_burst`：3s 内≥20 次 `move_cursor`。
@@ -221,6 +226,18 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 | 每次观察重复 check_permissions | 已修：30s 缓存 | ✅ |
 | 同标题多窗口静默取最前 | 已修：头部/stub 警告“匹配 N 个，改用 window_id” | ✅ |
 | 残留另存为对话框 | 已修：cleanup 先关 owned 对话框；runner 消费 dirty | ✅ |
+| L3 恢复调用缺 pid | 已修：windowMap 查 pid；未知补 list_windows；恢复失败如实注记 | ✅ |
+| `ok:true+effect:"refused"` 当成功 | 已修：bring_to_front/launch/menu 统一按 refusal/effect 判定 | ✅ |
+| `app_launch` 假“已前置” | 已修：只有 confirmed 才写已前置；前置被拒返回 ok:false | ✅ |
+| `clipboard/hover/menu` 假成功 | 已修：refusal/error_code/effect 缺失均失败或未确认 | ✅ |
+| stale token 后继续用旧编号 | 已修：清空快照 + 明确指引；keyFallback 重取菜单栏 token | ✅ |
+| `computer_do` 丢结构化字段 | 已修：新增 `data`（crop/apps/results/structured 等） | ✅ |
+| 轨迹把动作后复核当 loop | 已修：windowId/change 语义；失败/抑制动作不计数 | ✅ |
+| t10 orphan 误关第一个窗口 | 已修：ProtectHwnd + 唯一 seed 要求 + state 先写/重绑 | ✅ |
+| cleanup 缺 state 假 dirty | 已修：无 state = 无窗口可清，不 dirty；runner 消费 dirty | ✅ |
+| t04/t06 环境阻塞 | 已修：Calculator 全窗口扫描/不杀可见实例；clipboard round-trip 8 次 + EnvError | ✅ 10/10 |
+| Explorer/Paint 宽匹配/进程名杀 | 已修：状态化 Open/Close；t09 不再杀 mspaint | ✅ |
+| 动作后无状态证据 | 实验性 `verifyAfterAction=auto`（默认 off） | ⏳ A/B |
 | 观察失败保留旧快照 | 已修：清空 | ✅ |
 | suspect 去重 stub | 已修：`suspectBefore` 强制全量 | ✅ |
 | Notepad 新窗口含用户标签 | 已修：标签白名单 + fail closed + leftover | ✅ |

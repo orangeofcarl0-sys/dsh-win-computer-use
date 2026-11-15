@@ -98,6 +98,35 @@ for (const id of ['t01', 't05', 't06', 't07', 't10']) {
 const openFn = (common.match(/function Open-TestNotepad\s*\{[\s\S]*?\n\}/) || [''])[0]
 check('S15: Open-TestNotepad 先 preflight 再启动', /existing Notepad window/.test(openFn)
   && openFn.indexOf('existing Notepad window') < openFn.indexOf('Start-Process'))
+check('S15b: Open-TestNotepad 把 AllowExistingHwnd 传给 orphan 清理', /Close-OrphanTestNotepads\s+-ProtectHwnd/.test(openFn))
+check('S15c: orphan 不再仅凭 evalOwned 关通用窗口', /function Close-OrphanTestNotepads/.test(common)
+  && /-ProtectHwnd/.test(common) && !/-not \$hasSeed -and -not \$evalOwned/.test(common))
+
+// 8. Paint/Explorer 状态化：禁止按进程名杀，禁止宽 Close-TaskWindows
+const paintKillers = []
+for (const f of files) {
+  const src = readFileSync(f, 'utf8')
+  if (/Get-Process\s+-Name\s+['"]mspaint['"][\s\S]{0,300}?Stop-Process/i.test(src)) paintKillers.push(relative(root, f))
+}
+check('S16: 没有按 mspaint 进程名 Stop-Process', paintKillers.length === 0, paintKillers.join(', '))
+for (const id of ['t09']) {
+  const setup = readFileSync(join(evals, 'setup', `${id}.ps1`), 'utf8')
+  const cleanup = readFileSync(join(evals, 'cleanup', `${id}.ps1`), 'utf8')
+  check('S17: t09 使用 Open/Close-TestPaint', /Open-TestPaint/.test(setup) && /Close-TestPaint/.test(cleanup))
+}
+for (const id of ['t03', 'wa2']) {
+  const setup = readFileSync(join(evals, 'setup', `${id}.ps1`), 'utf8')
+  const cleanup = readFileSync(join(evals, 'cleanup', `${id}.ps1`), 'utf8')
+  check(`S18: ${id} 使用 Open/Close-TestExplorer`, /Open-TestExplorer/.test(setup)
+    && /Close-TestExplorer/.test(cleanup) && !/Close-TaskWindows/.test(setup + cleanup))
+}
+const t10Setup = readFileSync(join(evals, 'setup', 't10.ps1'), 'utf8')
+check('S19: t10 失败返回前先写 state', /Write-TestState/.test(t10Setup)
+  && t10Setup.indexOf('Persist cleanup state BEFORE') >= 0
+  && t10Setup.indexOf('Persist cleanup state BEFORE') < t10Setup.indexOf("if (-not ($t1.ok -and $t2.ok))"))
+const t04Setup = readFileSync(join(evals, 'setup', 't04.ps1'), 'utf8')
+check('S20: t04 setup 建目录并写 calculator state', /New-TaskDir/.test(t04Setup)
+  && /test-calculator\.json/.test(t04Setup) && /Write-TestState/.test(t04Setup))
 
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

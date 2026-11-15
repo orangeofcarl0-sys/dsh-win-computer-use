@@ -48,12 +48,28 @@ export async function cuaCall(tool, args = {}) {
       })),
     }
   }
-  if (tool === 'clipboard_write') return { types: ['text'] }
+  const mode = process.env.CUA_OPS_MODE || ''
+  if (tool === 'clipboard_write') {
+    if (mode === 'clipboard-fail') return { capability: 'clipboard.write', error_code: 'clipboard_unavailable' }
+    return { types: ['text'] }
+  }
   if (tool === 'clipboard_read') return { types: ['text'], text: args.include_text === false ? null : '剪贴板内容' }
-  if (tool === 'invoke_menu') return { invoked: true }
-  if (tool === 'move_cursor') return { moved: true }
-  if (tool === 'end_session') return {}
-  if (tool === 'start_session') return { active: true }
+  if (tool === 'invoke_menu') {
+    if (mode === 'menu-missing') return { ok: true, invoked: true }
+    return { ok: true, effect: 'confirmed', invoked: true }
+  }
+  if (tool === 'move_cursor') {
+    if (mode === 'hover-refusal') return { refusal: { code: 'element_not_visible' } }
+    return { moved: true }
+  }
+  if (tool === 'end_session') {
+    if (mode === 'stop-fail') return { error: 'end_session failed (stub)' }
+    return {}
+  }
+  if (tool === 'start_session') {
+    if (mode === 'resume-fail') return { error: 'start_session failed (stub)' }
+    return { active: true }
+  }
   return {}
 }
 `)
@@ -114,4 +130,24 @@ check('F1: 默认覆盖层（scope=window + target）', r.ok === true && history
 r = await hover({ x: 100, y: 200, real: true })
 check('F2: real → scope=desktop', r.ok === true && history.at(-1).args.scope === 'desktop' && /真实指针/.test(r.result))
 
+// G. 失败回执不再假成功
+process.env.CUA_OPS_MODE = 'clipboard-fail'
+r = await clipboard({ action: 'write', text: 'x' })
+check('G1: clipboard error_code → ok:false', r.ok === false && /写入失败/.test(r.result), r.result)
+process.env.CUA_OPS_MODE = 'menu-missing'
+r = await menu({ pid: 1, window_id: 2, path: ['文件', '保存'] })
+check('G2: menu effect 缺失 → ok:false', r.ok === false && /未确认/.test(r.result), r.result)
+process.env.CUA_OPS_MODE = 'hover-refusal'
+r = await hover({ pid: 1, window_id: 2, x: 100, y: 200 })
+check('G3: hover refusal → ok:false', r.ok === false && /拒绝/.test(r.result), r.result)
+
+process.env.CUA_OPS_MODE = 'stop-fail'
+const s2 = createOpsState()
+r = await stop(s2)
+check('G4: stop 驱动失败仍锁存且如实注记', r.ok === true && s2.stopped === true && /未确认/.test(r.result), r.result)
+process.env.CUA_OPS_MODE = 'resume-fail'
+r = await resume(s2)
+check('G5: resume 驱动失败 → ok:false 且保持锁存', r.ok === false && s2.stopped === true, r.result)
+
+delete process.env.CUA_OPS_MODE
 process.exit(failures > 0 ? 1 : 0)

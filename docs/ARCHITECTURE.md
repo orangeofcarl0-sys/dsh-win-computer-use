@@ -65,6 +65,7 @@ flowchart LR
 | `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`DELEGATION_RECIPE` | 子 agent 委派（0.2.2 `startActivation`）、能力降级、超时/预算、结构化结果映射 | 宿主 `subagents` |
 | `lib/guard.js` | `guard`、`extremeNote` | 无快照拒绝、白名单、密码三态、极危注记 | snapshot / roles |
 | `lib/snapshot.js` | `setSnapshot`、`resolveToken`、`resolveWindow`、`validateSnapshotId`、`markConsumed`、`markSuspect`、`freshnessGate` | 单窗口快照、TTL、编号解析、消费/可疑标记、连击语义 | — |
+| `lib/windowMap.js` | `rememberWindows`、`pidOfWindow`、`resetWindowMap` | list_windows 的 window_id→pid 缓存；L3 恢复原前台查 pid | — |
 | `lib/receipt.js` | `receipt`、`refusalReceipt`、`settleAction`、`UNVERIFIED_NOTE`、`SUSPECTED_NOOP_NOTE` | 动作回执唯一出口：规范化 → 判拒绝 → 标快照 → 紧凑文本 | cua / engine / snapshot |
 | `lib/engine.js` | `engineRefusal`、`isSuspectedNoop`、`uiaAcceleratorTimeout` | 驱动回执的拒绝形态统一识别（refusal/effect/error/code） | — |
 | `lib/dispatcher.js` | `SURFACE_MODES`、`STABLE_TOOLS`、`HOT_TOOLS`、`visibleToolsForMode`、`hiddenToolNames`、`catalogOf` | 工具面常量、可见/隐藏清单、catalog 紧凑签名 | — |
@@ -404,7 +405,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：22 套、394 断言（2026-11-15）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：22 套、419 断言（2026-11-15）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

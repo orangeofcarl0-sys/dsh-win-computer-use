@@ -13,6 +13,7 @@
  * 运行：node tests/delivery.foreground.mjs
  */
 import { cuaDeliver } from '../lib/cua.js'
+import { resetWindowMap } from '../lib/windowMap.js'
 import { makeChecks } from './lib/harness.mjs'
 
 const { check, state: checkState } = makeChecks()
@@ -24,8 +25,9 @@ function makeCall({ retry = 'ok' } = {}) {
     calls.push({ tool, args })
     if (tool === 'bring_to_front') {
       if (Number(args.window_id) === 7) return { previous_fg_hwnd: 99 }
-      return { ok: true }
+      return { ok: true, effect: 'confirmed' }
     }
+    if (tool === 'list_windows') return { windows: [{ window_id: 99, pid: 7 }] }
     if ((tool === 'click' || tool === 'hotkey') && args.delivery_mode === 'foreground') {
       if (first) {
         first = false
@@ -42,6 +44,7 @@ function makeCall({ retry = 'ok' } = {}) {
 
 // 1. force + foreground_unavailable → L3 → 恢复
 {
+  resetWindowMap()
   const { call, calls } = makeCall()
   const r = await cuaDeliver('click', { session: 's', pid: 42, window_id: 7, x: 1, y: 2 }, 'auto', {
     forceForeground: true, call,
@@ -49,19 +52,22 @@ function makeCall({ retry = 'ok' } = {}) {
   check('F1: force 失败后 L3 重试成功', r.value?.effect === 'confirmed', JSON.stringify(r.value))
   check('F2: bring_to_front 用 pid+window_id', calls[1]?.tool === 'bring_to_front'
     && calls[1]?.args?.window_id === 7 && calls[1]?.args?.pid === 42, JSON.stringify(calls[1]))
-  check('F3: 重试后恢复原前台', calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify(calls.slice(-1)))
+  check('F3: 重试后恢复原前台（pid+window_id）', calls.some((c) => c.tool === 'bring_to_front'
+    && c.args?.window_id === 99 && c.args?.pid === 7), JSON.stringify(calls.slice(-1)))
   check('F4: 注记不再说“重试完成”以外的假成功', /绕锁后重试完成/.test(r.note), r.note)
 }
 
 // 2. 重试仍失败 → 如实报未送达
 {
+  resetWindowMap()
   const { call, calls } = makeCall({ retry: 'fail' })
   const r = await cuaDeliver('click', { session: 's', pid: 42, window_id: 7, x: 1, y: 2 }, 'auto', {
     forceForeground: true, call,
   })
   check('F5: 重试仍失败 → 未送达注记', /仍未送达/.test(r.note), r.note)
   check('F6: 重试仍失败 → value 仍是 foreground_unavailable', r.value?.code === 'foreground_unavailable', JSON.stringify(r.value))
-  check('F7: 失败也恢复原前台', calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify(calls))
+  check('F7: 失败也恢复原前台（pid+window_id）', calls.some((c) => c.tool === 'bring_to_front'
+    && c.args?.window_id === 99 && c.args?.pid === 7), JSON.stringify(calls))
 }
 
 // 3. 无 window_id 不升级（避免 pid-only 选错 Win11 多窗口）
@@ -75,6 +81,7 @@ function makeCall({ retry = 'ok' } = {}) {
 
 // 4. hotkey 的前台锁失败同样升级
 {
+  resetWindowMap()
   const { call, calls } = makeCall()
   const r = await cuaDeliver('hotkey', { session: 's', pid: 42, window_id: 7, keys: ['ctrl', 'a'] }, 'auto', {
     forceForeground: true, call,
@@ -100,11 +107,16 @@ function makeCall({ retry = 'ok' } = {}) {
 
 // 6. 驱动把 foreground_unavailable 以异常抛出（非 JSON/非零退出）也必须走 L3
 {
+  resetWindowMap()
   const calls = []
   let first = true
   const call = async (tool, args) => {
     calls.push({ tool, args })
-    if (tool === 'bring_to_front') return { previous_fg_hwnd: 99 }
+    if (tool === 'bring_to_front') {
+      if (Number(args.window_id) === 7) return { previous_fg_hwnd: 99 }
+      return { ok: true, effect: 'confirmed' }
+    }
+    if (tool === 'list_windows') return { windows: [{ window_id: 99, pid: 7 }] }
     if (tool === 'click' && args.delivery_mode === 'foreground') {
       if (first) {
         first = false

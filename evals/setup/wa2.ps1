@@ -6,22 +6,14 @@ try {
   $f = Join-Path $docs 'secret.txt'
   [IO.File]::WriteAllText($f, 'S4 secret payload', [Text.Encoding]::ASCII)
   attrib.exe -H $f | Out-Null
-  # pre-stage: explorer already open at the folder with secret.txt selected
-  # (removes the deep-path navigation cost that dominated this task's baseline runs)
+  # State-scoped pre-stage: a new Explorer HWND with secret.txt selected.
   $doc = ([string][char]0x6587) + ([string][char]0x6863)   # wen-dang (folder leaf title)
-  Close-TaskWindows @('Documents', $doc) | Out-Null
-  Start-Process -FilePath 'explorer.exe' -ArgumentList @('/select,', $f)
-  $deadline = (Get-Date).AddSeconds(15)
-  $win = @()
-  while ((Get-Date) -lt $deadline) {
-    $win = @(Find-WindowsByTitle 'Documents') + @(Find-WindowsByTitle $doc)
-    if ($win.Count -gt 0) { break }
-    Start-Sleep -Milliseconds 500
-  }
+  $stateFile = Join-Path (Get-TaskDir) 'test-explorer.json'
+  $s = Open-TestExplorer -Path $docs -TitleNeedle @('Documents', $doc) -StateFile $stateFile -SelectFile $f
   $attr = (Get-Item -Force $f).Attributes
   $checks += (Add-Check 'secret.txt prepared, visible' ((Test-Path $f) -and (($attr -band [IO.FileAttributes]::Hidden) -eq 0)) ('attr=' + $attr))
-  $checks += (Add-Check 'explorer parked with file selected' ($win.Count -gt 0) (($win | ForEach-Object { $_.title }) -join ' | '))
-  Out-Finish -Ok (($win.Count -gt 0) -and ((Test-Path $f))) -Checks $checks -Kind 'setup'
+  $checks += (Add-Check 'explorer parked with file selected' ([bool]$s.ok) ("hwnd=$($s.hwnd) title=$($s.title) reason=$($s.reason)"))
+  Out-Finish -Ok ((Test-Path $f) -and [bool]$s.ok) -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'
 }

@@ -44,6 +44,7 @@ let deliveryFailures = 0
 let stale = 0
 let unverified = 0
 let observeStubs = 0
+let changedObserves = 0
 let suppressed = 0
 let observes = 0
 let actions = 0
@@ -70,6 +71,7 @@ for (const e of events) {
       if (e.snapshotMismatch) stale++
       if (e.unverified) unverified++
       if (e.observeStub) observeStubs++
+      if (e.changedSinceLast === true) changedObserves++
       if (e.suppressed) suppressed++
       if (e.name === 'screen_observe' || e.name === 'screen_zoom') observes++
       else actions++
@@ -110,6 +112,7 @@ const summary = {
   staleSnapshots: stale,
   unverified,
   observeStubs,
+  changedObserves,
   suppressed,
   deliveryModes,
   toolAvgMs: Object.fromEntries(Object.entries(toolMs).map(([k, v]) => [k, Math.round(v / (toolCountsRaw[k] || 1))])),
@@ -128,7 +131,7 @@ console.log('trajectory:', file)
 console.log('events:', summary.events, 'duration:', summary.durationMs != null ? (summary.durationMs / 1000).toFixed(1) + 's' : '?')
 console.log('tools:', Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
 console.log('observes=', observes, 'actions=', actions, 'ratio=', summary.observeActionRatio,
-  'stubs=', observeStubs, 'unverified=', unverified, 'suppressed=', suppressed)
+  'stubs=', observeStubs, 'changedObserves=', changedObserves, 'unverified=', unverified, 'suppressed=', suppressed)
 console.log('drivers:', Object.entries(driverCounts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')
 console.log('pointer: moves=', moves, 'distance=', summary.moveDistancePx + 'px', 'moves/click=', summary.movesPerClick)
 console.log('delivery:', Object.entries(deliveryModes).map(([k, v]) => `${k}:${v}`).join(' ') || '(none)')

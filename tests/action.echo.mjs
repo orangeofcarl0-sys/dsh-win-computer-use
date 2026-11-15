@@ -19,7 +19,10 @@ export const withSession = (a = {}) => a
 export function normalizeMcp(v) { return v }
 export function isBackgroundUnavailable() { return false }
 export function isForegroundUnavailable() { return false }
-export function isUnverified() { return false }
+export function isUnverified(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v || {})
+  return /unverifiable|delivery_failed/i.test(s)
+}
 export function deliveryFailure() { return null }
 
 export const es = { title: 's4-t01-seed.txt - Notepad', status: '0 个字符' }
@@ -30,12 +33,23 @@ const WINDOW = () => ({
 })
 export async function cuaDeliver(tool, payload) {
   clicks.push({ tool, payload })
+  if (tool === 'click' && process.env.CUA_STALE_CLICK === '1') {
+    return { value: { refusal: { code: 'stale_element_token', message: 'element_token is stale' } }, note: '' }
+  }
+  if (tool === 'click' && process.env.CUA_UNVERIFIED === '1') {
+    return { value: { ok: true, effect: 'unverifiable', delivery: { mode: payload.delivery_mode || 'background' } }, note: '' }
+  }
   return { value: { ok: true, effect: 'confirmed', delivery: { mode: payload.delivery_mode || 'background' } }, note: '' }
 }
 export async function cuaCall(tool, args = {}) {
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
     case 'list_windows': return { windows: [WINDOW()] }
+    case 'launch_app': return { pid: 123, running: true, active: false }
+    case 'bring_to_front': {
+      if (process.env.CUA_LAUNCH_MODE === 'refused') return { ok: true, effect: 'refused', code: 'foreground_unavailable' }
+      return { ok: true, effect: 'confirmed' }
+    }
     case 'get_window_state': {
       const els = [
         { element_index: 0, element_token: 'save', role: 'Button', label: '保存(S)', frame: { x: 700, y: 500, w: 0, h: 0 }, enabled: true },
@@ -113,6 +127,43 @@ const hidden = (tool, args) => call('computer_do', { action: 'call', tool, args 
 const d1 = await hidden('computer_double_click', { element: 2, snapshot_id: obs.snapshotId })
 const d2 = await hidden('computer_double_click', { element: 2, snapshot_id: obs.snapshotId })
 check('E8: double_click 连续两次不抑制', d1.ok === true && d2.ok === true, `${raw(d1)} / ${raw(d2)}`)
+
+// 8. app_launch 前置被拒：不能写“已前置”
+;({ call } = await fresh())
+process.env.CUA_LAUNCH_MODE = 'refused'
+const launched = await call('computer_do', {
+  action: 'call', tool: 'app_launch', args: { name: 'Stub', bring_to_front: true },
+})
+check('E9: app_launch 前置被拒 → ok:false + 前置未确认', launched.ok === false
+  && /前置未确认/.test(raw(launched)) && !/已前置/.test(raw(launched)), raw(launched))
+delete process.env.CUA_LAUNCH_MODE
+
+// 9. stale_element_token：清空旧快照，下一次动作必须重新观察
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_STALE_CLICK = '1'
+const stale = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
+check('E10: stale_element_token → 清快照 + 明确指引', stale.ok === false
+  && /stale_element_token/.test(raw(stale)) && /旧快照已清空/.test(raw(stale)), raw(stale))
+delete process.env.CUA_STALE_CLICK
+const after = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
+check('E11: stale 后旧编号被拒绝', after.ok === false
+  && /没有可用的观察快照|snapshot_missing/.test(raw(after)), raw(after))
+
+// 10. verifyAfterAction=auto：unverifiable 后抓一次状态差分
+;({ call, obs } = await fresh({ verifyAfterAction: 'auto', actionGuard: 'off' }))
+stub.es.status = '1 个字符'
+process.env.CUA_UNVERIFIED = '1'
+const v1 = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
+delete process.env.CUA_UNVERIFIED
+check('E12: verifyAfterAction 回执带复核差分', v1.ok === true
+  && /动作后复核/.test(raw(v1)) && /1 个字符|文本/.test(raw(v1)), raw(v1))
+
+;({ call, obs } = await fresh({ verifyAfterAction: 'auto', actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+const v2 = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
+delete process.env.CUA_UNVERIFIED
+check('E13: 未变化复核提示不要重复', v2.ok === true
+  && /动作后复核/.test(raw(v2)) && /未观察到变化/.test(raw(v2)), raw(v2))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

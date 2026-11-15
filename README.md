@@ -208,11 +208,15 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 - 每次观察附一行 `自上次观察：...`：标题变化、输入值变化、状态栏字符数、元素增删。动作回执是 `unverifiable` 时，这一行就是“动作是否生效”的证据。
   - 时间/行列噪声（`12:34`、`行 1，列 1`）会被归一，不会误报变化；密码变化只报“值变化（隐藏）”。
 - 同标题多窗口（多个“另存为”对话框）会在头部/降噪 stub 明确写“目标匹配 N 个窗口”，要求改用 `window_id`，不静默只取最前。
+- 窗口匹配支持中英别名：`记事本 ↔ Notepad`、`计算器 ↔ Calculator`、`画图 ↔ Paint`、`文件资源管理器 ↔ Explorer`；`matchCount` 按 title+app 并集计算，多窗口同样警告。
+- `computer_do` 路由隐藏工具时保留结构化 `data`：`screen_zoom` 的 `crop/screenOrigin/coordinateSpace`、`verify` 的 `status/results`、`app_list.apps`、`task.structured`、`clipboard.text` 等不再丢失。
 
 ### 动作回执与重复点击
 
 - 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。
 - `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式，5s 内重复且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照；观察到变化后放行。`double_click` 不拦；`actionGuard: off` 可关闭。
+- `stale_element_token`：驱动报告编号失效时清空旧快照，回执明确写“请 screen_observe 获取新编号，不要重试旧编号”；`keyFallback` 打开菜单前重新抓菜单栏 token，避免自己的回退把 token 用旧。
+- `verifyAfterAction`（实验性，默认 `off`）：`auto` 时对 unverifiable 的 element 动作抓一次无截图状态，回执附 `动作后复核：...`；结构性变化清快照，防止旧编号点错。默认关闭，等 A/B。
 
 ### 投递：后台 → 前台 → 绕锁
 
@@ -222,7 +226,11 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `background` | 全程后台；不可用时返回结构化错误 + `foreground=true` 升级指引 |
 | `foreground` | 始终前台（短暂焦点交换，驱动负责恢复） |
 
-单次动作可用 `foreground: true` 覆盖，但不要默认开启：前台点击更慢（会移动指针并短暂切换焦点）。强制前台遇到 `foreground_unavailable` 时同样走 L3（`bring_to_front` 精确到 `pid+window_id` → 前台重试 → 恢复原前台）；`hotkey` 也适用。没有 `pid+window_id` 的目标不升级；`bring_to_front` 未返回 `previous_fg_hwnd` 时，回执会明确写“原前台未恢复”，不会假装成功。
+单次动作可用 `foreground: true` 覆盖，但不要默认开启：前台点击更慢（会移动指针并短暂切换焦点）。强制前台遇到 `foreground_unavailable` 时同样走 L3（`bring_to_front` 精确到 `pid+window_id` → 前台重试 → 恢复原前台）；`hotkey` 也适用。没有 `pid+window_id` 的目标不升级。
+
+L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查 `previous_fg_hwnd` 的 pid（未知时补一次 `list_windows`）；恢复调用失败或 pid 未知时，回执明确写“原前台恢复未确认/未恢复”，不再假称成功。`bring_to_front` 返回 `ok:true + effect:"refused"` 也按拒绝处理。
+
+`app_launch` 只有在 `bring_to_front` 返回 confirmed 时才写“已前置”；前置被拒时返回“已启动，但前置未确认”，`ok:false`。`computer_menu` 只有 `effect:"confirmed"` 才算成功；effect 缺失/unverifiable 都是未确认。`clipboard` 检查 `error_code/refusal`，`hover` 检查 refusal，`stop` 驱动失败仍锁存但注记“会话结束未确认”，`resume` 驱动失败保持锁存并返回 `ok:false`。
 
 ### 输入通道
 
@@ -265,6 +273,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
     cursorTheme: com.dsh.computeruse.rainbow
     cursorMotion: auto
     actionGuard: on
+    verifyAfterAction: off
     trajectoryFile: ''
     nativeImage: auto
     visionProvider: deepseek-official
@@ -289,6 +298,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
 | `cursorMotion` | `auto` | `auto`：前景最多 1 次移动（驱动单次 2–3s，5 段会拖到 15–18s/点击）；`human`：保留 5 段弧线；`off`：不移动。background 始终不滑行；同目标 16px/2s 内跳过 |
 | `actionGuard` | `on` | 同一窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`；`off` 关闭 |
+| `verifyAfterAction` | `off` | 实验性：`auto` 对 element 路径的 click/type/set_value/key，在 unverifiable/suspected_noop 后抓一次无截图状态，把差分写进回执；结构性变化清快照。每次约 +2s，默认关闭，等 A/B 数据 |
 | `trajectoryFile` | 空 | 非空时写 CU 轨迹 JSONL（文本只留 len/hash，驱动只留摘要）；也可用 `DSH_CU_TRAJECTORY_FILE` |
 | `nativeImage` | `auto` | `auto` 超附件限额自动降级 / `full` 原图 / `compact` 始终 ≤500px JPEG |
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
@@ -354,8 +364,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（19/19 JS）
-npm test                           # 22 套离线测试，394 个断言
+npm run check                      # 语法检查 + bash -n（20/20 JS）
+npm test                           # 22 套离线测试，419 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \

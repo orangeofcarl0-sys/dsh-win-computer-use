@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-15 · `npm test` 22 套 / **394 断言** · `npm run check` **19/19** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-15 · `npm test` 22 套 / **419 断言** · `npm run check` **20/20** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -17,8 +17,8 @@
 
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
-| 语法/安装脚本 | `npm run check` | 19 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 394 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认、轨迹监控、eval 安全、Notepad 标签分类 |
+| 语法/安装脚本 | `npm run check` | 20 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
+| 离线单元/契约 | `npm test` | 22 套 / 419 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
@@ -30,26 +30,26 @@
 | 套件 | 断言 | 主要覆盖 |
 |---|---:|---|
 | `posture.smoke.mjs` | 35 | 零审批姿态、密码硬保护（AX/UIA/结构位/掩码）、极危注记、桌面降级、快照新鲜度 I 系列、执行侧接线 |
-| `tools.smoke.mjs` | 15 | stop/resume 锁存、verify unknown≠成功、wait_for 超时、clipboard、menu、hover 两种 scope |
+| `tools.smoke.mjs` | 20 | stop/resume 锁存、verify unknown≠成功、wait_for 超时、clipboard/menu/hover、失败回执（clipboard error_code、menu 缺 effect、hover refusal、stop/resume 驱动失败） |
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
 | `schema.conformance.mjs` | 44 | 22 个工具 / 44 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
-| `observe.truth.mjs` | 14 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告 |
+| `observe.truth.mjs` | 16 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名 |
 | `observe.coords.mjs` | 11 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级 |
 | `observe.failure.mjs` | 5 | 未找到窗口/桌面降级清旧快照；suspect 后去重强制全量 |
 | `human.click.mjs` | 11 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退 |
-| `action.echo.mjs` | 8 | 坐标点击回显最近元素（否(N)）、元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦 |
+| `action.echo.mjs` | 13 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、app_launch 前置 refused、stale 清快照、verifyAfterAction 差分 |
 | `delivery.failures.mjs` | 25 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true |
 | `delivery.foreground.mjs` | 13 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出 |
 | `key.xaml.mjs` | 23 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败指引） |
-| `menu.receipt.mjs` | 7 | `effect:unverifiable` 必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
-| `trajectory.test.mjs` | 12 | 文本脱敏（len/hash）、驱动归属、结果摘要不落 AX 树、重复动作 loop、computer_do 透明、unverified/stub/suppressed/移动数统计 |
-| `eval-safety.mjs` | 29 | 禁止按 Notepad 进程名杀；Close-TaskWindows 只按显式模式；t01/t05/t06/t07/t10 走 Open/Close-TestNotepad；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃 |
+| `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
+| `trajectory.test.mjs` | 14 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe |
+| `eval-safety.mjs` | 37 | 禁止按 Notepad/mspaint 进程名杀；Explorer/Paint 状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
 | `config.plumbing.mjs` | 25 | 20 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵 |
 | `action-bounds.mjs` | 21 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
-| `dispatcher.test.mjs` | 31 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、工具面稳定、宿主 schema |
+| `dispatcher.test.mjs` | 33 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 结构化字段、工具面稳定、宿主 schema |
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 
 ### 3.1 共享脚手架
@@ -190,11 +190,11 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 394 ✅ / 0 ❌ |
-| 语法 | 19/19 JS + `bash -n` 两脚本 |
+| 离线 | 22 套 / 419 ✅ / 0 ❌ |
+| 语法 | 20/20 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体 **3/3 pass**（37/18/19 步；273/122/104s；每次 1 次 move_cursor）；旧 Save As 语义的 t01 复跑受 Win11 文件名框/对话框叠层影响，Save As 覆盖改由 t05 保留 |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 本机 7/10（t04 Calculator、t06 剪贴板、t10 Notepad 合并时序）；任务集 10 条 |
-| 打包 | `npm pack --dry-run` 36 文件 |
+| 打包 | `npm pack --dry-run` 37 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

@@ -45,6 +45,7 @@ import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { resetCursorMotion } from './lib/human.js'
 import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
 import { getSnapshot } from './lib/snapshot.js'
+import { resetWindowMap } from './lib/windowMap.js'
 import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
 import {
@@ -106,6 +107,13 @@ export const Config = z.object({
    * 界面变化 → 直接拒绝并提示先观察。只作用于 click/right_click；double_click 有明确语义不拦。
    */
   actionGuard: z.union(['on', 'off']).default('on'),
+  /**
+   * 动作后自动复核（实验性，默认 off）：
+   * auto = 对 element 路径的 click/type/set_value/key，在 unverifiable/suspected_noop 后
+   *        抓一次无截图窗口状态，把差分写进回执；结构性变化清快照，避免旧编号点错。
+   * 每次复核约 +2s；默认关闭，A/B 确认收益后再考虑默认。
+   */
+  verifyAfterAction: z.union(['off', 'auto']).default('off'),
   /**
    * Computer Use 轨迹监控（默认关闭）：非空路径时把工具/驱动调用写成 JSONL。
    * 文本类只记长度+哈希；驱动结果只记摘要。环境变量 DSH_CU_TRAJECTORY_FILE 可覆盖。
@@ -746,6 +754,62 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
   ]
 }
 
+/**
+ * computer_do 路由后的结构化数据：旧实现只透传 ok/result/image，screen_zoom 的
+ * crop/scale、verify.results、app_list.apps、task.structured 等都会丢。
+ * 这里显式声明允许的字段，宿主 additionalProperties:false 校验不会误杀。
+ */
+const ROUTED_DATA_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    window: DESKTOP_FALLBACK_FIELDS.window,
+    snapshotId: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+    elementCount: { type: 'integer' },
+    mode: { type: 'string' },
+    visualOnly: { type: 'boolean' },
+    coordinateSpace: SCREEN_ORIGIN_FIELDS.coordinateSpace,
+    screenOrigin: SCREEN_ORIGIN_FIELDS.screenOrigin,
+    crop: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        x: { type: 'integer' }, y: { type: 'integer' },
+        w: { type: 'integer' }, h: { type: 'integer' },
+        scale: { type: 'number' },
+      },
+    },
+    apps: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' }, pid: { type: 'integer' }, active: { type: 'boolean' },
+        },
+      },
+    },
+    status: { type: 'string' },
+    stable: { type: 'boolean' },
+    results: VERIFY_RESULT.results,
+    text: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+    pid: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
+    attempts: { type: 'integer' },
+    waitedMs: { type: 'integer' },
+    structured: { oneOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
+  },
+}
+
+/** 从隐藏工具返回值里挑出 computer_do.data 的字段；没有则 null。 */
+function routedDataOf(r) {
+  if (!r || typeof r !== 'object') return null
+  const out = {}
+  for (const k of Object.keys(ROUTED_DATA_SCHEMA.properties)) {
+    if (r[k] !== undefined) out[k] = r[k]
+  }
+  return Object.keys(out).length ? out : null
+}
+
 /** ── 元工具组：computer_do（dispatcher / hybrid；dynamic 已废弃，2026-11-10）── */
 function metaToolDefs(ctx, cfg, wrap, defsRef) {
   return [
@@ -770,6 +834,10 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
           surface: { type: 'string', description: '当前模式：dispatcher / hybrid。' },
           tools: { type: 'array', items: { type: 'string' }, description: 'catalog/status 的工具名或本次路由的工具名。' },
           scope: { type: 'string', description: 'dispatcher。' },
+          data: {
+            oneOf: [ROUTED_DATA_SCHEMA, { type: 'null' }],
+            description: '路由工具的结构化字段（crop/screenOrigin/apps/status/results/structured 等）；没有则为 null。',
+          },
         }),
         render: renderWithImage,
       },
@@ -819,6 +887,7 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
               ok: r?.ok === true,
               result: `[${name}] ${r?.result ?? ''}`,
               ...(r?.image ? { image: r.image } : {}),
+              data: routedDataOf(r),
               tool: name, surface: cfg.surfaceMode, tools: [name], scope: 'dispatcher',
             }
           } catch (err) {
@@ -841,6 +910,7 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
 
 export function apply(ctx, config) {
   dedupReset()   // 每次 apply 视为全新会话状态（降噪/差分/权限缓存随会话走）
+  resetWindowMap()
   resetLoopGuard()
   resetCursorMotion()
   resetTaskCalls()   // 委派预算按会话重置
@@ -857,6 +927,7 @@ export function apply(ctx, config) {
     cursorTheme: config.cursorTheme,
     cursorMotion: config.cursorMotion || 'auto',
     actionGuard: config.actionGuard || 'on',
+    verifyAfterAction: config.verifyAfterAction || 'off',
     trajectoryFile: config.trajectoryFile || '',
     nativeImage: config.nativeImage || 'auto',
     visionProvider: config.visionProvider || 'deepseek-official',

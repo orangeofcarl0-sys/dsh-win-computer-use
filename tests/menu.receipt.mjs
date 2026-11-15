@@ -35,6 +35,7 @@ export async function cuaCall(tool, args = {}) {
   const mode = process.env.CUA_MENU_MODE || 'confirmed'
   if (mode === 'refusal') return { refusal: { code: 'menu_path_unavailable', message: 'no such path (stub)' } }
   if (mode === 'unverified') return { ok: true, effect: 'unverifiable', delivery: { mode: 'background' }, route: 'accessibility' }
+  if (mode === 'missing-effect') return { ok: true, invoked: true }
   return { ok: true, effect: 'confirmed', delivery: { mode: 'background' }, route: 'accessibility' }
 }
 `)
@@ -67,6 +68,10 @@ check('M6: 驱动拒绝仍走 refusalReceipt', r.ok === false && /被引擎拒�
 process.env.CUA_MENU_MODE = 'confirmed'
 r = await callMenu({ pid: 42, window_id: 7, path: ['File', 'Save'] })
 check('M7: path 数组可直接使用（不必先转 JSON 字符串）', r.ok === true && /File › Save/.test(r.result || ''), r.result)
+
+process.env.CUA_MENU_MODE = 'missing-effect'
+r = await callMenu({ pid: 42, window_id: 7, path: ['File', 'Save'] })
+check('M8: effect 缺失 → ok:false + 未确认', r.ok === false && /未确认/.test(r.result || ''), r.result)
 
 delete process.env.CUA_MENU_MODE
 cleanupWork(work)

@@ -78,11 +78,21 @@ function run(cmd, cmdArgs, { timeoutMs = 120000, cwd = REPO, env = ENV } = {}) {
     let stderr = ''
     let done = false
     const finish = (r) => { if (done) return; done = true; clearTimeout(timer); resolve(r) }
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       try { p.kill() } catch {}
-      // dsh 可能还有子进程；Windows 上用 taskkill /T 收尾，失败也不阻塞。
-      if (process.platform === 'win32') {
-        try { spawn('taskkill', ['/PID', String(p.pid), '/T', '/F'], { windowsHide: true }) } catch {}
+      // dsh 可能还有子进程；Windows 上用 taskkill /T 收尾，并等待它完成，
+      // 否则 oracle 会在旧进程树还在操作桌面时运行。
+      if (process.platform === 'win32' && p.pid) {
+        await new Promise((res) => {
+          let settled = false
+          const done = () => { if (!settled) { settled = true; res() } }
+          try {
+            const k = spawn('taskkill', ['/PID', String(p.pid), '/T', '/F'], { windowsHide: true })
+            k.on('close', done)
+            k.on('error', done)
+          } catch { done() }
+          setTimeout(done, 5000)
+        })
       }
       finish({ code: 'TIMEOUT', stdout, stderr, timedOut: true })
     }, timeoutMs)
@@ -153,12 +163,20 @@ async function runOne(task) {
     setup: null, cleanup: null, dirty: false, notes: [],
   }
   const cl0 = await ps('cleanup', task.id)
+  if (cl0.code !== 0 || cl0.json?.ok === false) {
+    rec.notes.push(`initial cleanup failed: ${cl0.code} ${JSON.stringify(cl0.json?.checks || []).slice(0, 200)}`)
+  }
+  if (cl0.json?.dirty) {
+    rec.dirty = true
+    rec.notes.push('initial cleanup dirty: ' + JSON.stringify(cl0.json?.checks || []).slice(0, 200))
+  }
   const su = await ps('setup', task.id)
   rec.setup = su.json || { code: su.code }
   if (su.code !== 0) {
     rec.notes.push('setup: ' + String(su.json?.envError || su.stderr || su.code).slice(0, 300))
-    rec.cleanup = (await ps('cleanup', task.id)).json
-    if (rec.cleanup?.dirty) {
+    const cl = await ps('cleanup', task.id)
+    rec.cleanup = cl.json || { code: cl.code }
+    if (cl.json?.dirty) {
       rec.dirty = true
       rec.notes.push('cleanup dirty after setup failure')
     }
@@ -188,12 +206,24 @@ async function runOne(task) {
   rec.final = a.final.slice(0, 400)
   rec.calls = a.calls
   if (dr.code === 'SPAWN_ERR') rec.notes.push('dsh spawn: ' + dr.stderr.slice(0, 300))
-  if (dr.timedOut) rec.notes.push(`timeout ${timeoutMin}min`)
+  if (dr.timedOut) {
+    rec.notes.push(`timeout ${timeoutMin}min; oracle skipped`)
+    const cl = await ps('cleanup', task.id)
+    rec.cleanup = cl.json || { code: cl.code }
+    if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after timeout') }
+    rec.verdict = 'error'
+    return rec
+  }
 
   const orc = await ps('oracle', task.id)
   rec.oracle = orc.json || { code: orc.code }
   rec.verdict = orc.code === 0 ? 'pass' : orc.code === 1 ? 'fail' : 'error'
-  rec.cleanup = (await ps('cleanup', task.id)).json
+  const cl1 = await ps('cleanup', task.id)
+  rec.cleanup = cl1.json || { code: cl1.code }
+  if (cl1.code !== 0 || cl1.json?.ok === false) {
+    rec.notes.push(`cleanup failed: ${cl1.code}`)
+    if (rec.verdict === 'pass') rec.verdict = 'error'
+  }
   if (rec.cleanup?.dirty) {
     // Cleanup refused to close an unsafe window/tab. The task may still have passed,
     // but the environment is contaminated; do not count it as a clean pass.

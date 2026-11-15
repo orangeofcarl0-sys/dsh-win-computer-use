@@ -131,7 +131,7 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 >
 > 2026-11-15 后续：`tabstate.ps1` 备份/恢复 + `Close-OrphanTestNotepads` + UIA 关闭完成后，t01 改为**原地保存**（预开空 `target\note.txt`，输入后“文件→保存”）。`--tasks t01 --repeats 3` **3/3 pass**：37/18/19 步，273.4/121.7/104.2s，每次 1 次 `move_cursor`，无 timeout/dirty，tabstate restored。旧 Save As 语义仍受 Win11 文件名框（`type`/`set_value` 返回 confirmed/unverifiable 但值不变）与对话框叠层影响，Save As 覆盖保留在 t05。
 >
-> 2026-11-15 `verify-oracles` 本机 **7/10**：t01/t03/t05/t07/t09/wa2/x1 PASS；t04 Calculator 窗口未出现（环境）、t06 系统剪贴板 `clipboard_unavailable`（driver 同样报错）、t10 `a` 窗口 tab 集为空（单独 setup 可过，Win11 Notepad 合并时序）。这不是插件退归；t10 的时序加固留待后续。
+> 2026-11-15 P2 轮：t10 的确定性 orphan 误关（`evalOwned` 绕过 seed）用 `-ProtectHwnd` + 唯一 seed 要求 + 失败前写 state/首窗消失重绑修复；t04 Calculator 改为扫描所有 UIA 顶层窗口的 `CalculatorResults`，t06 clipboard 改为 8 次 round-trip 并在失败时返回 ENV；t03/wa2/t09 改为状态化 `Open/Close-TestExplorer|Paint`，不再宽 `Close-TaskWindows` 或按 `mspaint` 进程名杀。`verify-oracles` 本机 **10/10 PASS**（tabstate restored，无 dirty）。
 >
 > 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。第二轮修正了 `computer_do` 外壳重复计数，并增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`；分析命令：`node evals/analyze-trajectory.mjs <file>`。
 

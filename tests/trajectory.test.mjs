@@ -41,7 +41,21 @@ await runTool('computer_do', { action: 'call', tool: 'computer_key', args: { key
   await runTool('computer_key', { key: 'return' }, async () => ({ ok: true, result: '按键完成 · unverifiable' }))
   return { ok: true, result: '[computer_key] 按键完成' }
 })
-await runTool('screen_observe', { window: 'Notepad', mode: 'ax' }, async () => ({ ok: true, result: '状态未变（快照 s1）' }))
+await runTool('screen_observe', { window: 'Notepad', mode: 'ax' }, async () => ({
+  ok: true, result: '状态未变（快照 s1）', changedSinceLast: false, window: { pid: 1, windowId: 2 },
+}))
+// 动作后复核观察（changedSinceLast=true）不是 repeat_observe
+for (let i = 0; i < 3; i++) {
+  await runTool('screen_observe', { window: 'Notepad', mode: 'ax', query: 'changed' }, async () => ({
+    ok: true, result: '窗口树（有变化）', changedSinceLast: true, window: { pid: 1, windowId: 2 },
+  }))
+}
+// 连续未变化观察才是 repeat_observe
+for (let i = 0; i < 3; i++) {
+  await runTool('screen_observe', { window: 'Notepad', mode: 'ax', query: 'same' }, async () => ({
+    ok: true, result: '状态未变（快照 s1）', changedSinceLast: false, window: { pid: 1, windowId: 2 },
+  }))
+}
 // 被 guard 抑制的动作不算“真实重复动作”，也不应触发 repeat_action loop
 for (let i = 0; i < 3; i++) {
   await runTool('computer_click', { element: 99 }, async () => ({ ok: false, result: '✗ [repeat_suppressed] 与 1s 前的相同点击重复' }))
@@ -57,15 +71,19 @@ check('T4: 驱动调用归属工具', lines.some((e) => e.type === 'driver' && e
 check('T5: 驱动结果摘要不含 AX 树', lines.some((e) => e.type === 'driver' && e.tool === 'get_window_state' && e.elementCount === 3 && !e.elements))
 check('T6: 重复动作触发 loop', lines.some((e) => e.type === 'loop' && e.kind === 'repeat_action' && e.count >= 3))
 check('T7: session_end 带摘要', lines.some((e) => e.type === 'session_end' && e.tools >= 5))
-check('T8: summary 计数正确', summary && summary.actions >= 5 && summary.observes === 2 && summary.moveCount === 1)
-check('T9: computer_do 外壳透明', !lines.some((e) => e.type === 'tool_start' && e.name === 'computer_do') && summary.tools === 10,
+check('T8: summary 计数正确', summary && summary.actions >= 5 && summary.observes === 8 && summary.moveCount === 1)
+check('T9: computer_do 外壳透明', !lines.some((e) => e.type === 'tool_start' && e.name === 'computer_do') && summary.tools === 16,
   `tools=${summary.tools}`)
-check('T10: unverified / observeStub 计数', summary.unverified === 1 && summary.observeStubs === 1,
+check('T10: unverified / observeStub 计数', summary.unverified === 1 && summary.observeStubs === 4,
   `unverified=${summary.unverified} stubs=${summary.observeStubs}`)
 check('T11: movesPerClick / deliveryModes', summary.movesPerClick === 1 && summary.deliveryModes.foreground === 1,
   JSON.stringify({ movesPerClick: summary.movesPerClick, deliveryModes: summary.deliveryModes }))
 check('T12: suppressed 不触发 repeat_action', summary.suppressed === 3
-  && !lines.some((e) => e.type === 'loop' && e.signature === 'act:computer_click:99'), `suppressed=${summary.suppressed}`)
+  && !lines.some((e) => e.type === 'loop' && e.signature === 'act:computer_click:el:99:bg'), `suppressed=${summary.suppressed}`)
+check('T13: 有变化的复核观察不触发 repeat_observe', !lines.some((e) => e.type === 'loop'
+  && e.kind === 'repeat_observe' && /changed/.test(e.signature || '')), JSON.stringify(summary.loops))
+check('T14: 连续未变化观察触发 repeat_observe', lines.some((e) => e.type === 'loop'
+  && e.kind === 'repeat_observe' && /same/.test(e.signature || '') && e.count >= 3), JSON.stringify(summary.loops))
 
 rmSync(dir, { recursive: true, force: true })
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : '❌ ' + checks.length + ' 项失败'}`)

@@ -14,6 +14,7 @@
  *   H. 无 pid + 前台锁拒 → 不尝试 L3
  */
 import { cuaDeliver } from '../lib/cua.js'
+import { resetWindowMap } from '../lib/windowMap.js'
 
 let failures = 0
 const check = (name, ok, detail = '') => {
@@ -21,7 +22,7 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`)
 }
 
-const freshHistory = () => []
+const freshHistory = () => { resetWindowMap(); return [] }
 const payload = (extra = {}) => ({
   session: 'smoke', pid: 100, window_id: 7, delivery_mode: 'background', ...extra,
 })
@@ -31,7 +32,11 @@ const payload = (extra = {}) => ({
   const history = freshHistory()
   const call = async (tool, args = {}) => {
     history.push({ tool, args })
-    if (tool === 'bring_to_front') return { previous_fg_hwnd: 111, now_fg_hwnd: 222 }
+    if (tool === 'bring_to_front') {
+      if (Number(args.window_id) === 111) return { ok: true, effect: 'confirmed' }
+      return { previous_fg_hwnd: 111, now_fg_hwnd: 222 }
+    }
+    if (tool === 'list_windows') return { windows: [{ window_id: 111, pid: 7 }] }
     if (tool === 'scroll') {
       if (args.delivery_mode === 'background') {
         return { code: 'background_unavailable', escalation: { recommended: 'foreground' } }
@@ -48,7 +53,8 @@ const payload = (extra = {}) => ({
   const chain = history.map((c) => c.tool + (c.args.window_id !== undefined ? '@' + c.args.window_id : ''))
   check('A: 三级链触发并恢复原前台', /bring_to_front 绕锁/.test(r.note) && /已恢复原前台/.test(r.note), chain.join(' -> '))
   check('A: bring_to_front 使用 payload 的 window_id', history.some((c) => c.tool === 'bring_to_front' && c.args.window_id === 7))
-  check('A: 恢复调用指向 previous_fg_hwnd', history.at(-1)?.tool === 'bring_to_front' && history.at(-1)?.args.window_id === 111)
+  check('A: 恢复调用指向 previous_fg_hwnd（pid+window_id）', history.at(-1)?.tool === 'bring_to_front'
+    && history.at(-1)?.args.window_id === 111 && history.at(-1)?.args.pid === 7, JSON.stringify(history.at(-1)))
 }
 
 // ── B: hotkey XAML 先验拒绝 → 不升级 ────────────────────────────────

@@ -11,6 +11,19 @@ function Test-NotepadRunning {
   return ($p.Count -gt 0)
 }
 
+function Wait-NoNotepadProcess([int]$TimeoutMs = 5000) {
+  $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
+  while ((Get-Date) -lt $deadline) {
+    if (-not (Test-NotepadRunning)) { return $true }
+    Start-Sleep -Milliseconds 200
+  }
+  return (-not (Test-NotepadRunning))
+}
+
+function Get-NotepadPids {
+  return @(Get-Process -Name notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+}
+
 function Out-Json($obj) {
   [Console]::Out.WriteLine(($obj | ConvertTo-Json -Compress -Depth 5))
 }
@@ -22,10 +35,19 @@ if ($Action -eq 'backup') {
   }
   if (Test-Path $marker) {
     try { $m = Get-Content $marker -Raw | ConvertFrom-Json } catch { $m = $null }
-    Out-Json ([ordered]@{ ok = $true; action = 'backup'; already = $true; backup = [string]$m.backup; moved = 0 })
+    $existing = [string]$m.backup
+    if ($existing -and -not (Test-Path $existing)) {
+      Out-Json ([ordered]@{ ok = $false; action = 'backup'; reason = 'active marker points at missing backup'; backup = $existing })
+      exit 2
+    }
+    Out-Json ([ordered]@{ ok = $true; action = 'backup'; already = $true; backup = $existing; moved = 0 })
     exit 0
   }
   if (-not (Test-Path $stateDir)) {
+    # Still write a marker so Clear-TestTabStateForLaunch clears eval-created bins
+    # between tasks; restore will remove them and the marker.
+    $obj = [ordered]@{ backup = ''; at = (Get-Date).ToString('o'); moved = 0 }
+    [IO.File]::WriteAllText($marker, ($obj | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false)))
     Out-Json ([ordered]@{ ok = $true; action = 'backup'; backup = ''; moved = 0; reason = 'no TabState dir' })
     exit 0
   }
@@ -56,8 +78,12 @@ if ($Action -eq 'backup') {
 }
 
 if ($Action -eq 'restore') {
-  if (Test-NotepadRunning) {
-    Out-Json ([ordered]@{ ok = $false; action = 'restore'; reason = 'notepad process is running; close test windows first'; backup = $(if (Test-Path $marker) { $m = Get-Content $marker -Raw | ConvertFrom-Json; $m.backup } else { '' }) })
+  if (-not (Wait-NoNotepadProcess 5000)) {
+    Out-Json ([ordered]@{
+      ok = $false; action = 'restore'; reason = 'notepad process is still running; close test windows first'
+      backup = $(if (Test-Path $marker) { try { $m = Get-Content $marker -Raw | ConvertFrom-Json; [string]$m.backup } catch { '' } } else { '' })
+      pids = @(Get-NotepadPids)
+    })
     exit 2
   }
   if (-not (Test-Path $marker)) {
@@ -66,23 +92,32 @@ if ($Action -eq 'restore') {
   }
   $m = Get-Content $marker -Raw | ConvertFrom-Json
   $dir = [string]$m.backup
-  if (-not (Test-Path $dir)) {
+  if ($dir -and -not (Test-Path $dir)) {
     Out-Json ([ordered]@{ ok = $false; action = 'restore'; reason = 'backup dir missing'; backup = $dir })
     exit 2
   }
+  if (-not (Test-Path $stateDir)) { New-Item -ItemType Directory -Path $stateDir -Force | Out-Null }
+  $expected = if ($dir) { @(Get-ChildItem $dir -Filter '*.bin' -File -ErrorAction SilentlyContinue).Count } else { 0 }
   $restored = 0
   # Remove eval-created bins; the backup is authoritative.
   foreach ($f in @(Get-ChildItem $stateDir -Filter '*.bin' -File -ErrorAction SilentlyContinue)) {
     try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop } catch {}
   }
-  foreach ($f in @(Get-ChildItem $dir -Filter '*.bin' -File -ErrorAction SilentlyContinue)) {
-    try {
-      Move-Item -LiteralPath $f.FullName -Destination (Join-Path $stateDir $f.Name) -Force -ErrorAction Stop
-      $restored++
-    } catch {}
+  if ($dir) {
+    foreach ($f in @(Get-ChildItem $dir -Filter '*.bin' -File -ErrorAction SilentlyContinue)) {
+      try {
+        Move-Item -LiteralPath $f.FullName -Destination (Join-Path $stateDir $f.Name) -Force -ErrorAction Stop
+        $restored++
+      } catch {}
+    }
+  }
+  if ($restored -lt $expected) {
+    # Keep the backup and marker for a retry/manual restore; do not destroy data.
+    Out-Json ([ordered]@{ ok = $false; action = 'restore'; reason = "restored $restored of $expected"; backup = $dir; restored = $restored })
+    exit 2
   }
   Remove-Item $marker -Force -ErrorAction SilentlyContinue
-  Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+  if ($dir) { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
   Out-Json ([ordered]@{ ok = $true; action = 'restore'; restored = $restored })
   exit 0
 }

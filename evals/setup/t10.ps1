@@ -23,7 +23,18 @@ try {
     $checks += (Add-Check 'b.txt opened' $false ("reason=$($s2.reason)"))
     Out-Finish -Ok $false -Checks $checks -Kind 'setup'
   }
+
+  # Win11 may close the first window and keep a+b in the second; rebind s1 to the
+  # surviving window if it now has the exact a+b set.
   $same = ([int]$s2.hwnd -eq [int]$s1.hwnd)
+  if (-not $same -and -not (Find-WindowByHwnd ([int]$s1.hwnd))) {
+    $merged = Wait-NotepadTabSet -Hwnd ([int]$s2.hwnd) -ExpectedTabs @('a.txt', 'b.txt') -TimeoutMs 3000
+    if ($merged.ok) {
+      $s1 = $s2
+      $same = $true
+      $checks += (Add-Check 'a window rebounded to merged b window' $true 'tabs=a.txt,b.txt')
+    }
+  }
   if (-not $same -and -not $s2.owned) {
     $checks += (Add-Check 'b.txt stayed outside user window' $false ("b hwnd=$($s2.hwnd) a hwnd=$($s1.hwnd)"))
     Out-Finish -Ok $false -Checks $checks -Kind 'setup'
@@ -31,25 +42,28 @@ try {
 
   $expected1 = if ($same) { @('a.txt', 'b.txt') } else { @('a.txt') }
   $expected2 = if ($same) { @('a.txt', 'b.txt') } else { @('b.txt') }
-  $t1 = Test-NotepadTabSet -Hwnd ([int]$s1.hwnd) -ExpectedTabs $expected1
-  $t2 = if ($same) { $t1 } else { Test-NotepadTabSet -Hwnd ([int]$s2.hwnd) -ExpectedTabs $expected2 }
+  $t1 = Wait-NotepadTabSet -Hwnd ([int]$s1.hwnd) -ExpectedTabs $expected1 -TimeoutMs 3000
+  $t2 = if ($same) { $t1 } else { Wait-NotepadTabSet -Hwnd ([int]$s2.hwnd) -ExpectedTabs $expected2 -TimeoutMs 3000 }
   $checks += (Add-Check 'a window tab set exact' $t1.ok ("tabs=" + (@($t1.labels) -join ',')))
   $checks += (Add-Check 'b window tab set exact' $t2.ok ("tabs=" + (@($t2.labels) -join ',')))
   $checks += (Add-Check 'files prepared' ((Test-Path $a) -and (Test-Path $b)) ($a + ' ; ' + $b))
-  if (-not ($t1.ok -and $t2.ok)) {
-    Out-Finish -Ok $false -Checks $checks -Kind 'setup'
-  }
 
-  # Persist the final expected set for cleanup (same-window case has two tabs).
+  # Persist cleanup state BEFORE any failure return, using the actually observed
+  # tab count when available. Otherwise a failed merged window cannot be closed
+  # (one-tab expectation vs two actual tabs), causing dirty + tabstate restore fail.
   foreach ($pair in @(@($state1, $s1, $expected1, $t1), @($state2, $s2, $expected2, $t2))) {
     $sf = $pair[0]; $st = $pair[1]; $exp = $pair[2]; $tc = $pair[3]
     $st.owned = $true
     $st.safeToClose = [bool]$tc.ok
     $st.expectedTabs = @($exp)
     $st.allowedTabs = @($exp)
-    $st.tabCount = @($exp).Count
+    $st.tabCount = if ($tc -and @($tc.tabs).Count -gt 0) { @($tc.tabs).Count } else { @($exp).Count }
     $st.tabs = @($tc.tabs | ForEach-Object { $_.raw })
     [void](Write-TestState $sf $st)
+  }
+
+  if (-not ($t1.ok -and $t2.ok)) {
+    Out-Finish -Ok $false -Checks $checks -Kind 'setup'
   }
   Out-Finish -Ok ($t1.ok -and $t2.ok) -Checks $checks -Kind 'setup'
 } catch {

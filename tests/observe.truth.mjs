@@ -116,5 +116,12 @@ stub.ws.extra = true
 const o5 = await call('screen_observe', { window: 'Notepad', mode: 'ax' })
 check('T14: 同标题多窗口警告', /目标匹配 2 个窗口/.test(raw(o5)) && o5.window?.windowId === 7, raw(o5).split('\n').slice(0, 6).join(' | '))
 
+// 6. 中文应用别名：Notepad.exe ←→ 记事本
+stub.ws.extra = false
+const alias = await call('screen_observe', { window: '记事本', mode: 'ax' })
+check('T15: 中文别名匹配 Notepad', alias.ok === true && alias.window?.app === 'Notepad', raw(alias).split('\n')[0])
+const exe = await call('screen_observe', { window: 'Notepad.exe', mode: 'ax' })
+check('T16: .exe 别名匹配', exe.ok === true && exe.window?.pid === 42, raw(exe).split('\n')[0])
+
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)
