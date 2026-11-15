@@ -37,15 +37,15 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **17/17** JS + `bash -n install.sh/uninstall.sh` |
+| 语法 + 安装脚本 | `npm run check` | **18/18** JS + `bash -n install.sh/uninstall.sh` |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **18 套 / 333 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **19 套 / 346 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏，真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **22 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 20 个经 dispatcher 路由；`hybrid` 注册 7 个 |
 | 安全护栏 | `guard()` / `wrap()` | 凭据硬保护、无快照/过期拒绝、`allowedApps`、极危注记、stop/resume 锁存 |
 | 权限声明 | `PERMISSIONS.md` + `package.json dsh.permissions` | spawn 固定 argv；核心无网络；可选 GLM 外呼如实声明；无 lifecycle |
-| 打包面 | `npm pack --dry-run --json` | **34 文件**（见 §4），无 `node_modules` / `.dsh-test` / `tests` / `evals` |
+| 打包面 | `npm pack --dry-run --json` | **35 文件**（见 §4），无 `node_modules` / `.dsh-test` / `tests` / `evals` |
 
 ## 3. STORE 五信号
 
@@ -60,7 +60,7 @@ rm -rf "$DSH_HOME"
 | 凭据权限 | 仅环境变量：`CUA_DRIVER_BIN`、`CUA_SESSION`、`ZHIPU_API_KEY`/`GLM_API_KEY`、`GLM_API_BASE`、`GLM_VISION_MODEL`；不读密钥文件 |
 | 生命周期脚本 | 无 install/postinstall/prepare |
 
-## 4. 打包内容（34 文件）
+## 4. 打包内容（35 文件）
 
 ```text
 LICENSE
@@ -91,6 +91,7 @@ lib/receipt.js
 lib/roles.js
 lib/snapshot.js
 lib/task.js
+lib/trajectory.js
 lib/vision.js
 package.json
 tools/make_theme.py

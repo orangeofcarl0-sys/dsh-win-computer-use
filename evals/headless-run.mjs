@@ -70,9 +70,9 @@ function discover() {
   return out
 }
 
-function run(cmd, cmdArgs, { timeoutMs = 120000, cwd = REPO } = {}) {
+function run(cmd, cmdArgs, { timeoutMs = 120000, cwd = REPO, env = ENV } = {}) {
   return new Promise((resolve) => {
-    const p = spawn(cmd, cmdArgs, { cwd, env: ENV, windowsHide: true })
+    const p = spawn(cmd, cmdArgs, { cwd, env, windowsHide: true })
     let stdout = ''
     let stderr = ''
     let done = false
@@ -151,11 +151,16 @@ async function runOne(task) {
 
   fs.mkdirSync(logDir, { recursive: true })
   const base = path.join(logDir, `${task.id}-r${runOne.round}`)
+  const trajFile = `${base}.trajectory.jsonl`
+  rec.trajectory = trajFile
   const dr = await run(process.execPath, [
     DSH_ENTRY, '--profile', 'headless', '--patch', patch,
     '--permission-mode', 'read-only', '--approval-policy', 'never', '--json',
     COMMON + task.prompt,
-  ], { timeoutMs: timeoutMin * 60000 })
+  ], {
+    timeoutMs: timeoutMin * 60000,
+    env: { ...ENV, DSH_CU_TRAJECTORY_FILE: trajFile },
+  })
   fs.writeFileSync(`${base}.jsonl`, dr.stdout)
   fs.writeFileSync(`${base}.err`, dr.stderr)
   const a = analyze(parseEvents(dr.stdout))

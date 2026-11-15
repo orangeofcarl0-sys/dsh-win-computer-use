@@ -55,8 +55,9 @@
   ],
   "scripts": {
     "check": "node tests/syntax.check.mjs",
-    "test": "node tests/posture.smoke.mjs && node tests/tools.smoke.mjs && node tests/delivery-chain.smoke.mjs && node tests/schema.conformance.mjs && node tests/observe.dedup.mjs && node tests/observe.coords.mjs && node tests/key.xaml.mjs && node tests/menu.receipt.mjs && node tests/human.click.mjs && node tests/delivery.failures.mjs && node tests/observe.failure.mjs && node tests/eval-safety.mjs && node tests/notepad-tabs.test.mjs && node tests/task.tool.mjs && node tests/config.plumbing.mjs && node tests/action-bounds.mjs && node tests/dispatcher.test.mjs && node tests/package-manifest.test.mjs",
-    "eval:headless": "node evals/headless-run.mjs --tier smoke --timeout-min 10"
+    "test": "node tests/posture.smoke.mjs && node tests/tools.smoke.mjs && node tests/delivery-chain.smoke.mjs && node tests/schema.conformance.mjs && node tests/observe.dedup.mjs && node tests/observe.coords.mjs && node tests/key.xaml.mjs && node tests/menu.receipt.mjs && node tests/human.click.mjs && node tests/delivery.failures.mjs && node tests/observe.failure.mjs && node tests/trajectory.test.mjs && node tests/eval-safety.mjs && node tests/notepad-tabs.test.mjs && node tests/task.tool.mjs && node tests/config.plumbing.mjs && node tests/action-bounds.mjs && node tests/dispatcher.test.mjs && node tests/package-manifest.test.mjs",
+    "eval:headless": "node evals/headless-run.mjs --tier smoke --timeout-min 10",
+    "trajectory:analyze": "node evals/analyze-trajectory.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0",

@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-15 · `npm test` 18 套 / **333 断言** · `npm run check` **17/17** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-15 · `npm test` 19 套 / **346 断言** · `npm run check` **18/18** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -17,8 +17,8 @@
 
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
-| 语法/安装脚本 | `npm run check` | 17 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 18 套 / 333 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、元素点击 TTL/滑行、投递失败、观察失败、XAML 回退、菜单未确认、eval 安全、Notepad 标签分类 |
+| 语法/安装脚本 | `npm run check` | 18 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
+| 离线单元/契约 | `npm test` | 19 套 / 346 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、元素点击 TTL/滑行、投递失败、观察失败、XAML 回退、菜单未确认、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
@@ -40,10 +40,11 @@
 | `delivery.failures.mjs` | 25 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true |
 | `key.xaml.mjs` | 19 | XAML 无 AcceleratorKey 指引；`xamlKeyFallback=auto` 两次 token 点击；歧义/缺失/非白名单/非 XAML 不回退；前台/后台投递失败不再 ok:true；suspected_noop 注记 |
 | `menu.receipt.mjs` | 7 | `effect:unverifiable` 必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
+| `trajectory.test.mjs` | 8 | 文本脱敏（len/hash）、驱动归属、结果摘要不落 AX 树、重复动作 loop、session_end 摘要 |
 | `eval-safety.mjs` | 17 | 禁止按 Notepad 进程名杀；Close-TaskWindows 只按显式模式；t01/t05/t06/t10 走 Open/Close-TestNotepad；标签枚举与 ExpectedTabs 校验 |
-| `notepad-tabs.test.mjs` | 6 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符 |
+| `notepad-tabs.test.mjs` | 9 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 18 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
-| `config.plumbing.mjs` | 26 | 17 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；11 组行为哨兵 |
+| `config.plumbing.mjs` | 26 | 18 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；11 组行为哨兵 |
 | `action-bounds.mjs` | 22 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
 | `dispatcher.test.mjs` | 32 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、工具面稳定、宿主 schema |
 | `package-manifest.test.mjs` | 10 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
@@ -186,11 +187,11 @@ node evals/verify-oracles.mjs
 
 | 项 | 值 |
 |---|---|
-| 离线 | 18 套 / 333 ✅ / 0 ❌ |
-| 语法 | 17/17 JS + `bash -n` 两脚本 |
+| 离线 | 19 套 / 346 ✅ / 0 ❌ |
+| 语法 | 18/18 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 ×3 全部 setup fail closed（当前 Notepad 含用户已修改标签，seed 落入现有窗口，steps=0） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 10/10；任务集 10 条 |
-| 打包 | `npm pack --dry-run` 34 文件 |
+| 打包 | `npm pack --dry-run` 35 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

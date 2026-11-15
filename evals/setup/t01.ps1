@@ -10,7 +10,7 @@ try {
   $seed = Join-Path $targetDir 's4-t01-seed.txt'
   [IO.File]::WriteAllText($seed, '', (New-Object System.Text.UTF8Encoding($false)))
   $stateFile = Join-Path (Get-TaskDir) 'test-notepad.json'
-  $state = Open-TestNotepad -Path $seed -TitleNeedle 's4-t01-seed.txt' -StateFile $stateFile -ExpectedTabs @('s4-t01-seed.txt')
+  $state = Open-TestNotepad -Path $seed -TitleNeedle 's4-t01-seed.txt' -StateFile $stateFile -ExpectedTabs @('s4-t01-seed.txt') -FinalTabs @('note.txt')
   $checks += (Add-Check 'seed notepad opened as task-owned window' ([bool]$state.ok -and [bool]$state.owned) ("hwnd=$($state.hwnd) title=$($state.title) owned=$($state.owned)"))
   $checks += (Add-Check 'target dir prepared, no stale file' (-not (Test-Path $target)) $target)
   Out-Finish -Ok ([bool]$state.ok -and [bool]$state.owned -and (-not (Test-Path $target))) -Checks $checks -Kind 'setup'

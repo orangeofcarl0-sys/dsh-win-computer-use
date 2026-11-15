@@ -29,9 +29,14 @@
 - **eval setup/cleanup 危及用户 Notepad**：删除 `setup/t01/t05/t06` 的 `Stop-Process` 全量杀；t01 改用唯一空 seed `s4-t01-seed.txt`，t05 用 `draft.txt`，t06 用唯一 seed；t01/t05/t06/t10 cleanup 改为 HWND 作用域关闭；t10 双文件分别记录；`hygiene.ps1` 只报告不关闭；x1 不再无参数 `Close-TaskWindows`。
 - **t01 prompt 歧义**：明确“临时文件 seed / 另存为完整路径 / 第二行后不要回车”。
 
-**2026-11-15：runtime/pipeline 复盘——元素点击 TTL/滑行坐标、投递失败语义、Notepad 标签级安全**
+**2026-11-15：runtime/pipeline 复盘——元素点击 TTL/滑行坐标、投递失败语义、Notepad 标签级安全、CU 轨迹监控**
 
 ### 2026-11-15 Added
+
+- **`lib/trajectory.js` + `trajectoryFile`（默认关闭）**：按工具/驱动调用写 JSONL；文本只记 len+hash，`get_window_state` 只记元素数/快照 id，不落 AX 树/截图；AsyncLocalStorage 归属驱动调用；自动标记 repeat_action/repeat_observe/observe_burst/relocate_ratio/pointer_burst。
+- **`evals/analyze-trajectory.mjs`**：统计观察/动作比、驱动调用、指针位移、错误/拒绝/未送达、重复动作与 loop；`npm run trajectory:analyze`。
+- **`tests/trajectory.test.mjs`（8）**：文本脱敏、驱动归属、结果摘要、重复动作 loop、session_end。
+- **headless eval 集成**：每次 dsh 运行写 `<task>-r<n>.trajectory.jsonl`，报告记录路径。
 
 - **`docs/RUNTIME-PIPELINE.md`**：宿主启动/工具面/观察/动作/投递/快捷键/Notepad/session 日志的完整链路与失败语义。
 - **`tests/human.click.mjs`（8）**：元素点击 TTL、background 不滑行、foreground 滑行目标=窗口截图坐标、近距离单次移动、tokenless 回退。

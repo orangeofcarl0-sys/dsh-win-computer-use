@@ -231,6 +231,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 ### 上下文经济
 
 - **观察降噪**：同窗口、同模式、上次观察后无动作、界面哈希未变 → 回极简回执（`summary` 含编号摘要 / `brief` 单行 / `off` 关闭）；`force=true` 强制全量。哈希覆盖原始元素的 label/value/enabled/selected/actions/is_password/parent/depth/frame，并归一化时间/行列噪声。
+- **行为轨迹**：`trajectoryFile` 非空时写 JSONL（工具/驱动/loop 事件）；文本只记长度+哈希，驱动只记摘要。用 `node evals/analyze-trajectory.mjs` 看反复定位/点击、指针位移和重复动作。默认关闭。
 - **紧凑回执**：正常路径只回一行“动作 · 投递 · 效果”；`verboseReceipts: true` 才附原始 JSON。
 - **委派**：`computer_task` 把多步/高噪声操作放进一次性子 agent；主上下文只收 `ok/summary/evidence`。默认超时 5 分钟，每会话最多 3 次（`maxTaskCalls`），避免“子 agent 超时后父 agent 从头再做一遍”。
 
@@ -250,6 +251,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
     allowedApps: []
     cursorTheme: com.dsh.computeruse.rainbow
     cursorMotion: auto
+    trajectoryFile: ''
     nativeImage: auto
     visionProvider: deepseek-official
     visionModel: deepseek-flash
@@ -272,6 +274,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `allowedApps` | `[]` | 操作类工具的应用白名单；空 = 不限制 |
 | `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
 | `cursorMotion` | `auto` | `auto`：前台点击保留滑行，background 不滑行，近距离不画弧；`off`：全部不滑行 |
+| `trajectoryFile` | 空 | 非空时写 CU 轨迹 JSONL（文本只留 len/hash，驱动只留摘要）；也可用 `DSH_CU_TRAJECTORY_FILE` |
 | `nativeImage` | `auto` | `auto` 超附件限额自动降级 / `full` 原图 / `compact` 始终 ≤500px JPEG |
 | `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
 | `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
@@ -336,8 +339,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（17/17 JS）
-npm test                           # 18 套离线测试，333 个断言
+npm run check                      # 语法检查 + bash -n（18/18 JS）
+npm test                           # 19 套离线测试，346 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -347,7 +350,7 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（10/10）
 ```
 
-`npm test` 的 18 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / delivery.failures / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 19 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / delivery.failures / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 

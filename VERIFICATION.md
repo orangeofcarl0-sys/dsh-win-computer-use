@@ -8,14 +8,14 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **18 套 / 333 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **17/17 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **19 套 / 346 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **18/18 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-12 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
-| 打包面 | **34 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js 等） | — | `npm pack --dry-run` |
+| 打包面 | **35 文件**（新增 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/trajectory.js 等） | — | `npm pack --dry-run` |
 | 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -142,7 +142,7 @@ TEMP='C:\Users\66494\AppData\Local\Temp' TMP='C:\Users\66494\AppData\Local\Temp'
 | PTC `run_code` | ✅ `tools.computer_do({action:'status'})` → dispatcher / 20 hidden |
 | PTC native 图片 | ✅ `tools.screen_observe({mode:'native'})` 图片作为 deferred context 被主模型看到 |
 | PTC + `computer_task` | ✅ `tools.computer_do({action:'call',tool:'computer_task',...})` 拉起子 agent；直接 `tools.computer_task` 为 undefined（SDK 只绑定可见工具） |
-| 离线 | **18 套 / 333** 断言全绿；`npm run check` 17/17；`npm pack` 34 文件 |
+| 离线 | **19 套 / 346** 断言全绿；`npm run check` 18/18；`npm pack` 35 文件 |
 | 兼容基线 | `dsh.compatibility.dsh` = `>=0.2.2-rc.1 <0.3.0` |
 
 详细契约矩阵与剩余风险见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
@@ -211,6 +211,8 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 观察失败修复 | notFound/桌面降级/native 失败清快照；suspect 去重强制全量；`tests/observe.failure` 5 项 |
 | Notepad 安全修复 | `Get-NotepadTabs`/`Test-NotepadTabSet`；Open/Close 精确 ExpectedTabs + pid/start time；dirty/leftover；`tests/notepad-tabs` 6 项 |
 | 真机 t01 ×3 | **0/3 执行，3/3 setup error（steps=0）**：seed 落进现有 Notepad 窗口（`owned=False`，窗口仍含 2 个用户已修改标签 + 测试标签）；fail-closed 生效，未运行 dsh | 保存/关闭用户标签并清掉测试标签后重跑；当前窗口不要自动关闭 |
+| CU 轨迹监控 | **✅ 首个真机样本**：443 events / 589.5s；34 observe / 39 action；53 `move_cursor` / 7257px；自动标记 repeat_action、observe_burst、repeat_observe | `tests/trajectory` + `evals/analyze-trajectory.mjs` |
+| 监控下的 t01 | fail：76 steps / 8 errors / 15 unverified / timeout；轨迹显示 3 次重复 click、3 次连续 observe、另存为窗口重复 native+ax 观察 | 桌面干净后按轨迹的 loop 点继续修 |
 
 ## 3. 代表性缺陷与守门测试
 
@@ -234,6 +236,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 16 | 元素点击绕过 TTL + 滑行偏移 | 快照条目存屏幕坐标；`resolveClickTarget` 不查 `isFresh`；`glideCursor` 目标却是 window-local | `human.click` + `observe.coords` |
 | 17 | 投递失败被当成功 | `engineRefusal` 不认 background/foreground_unavailable/delivery_failed；`settleAction` 全走成功分支 | `delivery.failures` + `delivery-chain` I |
 | 18 | 新 Notepad 窗口恢复用户标签 | 只比较 HWND 新旧；cleanup 只看活动标题 `*` | `notepad-tabs` + `eval-safety` S8-S10 |
+| 19 | 元素点击滑行跨屏大弧线 | `get_cursor_position` 是屏幕坐标，`move_cursor` target 是窗口截图坐标；起点未减窗口原点 | `human.click` + trajectory 首个样本 |
 
 ## 4. 未验证 / 未完成
 

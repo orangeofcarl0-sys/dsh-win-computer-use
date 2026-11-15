@@ -21,4 +21,26 @@ foreach ($c in $cases) {
   $r = Test-NotepadTabLabels -TabNames @($c.tabs) -ExpectedTabs @($c.expected)
   $out += [ordered]@{ name = $c.name; expected = [bool]$c.ok; actual = [bool]$r.ok; reason = [string]$r.reason; labels = @($r.labels); raw = @($c.tabs) }
 }
+$allowedCases = @(
+  @{ name = 'allowed-final-rename'; tabs = @("note.txt. $unmod$dot"); allowed = @('s4-t01-seed.txt', 'note.txt'); count = 1; ok = $true },
+  @{ name = 'allowed-other-tab'; tabs = @("other.txt. $unmod$dot"); allowed = @('s4-t01-seed.txt', 'note.txt'); count = 1; ok = $false },
+  @{ name = 'allowed-count-mismatch'; tabs = @("note.txt. $unmod$dot", "extra.txt. $unmod$dot"); allowed = @('s4-t01-seed.txt', 'note.txt'); count = 1; ok = $false }
+)
+foreach ($c in $allowedCases) {
+  $r = Test-NotepadTabAllowed -TabNames @($c.tabs) -AllowedTabs @($c.allowed) -ExpectedCount $c.count
+  $out += [ordered]@{ name = $c.name; expected = [bool]$c.ok; actual = [bool]$r.ok; reason = [string]$r.reason; labels = @($r.labels); raw = @($c.tabs) }
+}
+
+# TabState cleanup: only test-sandbox bins are removed; user bin survives.
+$tmp = Join-Path $env:TEMP ('s4-tabstate-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+$enc = New-Object System.Text.UnicodeEncoding($false, $false)
+[IO.File]::WriteAllBytes((Join-Path $tmp 'test.bin'), $enc.GetBytes('C:\Users\x\.dsh\s4-evals\t01\target\s4-t01-seed.txt'))
+[IO.File]::WriteAllBytes((Join-Path $tmp 'user.bin'), $enc.GetBytes('C:\Users\x\Documents\user.md'))
+$removed = Clear-TestNotepadTabState -StateDir $tmp
+$testGone = -not (Test-Path (Join-Path $tmp 'test.bin'))
+$userKept = Test-Path (Join-Path $tmp 'user.bin')
+Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+$out += [ordered]@{ name = 'tabstate-clear-only-test'; expected = $true; actual = ([bool]$testGone -and [bool]$userKept -and [int]$removed -eq 1); reason = "removed=$removed testGone=$testGone userKept=$userKept"; labels = @(); raw = @() }
+
 [Console]::Out.WriteLine((ConvertTo-Json $out -Compress -Depth 5))

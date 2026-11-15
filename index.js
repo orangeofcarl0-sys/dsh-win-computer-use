@@ -42,6 +42,7 @@ const defineTool = (options) => {
 }
 
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
+import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
 import {
   click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, setValue,
@@ -95,6 +96,11 @@ export const Config = z.object({
    *   off：所有点击都不滑行，直接到目标。
    */
   cursorMotion: z.union(['auto', 'off']).default('auto'),
+  /**
+   * Computer Use 轨迹监控（默认关闭）：非空路径时把工具/驱动调用写成 JSONL。
+   * 文本类只记长度+哈希；驱动结果只记摘要。环境变量 DSH_CU_TRAJECTORY_FILE 可覆盖。
+   */
+  trajectoryFile: z.string().default(''),
   /** 原生直读截图策略：auto（PNG 超限额时自动降级 zoom JPEG）/ full（始终原图 PNG）/ compact（始终 ≤500px JPEG）。 */
   nativeImage: z.union(['auto', 'full', 'compact']).default('auto'),
   /** Mode D 观察者 provider 路由。 */
@@ -815,6 +821,7 @@ export function apply(ctx, config) {
     allowedApps: Array.isArray(config.allowedApps) ? config.allowedApps : [],
     cursorTheme: config.cursorTheme,
     cursorMotion: config.cursorMotion || 'auto',
+    trajectoryFile: config.trajectoryFile || '',
     nativeImage: config.nativeImage || 'auto',
     visionProvider: config.visionProvider || 'deepseek-official',
     visionModel: config.visionModel || 'deepseek-flash',
@@ -835,32 +842,40 @@ export function apply(ctx, config) {
   /** 强杀锁存状态（PLAN-tools-v0.5 §6-D2=B）：stop 后全工具拒绝，resume 唯一解锁。 */
   const opsState = createOpsState()
 
+  // 轨迹监控只写本地 JSONL；未配置时 runTrajectoryTool 退化为直接执行，零额外开销。
+  trajectoryStart({
+    file: process.env.DSH_CU_TRAJECTORY_FILE || cfg.trajectoryFile,
+    meta: { plugin: name, pid: process.pid, surfaceMode: cfg.surfaceMode },
+  })
+
   /** 统一包装：锁存闸门 → 守卫（注记不阻断）→ 执行实现（exec 透传给需要 route 的实现）。 */
   const wrap = (toolName, impl) => async (args, exec) => {
-    try {
-      // computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具自己判定
-      // （否则 stop 后连 computer_resume 都进不来）。
-      const gateName = toolName === 'computer_do' ? null : toolName
-      const denied = gateName ? opsGate(opsState, gateName) : null
-      if (denied) return { ok: false, result: `✗ ${denied}` }
-      // 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默忽略，
-      // 进而可能回退到非目标窗口/默认值——在桌面自动化里这是不可接受的静默错目标）
-      const allowed = toolParamNames.get(toolName) || []
-      const unknown = Object.keys(args || {}).filter((k) => !allowed.includes(k) && !k.startsWith('_'))
-      if (unknown.length) {
-        return {
-          ok: false,
-          result: `✗ 未知参数 ${unknown.join(', ')}（本工具接受：${allowed.length ? allowed.join(', ') : '无参数'}）。`
-            + '参数名不符的键会被静默丢弃并可能回退到默认目标，因此此处直接拒绝——请按上面列出的参数名重发。',
+    return runTrajectoryTool(toolName, args, async () => {
+      try {
+        // computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具自己判定
+        // （否则 stop 后连 computer_resume 都进不来）。
+        const gateName = toolName === 'computer_do' ? null : toolName
+        const denied = gateName ? opsGate(opsState, gateName) : null
+        if (denied) return { ok: false, result: `✗ ${denied}` }
+        // 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默忽略，
+        // 进而可能回退到非目标窗口/默认值——在桌面自动化里这是不可接受的静默错目标）
+        const allowed = toolParamNames.get(toolName) || []
+        const unknown = Object.keys(args || {}).filter((k) => !allowed.includes(k) && !k.startsWith('_'))
+        if (unknown.length) {
+          return {
+            ok: false,
+            result: `✗ 未知参数 ${unknown.join(', ')}（本工具接受：${allowed.length ? allowed.join(', ') : '无参数'}）。`
+              + '参数名不符的键会被静默丢弃并可能回退到默认目标，因此此处直接拒绝——请按上面列出的参数名重发。',
+          }
         }
+        const g = guard(cfg, toolName, args)
+        if (!g.ok) return { ok: false, result: `✗ ${g.reason}` }
+        const v = await impl(args, cfg, exec)
+        return g.note && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${g.note}` } : v
+      } catch (err) {
+        return { ok: false, result: `✗ ${err.message}` }
       }
-      const g = guard(cfg, toolName, args)
-      if (!g.ok) return { ok: false, result: `✗ ${g.reason}` }
-      const v = await impl(args, cfg, exec)
-      return g.note && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${g.note}` } : v
-    } catch (err) {
-      return { ok: false, result: `✗ ${err.message}` }
-    }
+    })
   }
 
   // 工具面 = 数据：各组返回定义数组。surfaceMode 决定 apply 时直接注册哪些工具：

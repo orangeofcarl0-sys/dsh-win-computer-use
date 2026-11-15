@@ -81,8 +81,9 @@ check('H4: foreground 保留 5 段滑行', stub.moves.length === 5, `moves=${stu
 check('H5: 滑行终点 = 窗口截图坐标', last && last.x === 70 && last.y === 72, JSON.stringify(last))
 
 // 3. 近距离：只移动一次
-process.env.CUA_CURSOR_X = '70'
-process.env.CUA_CURSOR_Y = '72'
+// get_cursor_position 是屏幕坐标；窗口原点 (100,100)，所以本地 (70,72) = 屏幕 (170,172)
+process.env.CUA_CURSOR_X = '170'
+process.env.CUA_CURSOR_Y = '172'
 ;({ call, obs } = await fresh({ deliveryMode: 'foreground' }))
 r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
 check('H6: 近距离只做一次终点移动', stub.moves.length === 1 && stub.moves[0].x === 70 && stub.moves[0].y === 72, JSON.stringify(stub.moves))

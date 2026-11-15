@@ -46,8 +46,10 @@ try {
     $st.owned = $true
     $st.safeToClose = [bool]$tc.ok
     $st.expectedTabs = @($exp)
+    $st.allowedTabs = @($exp)
+    $st.tabCount = @($exp).Count
     $st.tabs = @($tc.tabs | ForEach-Object { $_.raw })
-    try { [IO.File]::WriteAllText($sf, ($st | ConvertTo-Json -Compress -Depth 5), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+    [void](Write-TestState $sf $st)
   }
   Out-Finish -Ok ($t1.ok -and $t2.ok) -Checks $checks -Kind 'setup'
 } catch {

@@ -219,6 +219,67 @@ function Test-NotepadTabSet([int]$Hwnd, [string[]]$ExpectedTabs) {
   return (Test-NotepadTabLabels -TabNames $names -ExpectedTabs $ExpectedTabs)
 }
 
+function Test-NotepadTabAllowed([string[]]$TabNames, [string[]]$AllowedTabs, [int]$ExpectedCount) {
+  # Cleanup variant: the tab may have been renamed by Save As (seed -> note.txt),
+  # so require the original count and a label from the allowed set, not one exact name.
+  $tabs = @($TabNames | ForEach-Object { ConvertFrom-NotepadTabName $_ })
+  $allowed = @($AllowedTabs | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Sort-Object -Unique)
+  $labels = @($tabs | ForEach-Object { ([string]$_.label).Trim().ToLowerInvariant() })
+  $reason = ''
+  if ($tabs.Count -eq 0) { $reason = 'no tabs exposed' }
+  elseif ($ExpectedCount -ge 0 -and $tabs.Count -ne $ExpectedCount) { $reason = "tab count $($tabs.Count) != expected $ExpectedCount" }
+  elseif (@($tabs | Where-Object { -not $_.known }).Count -gt 0) { $reason = 'unknown tab state suffix' }
+  elseif (@($tabs | Where-Object { $_.modified -eq $true }).Count -gt 0) { $reason = 'modified tab present' }
+  elseif (@($labels | Where-Object { $allowed -notcontains $_ }).Count -gt 0) { $reason = 'tab label not in allowed final set' }
+  return [ordered]@{
+    ok = ($reason -eq '')
+    reason = $reason
+    tabs = @($tabs)
+    labels = @($tabs | ForEach-Object { $_.label })
+  }
+}
+
+function Clear-TestNotepadTabState([string]$StateDir = '') {
+  # TabState is opaque, but the stored path is UTF-16LE. Delete only bins whose
+  # path is under .dsh\s4-evals\ (test sandbox); never touch user document bins.
+  if (-not $StateDir) {
+    $StateDir = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsNotepad_8wekyb3d8bbwe\LocalState\TabState'
+  }
+  if (-not (Test-Path $StateDir)) { return 0 }
+  $needle = '.dsh\s4-evals\'
+  $removed = 0
+  foreach ($f in @(Get-ChildItem -Path $StateDir -Filter '*.bin' -File -ErrorAction SilentlyContinue)) {
+    try {
+      $bytes = [IO.File]::ReadAllBytes($f.FullName)
+      $text = [Text.Encoding]::Unicode.GetString($bytes)
+      if ($text.IndexOf($needle, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
+        $removed++
+      }
+    } catch {}
+  }
+  return $removed
+}
+
+function Write-TestState([string]$Path, $State) {
+  # Explicit UTF-8 (no BOM), one line, no silent partial files.
+  try {
+    $json = $State | ConvertTo-Json -Compress -Depth 8
+    [IO.File]::WriteAllText($Path, $json, (New-Object System.Text.UTF8Encoding($false)))
+    return $true
+  } catch { return $false }
+}
+
+function Read-TestState([string]$Path) {
+  # Explicit UTF-8: Get-Content -Raw defaults to ANSI in PS 5.1 and can mangle
+  # localized tab labels. Caller treats null as unsafe (leave window open).
+  try {
+    $raw = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+    if (-not $raw) { return $null }
+    return ($raw | ConvertFrom-Json)
+  } catch { return $null }
+}
+
 function Save-LeftoverState([string]$TaskId, [string]$StateFile, $Result) {
   # Preserve an unsafe window's identity outside the task dir, because cleanup
   # deletes the task sandbox/state after this call.
@@ -244,7 +305,10 @@ function Open-TestNotepad {
   # A new HWND is NOT enough: Win11 Notepad restores the previous session's tabs
   # into the new window. Require the exact expected tab set, all unmodified and
   # all with a known state suffix; otherwise fail closed and record why.
-  param([string]$Path, [string]$TitleNeedle, [string]$StateFile, [string[]]$ExpectedTabs = @())
+  param([string]$Path, [string]$TitleNeedle, [string]$StateFile, [string[]]$ExpectedTabs = @(), [string[]]$FinalTabs = @())
+  # Remove only prior test tabs from TabState; otherwise a new window restores
+  # note.txt/draft.txt/etc. and the exact tab-set check (correctly) fails.
+  [void](Clear-TestNotepadTabState)
   $before = @(Find-WindowsByTitle 'Notepad' | ForEach-Object { [int]$_.hwnd })
   Start-Process -FilePath 'notepad.exe' -ArgumentList @($Path) | Out-Null
   $deadline = (Get-Date).AddSeconds(15)
@@ -286,12 +350,18 @@ function Open-TestNotepad {
     processStart = $procStart
     path = $Path
     expectedTabs = @($ExpectedTabs)
+    allowedTabs = @(@($ExpectedTabs) + @($FinalTabs))
+    tabCount = @($ExpectedTabs).Count
     tabs = @($tabCheck.tabs | ForEach-Object { $_.raw })
     reason = $reason
     at = (Get-Date).ToString('o')
   }
-  if ($StateFile) {
-    try { [IO.File]::WriteAllText($StateFile, ($state | ConvertTo-Json -Compress -Depth 5), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+  $stateWritten = $true
+  if ($StateFile) { $stateWritten = Write-TestState $StateFile $state }
+  if (-not $stateWritten) {
+    $state.ok = $false
+    $state.safeToClose = $false
+    $state.reason = 'state file write failed'
   }
   return $state
 }
@@ -304,7 +374,12 @@ function Close-TestNotepad {
   param([string]$StateFile)
   $res = [ordered]@{ closed = $false; leftover = ''; reason = ''; tabs = @() }
   if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.reason = 'no state file'; return $res }
-  try { $s = Get-Content -Raw $StateFile | ConvertFrom-Json } catch { $res.reason = 'bad state file'; return $res }
+  $s = Read-TestState $StateFile
+  if (-not $s) {
+    $len = 0
+    try { $len = ([IO.File]::ReadAllText($StateFile, [Text.Encoding]::UTF8)).Length } catch {}
+    $res.reason = "bad state file (len=$len)"; return $res
+  }
   if (-not $s.owned) { $res.reason = 'window not task-owned; left open'; return $res }
   $hit = Find-WindowByHwnd ([int]$s.hwnd)
   if (-not $hit) { $res.reason = 'window already gone'; return $res }
@@ -321,7 +396,14 @@ function Close-TestNotepad {
     $res.reason = 'process start time changed; left open'; return $res
   }
 
-  $tabCheck = Test-NotepadTabSet -Hwnd ([int]$s.hwnd) -ExpectedTabs @($s.expectedTabs)
+  if ($s.allowedTabs) {
+    $names = @(Get-NotepadTabs ([int]$s.hwnd) | ForEach-Object { $_.raw })
+    $expectedCount = if ($null -ne $s.tabCount) { [int]$s.tabCount } else { @($s.expectedTabs).Count }
+    $tabCheck = Test-NotepadTabAllowed -TabNames $names -AllowedTabs @($s.allowedTabs) -ExpectedCount $expectedCount
+  } else {
+    # Old state files have no allowedTabs: preserve the strict exact-set behavior.
+    $tabCheck = Test-NotepadTabSet -Hwnd ([int]$s.hwnd) -ExpectedTabs @($s.expectedTabs)
+  }
   $res.tabs = @($tabCheck.tabs)
   if (-not $tabCheck.ok) {
     $res.reason = 'unsafe tab set: ' + [string]$tabCheck.reason

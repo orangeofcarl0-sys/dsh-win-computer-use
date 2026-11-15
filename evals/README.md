@@ -125,6 +125,8 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 两轮合计 **7/8（87.5%）**；`wa2` 对时间预算敏感（8min fail → 10min pass，72 次工具调用）。
 
 > 2026-11-15：t01 真机复跑暴露了“新窗口恢复用户标签”的安全漏洞；标签白名单/污染 fail-closed/leftover 已修复。随后执行 `--tasks t01 --repeats 3`，三次全部在 setup 阶段 error（steps=0）：seed 都落进仍含 2 个用户已修改标签的现有窗口，`owned=False`，fail-closed 正确阻止了 dsh。**GUI 复跑仍需先保存/关闭用户标签并清掉测试标签**；桌面干净后先 `node evals/verify-oracles.mjs`（10/10），再跑三次 auto + 一次默认 off 对照。
+>
+> 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。分析命令：`node evals/analyze-trajectory.mjs <file>`。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

@@ -158,6 +158,23 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
   - `node evals/analyze-sessions.mjs`（已支持 v4 多 frame + 隐藏工具归因）；
   - 手工解压：逐帧 `zstdDecompressSync` 后拼接。
 
+## 7.1 CU 轨迹监控（trajectory）
+
+- 开启：`trajectoryFile: <path>.jsonl` 或环境变量 `DSH_CU_TRAJECTORY_FILE`；默认关闭。
+- 写入端简化（避免把用户文档/长树写进日志）：
+  - `type`/`set_value`/`clipboard`/`computer_task` 的文本只记 `len` + 12 位 SHA-1；
+  - `get_window_state` 只记元素数/快照 id/是否有截图，不记整棵树；
+  - `list_windows` 只记数量 + 前 8 个窗口的 pid/id/app/title/z（title 截断）；
+  - 每个工具一个 id，驱动调用通过 AsyncLocalStorage 归属到父工具。
+- 事件：`session_start`、`tool_start`、`tool_end`、`driver`、`loop`、`session_end`。
+- 自动 loop 标记：
+  - `repeat_action` / `repeat_observe`：60s 内同一签名≥3 次；
+  - `observe_burst`：连续≥3 次观察没有动作；
+  - `relocate_ratio`：观察/动作≥2.5 且动作≥5；
+  - `pointer_burst`：3s 内≥20 次 `move_cursor`。
+- 分析：`node evals/analyze-trajectory.mjs <file>`（或 `npm run trajectory:analyze`）。
+- eval 集成：`headless-run.mjs` 为每次 dsh 运行设置 `DSH_CU_TRAJECTORY_FILE=<task>-r<n>.trajectory.jsonl`，报告里记录 `trajectory` 路径。
+
 ## 8. 当前已知的 loop 放大点
 
 | 点 | 现状 | 本轮处理 |
