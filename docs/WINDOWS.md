@@ -141,6 +141,11 @@ Win11 记事本是**单进程多窗口/多标签**，进程可能同时持有用
 7. **preflight 不把测试标签加进用户窗口**：`Open-TestNotepad` 在启动前若发现任何 Notepad 窗口（且不是本任务显式允许的第一个 HWND），直接 fail closed，不启动。
 8. **TabState 隔离**：`evals/lib/tabstate.ps1 backup|restore` 把用户 TabState 全部 bin 搬到 `_tabstate-backup/`，每个任务启动前清掉上一个任务的 eval bin，跑完恢复。没有它，任务 N 的 seed/draft/workfile 会被任务 N+1 恢复（2026-11-15 实测 cascade）。**运行 eval 期间不要用 Notepad 编辑用户文档**。
 9. **关闭用 UIA，WM_CLOSE 只兜底**：Win11 Notepad 对非提权客户端的 WM_CLOSE 静默忽略；`Close-WindowUia`（`WindowPattern.Close`）可靠。测试窗口标签全是测试文件时才允许丢弃修改（cleanup 的 `-AllowDiscardTestOnlyModified`）。
+10. **Paint/Office/浏览器 dirty 规则（2026-11-16）**：
+   - Paint 11 是标签页应用：必须要求“测试 seed 的唯一 HWND/标签”；若只能并入用户窗口/标签，setup 记 ENV 或 cleanup 留窗 dirty，绝不关用户窗口。
+   - PowerPoint/Excel 是单实例：只关 setup 记录的测试 HWND（pid/start/title 复核），关闭时只处理已证明归属的保存提示；**禁止 `Quit` / `Presentations.Close` 全部**，oracle 只读 OOXML ZIP/XML，不实例化 COM。
+   - 浏览器复用用户会话：`--new-window` 后要求新 HWND；只关该 HWND，绝不按 chrome/msedge 进程名杀。论文下载只扫描任务开始后新增的 PDF，cleanup 只删 SHA-256 匹配的新文件，绝不碰用户已有 Downloads 文件。
+   - dirty 任务 md 标记 `- **isolation: dirty**`；headless/verify runner 只在选中 Notepad 任务时备份/恢复 TabState，dirty 组不碰用户 Notepad。
 
 ## 7. 冒烟矩阵
 

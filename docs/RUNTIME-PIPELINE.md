@@ -155,7 +155,7 @@ humanAction / type / key / scroll / drag / set_value
 - 顶层菜单栏点击的 `unverifiable` 用菜单专用注记（可能已开/未开，不要重复点同一项）；`verifyAfterAction=auto` 时同窗口复核报告“检测到弹出菜单项/未检测到”，不额外扫描独立 popup 窗口。
 - 对话框里 hotkey 的失败是“UIA 加速器不存在”，与 `foreground_unavailable` 是两类问题；后者仍走 force 前台 L3。
 
-## 6. Eval / Notepad 生命周期
+## 6. Eval 生命周期（Notepad clean 组 + dirty 组）
 
 ```text
 cleanup -> setup -> dsh headless -> oracle -> cleanup
@@ -181,7 +181,8 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 - `Close-TaskWindows` 只接受显式 patterns；无 patterns 不关闭任何窗口。
 - cleanup JSON 带 `dirty`；留窗不会删 state 副本（leftover 文件在任务沙箱外）。
 - `headless-run.mjs` 消费 `cleanup.dirty`：记录 `rec.dirty`，pass 改记为 `dirty`，汇总打印 `dirty=N`，退出码非 0——不再把“留窗/残留对话框”当干净通过。
-- `headless-run.mjs` / `verify-oracles.mjs` 在任何 setup 前调用 `tabstate.ps1 backup`，全部任务后 `restore`；备份失败（Notepad 正在运行）直接退出 2，restore 失败保留 backup 路径并退出非 0。备份/恢复结果写入 headless 报告 `tabState`。
+- `headless-run.mjs` / `verify-oracles.mjs` 只在选中任务包含非 dirty 任务时调用 `tabstate.ps1 backup`，全部任务后 `restore`；全 dirty 组跳过并记录 `tabState.skipped=true`，用户 Notepad 不被触碰。备份失败（Notepad 正在运行）直接退出 2，restore 失败保留 backup 路径并退出非 0。
+- **dirty 组（t11-t17）**：md 标记 `- **isolation: dirty**`；setup 用 `Open-TestAppWindow`/`Open-TestPaintDoc`/`Open-TestBrowserWindow` 记录测试 HWND/pid/start/title；cleanup 只关这些对象，证明不了就 `Save-LeftoverState` + dirty。setup ENV（应用缺失/网络/浏览器不能新开窗）在 headless 记 `verdict=env`，不计入 pass/fail；Office/PPT/XLSX oracle 只读 ZIP/XML，不启动 COM。
 
 ## 7. 会话日志与诊断
 

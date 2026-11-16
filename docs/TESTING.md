@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-16 · `npm test` 22 套 / **483 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-16 · `npm test` 22 套 / **507 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -18,14 +18,14 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 21 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 483 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、轨迹监控、eval 安全、Notepad 标签分类 |
+| 离线单元/契约 | `npm test` | 22 套 / 507 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
-| 任务级评测 | `node evals/headless-run.mjs --tier smoke` | 10 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
-| oracle 验证 | `node evals/verify-oracles.mjs` | 10 项 | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
+| 任务级评测 | `node evals/headless-run.mjs --tier smoke` | 17 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
+| oracle 验证 | `node evals/verify-oracles.mjs` | 17 项（app/network 依赖可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
 
 ## 3. 离线套件（`npm test`）
 
@@ -46,7 +46,7 @@
 | `key.xaml.mjs` | 33 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败不再建议 foreground=true）；alt+f/ctrl+a 的 xamlPressFallback 前景回退、菜单优先、清快照与菜单已开拒绝 |
 | `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
 | `trajectory.test.mjs` | 15 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe、观察提示不伪造 delivery/unverified |
-| `eval-safety.mjs` | 41 | 禁止按 Notepad/mspaint 进程名杀；Explorer/Paint 状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明 |
+| `eval-safety.mjs` | 65 | 禁止按 Notepad/mspaint/POWERPNT/EXCEL/chrome/msedge 进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明；dirty 任务 helper/Dirty/Downloads 按 hash 清理 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
 | `config.plumbing.mjs` | 25 | 21 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵 |
@@ -155,7 +155,7 @@ node evals/verify-oracles.mjs
 
 > `evals/run.mjs` 是 dsh 0.1.5 时代的 Web UI runner，已退役（默认 exit 2）；仅在调试旧 UI 时用 `--allow-legacy-web`。
 
-- 任务集 10 条：冒烟 4（t01/t04/t07/wa2）+ 核心 6（t03/t05/t06/t09/t10 + x1 委派通道）；退役 7 条见 `evals/README.md`。
+- 任务集 17 条：冒烟 4（t01/t04/t07/wa2）+ 核心 6（t03/t05/t06/t09/t10 + x1 委派通道）+ dirty 7（t11 Paint/t12 PPT/t13 论文/t14 Excel/t15 Explorer/t16 表单/t17 PDF 摘录）；退役任务见 `evals/README.md`。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
 - `verify-oracles` 的判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；**2026-11-12 复跑 10/10**（含 `x1`）。若 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 再跑。
 - 报告（`evals/report-last.json`）是**真值产物，不入库**；仓库只进 runner/任务/oracle。
@@ -182,6 +182,32 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 - 决策规则：pass 不下降；median steps/duration 不恶化超过约 15%；p90 不恶化超过约 25%（n<8 标 `p90Unstable`，不作强结论）；没有新增 dirty/timeout；strategy 分布不更偏 exploratory。否则保持 `off`。
 - **2026-11-16 首轮结果**：10/10 pass。t01 off 9/19/52 步（strategy fast/exploratory/exploratory）；auto 66/15/8 步（exploratory/direct/fast）。t05 off 24/34 步；auto 22/26 步。auto 中位略优，但区间重叠、auto 有 533s 尾部、每轮多 2-12 次 click 复核；默认保持 `off`。这组也说明：只报 steps 会把“策略混合”误当噪声，必须同时报 strategy 分布。
 - 注意：`supersession=enforce` 下复核刷新 + `markConsumed` 可能产生 `[snapshot_consumed]`；A/B 用默认 `note`。
+
+### 6.2 真实脏桌面套件（t11-t17，2026-11-16）
+
+这组任务不建干净 VM/专用 Windows 用户，直接使用当前桌面和用户已打开的应用；通过 task md 的 `- **isolation: dirty**` 跳过 Notepad TabState backup。用户已有 Notepad/Paint/Office/浏览器窗口不关；只关闭 setup 记录的“测试新建 HWND/文档”，证明不了就 `leftover + dirty`。
+
+| id | 任务 | 依赖 | oracle |
+|---|---|---|---|
+| t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 颜色 mask/bbox/覆盖率容差 |
+| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | PPTX XML 文本/形状/颜色/位置（无 COM） |
+| t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 中新增 PDF 的 SHA-256 |
+| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart part |
+| t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态 |
+| t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
+| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本（高风险） |
+
+```bash
+node evals/verify-oracles.mjs --tasks t11,t12,t13,t14,t15,t16,t17
+node evals/headless-run.mjs --tasks t11,t12,t13,t14,t15,t16,t17 \
+  --repeats 1 --timeout-min 20 --patch evals/headless-patch.yml
+```
+
+- `ac2: none`（t12/t13/t14/t17）在 verify-oracles 中显示 **SKIP**，表示 setup/oracle-empty/cleanup 已验，但无 simulate；不是假 PASS。
+- setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）在 headless-run 记 `verdict=env`，不混入 pass/fail。
+- t13 复用用户浏览器：下载目录是真实 Downloads；oracle/cleanup 只考虑任务开始后新增且哈希匹配的 PDF，绝不删除用户已有文件。
+- t11/t12/t17 当前是高风险任务：t11 首轮真机 107 步 fail、t12 126 步 fail（模型在 Paint/PowerPoint 工具栏间探索，未保存输出），t17 依赖 PDF 文本选择/剪贴板；先看 3 次样本再决定是否进 smoke。
+- 首轮真机样本：t13 论文下载 **pass 19 步**（NeurIPS PDF SHA-256，cleanup removed=1）；t15 Explorer 整理 **pass 112 步**（能收敛但探索很长）；t16 本地表单 **pass 17 步**；cleanup 干净、TabState skipped、无用户窗口被关。
 
 ## 7. 新增测试/工具
 
@@ -214,11 +240,12 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 483 ✅ / 0 ❌ |
+| 离线 | 22 套 / 507 ✅ / 0 ❌ |
 | 语法 | 21/21 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
+| dirty 真机（首轮） | t13 论文下载 **pass 19 步**；t15 Explorer **pass 112 步**；t16 表单 **pass 17 步**；t11 Paint **fail 107 步**、t12 PPT **fail 126 步**（均未保存输出）；t14/t17 仅 setup/cleanup 验证；cleanup clean、TabState skipped |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
-| 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；任务集 10 条 |
+| 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；dirty 组 t11/t15/t16 PASS（AC2 full）、t12/t13/t14/t17 SKIP；任务集 17 条 |
 | 打包 | `npm pack --dry-run` 38 文件 |
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

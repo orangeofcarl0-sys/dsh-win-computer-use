@@ -32,6 +32,21 @@
 - **t01 单次输入约束**：真机 r5 模型把两行拆成两次 `computer_type` 并在中间按 Enter（delivery_failed 但实际插入换行），随后在编辑菜单里点“全选”结束、未保存。题面明确“在一次 computer_type 中包含换行输入两行，不要分两次/行间按回车”，减少该策略分支。
 - **验证（第三轮）**：离线 **22 套 / 483 断言**，语法 21/21；t01 新题面 ×5 **5/5 pass**，steps 17/32/8/19/11（median 17）；中间题面版本曾 4/5（r5 点“全选”结束未保存）。两版都未再出现 52/66 步的星号强制置脏循环。query 只读由 `observe.truth` T21-T25 + `schema.conformance` 守门。
 
+**2026-11-16（第四轮）：真实脏桌面套件 t11-t17、dirty isolation、ENV 语义与安全 helper**
+
+### 2026-11-16 Added（第四轮）
+
+- **dirty 任务隔离**：t11-t17 md 标记 '- **isolation: dirty**'；headless/verify 只在选中 Notepad 任务时备份/恢复 TabState，dirty 组不要求关闭用户 Notepad。setup ENV（应用/网络/浏览器不可用）在 headless 记 verdict=env，不计入 pass/fail；verify-oracles 对 app/network 依赖的 ac2:none 任务显示 SKIP，不伪造 PASS。
+- **新任务**：t11 Paint 鼠绘复刻（PNG mask 容差）、t12 PPT 布局复刻（PPTX XML）、t13 论文下载（用户浏览器 + 新增 PDF SHA-256）、t14 Excel 数据+柱状图、t15 Explorer 多文件整理、t16 本地浏览器表单、t17 PDF 定位+摘录（高风险）。
+- **新 helper**：`evals/lib/image.ps1`（C# LockBits mask/bbox/覆盖率、参考图生成）、`office.ps1`（PPTX/XLSX ZIP+XML 读取，无 COM）、`form-server.mjs`（127.0.0.1 表单）、`common.ps1` 的 `Open/Close-TestAppWindow`/`Open-TestPaintDoc`/`Open-TestBrowserWindow`/`Wait-S4DownloadMatch` 等；全部记录 hwnd/pid/processStart/title，关闭只认 state，证明不了就 leftover+dirty。
+- **eval-safety**：新增 S25-S31（禁止按 Paint/PowerPoint/Excel/Chrome/Edge 进程名杀、禁止宽 Close-TaskWindows、新任务 state helper/Dirty、Downloads 只按 hash 清理、dirty md 标记），离线断言 41→65。
+
+### 2026-11-16 验证（第四轮）
+
+- 离线 `npm test`：22 套 / **507 断言**全绿；`verify-oracles --tasks t11` PASS、t15/t16 PASS（AC2 full）、t12/t13/t14/t17 为 SKIP（setup/oracle-empty/cleanup 通过，无 simulate）；t13 论文源改为可访问的 NeurIPS PDF。
+- 真机 t11 r1：**fail 107 步**（file exists=false；模型在 Paint 工具栏/窗口间探索，未保存输出）；t12 r1：**fail 126 步**（file exists=false；PowerPoint 探索未保存）；t13 论文下载 **pass 19 步**（NeurIPS PDF SHA-256 匹配，cleanup removed=1）；t15 **pass 112 步**；t16 **pass 17 步**；cleanup 干净、TabState skipped、无用户窗口被关。t11/t12/t17 暂列高风险，不作为 smoke 承诺。
+- 未提交任何 report/trajectory/measurement 产物。
+
 ### 2026-11-16 Added（第二轮）
 
 - **`xamlPressFallback`（实验性，默认 `off`）**：UIA 加速器不可用时，对 `ctrl+a` / `alt+f` 允许一次前台 `press_key`（带 pid/window_id，forceForeground）。两者都开时 `ctrl+a` 仍菜单优先，仅菜单栏/菜单项不可用或打开点击失败时 press；`xamlKeyFallback=off` 可强制 press 优先。`alt+f` 成功后清空快照；快照已显示弹出菜单时拒绝发送，避免关菜单。不含 Alt+Tab（foreground 会真实切走前台）。

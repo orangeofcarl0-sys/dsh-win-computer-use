@@ -373,7 +373,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（21/21 JS）
-npm test                           # 22 套离线测试，483 个断言
+npm test                           # 22 套离线测试，507 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \

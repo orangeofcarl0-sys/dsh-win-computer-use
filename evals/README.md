@@ -9,7 +9,7 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 
 ## 任务集（2026-09-09 基线后重排：只留重要×快；重要但慢的做优化）
 
-> 共 **10 条**：冒烟 4 + 核心 6（含 `x1` 委派通道集成）。此前的“9 条”说法漏了 `x1`；`verify-oracles` 的 10/10 对应的就是这 10 条。
+> 共 **17 条**：冒烟 4 + 核心 6（含 `x1` 委派通道集成）+ dirty 脏桌面 7（t11-t17）。旧的 10 条基线对应 t01-t10/wa2/x1；dirty 组单独统计。
 
 **优化原则**：oracle 一律不改（判据不变才可跨版本比较），只把 setup **预置到决策点**——
 应用已开、目录已停、内容已载。被测能力保留，启动/导航/发现的探索成本砍掉。
@@ -34,6 +34,22 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 | t09 | 画图填充纯红并保存 | 图形表面 + 像素级 oracle | 画图已开 | 57（timeout） |
 | t10 | 两文档内容互换 | **多文档/多窗口状态管理（最大缺口）** | 两文件已载入记事本 | 48（timeout） |
 | x1 | 委派记事本保存 | **`computer_task` 子 agent 委派通道** | 沙箱目标目录已建 | 17（timeout，0.5.3 / dsh 0.1.5 报告） |
+
+### Dirty 脏桌面组（2026-11-16，真实用户会话；不要求先关用户应用）
+
+| id | 任务 | 依赖 | oracle / 备注 |
+|---|---|---|---|
+| t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 颜色 mask/bbox 容差；首轮真机 107 步 fail（模型未保存输出） |
+| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | PPTX XML；无 COM；AC2 SKIP |
+| t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 新增 PDF 的 SHA-256；只删匹配新文件 |
+| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart；AC2 SKIP |
+| t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态 |
+| t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
+| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本；高风险；AC2 SKIP |
+
+- 这些 md 标记 `- **isolation: dirty**`；`headless-run.mjs` 只在选中任务含 Notepad 任务时做 TabState backup/restore，dirty 组不碰用户 Notepad。
+- setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）记 `verdict=env`；`verify-oracles` 对 `ac2: none` 任务显示 SKIP，不伪造 PASS。
+- 用户已有 Paint/PowerPoint/Excel/浏览器/Notepad 窗口一律不关；cleanup 只关 setup 记录的测试 HWND/文档，证明不了就 leftover+dirty。
 
 ### 退役（2026-09-09，git 历史可恢复）
 
@@ -71,7 +87,7 @@ evals/
 ```
 
 - `<id>`：自编组 `t01`…`t10`，WAA 本地化组 `wa1`…`wa6`（文件名主干即 id）。
-- **运行前置**：所有 Notepad 窗口（含无窗口的 Notepad 进程）必须关闭。`headless-run.mjs` / `verify-oracles.mjs` 会先调用 `lib/tabstate.ps1 backup` 把用户 TabState 移到 `~/.dsh/s4-evals/_tabstate-backup/`，每个 setup 前清掉上一个任务的 eval bin，跑完 restore。手动跑 setup 时可用 `powershell -File evals/lib/tabstate.ps1 backup|restore|status`。若进程被杀导致未 restore，先关测试窗口再执行 restore。
+- **运行前置**：Notepad 任务（t01/t05/t06/t07/t10/x1）要求所有 Notepad 窗口（含无窗口进程）关闭；dirty 组（t11-t17）不要求，且跳过 TabState。Notepad 任务会先调用 `lib/tabstate.ps1 backup` 把用户 TabState 移到 `~/.dsh/s4-evals/_tabstate-backup/`，每个 setup 前清掉上一个任务的 eval bin，跑完 restore。手动跑 setup 时可用 `powershell -File evals/lib/tabstate.ps1 backup|restore|status`。若进程被杀导致未 restore，先关测试窗口再执行 restore。
 - **PS1 一律 ASCII-only**（PowerShell 5.1 把无 BOM 脚本按 ANSI 解析，中文注释会炸解析器）——中文只进 .md。
 - 沙箱根：`%USERPROFILE%\.dsh\s4-evals\<id>\`。任务涉及"Documents/Desktop/Pictures"的一律本地化为沙箱内对应子目录（防动用户真实文件），改动点记入任务 md 溯源说明。
 - 判定原则（不可妥协）：oracle 绝不用模型自评，全部 PS/Win32 确定性读；setup/oracle 与被测动作解耦（runner 直调）。
