@@ -2,7 +2,7 @@
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 最近基线：2026-11-16 · `npm test` 22 套 / **510 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
-> 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
+> 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t15 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 1. 原则
 
@@ -249,4 +249,6 @@ node evals/headless-run.mjs --tasks t11,t12,t13,t14,t15,t16,t17 \
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；dirty 组 t11/t15/t16 PASS（AC2 full）、t12/t13/t14/t17 SKIP；任务集 17 条 |
 | 打包 | `npm pack --dry-run` 38 文件 |
+
+> t11/t12/t15 的逐轮时间线、工具计数、失败模式与 ZCode CU 对比见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；CU 社区对照见 [CU-RESEARCH](CU-RESEARCH.md)。
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

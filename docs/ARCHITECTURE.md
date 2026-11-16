@@ -403,6 +403,11 @@ stateDiagram-v2
 | # | 位置 | 现象 | 影响 | 方向 |
 |---|---|---|---|---|
 | A7 | `lib/actions.js` 像素路径 | 驱动 0.23.2 在混合 DPI 下像素点击落点有实测偏差（三种语义假设均有反例） | 像素点击 best-effort；element 路径不受影响 | 等上游修复；文档已降级表述 |
+| A8 | `computer_drag` schema/payload | 只暴露四坐标 + duration；driver 已支持 `from_zoom` / `modifier` / `steps` / `button`，插件未接线 | t11 画布 zoom 坐标只能手算；Shift 约束/平滑拖拽缺失 | 先接线并补 schema/真机探针，见 [CU-RESEARCH](CU-RESEARCH.md) |
+| A9 | `computer_click` schema | 没有 `modifier`；driver 已支持 ctrl/shift | t15 非连续 Ctrl+click 多选不可用，模型退化成逐文件 Cut/Paste | 加 modifier 后跑 3–5 次 t15 对比 |
+| A10 | native observe | 轨迹出现 drag 前后同一 PNG hash、AX 状态已变的疑似陈旧截图；无 `frame_id`/freshness 字段 | 模型误判拖拽失败并重复/undo；坐标可能基于旧帧 | 做 deterministic probe；native 跳过 AX 去重或加 screenshot hash/freshness |
+| A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PowerPoint 形状拖拽仍靠坐标 | 评估 selectText/key hold/down-up；drag 支持 from_element |
+| A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 首次 drag 只聚焦；t12 颜色对话框/主窗反复切换 | 已有 `computer_activate`；评估手势后保持前台或 focus-click workaround |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 ROADMAP |
 | G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 PUBLISH |
 
@@ -410,7 +415,7 @@ stateDiagram-v2
 
 - 离线：22 套、510 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
-- 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
+- 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。t11/t12/t15 的模型行为与失败模式见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。
 
 ## 15. 参考

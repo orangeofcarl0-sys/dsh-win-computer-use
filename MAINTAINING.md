@@ -24,6 +24,8 @@
 | [docs/WINDOWS](docs/WINDOWS.md) | Windows 工程细节、冒烟矩阵、清理规则 |
 | [docs/RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 宿主/插件/驱动/session/eval 的完整运行时链路与失败语义 |
 | [docs/TESTING](docs/TESTING.md) | 测试分层、断言清单、排障 |
+| [docs/CU-RESEARCH](docs/CU-RESEARCH.md) | Codex/Claude Code/ZCode/Trae 与社区 CU 的复杂任务模型对比 |
+| [docs/TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) | t11/t12/t15 轨迹、模型行为、失败模式与 ZCode CU 探针 |
 | [VERIFICATION](VERIFICATION.md) | 验证矩阵、历史证据、未验证项 |
 | [PERMISSIONS](PERMISSIONS.md) | 权限面、网络/凭据/命令、承诺矩阵 |
 | [docs/store-evidence](docs/store-evidence.md) | STORE 安装/启动/卸载证据 |

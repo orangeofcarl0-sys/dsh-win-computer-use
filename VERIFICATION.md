@@ -16,6 +16,7 @@
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
 | query 只读视图 | **✅** query 后 `snapshotId=null`、动作 `[snapshot_missing]`、不污染差分/降噪 | Windows（离线） | `tests/observe.truth` T21-T25 + `schema.conformance` |
 | dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；首轮真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出）。2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用）；t15 **3/3 pass**（177/146/89 步）；t12 seed/占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过 | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
+| CU 调研/轨迹复盘 | Codex/Claude Code/ZCode/Trae + 社区 CU 的复杂任务模型；t11/t12/t15 逐轮时间线、工具计数、失败模式；ZCode CU 的 Ctrl+click、画布拖拽、PPT 形状元素探针 | Windows 11 / ZCode CU 0.6.5 | [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md)、[docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
 | 打包面 | **38 文件**（新增 lib/menu.js；含 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |

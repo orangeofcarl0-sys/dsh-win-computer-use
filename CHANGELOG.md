@@ -26,6 +26,7 @@
 - **t15 题面**：仍保留 8 文件；重命名放在移动之前，明确单击、禁止双击文件、F2 失败时用命令栏“重命名”，并要求最后统一验证一次。
 - **helper 修复**：`Open-TestAppWindow` 的 Office splash 二次选择重新校验 `TitleNeedle`；`Open-TestPaintDoc` 对已有 `mspaint` fail-closed；`Dismiss-TestSavePrompt` 支持 Paint 11 主窗口内的“是否要保存?” ContentDialog。
 - **trajectory**：新增 `appLaunchCalls` / `activateCalls`（含 dispatcher 路由），`ab-summary` 输出对应列。
+- **文档沉淀**：新增 `docs/CU-RESEARCH.md`（Codex/Claude Code/ZCode/Trae + UI-TARS/Agent-S/Cua 的复杂任务处理模型与证据等级）和 `docs/TRAJECTORY-ANALYSIS.md`（t11/t12/t15 逐轮时间线、工具计数、失败模式、ZCode CU 的 Ctrl+click/画布拖拽/PPT 形状探针）；README/MAINTAINING/TESTING/WINDOWS/ARCHITECTURE/VERIFICATION/evals 建立入口。ARCHITECTURE §13 新增 A8-A12（drag modifier/from_zoom/steps、click modifier、native freshness、selectText/key hold、前台手势）。
 
 ### 2026-11-16 验证（第五轮）
 

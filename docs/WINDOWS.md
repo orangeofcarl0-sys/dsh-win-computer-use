@@ -2,6 +2,7 @@
 
 > 适用：Windows 10/11。本文记录本仓库在真机上踩过的 Windows 特性、验证步骤与清理规则。
 > 通用使用说明见 [README](../README.md)；结构见 [ARCHITECTURE](ARCHITECTURE.md)。
+> 社区 CU 的复杂任务处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t15 的轨迹与手势缺口见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 > 最近一次真机环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。
 
 ## 1. 前置与完整性级别

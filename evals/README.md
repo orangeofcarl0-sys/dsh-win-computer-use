@@ -6,6 +6,8 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 > 前置：runner 从 `~/.dsh/profiles/web/node_modules/dsh-win-computer-use/package.json` 读取插件版本。当前 web profile 若仍是旧名 `dsh-computer-use` v0.5.3，报告里的 `pluginVersion` 会缺失/过期；先按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §6 部署新版再跑评测。
 >
 > **2026-11-14 状态**：`run.mjs` 是 dsh 0.1.5 时代的 Web UI runner，已**退役**；在 0.2.2 下它会创建空会话并误读步数，默认直接拒绝运行（`--allow-legacy-web` 仅供旧 UI 调试，`--dry-setup` 不受影响）。当前 S4 用 `headless-run.mjs`（dsh 0.2.2 已验证）。
+>
+> **轨迹复盘**：t11/t12/t15 的逐轮时间线、工具计数、失败模式与 ZCode CU 探针见 [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](../docs/CU-RESEARCH.md)。原始 report/trajectory 在 `evals/headless-runs/`（gitignored），不提交测量产物。
 
 ## 任务集（2026-09-09 基线后重排：只留重要×快；重要但慢的做优化）
 

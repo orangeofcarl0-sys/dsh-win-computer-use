@@ -322,6 +322,9 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 - **`app_launch` 的窗口可能需要人工收尾。** 驱动二进制要求管理员权限，启动的应用继承高完整性级别；非提权客户端 `taskkill` / `Stop-Process` / `WM_CLOSE` 都会被 UIPI 拒绝。WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 UIA 超时、`invoke_menu` 报 `menu_path_unavailable`）。测试/自动化优先操作已在运行的普通应用。
 - **管理员窗口仍是系统边界。** 驱动能操作它自己启动的高完整性窗口，但非提权客户端不能清理；具体按目标与通道判断，不是“管理员窗口一律不可操作”。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
+- **复杂拖拽/多选仍是能力边界。** 当前 `computer_click` 没有 `modifier`（Ctrl+click 多选不可用），`computer_drag` 没有 `modifier`/`from_zoom`/`steps`/元素源；driver 0.23.2 已支持这些参数，插件尚未接线。Paint 画布、PowerPoint 形状、Explorer 批量选择的具体轨迹与建议见 [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) 与 [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md)。
+- **native 截图 freshness 仍需独立探针。** 真机轨迹出现过“drag 前后同一 PNG hash、AX 状态已变”的疑似陈旧截图；在画布/自绘控件上重复 native 观察前，先用 `force`/状态栏或 deterministic probe 确认。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 A10。
+- **PowerPoint/Office 的可靠路径是结构化优先。** 能读 OOXML/COM/API 就不要靠 ribbon 点击；必须走 GUI 时，把 t12 这类任务按“改色/加标签/保存”拆分或放宽预算，不要用通用 CU 硬解。
 - **`screen_zoom` 需要当前模型支持图片输入。** 它不做视觉观察者降级；小字号 JPEG 可能不可读，读文字请用 `native`（无损 PNG）。
 - **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层光标；能否触发目标应用的真实 hover 取决于应用，`real=true` 会移动真实指针。
 - **`computer_menu` fail-closed。** 路径缺失/歧义/禁用/结构不匹配即失败，绝不回退像素。
@@ -395,6 +398,8 @@ node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 
 | [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md) | 升级审查 | dsh 0.2.2 契约矩阵、P0/P1 兼容缺口、升级顺序 |
 | [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 用户/贡献者 | 完整性级别、前台锁、输入通道、坐标/DPI、清理规则、冒烟矩阵 |
 | [docs/TESTING.md](docs/TESTING.md) | 贡献者 | 离线/真机/评测三层测试、断言清单、排障与新增测试 |
+| [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) | 架构/评测 | Codex、Claude Code、ZCode、Trae 与社区 CU 的复杂任务处理模型对比 |
+| [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) | 架构/评测 | t11/t12/t15 真机轨迹、模型行为、失败模式与 ZCode CU 探针 |
 | [VERIFICATION.md](VERIFICATION.md) | 审查者 | 当前验证矩阵、按日期的证据、未验证项 |
 | [PERMISSIONS.md](PERMISSIONS.md) | 审查者 | 权限面、网络/凭据/命令声明、承诺验证矩阵 |
 | [docs/store-evidence.md](docs/store-evidence.md) | STORE 审查 | 一次性 profile 安装/启动/卸载证据 |
