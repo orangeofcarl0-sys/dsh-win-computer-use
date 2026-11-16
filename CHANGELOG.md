@@ -16,6 +16,25 @@
 
 **2026-11-16（第三轮）：query 只读过滤视图、t01 星号证据修正、探索指标**
 
+**2026-11-16（第五轮）：dirty 轨迹修复——computer_activate、t11 颜色入口/题面、t12 16:9 seed、t15 重命名优先**
+
+### 2026-11-16 Added（第五轮）
+
+- **`computer_activate(window_id, pid?)`**：显式把已存在窗口前置（driver `bring_to_front`），不启动/关闭应用，也不恢复原前台；默认 dispatcher 下隐藏，经 `computer_do` 路由。`catalogOf` 上限 20→24，隐藏工具 20→21，工具总数 22→23。
+- **t11 修复**：canvas/ref 移到 `{task_dir}` 根；setup 先开 Paint 再开参考浏览器，并最大化 Paint；Paint 11 的 `矩形/椭圆/直线` 与 `红色/靛蓝色/黑色` 调色板项在 AX 树中，题面给出显式点击/拖拽顺序；oracle 改为三色 ROI + 全局 precision；`Probe` 确认调色板名称。
+- **t12 seed**：从本机 `WidescreenPresentation.potx` 裁剪出单页 16:9 `out\replica.pptx`（改 content type、删其余 slide/notes/rels），预填 title/subtitle 并注入 3 个目标几何的灰色占位柱；setup 直接打开最终路径并记录 `seedHash`；oracle 要求 hash 变化。题面改为“给占位柱改色/加标签”，去掉 footer/字体要求。
+- **t15 题面**：仍保留 8 文件；重命名放在移动之前，明确单击、禁止双击文件、F2 失败时用命令栏“重命名”，并要求最后统一验证一次。
+- **helper 修复**：`Open-TestAppWindow` 的 Office splash 二次选择重新校验 `TitleNeedle`；`Open-TestPaintDoc` 对已有 `mspaint` fail-closed；`Dismiss-TestSavePrompt` 支持 Paint 11 主窗口内的“是否要保存?” ContentDialog。
+- **trajectory**：新增 `appLaunchCalls` / `activateCalls`（含 dispatcher 路由），`ab-summary` 输出对应列。
+
+### 2026-11-16 验证（第五轮）
+
+- 离线 `npm test`：22 套 / **510 断言**全绿；`npm run check` 21/21；`verify-runtime` 17/17；`verify-oracles --tasks t11,t12,t15` => t11/t15 PASS（AC2 full），t12 SKIP（AC2 none）。
+- **t11**：旧题面 107/71 步 fail；显式题面 **84/77 步 pass**（oracle 全绿；app_launch=0，computer_activate 使用，12 次 drag）。一次变体因强制大小滑块被中止；无效 PNG 输出现在按 fail 而不是 ENV。
+- **t15**：新题面 **3/3 pass**，steps 177/146/89（8 文件终态正确），中位仍高于旧题面 112；冗余主要来自 F2/右键重命名与逐步验证，单靠题面未压下来，后续考虑拆 rename 或固定 Explorer 视图。
+- **t12**：16:9 seed + 预填 title/subtitle + 灰色占位柱可直接打开、可保存；25 min/190 步运行中 title/subtitle、红/蓝柱、Q1 通过，Q2/Q3 与绿柱未完成。t12 仍列高风险，不作为 smoke 承诺；后续需拆分“改色/加标签”或进一步减少柱数/延长预算。
+- 未提交任何 report/trajectory/measurement 产物。
+
 ### 2026-11-16 Added（第三轮）
 
 - **`screen_observe(query)` 改为只读过滤视图**：query 调用后跳过 `cacheSnapshot`/`diffObserve`/`dedupEvaluate`，并 `clearSnapshot()`（driver 的 `get_window_state` 已让旧 token 失效）；输出 `snapshotId=null`，header/footer 明确“编号不能用于动作/from_zoom，需要动作请重新全量观察”。这样 query 的子集不会削弱保存门禁、菜单栏判断、`nearestEntry` 或动作后复核。

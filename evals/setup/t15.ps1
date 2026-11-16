@@ -27,6 +27,7 @@ try {
   [void](Close-OrphanTestExplorer -TitleNeedle 's4-t15-inbox' -Files @('alpha.txt', 'report-draft.txt'))
   $stateFile = Join-Path $base 'explorer.json'
   $e = Open-TestExplorer -Path $inbox.FullName -TitleNeedle @('s4-t15-inbox') -StateFile $stateFile
+  if ($e.ok) { Maximize-TestWindow ([int]$e.hwnd) }
   $checks += (Add-Check 'Explorer test window' ([bool]$e.ok) ("hwnd=$($e.hwnd) title=$($e.title) reason=$($e.reason)"))
   if (-not $e.ok) { Out-Finish -Ok $false -Checks $checks -Kind 'setup' -EnvError ("Explorer unavailable: " + $e.reason) }
   Out-Finish -Ok $true -Checks $checks -Kind 'setup'

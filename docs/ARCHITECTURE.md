@@ -85,7 +85,7 @@ flowchart LR
 | 组 | 工具 | 数量 |
 |---|---|---:|
 | 观察 | `screen_observe`、`screen_zoom` | 2 |
-| 动作 | `computer_click`、`double_click`、`right_click`、`type`、`set_value`、`key`、`scroll`、`drag`、`wait`、`app_list`、`app_launch` | 11 |
+| 动作 | `computer_click`、`double_click`、`right_click`、`type`、`set_value`、`key`、`scroll`、`drag`、`wait`、`app_list`、`app_launch`、`computer_activate` | 12 |
 | 运营 | `computer_verify`、`wait_for`、`clipboard`、`menu`、`hover`、`stop`、`resume` | 7 |
 | 委派 | `computer_task` | 1 |
 | 元工具 | `computer_do` | 1 |
@@ -101,10 +101,10 @@ flowchart LR
 
 | 模式 | 可见 | 隐藏 | 说明 |
 |---|---|---:|---|
-| `dispatcher`（默认） | `computer_do`、`screen_observe` | 20 | 所有动作经 dispatcher 路由 |
-| `hybrid` | 上面 2 个 + `HOT_TOOLS` 5 个 | 15 | 热工具直接调用，长尾路由 |
+| `dispatcher`（默认） | `computer_do`、`screen_observe` | 21 | 所有动作经 dispatcher 路由 |
+| `hybrid` | 上面 2 个 + `HOT_TOOLS` 5 个 | 16 | 热工具直接调用，长尾路由 |
 
-`HOT_TOOLS = [computer_click, computer_type, computer_key, computer_scroll, computer_verify]`。`catalogOf` 生成 `name(required,optional?)` 紧凑签名，最多 20 条。
+`HOT_TOOLS = [computer_click, computer_type, computer_key, computer_scroll, computer_verify]`。`catalogOf` 生成 `name(required,optional?)` 紧凑签名，最多 24 条。
 
 ### 4.3 隐藏工具仍然走完整管线
 
@@ -408,8 +408,8 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：22 套、507 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
-- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
+- 离线：22 套、510 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。
 

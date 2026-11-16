@@ -1,10 +1,10 @@
 /**
  * dsh-win-computer-use —— Windows-first Computer Use 插件：给 harness-desktop 增加"虚拟鼠标真人操作"。
  *
- * 工具集（Hermes 风格，模型友好，共 22 个，按域分三组注册）：
+ * 工具集（Hermes 风格，模型友好，共 23 个，按域分三组注册）：
  *   观察组：screen_observe / screen_zoom
  *   动作组：computer_click / double_click / right_click / type / set_value / key / scroll / drag / wait
- *           app_list / app_launch
+ *           app_list / app_launch / computer_activate
  *   运营组：computer_verify / wait_for / clipboard / menu / hover / stop / resume
  *
  * 视觉能力（原生接入）：
@@ -49,7 +49,7 @@ import { resetWindowMap } from './lib/windowMap.js'
 import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
 import {
-  click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, setValue,
+  click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, activate, setValue,
 } from './lib/actions.js'
 import { guard } from './lib/guard.js'
 import { cuaCall, CUA_SESSION } from './lib/cua.js'
@@ -642,6 +642,22 @@ function actionToolDefs(ctx, cfg, wrap) {
       window_id: { oneOf: [{ type: 'integer' }, { type: 'null' }], description: '启动后找到的可见主窗 window_id；没有窗口时为 null。' },
     }),
     execute: wrap('app_launch', (args) => launchApp(args)),
+  },
+
+  {
+    name: 'computer_activate',
+    description: '激活已存在的窗口到前台：按 window_id（可带 pid）调用驱动 bring_to_front。'
+      + '用于脏桌面/多窗口切换，避免点任务栏或反复 Alt+Tab。不会启动/关闭应用，也不会恢复原前台；'
+      + 'window_id 来自 screen_observe 或 app_list。需要操作窗口内容时，激活后仍要先 screen_observe 取快照。',
+    parameters: {
+      window_id: { type: 'integer', required: true, description: '目标窗口 id（screen_observe 或 app_list 输出）。' },
+      pid: { type: 'integer', description: '可选：窗口所属 pid；缺省根据 window_id 从最近窗口列表解析。' },
+    },
+    output: OUT({
+      window_id: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
+      pid: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
+    }),
+    execute: wrap('computer_activate', (args) => activate(args)),
   },
   ]
 }

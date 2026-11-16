@@ -91,7 +91,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 - **Ctrl+A 的可靠回退是“点编辑菜单 → 全选”**，不是前台裸 `press_key`；后者虽然能选中，但 background 变体会把裸键插入正文。插件 `xamlKeyFallback` 的对话框 `press_key` 分支始终走 foreground，避免该污染。
 - **Alt+F 只在 foreground `press_key` 下可靠**；`hotkey` 走 UIA AcceleratorKey 扫描，WinUI3 上不可达。
-- **Alt+Tab 只在 foreground `press_key` 下生效**（真实 OS 切换）；`hotkey` 会 4s 超时。任务里优先用 `app_list`/`bring_to_front`/`app_launch` 切窗口，不要依赖 Alt+Tab。
+- **Alt+Tab 只在 foreground `press_key` 下生效**（真实 OS 切换）；`hotkey` 会 4s 超时。任务里优先用 `app_list`/`computer_activate`/`app_launch` 切窗口，不要依赖 Alt+Tab。
 - 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须用 observe/verify 复核，不能把 unverifiable 当成功。
 
 插件映射（0.5.7-dev）：
@@ -104,8 +104,12 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 - `alt+f` 成功后清空快照，强制重新观察取菜单项编号；若快照已显示弹出菜单项则拒绝发送，避免把菜单关掉。
 - press 失败回执写“前台 `press_key` 也未能发送 …”，不再建议刚试过的 `foreground=true`。
-- `alt+tab` 永不自动回退：foreground `press_key` 会真实切走前台；切窗口用 `app_launch`/`bring_to_front`。
+- `alt+tab` 永不自动回退：foreground `press_key` 会真实切走前台；切窗口用 `computer_activate`/`app_launch`。
 - 顶层菜单栏点击在 `effect:unverifiable` 时给菜单专用注记（不要重复点同一菜单栏项）；`verifyAfterAction=auto` 时同窗口复核会报告“检测到弹出菜单项/未检测到”，但不额外扫描独立 popup 窗口。
+
+### 4.1 显式窗口激活（computer_activate）
+
+`computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；它不要求快照，但激活后要操作窗口内容仍需 `screen_observe` 取编号。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。`window_id` 来自 `screen_observe` / `app_list`；未知 id 会明确失败并提示重新观察。
 
 ## 5. 观察与结构密码扫描
 
@@ -164,7 +168,7 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   "调用 computer_do(action='status')，把返回原文贴出来"
 ```
 
-期望：`status` 返回 `dispatcher` 模式、直接可见 `computer_do,screen_observe`、隐藏 20 个。2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；headless 默认 `credentials: disabled`，不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
+期望：`status` 返回 `dispatcher` 模式、直接可见 `computer_do,screen_observe`、隐藏 21 个。2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；headless 默认 `credentials: disabled`，不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
 
 ### 7.2 真桌面闭环（推荐脚本）
 
@@ -182,7 +186,7 @@ node tests/live-action.e2e.mjs 3
 node verify-runtime.mjs
 ```
 
-16 项：dispatcher 可见 2 / catalog 20 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` / native 图片落盘 / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致。只读观察，不执行桌面动作。
+16 项：dispatcher 可见 2 / catalog 21 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` / native 图片落盘 / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致。只读观察，不执行桌面动作。
 
 ### 7.4 密码框
 

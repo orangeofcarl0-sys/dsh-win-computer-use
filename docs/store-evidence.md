@@ -39,10 +39,10 @@ rm -rf "$DSH_HOME"
 |---|---|---|
 | 语法 + 安装脚本 | `npm run check` | **21/21** JS + `bash -n install.sh/uninstall.sh` |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **22 套 / 507 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **22 套 / 510 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏，真实 `screen_observe` + dispatcher 路由 |
-| 工具定义面 | `toolDefinitions()`（测试/诊断） | **22 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_task |
-| 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 20 个经 dispatcher 路由；`hybrid` 注册 7 个 |
+| 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
+| 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
 | 安全护栏 | `guard()` / `wrap()` | 凭据硬保护、无快照/过期拒绝、`allowedApps`、极危注记、stop/resume 锁存 |
 | 权限声明 | `PERMISSIONS.md` + `package.json dsh.permissions` | spawn 固定 argv；核心无网络；可选 GLM 外呼如实声明；无 lifecycle |
 | 打包面 | `npm pack --dry-run --json` | **38 文件**（见 §4），无 `node_modules` / `.dsh-test` / `tests` / `evals` |

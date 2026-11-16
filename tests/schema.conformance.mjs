@@ -187,6 +187,7 @@ const scenarios = [
   { name: 'clipboard/write', stub: 'ok', tool: 'computer_clipboard', args: { action: 'write', text: 'x' } },
   { name: 'app_list/ok', stub: 'ok', tool: 'app_list', args: {} },
   { name: 'app_launch/ok', stub: 'ok', tool: 'app_launch', args: { app: 'notepad' } },
+  { name: 'activate/ok', stub: 'ok', tool: 'computer_activate', args: { window_id: 77 } },
   { name: 'verify/ok', stub: 'ok', tool: 'computer_verify', args: { window_id: 77, expect: JSON.stringify([{ element: { selector: { role: 'Button', label_contains: 'Save' }, exists: true } }]) } },
   { name: 'verify/unknown', stub: 'ok', tool: 'computer_verify', args: { window_id: 77, expect: '不是json' } },
   { name: 'menu/ok', stub: 'ok', tool: 'computer_menu', args: { window_id: 77, path: JSON.stringify(['Save']) } },

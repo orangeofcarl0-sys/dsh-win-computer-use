@@ -1,6 +1,6 @@
 /**
  * 工具面模式测试（surfaceMode，2026-11-10：dispatcher 默认 / hybrid）：
- *   dispatcher：只暴露 computer_do + screen_observe；20 个隐藏工具经 action="call" 路由。
+ *   dispatcher：只暴露 computer_do + screen_observe；21 个隐藏工具经 action="call" 路由。
  *   hybrid：再暴露 5 个高频原生工具；长尾经 dispatcher 路由。
  *   dynamic 已废弃移除。
  *
@@ -91,7 +91,7 @@ function session(mode) {
   check('A3 computer_do 是 dispatcher 面（call/catalog/status）', actionEnum.includes('call') && actionEnum.includes('catalog') && !actionEnum.includes('enter'), actionEnum.join(','))
 
   const cat = await s.call('computer_do', { action: 'catalog' })
-  check('A4 catalog 列出 20 个隐藏工具', cat.ok === true && (cat.tools || []).length === 20 && /computer_click/.test(cat.result) && /computer_menu/.test(cat.result), `tools=${(cat.tools || []).length}`)
+  check('A4 catalog 列出 21 个隐藏工具', cat.ok === true && (cat.tools || []).length === 21 && /computer_click/.test(cat.result) && /computer_menu/.test(cat.result) && /computer_activate/.test(cat.result), `tools=${(cat.tools || []).length}`)
   check('A5 catalog 不改变注册面', s.reg.size === 2, `reg=${s.reg.size}`)
   check('A6 隐藏 click 不在注册表', !s.reg.has('computer_click'))
 

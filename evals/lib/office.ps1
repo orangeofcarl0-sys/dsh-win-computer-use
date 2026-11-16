@@ -183,3 +183,172 @@ function Read-XlsxManifest([string]$Path) {
     $zip.Dispose()
   }
 }
+
+function Set-S4ZipText($Zip, [string]$Name, [string]$Text) {
+  $entry = $Zip.GetEntry($Name)
+  if (-not $entry) { throw "zip entry missing: $Name" }
+  $stream = $entry.Open()
+  $stream.SetLength(0)
+  $stream.Position = 0
+  $enc = New-Object Text.UTF8Encoding($false)
+  $writer = New-Object IO.StreamWriter($stream, $enc)
+  $writer.Write($Text)
+  $writer.Dispose()
+}
+
+function Remove-S4ZipEntry($Zip, [string]$Name) {
+  $entry = $Zip.GetEntry($Name)
+  if ($entry) { $entry.Delete() }
+}
+
+function Get-S4BarPlaceholderXml {
+  # Three visible gray rectangles at the exact target geometry. The model only
+  # needs to recolor/label them; this avoids a 20-minute Insert>Shapes hunt.
+  $template = @'
+<p:sp><p:nvSpPr><p:cNvPr id="__ID__" name="__NAME__"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="__X__" y="__Y__"/><a:ext cx="__W__" cy="__H__"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="7F7F7F"/></a:solidFill></a:ln></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>
+'@
+  $bars = @(
+    @(101, 'S4 Bar Q1', 571500, 1857375),
+    @(102, 'S4 Bar Q2', 3429000, 1857375),
+    @(103, 'S4 Bar Q3', 6286500, 1857375)
+  )
+  $parts = @()
+  foreach ($b in $bars) {
+    $parts += $template.Replace('__ID__', [string]$b[0]).Replace('__NAME__', [string]$b[1]).Replace('__X__', [string]$b[2]).Replace('__Y__', [string]$b[3]).Replace('__W__', '2286000').Replace('__H__', '2143125')
+  }
+  return ($parts -join '')
+}
+
+function New-S4WidescreenPptxSeed([string]$Path) {
+  # PowerPoint's built-in WidescreenPresentation.potx is a 16:9 template, but it
+  # contains 8 sample slides. Copy it, switch the package content type from
+  # template to presentation, and prune everything except slide 1 so the task
+  # starts from exactly one 16:9 slide at the final output path. No COM: never
+  # attach to the user's PowerPoint instance.
+  $roots = @(
+    (Join-Path $env:ProgramFiles 'Microsoft Office\root\Templates'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Office\root\Templates')
+  )
+  $tpl = $null
+  foreach ($root in $roots) {
+    if (-not $root -or -not (Test-Path $root)) { continue }
+    $tpl = Get-ChildItem -Path $root -Recurse -Filter 'WidescreenPresentation.potx' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($tpl) { break }
+  }
+  if (-not $tpl) {
+    return [ordered]@{ ok = $false; reason = 'WidescreenPresentation.potx not found under Office Templates' }
+  }
+  try {
+    Copy-Item $tpl.FullName $Path -Force
+    $zip = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+      $ct = Read-S4ZipText $zip '[Content_Types].xml'
+      $oldType = 'application/vnd.openxmlformats-officedocument.presentationml.template.main+xml'
+      $newType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml'
+      if ($ct.IndexOf($oldType, [StringComparison]::Ordinal) -lt 0) {
+        throw 'template content type not found in seed'
+      }
+      $ct = $ct.Replace($oldType, $newType)
+
+      $presText = Read-S4ZipText $zip 'ppt/presentation.xml'
+      $pres = New-Object System.Xml.XmlDocument
+      $pres.LoadXml($presText)
+      $lst = $pres.SelectSingleNode("//*[local-name()='sldIdLst']")
+      if (-not $lst) { throw 'presentation.xml missing sldIdLst' }
+      $ids = @($lst.ChildNodes | Where-Object { $_.NodeType -eq 'Element' })
+      for ($i = $ids.Count - 1; $i -ge 1; $i--) { [void]$lst.RemoveChild($ids[$i]) }
+      $sw = New-Object IO.StringWriter
+      $settings = New-Object System.Xml.XmlWriterSettings
+      $settings.Encoding = New-Object Text.UTF8Encoding($false)
+      $settings.OmitXmlDeclaration = $false
+      $xw = [System.Xml.XmlWriter]::Create($sw, $settings)
+      $pres.Save($xw)
+      $xw.Dispose()
+      $presText = $sw.ToString()
+      $presText = $presText.Replace('encoding="utf-16"', 'encoding="UTF-8"')
+      $sw.Dispose()
+
+      $relsText = Read-S4ZipText $zip 'ppt/_rels/presentation.xml.rels'
+      $rels = New-Object System.Xml.XmlDocument
+      $rels.LoadXml($relsText)
+      foreach ($rel in @($rels.SelectNodes("//*[local-name()='Relationship']"))) {
+        $target = [string]$rel.Target
+        if ($target -match '^slides/slide([2-9]|[1-9][0-9])\.xml$') {
+          [void]$rel.ParentNode.RemoveChild($rel)
+        }
+      }
+      $sw2 = New-Object IO.StringWriter
+      $xw2 = [System.Xml.XmlWriter]::Create($sw2, $settings)
+      $rels.Save($xw2)
+      $xw2.Dispose()
+      $relsText = $sw2.ToString()
+      $relsText = $relsText.Replace('encoding="utf-16"', 'encoding="UTF-8"')
+      $sw2.Dispose()
+
+      # Remove slide 2..N and their notes/relationship parts, plus their
+      # content-type overrides. Slide 1 and its layout/master/theme stay.
+      for ($n = 2; $n -le 40; $n++) {
+        $slide = "ppt/slides/slide$n.xml"
+        $slideRels = "ppt/slides/_rels/slide$n.xml.rels"
+        $notes = "ppt/notesSlides/notesSlide$n.xml"
+        $notesRels = "ppt/notesSlides/_rels/notesSlide$n.xml.rels"
+        $any = $false
+        foreach ($name in @($slide, $slideRels, $notes, $notesRels)) {
+          if ($zip.GetEntry($name)) { $any = $true }
+        }
+        if (-not $any) { continue }
+        Remove-S4ZipEntry $zip $slide
+        Remove-S4ZipEntry $zip $slideRels
+        Remove-S4ZipEntry $zip $notes
+        Remove-S4ZipEntry $zip $notesRels
+        $ct = $ct.Replace("<Override PartName=`"/ppt/slides/slide$n.xml`"", "<Override PartName=`"/ppt/slides/slide$n.xml-removed`"")
+        $ct = $ct.Replace("<Override PartName=`"/ppt/notesSlides/notesSlide$n.xml`"", "<Override PartName=`"/ppt/notesSlides/notesSlide$n.xml-removed`"")
+      }
+      # Drop the renamed (now dangling) overrides entirely.
+      $ct = [regex]::Replace($ct, '<Override PartName="/ppt/(slides/slide|notesSlides/notesSlide)[0-9]+\.xml-removed"[^>]*/>', '')
+
+      # Pre-fill title/subtitle and add three visible placeholder bars at the
+      # target geometry. The task is then recolor/label, not Insert>Shapes.
+      $slide1 = Read-S4ZipText $zip 'ppt/slides/slide1.xml'
+      if (-not $slide1 -or $slide1.IndexOf('</p:spTree>') -lt 0) { throw 'slide1 missing spTree' }
+      $slideDoc = New-Object System.Xml.XmlDocument
+      $slideDoc.LoadXml($slide1)
+      $texts = @($slideDoc.SelectNodes("//*[local-name()='t']"))
+      if ($texts.Count -lt 2) { throw 'slide1 title/subtitle text nodes missing' }
+      $texts[0].InnerText = 'S4 PPT REPLICA'
+      $texts[1].InnerText = 'Dirty Desktop Test'
+      $slideSw = New-Object IO.StringWriter
+      $slideSettings = New-Object System.Xml.XmlWriterSettings
+      $slideSettings.Encoding = New-Object Text.UTF8Encoding($false)
+      $slideSettings.OmitXmlDeclaration = $false
+      $slideXw = [System.Xml.XmlWriter]::Create($slideSw, $slideSettings)
+      $slideDoc.Save($slideXw)
+      $slideXw.Dispose()
+      $slide1 = $slideSw.ToString().Replace('encoding="utf-16"', 'encoding="UTF-8"')
+      $slideSw.Dispose()
+      $slide1 = $slide1.Replace('</p:spTree>', ((Get-S4BarPlaceholderXml) + '</p:spTree>'))
+      Set-S4ZipText $zip 'ppt/slides/slide1.xml' $slide1
+
+      Set-S4ZipText $zip '[Content_Types].xml' $ct
+      Set-S4ZipText $zip 'ppt/presentation.xml' $presText
+      Set-S4ZipText $zip 'ppt/_rels/presentation.xml.rels' $relsText
+    } finally {
+      $zip.Dispose()
+    }
+    $m = Read-PptxManifest $Path
+    $ratio = 0
+    if ($m.slideHeightIn -gt 0) { $ratio = $m.slideWidthIn / $m.slideHeightIn }
+    if ($m.slideCount -ne 1) {
+      return [ordered]@{ ok = $false; reason = "seed slide count=$($m.slideCount) (expected 1)" }
+    }
+    if ([math]::Abs($ratio - 1.7778) -gt 0.04) {
+      return [ordered]@{ ok = $false; reason = "seed not 16:9: $($m.slideWidthIn)x$($m.slideHeightIn)" }
+    }
+    return [ordered]@{
+      ok = $true; path = $Path; template = $tpl.FullName
+      slideCount = $m.slideCount; widthIn = $m.slideWidthIn; heightIn = $m.slideHeightIn
+    }
+  } catch {
+    return [ordered]@{ ok = $false; reason = $_.Exception.Message }
+  }
+}

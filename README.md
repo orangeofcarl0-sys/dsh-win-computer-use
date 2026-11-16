@@ -1,7 +1,7 @@
 # dsh-win-computer-use
 
 > **Windows-first Computer Use for DeepSeek Harness。**
-> 深度 Win32 / WinUI / UIA 工程 · 零审批三级投递 · 22 个工具，默认 2 个稳定入口。
+> 深度 Win32 / WinUI / UIA 工程 · 零审批三级投递 · 23 个工具，默认 2 个稳定入口。
 
 [![Release](https://img.shields.io/badge/release-0.5.6-blue)]()
 [![main](https://img.shields.io/badge/main-0.5.7--dev-orange)]()
@@ -20,7 +20,7 @@
 
 给 [DeepSeek Harness](https://github.com/988hj7tczd-oss/harness-desktop) 加一层**可观察、可验证、Windows 深度实测**的桌面操作能力。底层通过 [cua-driver](https://github.com/trycua/cua) 驱动本地桌面；插件本身不内置截图循环，也不替模型做决策——它把“看、点、输、验”拆成细粒度工具，由模型组合。点击走虚拟光标（可见滑行，不移动真实指针；`computer_hover(real=true)` 是例外）；后台投递不抢焦点，需要前台时短暂交换并恢复。
 
-默认只暴露 **2 个稳定入口**（`computer_do` + `screen_observe`），其余 **20 个工具**经 dispatcher 路由；切到 `hybrid` 可再直接暴露 5 个高频动作。工具列表在会话内保持不变，以保护 prompt cache。
+默认只暴露 **2 个稳定入口**（`computer_do` + `screen_observe`），其余 **21 个工具**经 dispatcher 路由；切到 `hybrid` 可再直接暴露 5 个高频动作。工具列表在会话内保持不变，以保护 prompt cache。
 
 它不是“跨平台 CUA 的薄封装”。Windows 上真正难的不是“能不能点”，而是下面这些墙——本仓库逐项踩过并写进了实现：
 
@@ -110,16 +110,16 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ## 工具面：默认 2 个入口
 
-22 个工具的 schema 常驻会持续占用模型注意力，也会让工具层变化打断 prompt cache。默认只注册 2 个稳定入口：
+23 个工具的 schema 常驻会持续占用模型注意力，也会让工具层变化打断 prompt cache。默认只注册 2 个稳定入口：
 
 | 模式 | 直接可见 | 隐藏 | 路由方式 |
 |---|---|---|---|
-| `dispatcher`（默认） | `computer_do` + `screen_observe` | 20 | `computer_do({action:'call', tool, args})` |
-| `hybrid` | 2 + `computer_click` / `computer_type` / `computer_key` / `computer_scroll` / `computer_verify` | 15 | 热工具直接调用；长尾经 dispatcher |
+| `dispatcher`（默认） | `computer_do` + `screen_observe` | 21 | `computer_do({action:'call', tool, args})` |
+| `hybrid` | 2 + `computer_click` / `computer_type` / `computer_key` / `computer_scroll` / `computer_verify` | 16 | 热工具直接调用；长尾经 dispatcher |
 
 `computer_do` 的三种动作：
 
-- `action:"catalog"`：列出隐藏工具的紧凑签名（`name(required,optional?)`），最多 20 条；`query` 可按名称/描述过滤。
+- `action:"catalog"`：列出隐藏工具的紧凑签名（`name(required,optional?)`），最多 24 条；`query` 可按名称/描述过滤。
 - `action:"call"`：路由到隐藏工具；隐藏工具**不注册、不能直接调用**，但仍走自己的锁存/守卫/参数校验/快照/回执。
 - `action:"status"`：查看当前模式与可见/隐藏清单。
 
@@ -137,7 +137,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ## 工具参考
 
-共 22 个：21 个桌面能力 + 1 个 dispatcher。默认 `dispatcher` 下，除 `screen_observe` / `computer_do` 外都经 `computer_do` 调用；标 **H** 的工具在 `hybrid` 下可直接调用。
+共 23 个：22 个桌面能力 + 1 个 dispatcher。默认 `dispatcher` 下，除 `screen_observe` / `computer_do` 外都经 `computer_do` 调用；标 **H** 的工具在 `hybrid` 下可直接调用。
 
 ### 观察
 
@@ -163,6 +163,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `computer_wait` | 本地等待（不调引擎） | `ms` | — |
 | `app_list` | 列出运行中应用（显示上限 20 条） | — | — |
 | `app_launch` | 后台启动应用，可选前置 | `name` 或 `bundle_id` | `bring_to_front`、`creates_new_instance` |
+| `computer_activate` | 把已存在窗口激活到前台（不启动/关闭、不恢复原前台） | `window_id` | `pid` |
 
 ### 运营
 
@@ -296,7 +297,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `ttlMs` | `60000` | 观察快照有效期（毫秒） |
 | `maxElements` | `120` | 单次观察最多返回的编号元素数（实测常见任务 30–70 个） |
 | `observeDedup` | `summary` | 重复观察降噪：`summary` / `brief` / `off`；`force=true` 强制全量 |
-| `surfaceMode` | `dispatcher` | `dispatcher`（2 个常驻 + 20 隐藏）/ `hybrid`（2 + 5 热工具 + 15 隐藏） |
+| `surfaceMode` | `dispatcher` | `dispatcher`（2 个常驻 + 21 隐藏）/ `hybrid`（2 + 5 热工具 + 16 隐藏） |
 | `verboseReceipts` | `false` | `true` = 动作回执附原始 JSON（排障用） |
 | `taskTimeoutMin` | `5` | `computer_task` 默认超时；调用方可用 `timeout_min` 覆盖（1–60） |
 | `maxTaskCalls` | `3` | 每会话委派次数上限 |
@@ -373,7 +374,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（21/21 JS）
-npm test                           # 22 套离线测试，507 个断言
+npm test                           # 22 套离线测试，510 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -383,7 +384,7 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 10/10；2026-11-15 本机 7/10，t04/t06/t10 环境问题）
 ```
 
-`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 45 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（23 个工具 / 46 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 
@@ -405,7 +406,7 @@ node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 
 
 ## English (brief)
 
-Windows-first Computer Use plugin for the DeepSeek Harness: 22 tools (21 desktop capabilities + one dispatcher), with **2 stable tools visible by default** and the other 20 routed through `computer_do`. It drives local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor.
+Windows-first Computer Use plugin for the DeepSeek Harness: 23 tools (22 desktop capabilities + one dispatcher), with **2 stable tools visible by default** and the other 21 routed through `computer_do`. It drives local desktops through [cua-driver](https://github.com/trycua/cua) with an isolated virtual cursor.
 
 - **Loop**: `screen_observe` (AX/UIA index tree, native screenshot, or vision observer) → act by `element` index or window-screenshot pixels → verify.
 - **Stance — zero-friction autonomy**: no approval prompts; background-first delivery escalates to foreground/`bring_to_front` and restores the previous foreground. The only content-level hard refusal is automated password entry (`typing` / `set_value`); `extremePatterns` adds non-blocking warning notes.

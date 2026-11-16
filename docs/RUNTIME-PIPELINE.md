@@ -10,7 +10,7 @@
 dsh CLI
   -> profile + patch 叠加
   -> cordis Loader / ToolsService
-  -> 插件 apply(ctx, config)（编译 22 个 defineTool，只注册可见子集）
+  -> 插件 apply(ctx, config)（编译 23 个 defineTool，只注册可见子集）
   -> 模型 step
   -> tools.execute
        -> 参数校验（defineTool）

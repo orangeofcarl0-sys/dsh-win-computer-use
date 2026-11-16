@@ -11,6 +11,9 @@ try {
     Out-Finish -Ok $false -Checks $checks
   }
   $checks += (Add-Check 'file exists' $true $out)
+  $seedHash = [string]$state.seedHash
+  $outHash = Get-S4Sha256 $out
+  $checks += (Add-Check 'presentation changed from seed' ($seedHash -ne '' -and $outHash -ne $seedHash) ("seed=$seedHash out=$outHash"))
   $started = [datetime]::Parse([string]$state.startedAt).ToUniversalTime()
   $fi = Get-Item $out
   $checks += (Add-Check 'file is newer than setup' ($fi.LastWriteTimeUtc -ge $started) ("mtime=$($fi.LastWriteTimeUtc.ToString('o'))"))
@@ -24,7 +27,7 @@ try {
   $texts = @()
   foreach ($s in @($m.slides)) { $texts += @($s.texts) }
   $allText = (($texts -join ' ') -replace '\s+', ' ').Trim()
-  foreach ($needle in @('S4 PPT REPLICA', 'Dirty Desktop Test', 'Q1', 'Q2', 'Q3', 'seed:S4-T12')) {
+  foreach ($needle in @('S4 PPT REPLICA', 'Dirty Desktop Test', 'Q1', 'Q2', 'Q3')) {
     $checks += (Add-Check "text: $needle" ($allText.IndexOf($needle, [System.StringComparison]::Ordinal) -ge 0) $allText)
   }
 
@@ -44,9 +47,9 @@ try {
 
   $shapes = @($m.slides[0].shapes)
   $targets = @(
-    @('red', 'C00000', 0.833, 2.708, 3.333, 3.125),
-    @('blue', '0070C0', 5.000, 2.708, 3.333, 3.125),
-    @('green', '70AD47', 9.167, 2.708, 3.333, 3.125)
+    @('red', 'C00000', 0.625, 2.031, 2.500, 2.344),
+    @('blue', '0070C0', 3.750, 2.031, 2.500, 2.344),
+    @('green', '70AD47', 6.875, 2.031, 2.500, 2.344)
   )
   foreach ($t in $targets) {
     $name = [string]$t[0]; $color = [string]$t[1]

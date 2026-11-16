@@ -3,9 +3,8 @@ param([string]$TaskId = '')
 $checks = @()
 try {
   $base = Get-TaskDir
-  $refDir = New-TaskDir 'ref'
   $outDir = New-TaskDir 'out'
-  $ref = Join-Path $refDir 's4-t11-ref.png'
+  $ref = Join-Path $base 's4-t11-ref.png'
   New-PaintReferencePng $ref
   $startedAt = (Get-Date).ToUniversalTime()
   $out = Join-Path $outDir 'replica.png'

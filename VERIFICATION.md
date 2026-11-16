@@ -8,14 +8,14 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 507 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **22 套 / 510 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **21/21 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-15 18:40 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
 | query 只读视图 | **✅** query 后 `snapshotId=null`、动作 `[snapshot_missing]`、不污染差分/降噪 | Windows（离线） | `tests/observe.truth` T21-T25 + `schema.conformance` |
-| dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出） | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
+| dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；首轮真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出）。2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用）；t15 **3/3 pass**（177/146/89 步）；t12 seed/占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过 | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
 | 打包面 | **38 文件**（新增 lib/menu.js；含 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
@@ -304,7 +304,7 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 - `live-action` 的 `23/23`（会打开临时记事本窗口；不杀进程，残留标签人工关闭）；
 - `verify-oracles` 的 `10/10`；
 - `npm pack --dry-run` 的 total files = 36；
-- headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 20 隐藏（本次实测见 §2.1）。
+- headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 21 隐藏（本次实测见 §2.1；§2.1 为 2026-11-12 的 20 隐藏历史记录）。
 - 若 `verify-oracles` 的 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp`。
 
 ## 6. 证据约定

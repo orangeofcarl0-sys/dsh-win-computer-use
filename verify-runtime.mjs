@@ -121,12 +121,12 @@ const config = {
 plugin.apply(ctx, config)
 
 // 断言工具注册 + 新能力
-// 默认 dispatcher：直接可见 computer_do + screen_observe；其余 20 个经 catalog/action=call 路由。
+// 默认 dispatcher：直接可见 computer_do + screen_observe；其余 21 个经 catalog/action=call 路由。
 const EXPECTED_ALWAYS = ['computer_do', 'screen_observe']
 const HIDDEN_TOOLS = [
   'screen_zoom', 'computer_click', 'computer_double_click', 'computer_right_click',
   'computer_type', 'computer_set_value', 'computer_key', 'computer_scroll', 'computer_drag', 'computer_wait',
-  'app_list', 'app_launch', 'computer_verify', 'computer_wait_for', 'computer_clipboard',
+  'app_list', 'app_launch', 'computer_activate', 'computer_verify', 'computer_wait_for', 'computer_clipboard',
   'computer_menu', 'computer_hover', 'computer_stop', 'computer_resume', 'computer_task',
 ]
 const collapsed = [...registered.keys()].sort()

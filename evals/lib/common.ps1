@@ -525,9 +525,18 @@ function Dismiss-TestSavePrompt([int]$Hwnd, [int]$TargetPid = 0) {
   # test window. Get-ModalTestWindows only returns windows whose ownership/modal
   # relation to the test HWND is proven; title alone is never used for selection.
   $noSave = -join @([char]0x4E0D, [char]0x4FDD, [char]0x5B58)
+  $roots = @()
   foreach ($d in @(Get-ModalTestWindows $Hwnd $TargetPid)) {
+    try { $roots += [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$d.hwnd) } catch {}
+  }
+  # Paint 11 (WinUI) renders its "是否要保存?" ContentDialog inside the main
+  # window tree instead of a separate top-level HWND; callers have already proved
+  # the main HWND is test-owned, so scanning it is safe.
+  if ($Hwnd) {
+    try { $roots += [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd) } catch {}
+  }
+  foreach ($root in $roots) {
     try {
-      $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$d.hwnd)
       $cond = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::Button)
@@ -1047,6 +1056,15 @@ function Test-ProcessIdentity([int]$TargetPid, [string]$StartIso) {
   } catch { return $false }
 }
 
+function Maximize-TestWindow {
+  # State-scoped test window only. Paint 11 clips off-screen ribbon groups when
+  # the window is narrow, which removes the color palette from the AX tree.
+  param([int]$Hwnd)
+  if (-not $Hwnd) { return }
+  try { [void][S4W32]::ShowWindow([IntPtr]$Hwnd, 3) } catch {}
+  Start-Sleep -Milliseconds 700
+}
+
 function Open-TestAppWindow {
   # Generic state-scoped app window opener for dirty-desktop tasks.
   # Requires a NEW top-level HWND whose process name matches and whose title
@@ -1103,6 +1121,9 @@ function Open-TestAppWindow {
   # Office often shows a transient "Opening..." splash window before the real
   # document window. Prefer a later new window whose title is not the loading
   # title, so cleanup closes the document window rather than the splash.
+  # TitleNeedle must still match: otherwise a second Chrome/Office window of the
+  # same process (session restore, extra splash) could be recorded as the test
+  # window while the actual document window is left untracked.
   Start-Sleep -Milliseconds 1800
   $loading = -join @([char]0x6B63, [char]0x5728, [char]0x6253, [char]0x5F00)
   $better = $null
@@ -1116,6 +1137,16 @@ function Open-TestAppWindow {
     $t = [string]$w.title
     if (-not $t) { continue }
     if ($t.IndexOf($loading, [System.StringComparison]::Ordinal) -ge 0) { continue }
+    if ($TitleNeedle.Count -gt 0) {
+      $needleOk = $false
+      foreach ($n in @($TitleNeedle)) {
+        if ($t.IndexOf([string]$n, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+          $needleOk = $true
+          break
+        }
+      }
+      if (-not $needleOk) { continue }
+    }
     $better = $w
   }
   if ($better) { $hit = $better }
@@ -1168,8 +1199,18 @@ function Close-TestAppWindow {
 function Open-TestPaintDoc {
   # Paint 11 may be a tabbed app. We require a NEW top-level HWND with a unique
   # seed title; if Paint merges into an existing user window we fail closed rather
-  # than closing a user tab/window.
+  # than closing a user tab/window. Preflight any existing mspaint process: once
+  # Paint 11 has merged the seed as a tab there is no new HWND to prove ownership,
+  # and cleanup cannot distinguish the test tab from the user's document. ENV is
+  # safer than silently touching the user's Paint window.
   param([string]$SeedPath, [string]$TitleNeedle, [string]$StateFile)
+  $existing = @(Get-Process -Name 'mspaint' -ErrorAction SilentlyContinue)
+  if ($existing.Count -gt 0) {
+    return [ordered]@{
+      ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false
+      reason = 'existing mspaint process; close Paint manually before running t11 (never closed automatically)'
+    }
+  }
   $exe = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\mspaint.exe'
   if (-not (Test-Path $exe)) { $exe = 'mspaint.exe' }
   return Open-TestAppWindow -Exe $exe -Arguments @($SeedPath) -ProcessName 'mspaint' -TitleNeedle @($TitleNeedle) -StateFile $StateFile

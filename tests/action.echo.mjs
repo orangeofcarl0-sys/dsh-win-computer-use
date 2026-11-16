@@ -176,6 +176,24 @@ check('E9b: app_launch 前置带可见主窗 window_id', stub.frontCalls[0]?.win
   JSON.stringify(stub.frontCalls[0] || null))
 delete process.env.CUA_LAUNCH_MODE
 
+// 8b. computer_activate：显式前置，带 window_id+pid；不产生额外恢复调用
+;({ call } = await fresh())
+const frontBefore = stub.frontCalls.length
+const act = await call('computer_do', {
+  action: 'call', tool: 'computer_activate', args: { window_id: 7 },
+})
+check('E9c: computer_activate 透传 window_id/pid', act.ok === true
+  && /已激活窗口 window_id=7 pid=42/.test(raw(act))
+  && stub.frontCalls.length === frontBefore + 1
+  && stub.frontCalls[frontBefore]?.pid === 42
+  && stub.frontCalls[frontBefore]?.window_id === 7,
+  `${raw(act)} calls=${JSON.stringify(stub.frontCalls.slice(frontBefore))}`)
+const actMiss = await call('computer_do', {
+  action: 'call', tool: 'computer_activate', args: { window_id: 999 },
+})
+check('E9d: 未知 window_id 明确失败', actMiss.ok === false
+  && /未找到 window_id=999/.test(raw(actMiss)), raw(actMiss))
+
 // 9. stale_element_token：清空旧快照，下一次动作必须重新观察
 ;({ call, obs } = await fresh({ actionGuard: 'off' }))
 process.env.CUA_STALE_CLICK = '1'

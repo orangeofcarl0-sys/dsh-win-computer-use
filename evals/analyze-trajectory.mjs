@@ -56,6 +56,8 @@ export function analyzeTrajectory(file) {
   let clipboardCalls = 0
   let dragCalls = 0
   let menuCalls = 0
+  let appLaunchCalls = 0
+  let activateCalls = 0
   let snapshotMismatch = 0
   let repeatSuppressed = 0
   const suppressedByTool = {}
@@ -65,16 +67,22 @@ export function analyzeTrajectory(file) {
     if (e.type === 'session_end') end = e.ms
     if (e.type === 'tool_start' && e.id) {
       toolNameById.set(e.id, e.name)
-      if (e.name === 'computer_type') typeHashes.push(e.args?.text?.hash || null)
-      if (e.name === 'screen_observe') {
+      // dispatcher 路由：computer_do({action:'call', tool})；新轨迹也可能直接记录内部工具。
+      const routedName = e.name === 'computer_do' && e.args?.action === 'call'
+        ? String(e.args.tool || '')
+        : e.name
+      if (routedName === 'computer_type') typeHashes.push(e.args?.text?.hash || null)
+      if (routedName === 'screen_observe') {
         if (e.args?.mode === 'native') nativeObserves++
         if (e.args?.force === true) forceObserves++
         if (e.args?.query) queryObserves++
       }
-      if (e.name === 'screen_zoom') zoomCalls++
-      if (e.name === 'computer_clipboard') clipboardCalls++
-      if (e.name === 'computer_drag') dragCalls++
-      if (e.name === 'computer_menu') menuCalls++
+      if (routedName === 'screen_zoom') zoomCalls++
+      if (routedName === 'computer_clipboard') clipboardCalls++
+      if (routedName === 'computer_drag') dragCalls++
+      if (routedName === 'computer_menu') menuCalls++
+      if (routedName === 'app_launch') appLaunchCalls++
+      if (routedName === 'computer_activate') activateCalls++
     }
     if (e.type === 'tool_end') {
       // computer_do 是路由壳；新轨迹已不记录外壳，这里保留兼容过滤。
@@ -182,6 +190,8 @@ export function analyzeTrajectory(file) {
     clipboardCalls,
     dragCalls,
     menuCalls,
+    appLaunchCalls,
+    activateCalls,
     clicks,
   }
   summary.strategy = strategyOf(summary)
@@ -260,6 +270,8 @@ function main() {
     clipboard: summary.clipboardCalls,
     drag: summary.dragCalls,
     menu: summary.menuCalls,
+    appLaunch: summary.appLaunchCalls,
+    activate: summary.activateCalls,
     repeatSuppressed: summary.repeatSuppressed,
     loops: summary.loops.length,
   }), 'strategy=', summary.strategy)

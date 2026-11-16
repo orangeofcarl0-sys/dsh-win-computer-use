@@ -104,6 +104,82 @@ public class S4ImageMask {
     return res;
   }
 
+  public static S4MaskResult CompareRect(string refPath, string outPath,
+    int rx, int ry, int rw, int rh,
+    int rMin, int rMax, int gMin, int gMax, int bMin, int bMax,
+    int dilate, int step) {
+    if (step < 1) step = 1;
+    if (dilate < 0) dilate = 0;
+    S4MaskResult res = new S4MaskResult();
+    using (Bitmap rb = new Bitmap(refPath))
+    using (Bitmap ob = new Bitmap(outPath)) {
+      int x0 = Math.Max(0, rx);
+      int y0 = Math.Max(0, ry);
+      int x1 = Math.Min(rb.Width, rx + rw);
+      int y1 = Math.Min(rb.Height, ry + rh);
+      x1 = Math.Min(x1, ob.Width);
+      y1 = Math.Min(y1, ob.Height);
+      int w = Math.Max(0, x1 - x0);
+      int h = Math.Max(0, y1 - y0);
+      res.Width = w; res.Height = h;
+      if (w == 0 || h == 0) return res;
+      int rs, os;
+      byte[] rbuf = Bytes(rb, out rs);
+      byte[] obuf = Bytes(ob, out os);
+      int gw = (w + step - 1) / step;
+      int gh = (h + step - 1) / step;
+      bool[] rm = new bool[gw * gh];
+      bool[] om = new bool[gw * gh];
+      for (int gy = 0; gy < gh; gy++) {
+        int y = y0 + Math.Min(h - 1, gy * step);
+        for (int gx = 0; gx < gw; gx++) {
+          int x = x0 + Math.Min(w - 1, gx * step);
+          int ri = y * rs + x * 4;
+          int oi = y * os + x * 4;
+          int r = rbuf[ri + 2], g = rbuf[ri + 1], b = rbuf[ri];
+          int ro = obuf[oi + 2], go = obuf[oi + 1], bo = obuf[oi];
+          bool rHit = r >= rMin && r <= rMax && g >= gMin && g <= gMax && b >= bMin && b <= bMax;
+          bool oHit = ro >= rMin && ro <= rMax && go >= gMin && go <= gMax && bo >= bMin && bo <= bMax;
+          rm[gy * gw + gx] = rHit;
+          om[gy * gw + gx] = oHit;
+          if (rHit) {
+            res.RefCount++;
+            if (x < res.RefMinX) res.RefMinX = x;
+            if (y < res.RefMinY) res.RefMinY = y;
+            if (x > res.RefMaxX) res.RefMaxX = x;
+            if (y > res.RefMaxY) res.RefMaxY = y;
+          }
+          if (oHit) {
+            res.OutCount++;
+            if (x < res.OutMinX) res.OutMinX = x;
+            if (y < res.OutMinY) res.OutMinY = y;
+            if (x > res.OutMaxX) res.OutMaxX = x;
+            if (y > res.OutMaxY) res.OutMaxY = y;
+          }
+          if (rHit && oHit) res.InterCount++;
+        }
+      }
+      int rad = Math.Max(1, dilate / step);
+      for (int gy = 0; gy < gh; gy++) {
+        for (int gx = 0; gx < gw; gx++) {
+          if (!om[gy * gw + gx]) continue;
+          bool near = false;
+          for (int dy = -rad; dy <= rad && !near; dy++) {
+            int yy = gy + dy;
+            if (yy < 0 || yy >= gh) continue;
+            for (int dx = -rad; dx <= rad; dx++) {
+              int xx = gx + dx;
+              if (xx < 0 || xx >= gw) continue;
+              if (rm[yy * gw + xx]) { near = true; break; }
+            }
+          }
+          if (near) res.DilInterCount++;
+        }
+      }
+    }
+    return res;
+  }
+
   public static double WhiteRatio(string path, int minRgb, int step) {
     if (step < 1) step = 1;
     using (Bitmap b = new Bitmap(path)) {
@@ -139,13 +215,15 @@ function New-PaintReferencePng([string]$Path) {
   $bmp = New-Object System.Drawing.Bitmap 800, 600
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.Clear([System.Drawing.Color]::White)
-  $red = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(192, 0, 0))
-  $blue = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0, 112, 192))
-  $g.FillRectangle($red, 80, 90, 200, 140)
-  $g.FillEllipse($blue, 420, 90, 180, 120)
-  $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::Black), 10
-  $g.DrawLine($pen, 110, 480, 690, 480)
-  $pen.Dispose(); $red.Dispose(); $blue.Dispose(); $g.Dispose()
+  # Outlines only: the reference is designed to be reproduced with Paint's
+  # default shape stroke, so the agent does not need the fill-style control.
+  $redPen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(192, 0, 0)), 6
+  $bluePen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(0, 112, 192)), 6
+  $blackPen = New-Object System.Drawing.Pen ([System.Drawing.Color]::Black), 10
+  $g.DrawRectangle($redPen, 80, 90, 200, 140)
+  $g.DrawEllipse($bluePen, 420, 90, 180, 120)
+  $g.DrawLine($blackPen, 110, 480, 690, 480)
+  $redPen.Dispose(); $bluePen.Dispose(); $blackPen.Dispose(); $g.Dispose()
   $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
 }
@@ -176,7 +254,6 @@ function New-PptReferencePng([string]$Path, [string]$Seed) {
     $g.DrawString([string]$b[7], $labelFont, $white, [float]([int]$b[0] + 130), [float]([int]$b[1] + 120))
     $brush.Dispose()
   }
-  $g.DrawString(('seed:' + $Seed), $footFont, $gray, 80, 660)
   $titleFont.Dispose(); $subFont.Dispose(); $labelFont.Dispose(); $footFont.Dispose()
   $dark.Dispose(); $gray.Dispose(); $white.Dispose(); $g.Dispose()
   $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
@@ -191,7 +268,7 @@ function Get-PngSize([string]$Path) {
   return $r
 }
 
-function Compare-ColorMask([string]$Ref, [string]$Out, [string]$Name) {
+function Get-ColorMaskSpec([string]$Name) {
   $spec = @{
     red = @(150, 255, 0, 90, 0, 90)
     blue = @(0, 90, 60, 160, 140, 255)
@@ -199,5 +276,15 @@ function Compare-ColorMask([string]$Ref, [string]$Out, [string]$Name) {
     black = @(0, 70, 0, 70, 0, 70)
   }[$Name]
   if (-not $spec) { throw "unknown mask: $Name" }
+  return $spec
+}
+
+function Compare-ColorMask([string]$Ref, [string]$Out, [string]$Name) {
+  $spec = Get-ColorMaskSpec $Name
   return [S4ImageMask]::Compare($Ref, $Out, $spec[0], $spec[1], $spec[2], $spec[3], $spec[4], $spec[5], 5, 2)
+}
+
+function Compare-MaskRegion([string]$Ref, [string]$Out, [string]$Name, [int]$X, [int]$Y, [int]$W, [int]$H) {
+  $spec = Get-ColorMaskSpec $Name
+  return [S4ImageMask]::CompareRect($Ref, $Out, $X, $Y, $W, $H, $spec[0], $spec[1], $spec[2], $spec[3], $spec[4], $spec[5], 5, 2)
 }

@@ -3,11 +3,11 @@ param([string]$TaskId = '')
 $checks = @()
 try {
   $base = Get-TaskDir
-  $refDir = New-TaskDir 'ref'
   [void](New-TaskDir 'out')
-  $seedDir = New-TaskDir 'seed'
-  $refPath = Join-Path $refDir 's4-t11-ref.png'
-  $canvas = Join-Path $seedDir 's4-t11-canvas.png'
+  # Put both inputs directly in task_dir: the previous seed\ subdirectory made
+  # the model guess a path and retry file-open navigation before drawing.
+  $refPath = Join-Path $base 's4-t11-ref.png'
+  $canvas = Join-Path $base 's4-t11-canvas.png'
   if (Test-Path $refPath) { Remove-Item $refPath -Force }
   if (Test-Path $canvas) { Remove-Item $canvas -Force }
   New-PaintReferencePng $refPath
@@ -16,11 +16,14 @@ try {
 
   $viewerState = Join-Path $base 'viewer.json'
   $paintState = Join-Path $base 'paint.json'
+  # Open Paint first, reference browser last: the reference is readable on entry,
+  # and the Paint window stays open behind it for computer_activate.
+  $paint = Open-TestPaintDoc -SeedPath $canvas -TitleNeedle 's4-t11-canvas' -StateFile $paintState
+  if ($paint.ok) { Maximize-TestWindow ([int]$paint.hwnd) }
+  $checks += (Add-Check 'paint test window' ([bool]$paint.ok) ("hwnd=$($paint.hwnd) title=$($paint.title) reason=$($paint.reason)"))
   $url = [System.Uri]::new($refPath).AbsoluteUri
   $viewer = Open-TestBrowserWindow -Url $url -TitleNeedle 's4-t11-ref' -StateFile $viewerState
   $checks += (Add-Check 'reference browser window' ([bool]$viewer.ok) ("hwnd=$($viewer.hwnd) title=$($viewer.title) reason=$($viewer.reason)"))
-  $paint = Open-TestPaintDoc -SeedPath $canvas -TitleNeedle 's4-t11-canvas' -StateFile $paintState
-  $checks += (Add-Check 'paint test window' ([bool]$paint.ok) ("hwnd=$($paint.hwnd) title=$($paint.title) reason=$($paint.reason)"))
 
   $state = [ordered]@{
     startedAt = $startedAt.ToString('o')

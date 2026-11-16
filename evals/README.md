@@ -39,17 +39,18 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 
 | id | 任务 | 依赖 | oracle / 备注 |
 |---|---|---|---|
-| t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 颜色 mask/bbox 容差；首轮真机 107 步 fail（模型未保存输出） |
-| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | PPTX XML；无 COM；AC2 SKIP |
+| t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 三色 ROI mask/bbox 容差；Paint 最大化后调色板/形状工具在 AX 树；旧题面 107/71 步 fail，显式题面 **84/77 步 pass** |
+| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 单页 16:9 seed + 预填 title/subtitle + 3 个灰色占位柱 + `seedHash`；2026-11-16 25 min/190 步仅完成红/蓝柱+Q1，仍高风险；AC2 SKIP |
 | t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 新增 PDF 的 SHA-256；只删匹配新文件 |
 | t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart；AC2 SKIP |
-| t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态 |
+| t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态（8 文件；先重命名再移动；2026-11-16 3/3 pass，177/146/89 步） |
 | t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
 | t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本；高风险；AC2 SKIP |
 
 - 这些 md 标记 `- **isolation: dirty**`；`headless-run.mjs` 只在选中任务含 Notepad 任务时做 TabState backup/restore，dirty 组不碰用户 Notepad。
 - setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）记 `verdict=env`；`verify-oracles` 对 `ac2: none` 任务显示 SKIP，不伪造 PASS。
 - 用户已有 Paint/PowerPoint/Excel/浏览器/Notepad 窗口一律不关；cleanup 只关 setup 记录的测试 HWND/文档，证明不了就 leftover+dirty。
+- t11 setup 若已有 `mspaint` 进程会 fail-closed 为 ENV（Paint 11 单进程多标签，无法证明 seed 没合进用户窗口）；t12 从 `WidescreenPresentation.potx` 裁剪出单页 16:9 seed 并直接打开最终输出文件；t15 题面把重命名放在移动之前，并提供命令栏“重命名”回退。
 
 ### 退役（2026-09-09，git 历史可恢复）
 
