@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-16 · `npm test` 22 套 / **510 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-17 · `npm test` 22 套 / **533 项检查** · `npm run check` **21/21** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t15 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 1. 原则
@@ -18,10 +18,12 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 21 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 510 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类 |
+| 离线单元/契约 | `npm test` | 22 套 / 533 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/自动前台、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
+| modifier 手势 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达目标；drag modifier 在 0.23.2 上不进入目标（记录为 driver 缺口） |
+| native freshness | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
 | 任务级评测 | `node evals/headless-run.mjs --tier smoke` | 17 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
@@ -34,24 +36,24 @@
 | `posture.smoke.mjs` | 37 | 零审批姿态、密码硬保护（AX/UIA/结构位/掩码）、极危注记、桌面降级、快照新鲜度 I 系列、执行侧接线、zoom pid/500px/fromZoom、compact 明确失败 |
 | `tools.smoke.mjs` | 26 | stop/resume 锁存、verify unknown≠成功、wait_for 超时、clipboard/menu/hover、失败回执（clipboard error_code/supported:false、menu 缺 effect、hover refusal、stop/resume 驱动失败、engineRefusal ok:false、menu 路径分隔/顶层编号指引） |
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
-| `schema.conformance.mjs` | 46 | 23 个工具 / 46 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活形态 |
+| `schema.conformance.mjs` | 47 | 23 个工具 / 47 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活/modifier click 形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
 | `observe.truth.mjs` | 25 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示、query 只读/无快照/动作拒绝/不污染差分 |
 | `observe.coords.mjs` | 14 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
-| `human.click.mjs` | 16 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/零滑行/缺失与跨窗口拒绝 |
-| `action.echo.mjs` | 32 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、app_launch 启动成功+前置未确认/window_id、computer_activate 窗口激活/未知 id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示 |
+| `human.click.mjs` | 22 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/零滑行/缺失与跨窗口拒绝、modifier 规范化/自动前台/非法值/double/right 透传 |
+| `action.echo.mjs` | 34 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、modifier 与普通 click 的重复签名区分、app_launch 启动成功+前置未确认/window_id、computer_activate 窗口激活/未知 id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示 |
 | `delivery.failures.mjs` | 25 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true |
 | `delivery.foreground.mjs` | 13 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出 |
 | `key.xaml.mjs` | 33 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败不再建议 foreground=true）；alt+f/ctrl+a 的 xamlPressFallback 前景回退、菜单优先、清快照与菜单已开拒绝 |
 | `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
-| `trajectory.test.mjs` | 15 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe、观察提示不伪造 delivery/unverified |
+| `trajectory.test.mjs` | 18 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe、观察提示不伪造 delivery/unverified、modifier 独立 loop 签名、driver 层 drag/click 手势参数保留 |
 | `eval-safety.mjs` | 65 | 禁止按 Notepad/mspaint/POWERPNT/EXCEL/chrome/msedge 进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明；dirty 任务 helper/Dirty/Downloads 按 hash 清理 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
 | `config.plumbing.mjs` | 25 | 21 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵 |
-| `action-bounds.mjs` | 21 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒 |
-| `dispatcher.test.mjs` | 33 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 结构化字段、工具面稳定、宿主 schema |
+| `action-bounds.mjs` | 30 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒；drag `steps`/`duration_ms=0`/`from_zoom`/zoom 缺失与过期/非法参数 |
+| `dispatcher.test.mjs` | 35 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 结构化字段、工具面稳定、宿主 schema、click modifier/drag from_zoom+steps 输入面 |
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 
 ### 3.1 共享脚手架
@@ -78,7 +80,7 @@ node verify-runtime.mjs
 
 前提：`cua-driver` 可用；当前桌面有可见窗口；Node 22。
 
-检查项（16 个断言）：
+检查项（17 个断言）：
 
 1. dispatcher 可见工具 = `computer_do` + `screen_observe`；
 2. catalog 覆盖 21 个隐藏工具；
@@ -199,14 +201,19 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 ```bash
 node evals/verify-oracles.mjs --tasks t11,t12,t13,t14,t15,t16,t17
-node evals/headless-run.mjs --tasks t11,t12,t13,t14,t15,t16,t17 \
-  --repeats 1 --timeout-min 20 --patch evals/headless-patch.yml
+node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch evals/headless-patch.yml
+node evals/headless-run.mjs --tasks t11 --repeats 3 --timeout-min 20 --patch evals/headless-patch.yml
+node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40 --patch evals/headless-patch.yml
 ```
 
 - `ac2: none`（t12/t13/t14/t17）在 verify-oracles 中显示 **SKIP**，表示 setup/oracle-empty/cleanup 已验，但无 simulate；不是假 PASS。
 - setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）在 headless-run 记 `verdict=env`，不混入 pass/fail。
 - t13 复用用户浏览器：下载目录是真实 Downloads；oracle/cleanup 只考虑任务开始后新增且哈希匹配的 PDF，绝不删除用户已有文件。
 - 2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**（旧题面 107/71 fail）；t15 新题面 **3/3 pass**（177/146/89 步，仍高于旧 112）；t12 16:9 seed+占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过，仍高风险；t17 依赖 PDF 文本选择/剪贴板。
+- 2026-11-17 t15 手势轮：`modifier` + 文件单选 `foreground=true` + F2 后 Ctrl+A 全选，**3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；无 Notepad/Photos 误开；dirty=false）。
+- 2026-11-17 t11 画布轮：UIA 确认画布 `(879,600) 800x600` 1:1；setup 用 AX `大小` 菜单把三种形状固定为 `8 像素`，题面给精确窗口坐标。**3/3 pass，70/88/48 步**（三色 ROI/coverage/precision 全绿；activate + 焦点 click；app_launch=0）。
+- 2026-11-17 t12 白底轮：白底 seed + 按形状名选择 + 标准色/直接输入标签 + 40 分钟预算；**2/2 pass，140/169 步**（hash/1 页/16:9/Q1-Q3/三色柱全 true）。此前 25 分钟/190 步只完成 red/blue + Q1。
+- 2026-11-17 手势轮：`probe-modifier` 证明 click element/坐标的 Ctrl 真机到达；drag 的 modifier 在 driver 0.23.2 上不进入目标键状态，插件不开放该参数。t12 seed 改为白底、只留 title/subtitle 占位符和三条灰柱，AC2 setup 记录 `replica.pptx - PowerPoint`，无修复对话框；`probe-native-freshness` 未复现陈旧 native 截图。
 - 首轮真机样本：t13 论文下载 **pass 19 步**（NeurIPS PDF SHA-256，cleanup removed=1）；t15 Explorer 整理 **pass 112 步**（能收敛但探索很长）；t16 本地表单 **pass 17 步**；cleanup 干净、TabState skipped、无用户窗口被关。
 
 ## 7. 新增测试/工具
@@ -240,7 +247,7 @@ node evals/headless-run.mjs --tasks t11,t12,t13,t14,t15,t16,t17 \
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 510 ✅ / 0 ❌ |
+| 离线 | 22 套 / 533 ✅ / 0 ❌ |
 | 语法 | 21/21 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |

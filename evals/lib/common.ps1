@@ -1216,6 +1216,108 @@ function Open-TestPaintDoc {
   return Open-TestAppWindow -Exe $exe -Arguments @($SeedPath) -ProcessName 'mspaint' -TitleNeedle @($TitleNeedle) -StateFile $StateFile
 }
 
+function Invoke-TestUiaButton {
+  # Invoke a UIA button/toggle by exact accessible name. ASCII-only script:
+  # callers pass names built from [char] code points for Chinese labels.
+  param([int]$Hwnd, [string]$Name)
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName UIAutomationTypes
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd)
+    $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    $lastReason = ''
+    foreach ($e in $all) {
+      if ([string]$e.Current.Name -ne $Name) { continue }
+      # Same name often appears on both a ListItem (virtualization only) and the
+      # real Button/ToggleButton. Try every match instead of failing on the first.
+      try {
+        $e.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        return [ordered]@{ ok = $true; control = $e.Current.ControlType.ProgrammaticName }
+      } catch { $lastReason = $_.Exception.Message }
+      try {
+        $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+        return [ordered]@{ ok = $true; control = $e.Current.ControlType.ProgrammaticName }
+      } catch { $lastReason = $_.Exception.Message }
+      try {
+        $e.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        return [ordered]@{ ok = $true; control = $e.Current.ControlType.ProgrammaticName }
+      } catch { $lastReason = $_.Exception.Message }
+      try {
+        $e.GetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern).DoDefaultAction()
+        return [ordered]@{ ok = $true; control = $e.Current.ControlType.ProgrammaticName }
+      } catch { $lastReason = $_.Exception.Message }
+    }
+    return [ordered]@{ ok = $false; reason = "UIA action failed for $Name : $lastReason" }
+  } catch {
+    return [ordered]@{ ok = $false; reason = $_.Exception.Message }
+  }
+}
+
+function Set-TestPaintBrushWidth {
+  # Open Paint's AX size menu and choose one of 3/5/8 px.
+  # SizeIndex: 0=3px, 1=5px, 2=8px. The menu items are in the desktop root.
+  param([int]$Hwnd, [int]$SizeIndex = 2)
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName UIAutomationTypes
+  $sizeName = -join ([char[]](0x5927, 0x5C0F))
+  $r = Invoke-TestUiaButton -Hwnd $Hwnd -Name $sizeName
+  if (-not $r.ok) { return $r }
+  Start-Sleep -Milliseconds 700
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::MenuItem)
+  $items = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+    [System.Windows.Automation.TreeScope]::Descendants, $cond)
+  $candidates = @()
+  foreach ($i in $items) {
+    $b = $i.Current.BoundingRectangle
+    if ($b.X -ge 850 -and $b.X -le 1000 -and $b.Y -ge 200 -and $b.Y -le 520) {
+      $candidates += $i
+    }
+  }
+  $candidates = @($candidates | Sort-Object { $_.Current.BoundingRectangle.Y })
+  if ($candidates.Count -lt ($SizeIndex + 2)) {
+    try { [void](Invoke-TestUiaButton -Hwnd $Hwnd -Name $sizeName) } catch { }
+    return [ordered]@{ ok = $false; reason = "size menu items missing (found $($candidates.Count))" }
+  }
+  $pick = $candidates[$SizeIndex + 1]
+  $label = [string]$pick.Current.Name
+  $pickY = -1
+  try { $pickY = [int]$pick.Current.BoundingRectangle.Y } catch { $pickY = -1 }
+  try {
+    $pick.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 400
+    return [ordered]@{ ok = $true; label = $label; y = $pickY }
+  } catch {
+    return [ordered]@{ ok = $false; reason = $_.Exception.Message; label = $label }
+  }
+}
+
+function Set-TestPaintShapeWidths {
+  # Select each of Paint's rectangle/ellipse/line tools and set the same width.
+  # Leaves the rectangle tool selected so the task starts from a known state.
+  param([int]$Hwnd, [int]$SizeIndex = 2)
+  $shapes = @(
+    (-join ([char[]](0x77E9, 0x5F62))),
+    (-join ([char[]](0x692D, 0x5706))),
+    (-join ([char[]](0x76F4, 0x7EBF)))
+  )
+  $results = @()
+  foreach ($name in $shapes) {
+    $sel = Invoke-TestUiaButton -Hwnd $Hwnd -Name $name
+    if (-not $sel.ok) {
+      $results += [ordered]@{ shape = $name; ok = $false; reason = $sel.reason }
+      continue
+    }
+    Start-Sleep -Milliseconds 250
+    $w = Set-TestPaintBrushWidth -Hwnd $Hwnd -SizeIndex $SizeIndex
+    $results += [ordered]@{ shape = $name; ok = [bool]$w.ok; label = $w.label; reason = $w.reason }
+  }
+  [void](Invoke-TestUiaButton -Hwnd $Hwnd -Name $shapes[0])
+  $ok = -not ($results | Where-Object { -not $_.ok })
+  return [ordered]@{ ok = $ok; results = $results }
+}
+
 function Close-TestPaintDoc {
   param([string]$StateFile)
   return Close-TestAppWindow -StateFile $StateFile

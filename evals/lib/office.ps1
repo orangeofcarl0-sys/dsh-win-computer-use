@@ -307,12 +307,32 @@ function New-S4WidescreenPptxSeed([string]$Path) {
       # Drop the renamed (now dangling) overrides entirely.
       $ct = [regex]::Replace($ct, '<Override PartName="/ppt/(slides/slide|notesSlides/notesSlide)[0-9]+\.xml-removed"[^>]*/>', '')
 
-      # Pre-fill title/subtitle and add three visible placeholder bars at the
-      # target geometry. The task is then recolor/label, not Insert>Shapes.
+      # Make slide 1 visually blank: keep only the title/subtitle placeholders,
+      # remove template decorations, and paint a white background. This keeps
+      # the reference (white canvas + three bars) unambiguous.
       $slide1 = Read-S4ZipText $zip 'ppt/slides/slide1.xml'
       if (-not $slide1 -or $slide1.IndexOf('</p:spTree>') -lt 0) { throw 'slide1 missing spTree' }
       $slideDoc = New-Object System.Xml.XmlDocument
       $slideDoc.LoadXml($slide1)
+      $spTree = $slideDoc.SelectSingleNode("//*[local-name()='spTree']")
+      if (-not $spTree) { throw 'slide1 missing spTree node' }
+      $keepTypes = @('title', 'ctrTitle', 'subTitle')
+      $kept = 0
+      foreach ($child in @($spTree.ChildNodes)) {
+        if ($child.NodeType -ne 'Element') { continue }
+        $ln = [string]$child.LocalName
+        if ($ln -eq 'nvGrpSpPr' -or $ln -eq 'grpSpPr') { continue }
+        $keepShape = $false
+        if ($ln -eq 'sp') {
+          $ph = $child.SelectSingleNode(".//*[local-name()='ph']")
+          if ($ph) {
+            $phType = [string]$ph.GetAttribute('type')
+            if ($keepTypes -contains $phType) { $keepShape = $true; $kept++ }
+          }
+        }
+        if (-not $keepShape) { [void]$spTree.RemoveChild($child) }
+      }
+      if ($kept -lt 2) { throw "slide1 title/subtitle placeholders missing (kept=$kept)" }
       $texts = @($slideDoc.SelectNodes("//*[local-name()='t']"))
       if ($texts.Count -lt 2) { throw 'slide1 title/subtitle text nodes missing' }
       $texts[0].InnerText = 'S4 PPT REPLICA'
@@ -326,6 +346,10 @@ function New-S4WidescreenPptxSeed([string]$Path) {
       $slideXw.Dispose()
       $slide1 = $slideSw.ToString().Replace('encoding="utf-16"', 'encoding="UTF-8"')
       $slideSw.Dispose()
+      # Remove any inherited/template background, then add a flat white slide bg.
+      $slide1 = [regex]::Replace($slide1, '<p:bg>[\s\S]*?</p:bg>', '')
+      $whiteBg = '<p:bg><p:bgPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>'
+      $slide1 = $slide1.Replace('<p:spTree>', $whiteBg + '<p:spTree>')
       $slide1 = $slide1.Replace('</p:spTree>', ((Get-S4BarPlaceholderXml) + '</p:spTree>'))
       Set-S4ZipText $zip 'ppt/slides/slide1.xml' $slide1
 
@@ -344,9 +368,20 @@ function New-S4WidescreenPptxSeed([string]$Path) {
     if ([math]::Abs($ratio - 1.7778) -gt 0.04) {
       return [ordered]@{ ok = $false; reason = "seed not 16:9: $($m.slideWidthIn)x$($m.slideHeightIn)" }
     }
+    $barNames = @($m.slides[0].shapes | Where-Object { [string]$_.name -match '^S4 Bar Q[123]$' })
+    if ($barNames.Count -ne 3) {
+      return [ordered]@{ ok = $false; reason = "seed bars missing: found $($barNames.Count)/3" }
+    }
+    $seedText = (($m.slides[0].texts -join ' ') -replace '\s+', ' ').Trim()
+    foreach ($needle in @('S4 PPT REPLICA', 'Dirty Desktop Test')) {
+      if ($seedText.IndexOf($needle, [StringComparison]::Ordinal) -lt 0) {
+        return [ordered]@{ ok = $false; reason = "seed text missing: $needle" }
+      }
+    }
     return [ordered]@{
       ok = $true; path = $Path; template = $tpl.FullName
       slideCount = $m.slideCount; widthIn = $m.slideWidthIn; heightIn = $m.slideHeightIn
+      bars = $barNames.Count; texts = $seedText
     }
   } catch {
     return [ordered]@{ ok = $false; reason = $_.Exception.Message }

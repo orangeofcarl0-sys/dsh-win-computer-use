@@ -151,9 +151,9 @@
 
 | 模式 | 成熟项目做法 | 本插件现状 | 建议 |
 |---|---|---|---|
-| 结构化优先 | AX/UIA/DOM 元素 + 语义动作 | 已有 element token/UIA，但 click 无 modifier、drag 无 element | 保留 element 优先；补 modifier/drag element |
-| 像素兜底 | 坐标 + 当前 frame/capture + zoom 映射 | 有 window screenshot 坐标、from_zoom 仅 click | 把 from_zoom/steps 接到 drag；native freshness probe |
-| 手势 | click/drag 带 modifier、steps、down/up、hold | drag 只有四坐标 + duration；click 无 modifier | 补 driver 已有能力；后续评估 down/up |
+| 结构化优先 | AX/UIA/DOM 元素 + 语义动作 | 已有 element token/UIA + click modifier；drag 无 element | 保留 element 优先；后续评估 drag element |
+| 像素兜底 | 坐标 + 当前 frame/capture + zoom 映射 | window screenshot 坐标；click/drag 均支持 from_zoom；drag 支持 steps | native freshness probe 已完成；按应用复现再修 |
+| 手势 | click/drag 带 modifier、steps、down/up、hold | click modifier 已真机验证；drag modifier 在 0.23.2 目标端收不到；有 steps | drag 不暴露 modifier；后续评估 down/up 绕过 driver 限制 |
 | 焦点 | 显式 activate/bring_to_front；foreground 恢复 | 新增 `computer_activate`；foreground L3 恢复 | 脏桌面先 activate；t11 画布先焦点 click |
 | 验证 | 每步 screenshot/回执 + 最终 oracle | 有快照/回执/verify/oracle | 保持；明确 `unverifiable` 不是成功 |
 | 长任务 | plan/subgoal/checkpoint；Cua 不做 loop | computer_task + eval runner | 子代理限制权限；每步 checkpoint |
@@ -161,10 +161,10 @@
 
 ## 9. 对本插件的结论
 
-1. **t11/t15 有明确、低风险的插件层解**：driver 0.23.2 的 `drag` 已支持 `from_zoom/modifier/steps/button`，`click` 已支持 `modifier`；本插件没有暴露。先接线，再跑 3–5 次对比。
-2. **t11 不能只靠“更好提示词”**：ZCode CU 的真机探针证明，Windows 上缺少 activation 时，画布坐标 drag 会被应用忽略；必须 `computer_activate` + 画布焦点 click + foreground drag。t11 77 步 pass 的轨迹已经验证这个 workaround。
-3. **t15 的逐文件循环不是纯模型问题**：没有 Ctrl+click，非连续多选不可用；ZCode CU 的 Ctrl+click 直接成功。先补 `modifier`，再判断模型是否仍逐文件。
-4. **t12 没有通用 CU 解**：形状选择可以被元素级动作改善（ZCode 能按 `S4 Bar Q1` 选中），但 PowerPoint 文本/字号/颜色对话框/保存仍是应用层成本；正确方向是放宽到 35–40 分钟、拆成“改色/加标签”，或白底 seed + 预填。
+1. **t15 有明确、低风险的插件层解；t11 的 drag modifier 没有**：driver 0.23.2 的 `click` 已支持 `modifier`，真机探针确认 element/坐标两条路径都能到达目标；`drag` 虽在 schema 接受 `modifier`，但 MouseDown/Move/Up 读到的 `Control.ModifierKeys` 全是 `None`，因此插件只接 drag 的 `from_zoom/steps`，不暴露 drag modifier。
+2. **t11 不能只靠“更好提示词”**：ZCode CU 的真机探针证明，Windows 上缺少 activation 时，画布坐标 drag 会被应用忽略；必须 `computer_activate` + 画布焦点 click + 精确画布原点/线宽。setup 用 UIA 固定 8px、题面给 `(879,600)` 后 **3/3 pass，70/88/48 步**。
+3. **t15 的逐文件循环不是纯模型问题**：没有 Ctrl+click，非连续多选不可用；补 `modifier` 后 **3/3 pass，77/72/59 步**（各 5 次 Ctrl+click）。但文件单选必须 `foreground=true`，否则后台 UIA Invoke 会打开文件。
+4. **t12 没有通用 CU 解，但白底 seed + 直接输入可以进预算**：形状选择可以被元素级动作改善（ZCode 能按 `S4 Bar Q1` 选中），但 PowerPoint 文本/颜色/保存仍是应用层成本；白底 seed + 按形状名选择 + 双击柱直接输入 + 每柱保存 + 40 分钟后，**2/2 pass，140/169 步**（此前 25 分钟/190 步仅 red/blue + Q1）。仍不建议写 Office 专用 CU 层。
 5. **不要为单个应用写专用 CU 层**：Codex 的 LibreOffice 路线、Claude for Excel 的结构化路线都说明，Office 可靠路径是 API/OOXML，不是屏幕点击。
 
 ## 10. 参考（主要）

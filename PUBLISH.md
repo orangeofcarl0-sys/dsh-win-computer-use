@@ -36,16 +36,16 @@ git status --short
 # 1. 语法 + 安装脚本
 npm run check; echo "check=$?"
 
-# 2. 离线测试（10 套 / 232 断言；&& 串联，必须看 $?）
+# 2. 离线测试（22 套 / 533 项检查；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
-# 3. 真驱动运行时（只读观察；16/16）
+# 3. 真驱动运行时（只读观察；17/17）
 node verify-runtime.mjs
 
 # 4. 真桌面动作闭环（23/23；会打开临时记事本，残留标签人工关闭）
 node tests/live-action.e2e.mjs 3
 
-# 5. S4 oracle 双向验证（10/10）
+# 5. S4 oracle 双向验证（17 条任务；app/网络依赖可 SKIP/ENV）
 node evals/verify-oracles.mjs
 
 # 6. 打包面（32 文件；确认没有 node_modules/.dsh-test/tests）
@@ -53,14 +53,14 @@ npm pack --dry-run
 
 # 7. 真机加载（必做；唯一能发现“整棵插件树加载失败”的检查）
 #    headless 默认禁用 credentials；用探针 patch 显式启用 + insert 插件。
-#    2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步，2 可见/20 隐藏。
+#    2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步，2 可见/21 隐藏。
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')，把返回原文贴出来"
 
 # 8. 文档一致性（版本/工具数/配置键三处对齐）
 grep -n '"version"' package.json package-lock.json
-grep -rn "232\|22 个工具\|20 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
+grep -rn "533\|23 个工具\|21 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
 ```
 
 历史上真正抓出过问题的检查：
@@ -127,7 +127,7 @@ dsh --profile web --dump-config | grep dsh-win-computer-use
 ~/.dsh/restart-dsh-capture.ps1
 
 # 5. 会话内冒烟
-#    computer_do(action="status") -> dispatcher / 2 可见 / 20 隐藏
+#    computer_do(action="status") -> dispatcher / 2 可见 / 21 隐藏
 #    screen_observe(window="Notepad") -> 编号树
 ```
 

@@ -158,18 +158,41 @@
 
 ## 7. 建议（按 ROI）
 
-| 优先级 | 改动 | 依据 |
+| 优先级 | 改动 | 状态/依据 |
 |---|---|---|
-| **P0** | `computer_click`/`double_click`/`right_click` 加 `modifier`；`computer_drag` 加 `modifier`/`from_zoom`/`steps` | driver 0.23.2 已支持；t15 Ctrl+click、t11 zoom/Shift 直接受益 |
-| **P0** | t15 用 Ctrl+click 批量跑 3–5 次 | 区分工具缺口与模型逐文件策略 |
-| **P1** | t11 题面/插件加“activate + 画布焦点 click + drag”；固定 Paint 笔刷宽度 | 减少首次 drag 被吞、coverage 随机 fail |
-| **P1** | t12 35–40 分钟或拆题；白底 seed + 预填 title/subtitle/占位柱；ZCode 式按形状名选择 | 当前 3 柱 + 文本格式化在 25 分钟不可完成 |
-| **P1** | native screenshot freshness probe；`selectText`/key hold/drag-from-element 评估 | 解决 t11 重复 drag、t12 文本选择/格式部分成本 |
-| **P2** | Explorer spring-loaded dwell、drag path、多显示器 frame | 高级拖放；当前 Cut/Paste 已足够 |
+| **P0** | `computer_click`/`double_click`/`right_click` 加 `modifier` | **已实现并真机验证**（element/坐标两条路径，Ctrl 到达目标） |
+| **P0** | `computer_drag` 加 `from_zoom`/`steps` | **已实现**；拖拽起点/终点按 zoom 图坐标映射，steps 1–200 |
+| **P0** | `computer_drag` 加 `modifier` | **不实现**：driver 0.23.2 schema 接受，但真机 MouseDown/Move/Up 的 `Control.ModifierKeys` 全是 `None`；t11 不用 Shift |
+| **P0** | t15 用 Ctrl+click 批量跑 3–5 次 | **已跑**：3/3 pass，77/72/59 步，各 5 次 Ctrl+click；见 §9.1 |
+| **P1** | t11 题面加“activate + 画布焦点 click + foreground 重试”；固定线宽/原点 | **已完成**：setup 用 AX `大小` 固定 8px，题面给精确画布原点；3/3 pass，70/88/48 步；见 §9.2 |
+| **P1** | t12 35–40 分钟；白底 seed + 预填 title/subtitle/占位柱；按形状名选择/直接输入标签 | **已完成**：白底 seed + 直接输入；**2/2 pass，140/169 步**，oracle 全绿；oracle 颜色目标未改；见 §9.3 |
+| **P1** | native screenshot freshness probe | **已完成**：WinForms 文本变化窗口未复现陈旧；t11 的 hash 现象保留为待复现 |
+| **P2** | `selectText`/key hold/drag-from-element、Explorer spring-loaded dwell、多显示器 frame | 未做；当前 Cut/Paste 与坐标/AX 元素路径足够 |
 
 ## 8. 证据边界
 
 - 原始 report/trajectory 在 gitignored 的 `evals/headless-runs/`；本文不提交截图/文档正文/模型原始 thinking。
 - ZCode CU 探针是能力验证，不是完整 t11/t12/t15 的通过/失败统计；完整三题仍需按本插件 eval 框架重跑。
-- native 截图“陈旧”目前是轨迹中的直接观测证据 + 模型自身判断，尚未用独立 deterministic probe 确认；修复前不要把它写成已证实 bug。
+- native 截图“陈旧”目前是轨迹中的直接观测证据 + 模型自身判断；`evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上未复现（driver 截图 hash 与插件 native 字节数都随文本变化）。修复前不要把它写成已证实的普适 bug。
 - t12 的 PowerPoint 行为来自本机 Office 16 / Windows 11 / 150% DPI，其他环境可能不同。
+
+## 9. 2026-11-17 手势轮复跑
+
+### 9.1 t15：Ctrl+click 已可用，真正的坑是后台点击会打开文件
+
+- 第一次复跑（未改题面）在 54 步时被中止：模型用了 6 次 Ctrl+click，但普通文件单击走 `background`，driver 的 UIA hit-test/Invoke 把 `report-draft.txt`、`alpha.txt`、`chart.png` 当成“默认动作”打开，弹出了 Notepad/Photos（还激活了一个用户 PDF 窗口）。这不是模型双击，而是后台点击语义。
+- 题面加入“文件单选必须 `foreground=true`”后，第二次复跑不再打开任何 Notepad/Photos；但 F2 编辑框保留了 `.txt` 扩展名，输入 `report-final.txt` 得到 `report-final.txt.txt`。
+- 题面再加入“F2 后先 Ctrl+A 全选含扩展名，再输入完整文件名；若变成 `.txt.txt` 再改回”后，**3/3 pass**：77/72/59 steps（5/5/5 次 Ctrl+click；29/28/24 observe），文件树与内容全部正确，无 Notepad/Photos 误开，dirty=false。相比 2026-11-16 的 177/146/89 步，中位从 146 降到 72。
+
+### 9.2 t11：先修的是画布原点和线宽，不是提示词气势
+
+- UIA 实测：最大化 Paint 的画布是 `(879,600) 800x600` window-screenshot 像素，1:1，没有 150% DPI 放大。两轮失败轨迹用的原点是 `(872–875, 594–595)`，偏 4–7px；同时默认线宽太细，导致 `visible/bbox/area` 全过、`reference coverage` 全 false。
+- Paint 的 AX `大小` 按钮可打开 `3/5/8 像素` 菜单。setup 现在依次选中 `矩形/椭圆/直线`，用 UIA TogglePattern + MenuItem Invoke 把三者都设为 `8 像素`，再回到矩形；题面不再让模型碰 `大小`。
+- 修正后 **3/3 pass：70/88/48 steps**（68/85/47 inner；5/6/3 drags；`activateBeforeFirstDrag`/`focusClickAtDragStart` 均 true，app_launch=0）。之前 1:1 失败轮是 99 steps；setup 固定线宽 + 精确原点把无效重画压掉了。
+- 注意：UIA 同名元素会同时出现 `ListItem`（只支持虚拟化）和真正的 `ToggleButton`；helper 必须遍历同名元素并依次尝试 Invoke/Toggle/SelectionItem/Legacy，否则会在 ListItem 上误判“不支持的模式”。
+
+### 9.3 t12：白底 seed + 直接输入标签，首次真机通过
+
+- 白底 seed 只保留 title/subtitle 占位符和三条灰柱，模板装饰被裁掉；setup 用 `TitleNeedle='replica'` 记录加载完成的窗口，AC2 setup 无修复对话框。
+- 题面按 AX 形状名选择 `S4 Bar Q1/Q2/Q3`；红/蓝用标准色，绿用主题色；双击柱直接输入 Q1/Q2/Q3（不再插入文本框）；每柱后保存；颜色/格式对话框关闭后 `computer_activate` 主窗。
+- 40 分钟预算下 **2/2 pass，140/169 steps**（139/168 inner；2 errors；71/96 unverified）。两轮 oracle 都是 hash 变化、1 页/16:9、title/subtitle/Q1/Q2/Q3、red/blue/green bar 全 true。此前 25 分钟/190 步只完成 red/blue + Q1；白底 seed 和直接输入把剩余两条柱压进了预算。

@@ -143,6 +143,12 @@ const same = await call('screen_observe', { window_id: 7, mode: 'ax' })
 const third = await call('computer_click', { element: 2, snapshot_id: same.snapshotId })
 check('E5: 观察未变后仍抑制', same.changedSinceLast === false && third.ok === false
   && /repeat_suppressed/.test(raw(third)), raw(third))
+const ctrlClick = await call('computer_click', { element: 2, snapshot_id: same.snapshotId, modifier: ['ctrl'] })
+check('E5b: 同目标 Ctrl+click 不被普通点击抑制', ctrlClick.ok === true
+  && /modifier 需前台注入/.test(raw(ctrlClick)), raw(ctrlClick))
+const ctrlClick2 = await call('computer_click', { element: 2, snapshot_id: same.snapshotId, modifier: ['ctrl'] })
+check('E5c: 同目标相同 Ctrl+click 仍抑制', ctrlClick2.ok === false
+  && /repeat_suppressed/.test(raw(ctrlClick2)), raw(ctrlClick2))
 
 // 5. 观察到变化 → 放行
 const stub = await import(pathToFileURL(join(work, 'lib', 'cua.js')).href)

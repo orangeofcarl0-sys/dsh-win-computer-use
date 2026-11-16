@@ -192,6 +192,7 @@ const scenarios = [
   { name: 'verify/unknown', stub: 'ok', tool: 'computer_verify', args: { window_id: 77, expect: '不是json' } },
   { name: 'menu/ok', stub: 'ok', tool: 'computer_menu', args: { window_id: 77, path: JSON.stringify(['Save']) } },
   { name: 'click/driver-error', stub: 'driver-error', tool: 'computer_click', args: { x: 5, y: 5 } },
+  { name: 'click/modifier', stub: 'ok', tool: 'computer_click', args: { x: 5, y: 5, modifier: ['ctrl'] } },
   // 补齐覆盖：剩余 7 个工具（此前 22 场景只盖到 13 个工具）
   { name: 'double_click/no-snapshot', stub: 'ok', tool: 'computer_double_click', args: { x: 5, y: 5 } },
   { name: 'double_click/element', stub: 'ok', tool: 'computer_double_click', args: { element: 1 } },

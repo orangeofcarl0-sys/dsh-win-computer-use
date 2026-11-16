@@ -25,8 +25,12 @@ export function deliveryFailure() { return null }
 export const moves = []
 export const clicks = []
 const WINDOW = { pid: 42, window_id: 7, app_name: 'Stub', title: 'Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5, is_on_screen: true }
-export async function cuaDeliver(tool, payload) {
-  if (tool === 'click') { clicks.push(payload); return { value: { ok: true, effect: 'confirmed', delivery: { mode: payload.delivery_mode || 'background' } }, note: '' } }
+export async function cuaDeliver(tool, payload, deliveryMode, opts = {}) {
+  const mode = opts.forceForeground ? 'foreground' : (deliveryMode || 'background')
+  if (tool === 'click') {
+    clicks.push({ ...payload, delivery_mode: mode })
+    return { value: { ok: true, effect: 'confirmed', delivery: { mode } }, note: '' }
+  }
   return { value: await cuaCall(tool, payload), note: '' }
 }
 export async function cuaCall(tool, args = {}) {
@@ -144,6 +148,49 @@ check('H10b: 跨窗口 zoom → zoom_missing', r.ok === false && /\[zoom_missing
 obsMod.noteZoom(42, 7, { imageW: 280, imageH: 140 })
 r = await call('computer_click', { element: 0, x: 10, y: 20, from_zoom: true })
 check('H11: element + from_zoom 互斥', r.ok === false && /二选一/.test(String(r.result || '')), String(r.result || '').slice(0, 90))
+
+// 7. modifier：规范化 + 自动前台；非法值拒绝
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+r = await call('computer_click', {
+  element: 0, snapshot_id: obs.snapshotId, modifier: ['control', 'CTRL', 'shift'],
+})
+const mc = stub.clicks[0] || {}
+check('H12: modifier 规范化去重', r.ok === true
+  && JSON.stringify(mc.modifier) === JSON.stringify(['ctrl', 'shift']), JSON.stringify(mc))
+check('H13: modifier 强制 foreground', mc.delivery_mode === 'foreground', JSON.stringify(mc))
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId, modifier: ['meta'] })
+check('H14: 非法 modifier 拒绝', r.ok === false && /modifier 不支持/.test(String(r.result || ''))
+  && stub.clicks.length === 0, String(r.result || '').slice(0, 90))
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+r = await call('computer_do', {
+  action: 'call', tool: 'computer_double_click',
+  args: { element: 0, snapshot_id: obs.snapshotId, modifier: ['shift'] },
+})
+const dc = stub.clicks[0] || {}
+check('H15: double_click modifier 透传', r.ok === true
+  && dc.count === 2 && JSON.stringify(dc.modifier) === JSON.stringify(['shift']), JSON.stringify(dc))
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+r = await call('computer_do', {
+  action: 'call', tool: 'computer_right_click',
+  args: { element: 0, snapshot_id: obs.snapshotId, modifier: ['alt'] },
+})
+const rc = stub.clicks[0] || {}
+check('H16: right_click modifier 透传', r.ok === true
+  && rc.button === 'right' && JSON.stringify(rc.modifier) === JSON.stringify(['alt']), JSON.stringify(rc))
+
+;({ call, obs } = await fresh({ deliveryMode: 'background' }))
+let schemaErr = null
+try {
+  await call('computer_click', { element: 0, snapshot_id: obs.snapshotId, modifier: 'ctrl' })
+} catch (err) {
+  schemaErr = err
+}
+check('H17: modifier 非数组被宿主 schema 拒绝', Boolean(schemaErr)
+  && /modifier.*array/i.test(String(schemaErr.message || '')), String(schemaErr?.message || '').slice(0, 90))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

@@ -61,6 +61,7 @@ const lib = (name) => import(pathToFileURL(join(work, 'lib', name)).href)
 const { clearSnapshot, getSnapshot, setSnapshot, freshnessIssueParts } = await lib('snapshot.js')
 const { settleAction } = await lib('receipt.js')
 const { calls } = await lib('cua.js')
+const { noteZoom, clearZoom } = await lib('observe.js')
 
 const cfg = {
   ttlMs: 60000, maxElements: 120, observeDedup: 'off', verboseReceipts: false,
@@ -121,6 +122,54 @@ calls.length = 0
 r = await call('computer_drag', { from_x: 10, from_y: 10, to_x: 20, to_y: 20 })
 const dragCall = calls.find((c) => c.tool === 'drag')
 check('P0-3 drag 透传 window_id', r.ok === true && dragCall?.args.window_id === 7, JSON.stringify(dragCall?.args || {}))
+
+// ── 手势参数：drag steps / duration_ms=0 / from_zoom ────────────────
+calls.length = 0
+r = await call('computer_drag', {
+  from_x: 10, from_y: 10, to_x: 20, to_y: 20, steps: 30, duration_ms: 0,
+})
+const dragOpts = calls.find((c) => c.tool === 'drag')
+check('D1 drag 透传 steps/duration_ms=0', r.ok === true
+  && dragOpts?.args.steps === 30 && dragOpts?.args.duration_ms === 0
+  && dragOpts?.args.from_zoom === undefined, JSON.stringify(dragOpts?.args || {}))
+
+noteZoom(42, 7, { imageW: 280, imageH: 140 })
+calls.length = 0
+r = await call('computer_drag', {
+  from_x: 10, from_y: 20, to_x: 30, to_y: 40, from_zoom: true,
+})
+const dragZoom = calls.find((c) => c.tool === 'drag')
+check('D2 drag from_zoom 透传图内坐标', r.ok === true
+  && dragZoom?.args.from_zoom === true && dragZoom?.args.from_x === 10 && dragZoom?.args.to_x === 30,
+  JSON.stringify(dragZoom?.args || {}))
+
+clearZoom(42)
+calls.length = 0
+r = await call('computer_drag', { from_x: 1, from_y: 2, to_x: 3, to_y: 4, from_zoom: true })
+check('D3 drag 无 zoom → zoom_missing', r.ok === false && /\[zoom_missing\]/.test(String(r.result))
+  && !calls.some((c) => c.tool === 'drag'), String(r.result).slice(0, 90))
+
+const snapNow = getSnapshot()
+const savedAt = snapNow.at
+noteZoom(42, 7, { imageW: 280, imageH: 140 })
+snapNow.at = Date.now() + 1000
+calls.length = 0
+r = await call('computer_drag', { from_x: 1, from_y: 2, to_x: 3, to_y: 4, from_zoom: true })
+check('D4 drag 旧 zoom → zoom_stale', r.ok === false && /\[zoom_stale\]/.test(String(r.result))
+  && !calls.some((c) => c.tool === 'drag'), String(r.result).slice(0, 90))
+snapNow.at = savedAt
+clearZoom(42)
+
+for (const bad of [{ steps: 0 }, { steps: 201 }, { duration_ms: -1 }, { duration_ms: 10001 }]) {
+  calls.length = 0
+  r = await call('computer_drag', { from_x: 1, from_y: 2, to_x: 3, to_y: 4, ...bad })
+  check(`D5 drag 非法 ${JSON.stringify(bad)} 被拒`, r.ok === false && !calls.some((c) => c.tool === 'drag'),
+    String(r.result).slice(0, 80))
+}
+calls.length = 0
+r = await call('computer_drag', { from_x: null, from_y: 2, to_x: 3, to_y: 4 })
+check('D6 drag null 坐标被拒', r.ok === false && !calls.some((c) => c.tool === 'drag'),
+  String(r.result).slice(0, 80))
 
 // G1：scroll/drag 也必须校验显式 snapshot_id（之前 schema 接受但实现忽略）
 calls.length = 0

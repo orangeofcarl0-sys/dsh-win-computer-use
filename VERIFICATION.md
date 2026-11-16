@@ -1,26 +1,28 @@
 # VERIFICATION — 验证报告
 
 > 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
-> 代码快照：`main` @ 2026-11-16（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘；2026-11-16 追加 WinUI 键鼠通道、opt-in press 回退与菜单/文档反馈。
+> 代码快照：`main` @ 2026-11-17（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘；2026-11-16 追加 WinUI 键鼠通道、opt-in press 回退与菜单/文档反馈；2026-11-17 追加 click modifier/drag from_zoom+steps 真机探针、t11/t12/t15 脏桌面复跑。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；dsh 0.2.2 契约审计见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
 
 ## 1. 当前验证矩阵
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 510 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **22 套 / 533 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **21/21 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
-| S4 oracle 双向验证 | **10/10**（2026-11-15 18:40 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
+| S4 oracle 双向验证 | **2026-11-17：t11/t15 PASS、t12 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15` |
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
 | query 只读视图 | **✅** query 后 `snapshotId=null`、动作 `[snapshot_missing]`、不污染差分/降噪 | Windows（离线） | `tests/observe.truth` T21-T25 + `schema.conformance` |
-| dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；首轮真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出）。2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用）；t15 **3/3 pass**（177/146/89 步）；t12 seed/占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过 | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
+| dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；首轮真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出）。2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**；t15 **3/3 pass**（177/146/89 步）；t12 25 min/190 步仅 title/subtitle、红/蓝柱、Q1。2026-11-17 手势轮：t11 **3/3 pass（70/88/48 步）**；t15 **3/3 pass（77/72/59 步，各 5 次 Ctrl+click，无 Notepad/Photos 误开）**；t12 白底 seed + 直接输入 **2/2 pass（140/169 步）**（hash/1 页/16:9/Q1-Q3/三色柱全 true） | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
 | CU 调研/轨迹复盘 | Codex/Claude Code/ZCode/Trae + 社区 CU 的复杂任务模型；t11/t12/t15 逐轮时间线、工具计数、失败模式；ZCode CU 的 Ctrl+click、画布拖拽、PPT 形状元素探针 | Windows 11 / ZCode CU 0.6.5 | [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md)、[docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) |
+| 手势探针 | click element/坐标的 Ctrl 真机到达；drag 的 `modifier` 在 0.23.2 上目标端全是 `None`（driver 缺口）；drag `from_zoom`/`steps` 已接线 | Windows 11 / cua-driver 0.23.2 | `node evals/probe-modifier.mjs` |
+| native freshness | WinForms 文本变化窗口的 driver 截图 hash 与插件 native 字节数都随文本变化，未复现“AX 已变而 PNG 不变” | Windows 11 / cua-driver 0.23.2 | `node evals/probe-native-freshness.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
 | 打包面 | **38 文件**（新增 lib/menu.js；含 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
-| 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
+| 真机 headless 加载 | **✅ 2026-11-12**（5 步；2 可见/20 隐藏（当时）；真实 `screen_observe`；dispatcher 路由 `computer_wait`） | Windows / dsh 0.2.2-rc.1 | 见 §2.1 |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | 见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 ### 1.1 安全承诺矩阵

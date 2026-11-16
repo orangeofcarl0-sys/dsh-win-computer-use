@@ -268,7 +268,8 @@ flowchart TD
 - 快照条目 x/y 存**点击空间**（已减 `screenOrigin`）；原始 frame 只在当次观察内用于密码标记/渲染。模型看到的文本、结构化 elements、快照条目、点击输入四者同空间。
 - 输入类元素的当前值进入文本 `值="..."` 与 `elements.value`（密码/文档正文除外）；每次观察附 `自上次观察` 差分（标题/值/状态栏/元素增删），供 unverifiable 动作确认。
 - `screen_zoom` 输出 `crop{x,y,w,h}`（请求区域）与 `fromZoom`：正常 zoom 的 `coordinateSpace=zoom-image-px`，图内坐标必须用 `computer_click(x,y,from_zoom=true)` 让驱动换算（驱动会加约 20% padding 并可能缩放）；整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。`screenOrigin` 只用于再换算到屏幕绝对坐标。
-- `from_zoom` 只对 click/double/right 开放；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且 zoom 晚于当前观察，否则返回 `[zoom_missing]/[zoom_stale]`。
+- `from_zoom` 对 click/double/right 与 drag 开放；drag 的起终点都按 zoom 图坐标解释。插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且 zoom 晚于当前观察，否则返回 `[zoom_missing]/[zoom_stale]`。
+- click 家族的 `modifier` 在 Windows 上必须前台 SendInput；插件在 modifier 非空时自动 `forceForeground` 并恢复原前台。drag 的 `modifier` 未开放：driver 0.23.2 接受字段但真机不把修饰键送进目标。
 
 ### 6.4 降噪
 
@@ -403,17 +404,17 @@ stateDiagram-v2
 | # | 位置 | 现象 | 影响 | 方向 |
 |---|---|---|---|---|
 | A7 | `lib/actions.js` 像素路径 | 驱动 0.23.2 在混合 DPI 下像素点击落点有实测偏差（三种语义假设均有反例） | 像素点击 best-effort；element 路径不受影响 | 等上游修复；文档已降级表述 |
-| A8 | `computer_drag` schema/payload | 只暴露四坐标 + duration；driver 已支持 `from_zoom` / `modifier` / `steps` / `button`，插件未接线 | t11 画布 zoom 坐标只能手算；Shift 约束/平滑拖拽缺失 | 先接线并补 schema/真机探针，见 [CU-RESEARCH](CU-RESEARCH.md) |
-| A9 | `computer_click` schema | 没有 `modifier`；driver 已支持 ctrl/shift | t15 非连续 Ctrl+click 多选不可用，模型退化成逐文件 Cut/Paste | 加 modifier 后跑 3–5 次 t15 对比 |
-| A10 | native observe | 轨迹出现 drag 前后同一 PNG hash、AX 状态已变的疑似陈旧截图；无 `frame_id`/freshness 字段 | 模型误判拖拽失败并重复/undo；坐标可能基于旧帧 | 做 deterministic probe；native 跳过 AX 去重或加 screenshot hash/freshness |
+| A8 | `computer_drag` schema/payload | `from_zoom`/`steps` 已接线；`modifier` 在 driver 0.23.2 的 schema 里存在，但真机探针显示 MouseDown/Move/Up 的 `Control.ModifierKeys` 全是 `None` | t11 不能用 Shift 约束直线；插件不暴露 drag `modifier`，避免假能力 | t11 用 activate+焦点 click+`steps`+setup 固定 8px 线宽后 **3/3 pass（70/88/48 步）**；等上游修复 drag modifier |
+| A9 | `computer_click` schema | 已接 `modifier`（ctrl/shift/alt/win），Windows 自动前台注入；真机探针确认 element 与坐标两条路径都能到达目标 | t15 **3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；文件单选 foreground=true；无 Notepad/Photos 误开） | 见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §9.1 |
+| A10 | native observe | `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver/plugin 两层，未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
 | A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PowerPoint 形状拖拽仍靠坐标 | 评估 selectText/key hold/down-up；drag 支持 from_element |
-| A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 首次 drag 只聚焦；t12 颜色对话框/主窗反复切换 | 已有 `computer_activate`；评估手势后保持前台或 focus-click workaround |
+| A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后 3/3 pass；t15 文件单选用 foreground=true 后不再误开应用 | 已有 `computer_activate`；保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 ROADMAP |
 | G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 PUBLISH |
 
 ## 14. 测试与证据
 
-- 离线：22 套、510 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：22 套、533 项检查（2026-11-17；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。t11/t12/t15 的模型行为与失败模式见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

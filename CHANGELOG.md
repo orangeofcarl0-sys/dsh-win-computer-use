@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-16）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-17）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 
 ## 0.5.7 (未发布)
 
@@ -17,6 +17,30 @@
 **2026-11-16（第三轮）：query 只读过滤视图、t01 星号证据修正、探索指标**
 
 **2026-11-16（第五轮）：dirty 轨迹修复——computer_activate、t11 颜色入口/题面、t12 16:9 seed、t15 重命名优先**
+
+**2026-11-17（第六轮）：手势原语接线——click modifier、drag from_zoom/steps、t11 焦点纪律、t12 白底 seed、t15 批量测量**
+
+### 2026-11-17 Added（第六轮）
+
+- **click 家族 `modifier`**：`computer_click`/`double_click`/`right_click` 新增 `modifier: string[]`，支持 ctrl/shift/alt/win，`control→ctrl`、`option→alt` 规范化去重；Windows 上非空 modifier 自动 `forceForeground`（SendInput 前台注入）并在回执说明。driver 0.23.2 的 element 与坐标两条路径均已在 WinForms 探针中确认 Ctrl 到达目标。
+- **drag 手势**：`computer_drag` 新增 `from_zoom`（起终点都按 zoom 图坐标）与 `steps`（1–200，默认 20）；`duration_ms=0` 不再被 truthiness 丢弃；四坐标改为有限数字校验。**不暴露 drag `modifier`**：driver schema 接受，但真机探针的 MouseDown/Move/Up 全部读到 `Control.ModifierKeys=None`，属于 driver 0.23.2 缺口。
+- **防误抑制/轨迹**：`loopGuard` 签名加入排序后的 modifier，Ctrl+click 不会与普通 click 被当成同一重复动作；`trajectory` 的 action 签名加入 modifier/from_zoom/drag 参数，driver 参数白名单加入 from/to/steps/duration/from_zoom，便于复盘。
+- **t11 题面/setup**：先 `computer_activate` Paint，再在画布起点单击聚焦；第一次 drag 若 unverified 且无痕迹，重激活/聚焦后用 `foreground=true` 重试一次；黑线用 `steps=30`，不使用 drag modifier。UIA 实测画布为 `(879,600) 800x600`（1:1），setup 现在用 AX `大小` 菜单把 `矩形/椭圆/直线` 都固定为 `8 像素`，题面给出精确窗口坐标并禁止模型再碰 `大小`。修正后 **3/3 pass，70/88/48 步**（三色 ROI/coverage/precision 全绿；activate + 首次 drag 前焦点 click；app_launch=0）。
+- **t12 seed/题面**：`New-S4WidescreenPptxSeed` 改为白底（`p:bg`）并裁掉模板装饰，只保留 title/subtitle 占位符 + 三条灰色 `S4 Bar Q1/Q2/Q3`；setup 用 `TitleNeedle='replica'` 确认加载的是演示窗口；AC2 setup 无修复对话框。题面改为按形状名选择、标准色/主题色精确路径、双击柱直接输入 Q1/Q2/Q3、每柱后保存；预算 40 分钟。**2/2 pass，140/169 steps**，oracle 的 hash/1 页/16:9/三文本/三色柱全 true（此前 25 分钟/190 步仅 red/blue + Q1）。
+- **t15 题面/边界**：补充 `computer_click(element=..., modifier=["ctrl"])` 的多选用法，提醒不要 Ctrl+click 已选中项；文件单选必须 `foreground=true`——t15 首轮实测 background 点击在 Explorer 文件项上走 UIA Invoke，直接打开 Notepad/Photos/PDF，导致该轮作废；F2 后先 Ctrl+A 全选含扩展名，避免 `report-final.txt.txt`。修正后 **3/3 pass，77/72/59 步（各 5 次 Ctrl+click，无 Notepad/Photos 误开）**。
+- **click 描述**：同步写明 Explorer 文件项单选用 `foreground=true`，后台点击可能直接打开文件。
+- **度量**：`analyze-trajectory` 新增 `modifierCalls/modifierByTool/ctrlClickCalls/shiftDragCalls/fromZoomDragCalls/dragStepsCalls/waitCalls/activateBeforeFirstDrag/clickBeforeFirstDrag/focusClickAtDragStart`；`ab-summary` 输出对应列。
+- **探针**：新增 `evals/probe-modifier.mjs`（click modifier 门禁 + drag modifier 缺口记录）与 `evals/probe-native-freshness.mjs`（driver/plugin 两层截图 freshness）；均不加入 npm test。
+
+### 2026-11-17 验证（第六轮）
+
+- 离线：`npm test` 22 套 / **533 项检查**全绿；`npm run check` 21/21；`verify-runtime` 17/17；`node tests/eval-safety.mjs` 全绿。
+- AC2：`verify-oracles --tasks t11,t12,t15` => t11/t15 PASS（AC2 full），t12 SKIP（`ac2:none`，setup/oracle-empty/cleanup 通过）。
+- 手势：`probe-modifier` 证明 click element/坐标的 Ctrl 到达目标；drag modifier 在 driver 0.23.2 上不进入目标（不开放）；`probe-native-freshness` 未复现陈旧截图。
+- t15：**3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；无 Notepad/Photos 误开；dirty=false）。
+- t11：**3/3 pass，70/88/48 步**（三色 ROI/coverage/precision 全绿；activate + 首次 drag 前焦点 click；app_launch=0）。
+- t12：**2/2 pass，140/169 步**（hash/1 页/16:9/title/subtitle/Q1-Q3/三色柱全 true；40 分钟预算）。
+- 所有运行 `dirty=false`；测试窗口按 state HWND/标题清理；用户 Notepad 未触碰；未提交任何 report/trajectory/measurement 产物。
 
 ### 2026-11-16 Added（第五轮）
 

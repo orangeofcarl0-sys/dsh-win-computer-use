@@ -52,6 +52,7 @@ export async function cuaDeliver(tool, payload) { return { value: await cuaCall(
 `)
 
 const plugin = await loadPlugin(work)
+const pluginMod = await import(pathToFileURL(join(work, 'index.js')).href)
 const { check, state } = makeChecks()
 const dispatcher = await import(pathToFileURL(join(work, 'lib', 'dispatcher.js')).href)
 
@@ -92,6 +93,13 @@ function session(mode) {
 
   const cat = await s.call('computer_do', { action: 'catalog' })
   check('A4 catalog 列出 21 个隐藏工具', cat.ok === true && (cat.tools || []).length === 21 && /computer_click/.test(cat.result) && /computer_menu/.test(cat.result) && /computer_activate/.test(cat.result), `tools=${(cat.tools || []).length}`)
+  const defs = new Map(pluginMod.toolDefinitions().map((d) => [d.name, d]))
+  const clickProps = defs.get('computer_click')?.parameters?.properties || {}
+  const dragProps = defs.get('computer_drag')?.parameters?.properties || {}
+  check('A4b click 暴露 modifier', Boolean(clickProps.modifier), Object.keys(clickProps).join(','))
+  check('A4c drag 暴露 from_zoom/steps 且不暴露 modifier',
+    Boolean(dragProps.from_zoom) && Boolean(dragProps.steps) && !dragProps.modifier,
+    Object.keys(dragProps).join(','))
   check('A5 catalog 不改变注册面', s.reg.size === 2, `reg=${s.reg.size}`)
   check('A6 隐藏 click 不在注册表', !s.reg.has('computer_click'))
 

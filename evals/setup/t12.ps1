@@ -23,7 +23,7 @@ try {
   $pptExe = Join-Path $env:ProgramFiles 'Microsoft Office\root\Office16\POWERPNT.EXE'
   $ppt = [ordered]@{ ok = $false; hwnd = 0; title = ''; reason = "not found: $pptExe" }
   if (Test-Path $pptExe) {
-    $ppt = Open-TestAppWindow -Exe $pptExe -Arguments @($outPptx) -ProcessName 'POWERPNT' -TitleNeedle @() -StateFile $pptState -TimeoutSec 30
+    $ppt = Open-TestAppWindow -Exe $pptExe -Arguments @($outPptx) -ProcessName 'POWERPNT' -TitleNeedle @('replica') -StateFile $pptState -TimeoutSec 30
     if ($ppt.ok) { Maximize-TestWindow ([int]$ppt.hwnd) }
   }
   $checks += (Add-Check 'PowerPoint test window' ([bool]$ppt.ok) ("hwnd=$($ppt.hwnd) title=$($ppt.title) reason=$($ppt.reason)"))

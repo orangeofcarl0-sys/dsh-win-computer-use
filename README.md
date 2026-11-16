@@ -152,14 +152,14 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 | 工具 | 作用 | 必填 | 常用可选 |
 |---|---|---|---|
-| `computer_click` **H** | 点击元素编号或窗口截图坐标 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`count` |
-| `computer_double_click` | 双击 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom` |
-| `computer_right_click` | 右键 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom` |
+| `computer_click` **H** | 点击元素编号或窗口截图坐标；支持 Ctrl+click 多选 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier`、`count` |
+| `computer_double_click` | 双击 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier` |
+| `computer_right_click` | 右键 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier` |
 | `computer_type` **H** | 输入文本；指定 element 时走 UIA `ValuePattern`，否则输入到快照窗口当前焦点 | `text` | `element`、`snapshot_id`、`foreground` |
 | `computer_set_value` | 直接设值（UIA `ValuePattern`；文本框/滑块/下拉优先） | `element`、`value` | `snapshot_id` |
 | `computer_key` **H** | 按键/快捷键（组合键走 `hotkey`；绑定快照窗口） | `key` | `snapshot_id`、`foreground` |
 | `computer_scroll` **H** | 滚动 | — | `direction`、`amount`、`element`、`snapshot_id`、`foreground` |
-| `computer_drag` | 窗口截图坐标拖拽 | `from_x`、`from_y`、`to_x`、`to_y` | `duration_ms`、`snapshot_id`、`foreground` |
+| `computer_drag` | 窗口截图坐标拖拽；支持 zoom 坐标与平滑轨迹 | `from_x`、`from_y`、`to_x`、`to_y` | `duration_ms`、`steps`、`from_zoom`、`snapshot_id`、`foreground` |
 | `computer_wait` | 本地等待（不调引擎） | `ms` | — |
 | `app_list` | 列出运行中应用（显示上限 20 条） | — | — |
 | `app_launch` | 后台启动应用，可选前置 | `name` 或 `bundle_id` | `bring_to_front`、`creates_new_instance` |
@@ -201,7 +201,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 1. **element 路径优先。** `element_token` 由驱动定位，支持后台/隐藏窗口，不受 DPI 混合影响。
 2. **像素路径是 best-effort。** 驱动 0.23.2 的像素点击在混合 DPI 下有实测落点偏差（见 [docs/WINDOWS.md](docs/WINDOWS.md) 与 [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) A7）；像素点击后请用 `screen_observe` / `computer_verify` 复核。
 3. **不要自己乘 2 或加窗口偏移。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。
-4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。
+4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。`computer_click` 与 `computer_drag` 都支持；drag 的起终点都按 zoom 图坐标解释。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。
 5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
 
 ### 观察真相：当前值 + 状态差分
@@ -322,8 +322,9 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 - **`app_launch` 的窗口可能需要人工收尾。** 驱动二进制要求管理员权限，启动的应用继承高完整性级别；非提权客户端 `taskkill` / `Stop-Process` / `WM_CLOSE` 都会被 UIPI 拒绝。WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 UIA 超时、`invoke_menu` 报 `menu_path_unavailable`）。测试/自动化优先操作已在运行的普通应用。
 - **管理员窗口仍是系统边界。** 驱动能操作它自己启动的高完整性窗口，但非提权客户端不能清理；具体按目标与通道判断，不是“管理员窗口一律不可操作”。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
-- **复杂拖拽/多选仍是能力边界。** 当前 `computer_click` 没有 `modifier`（Ctrl+click 多选不可用），`computer_drag` 没有 `modifier`/`from_zoom`/`steps`/元素源；driver 0.23.2 已支持这些参数，插件尚未接线。Paint 画布、PowerPoint 形状、Explorer 批量选择的具体轨迹与建议见 [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) 与 [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md)。
-- **native 截图 freshness 仍需独立探针。** 真机轨迹出现过“drag 前后同一 PNG hash、AX 状态已变”的疑似陈旧截图；在画布/自绘控件上重复 native 观察前，先用 `force`/状态栏或 deterministic probe 确认。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 A10。
+- **Explorer 文件项的单选要用 `foreground=true`。** 后台坐标点击会优先走 UIA hit-test/Invoke；在 Explorer 文件项上这等于“打开”，会弹出 Notepad/Photos/PDF 等应用。t15 首轮因此污染；题面已明确文件单击必须前台。Ctrl+click 的 `modifier` 本身已强制前台。
+- **多选与 zoom 拖拽已接线，但仍有边界。** `computer_click`/`double_click`/`right_click` 支持 `modifier`（Ctrl+click 多选已真机验证，Windows 上自动前台注入）；`computer_drag` 支持 `from_zoom`/`steps`，但**不提供 `modifier`**——driver 0.23.2 的 drag 虽在 schema 接受该字段，真机探针显示目标的 MouseDown/Move/Up 全是 `None`，修饰键没有进入目标。仍无元素源拖拽、`selectText`、key hold；Paint 画布/Office 形状仍以坐标或 AX 元素为主。具体轨迹与建议见 [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) 与 [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md)。
+- **native 截图 freshness 已有确定性探针，但未复现陈旧。** `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver `screenshot_png_b64` 与插件 native 图的 hash/字节数，当前均随文本变化；t11 轨迹里的“同一 PNG hash”仍可能是特定应用/去重路径，未定位前不要把它当成普适结论。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 A10。
 - **PowerPoint/Office 的可靠路径是结构化优先。** 能读 OOXML/COM/API 就不要靠 ribbon 点击；必须走 GUI 时，把 t12 这类任务按“改色/加标签/保存”拆分或放宽预算，不要用通用 CU 硬解。
 - **`screen_zoom` 需要当前模型支持图片输入。** 它不做视觉观察者降级；小字号 JPEG 可能不可读，读文字请用 `native`（无损 PNG）。
 - **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层光标；能否触发目标应用的真实 hover 取决于应用，`real=true` 会移动真实指针。
@@ -377,8 +378,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（21/21 JS）
-npm test                           # 22 套离线测试，510 个断言
-node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
+npm test                           # 22 套离线测试，533 项检查
+node verify-runtime.mjs            # 真驱动运行时验证（17 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')"   # 真机 dsh 加载（headless 需先启用 credentials）
@@ -387,7 +388,7 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 10/10；2026-11-15 本机 7/10，t04/t06/t10 环境问题）
 ```
 
-`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（23 个工具 / 46 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（23 个工具 / 47 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 

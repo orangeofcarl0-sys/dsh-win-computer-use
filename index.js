@@ -329,14 +329,28 @@ const FOREGROUND_PARAM = {
 }
 
 /**
- * from_zoom：x/y 是否来自最近一次 screen_zoom 返回图。
+ * from_zoom：坐标是否来自最近一次 screen_zoom 返回图。
  * 驱动会按 zoom 的 padding/缩放把图内坐标换算回窗口坐标；插件不再手算 scale。
- * 只对 click/double/right 开放（type 没有坐标输入）。
+ * click/double/right 与 drag 都开放；type 没有坐标输入。
  */
 const FROM_ZOOM_PARAM = {
   from_zoom: {
     type: 'boolean',
-    description: '可选：x/y 是最近一次 screen_zoom 返回图的像素坐标（不是窗口截图坐标）。true 时由驱动换算；必须与 element 互斥，且 zoom 必须晚于当前观察、同 pid/window。',
+    description: '可选：坐标是最近一次 screen_zoom 返回图的像素坐标（不是窗口截图坐标）。true 时由驱动换算；click 家族必须与 element 互斥，且 zoom 必须晚于当前观察、同 pid/window。',
+  },
+}
+
+/**
+ * modifier：按住修饰键的手势。Windows 上 driver 的 click 家族要求前台 SendInput；
+ * 插件在 modifier 非空时自动前台投递并恢复原前台。
+ * 注意：0.23.2 的 drag 虽在 schema 声明 modifier，但真机探针显示目标收不到修饰键
+ * 状态（MouseDown/Move/Up 全是 None），因此 drag 不开放该参数。
+ */
+const MODIFIER_PARAM = {
+  modifier: {
+    type: 'array',
+    items: { type: 'string' },
+    description: '可选：按住修饰键（ctrl/shift/alt/win 数组，如 ["ctrl"]）。Windows 修饰键点击必须前台注入；插件会自动前台投递并恢复原前台（即使配置为 background）。',
   },
 }
 
@@ -478,7 +492,7 @@ function observeToolDefs(ctx, cfg, wrap) {
       },
       fromZoom: {
         type: 'boolean',
-        description: 'true = 本图坐标必须用 computer_click(x=,y=, from_zoom=true)；false = 整窗回退图，坐标就是窗口截图坐标。',
+        description: 'true = 本图坐标必须用 computer_click/drag(..., from_zoom=true)；false = 整窗回退图，坐标就是窗口截图坐标。',
       },
       ...SCREEN_ORIGIN_FIELDS,
       // 降级路径（窗口级观测被拒 → desktopFallback）会回本组字段，schema 必须容纳
@@ -495,24 +509,24 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。不要无条件加 foreground=true（前台点击更慢且会移动指针）。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。',
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
   },
 
   {
     name: 'computer_double_click',
-    description: '双击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM },
+    description: '双击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true；modifier 非空时自动前台注入。',
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM },
     output: OUT(),
     execute: wrap('computer_double_click', (args, cfg2) => doubleClick(args, cfg2)),
   },
 
   {
     name: 'computer_right_click',
-    description: '右键点击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM },
+    description: '右键点击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true；modifier 非空时自动前台注入。',
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM },
     output: OUT(),
     execute: wrap('computer_right_click', (args, cfg2) => rightClick(args, cfg2)),
   },
@@ -572,13 +586,15 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_drag',
-    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。',
+    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。注意：driver 0.23.2 的 drag 虽接受 modifier，但 Windows 实测目标收不到修饰键状态，因此本工具不提供 modifier。',
     parameters: {
-      from_x: { type: 'integer', required: true, description: '起点 x（截图像素）。' },
+      from_x: { type: 'integer', required: true, description: '起点 x（截图像素；from_zoom=true 时为 zoom 图坐标）。' },
       from_y: { type: 'integer', required: true, description: '起点 y。' },
       to_x: { type: 'integer', required: true, description: '终点 x。' },
       to_y: { type: 'integer', required: true, description: '终点 y。' },
-      duration_ms: { type: 'integer', description: '可选：拖拽耗时毫秒，默认 500。' },
+      duration_ms: { type: 'integer', description: '可选：拖拽耗时毫秒（0-10000），默认 500。' },
+      steps: { type: 'integer', description: '可选：中间 WM_MOUSEMOVE 事件数（1-200），默认 20；越大轨迹越平滑。' },
+      ...FROM_ZOOM_PARAM,
       ...SNAPSHOT_ID_PARAM,
       ...FOREGROUND_PARAM,
     },

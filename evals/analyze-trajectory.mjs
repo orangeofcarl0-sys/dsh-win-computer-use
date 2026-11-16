@@ -58,6 +58,14 @@ export function analyzeTrajectory(file) {
   let menuCalls = 0
   let appLaunchCalls = 0
   let activateCalls = 0
+  let modifierCalls = 0
+  const modifierByTool = {}
+  let ctrlClickCalls = 0
+  let shiftDragCalls = 0
+  let fromZoomDragCalls = 0
+  let dragStepsCalls = 0
+  let waitCalls = 0
+  const actionSeq = []
   let snapshotMismatch = 0
   let repeatSuppressed = 0
   const suppressedByTool = {}
@@ -71,7 +79,28 @@ export function analyzeTrajectory(file) {
       const routedName = e.name === 'computer_do' && e.args?.action === 'call'
         ? String(e.args.tool || '')
         : e.name
-      if (routedName === 'computer_type') typeHashes.push(e.args?.text?.hash || null)
+      // dispatcher 路由时真实参数在 e.args.args；内层工具直接记录时在 e.args。
+      const actionArgs = e.name === 'computer_do' && e.args?.action === 'call'
+        ? (e.args.args || {})
+        : (e.args || {})
+      const mods = Array.isArray(actionArgs.modifier)
+        ? actionArgs.modifier.map((m) => String(m).toLowerCase())
+        : []
+      if (mods.length) {
+        modifierCalls++
+        modifierByTool[routedName] = (modifierByTool[routedName] || 0) + 1
+      }
+      if (/click/.test(routedName) && mods.includes('ctrl')) ctrlClickCalls++
+      if (routedName === 'computer_drag') {
+        if (mods.includes('shift')) shiftDragCalls++
+        if (actionArgs.from_zoom === true) fromZoomDragCalls++
+        if (Number(actionArgs.steps) > 1) dragStepsCalls++
+      }
+      if (routedName === 'computer_wait') waitCalls++
+      if (routedName && routedName !== 'computer_do') {
+        actionSeq.push({ name: routedName, args: actionArgs, ms: e.ms })
+      }
+      if (routedName === 'computer_type') typeHashes.push(actionArgs.text?.hash || null)
       if (routedName === 'screen_observe') {
         if (e.args?.mode === 'native') nativeObserves++
         if (e.args?.force === true) forceObserves++
@@ -146,6 +175,28 @@ export function analyzeTrajectory(file) {
     seenHashes.add(h)
   }
 
+  // 第一次 drag 前的焦点纪律：activate / 任意 click / 起点附近的坐标 click。
+  const firstDragIdx = actionSeq.findIndex((a) => a.name === 'computer_drag')
+  const firstActivateIdx = actionSeq.findIndex((a) => a.name === 'computer_activate')
+  const firstDrag = firstDragIdx >= 0 ? actionSeq[firstDragIdx] : null
+  const clicksBeforeDrag = firstDragIdx >= 0
+    ? actionSeq.slice(0, firstDragIdx).filter((a) => /click/.test(a.name))
+    : []
+  const activateBeforeFirstDrag = firstDragIdx >= 0 && firstActivateIdx >= 0 && firstActivateIdx < firstDragIdx
+  const clickBeforeFirstDrag = clicksBeforeDrag.length > 0
+  let focusClickAtDragStart = false
+  if (firstDrag && firstDrag.args.from_zoom !== true) {
+    const fx = Number(firstDrag.args.from_x)
+    const fy = Number(firstDrag.args.from_y)
+    if (Number.isFinite(fx) && Number.isFinite(fy)) {
+      focusClickAtDragStart = clicksBeforeDrag.some((a) => {
+        const x = Number(a.args.x)
+        const y = Number(a.args.y)
+        return Number.isFinite(x) && Number.isFinite(y) && Math.hypot(x - fx, y - fy) <= 80
+      })
+    }
+  }
+
   const loopSummary = loops.map((l) => ({
     kind: l.kind, tool: l.tool, signature: l.signature, count: l.count, ratio: l.ratio,
   }))
@@ -193,6 +244,16 @@ export function analyzeTrajectory(file) {
     appLaunchCalls,
     activateCalls,
     clicks,
+    modifierCalls,
+    modifierByTool,
+    ctrlClickCalls,
+    shiftDragCalls,
+    fromZoomDragCalls,
+    dragStepsCalls,
+    waitCalls,
+    activateBeforeFirstDrag,
+    clickBeforeFirstDrag,
+    focusClickAtDragStart,
   }
   summary.strategy = strategyOf(summary)
   return summary
@@ -272,6 +333,16 @@ function main() {
     menu: summary.menuCalls,
     appLaunch: summary.appLaunchCalls,
     activate: summary.activateCalls,
+    modifier: summary.modifierCalls,
+    modifierByTool: summary.modifierByTool,
+    ctrlClick: summary.ctrlClickCalls,
+    shiftDrag: summary.shiftDragCalls,
+    fromZoomDrag: summary.fromZoomDragCalls,
+    dragSteps: summary.dragStepsCalls,
+    wait: summary.waitCalls,
+    activateBeforeDrag: summary.activateBeforeFirstDrag,
+    clickBeforeDrag: summary.clickBeforeFirstDrag,
+    focusClickAtDragStart: summary.focusClickAtDragStart,
     repeatSuppressed: summary.repeatSuppressed,
     loops: summary.loops.length,
   }), 'strategy=', summary.strategy)

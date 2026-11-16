@@ -60,8 +60,10 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 | 驱动元素 `frame` | 屏幕物理像素 | A6 复核：标题栏 y=806 vs 窗口原点 y=780 |
 | `get_window_state` 截图 | 窗口 `bounds` 的 1:1 物理像素裁剪 | 同窗口 bounds 1906×1166 == 截图 1906×1166 |
 | `screen_observe` 输出 `@(x,y)` | window-screenshot-px | 已在输出时减去 `screenOrigin`；可直接点击 |
-| `screen_zoom` 图内坐标 | zoom-image-px | 直接 `computer_click(x=,y=,from_zoom=true)`；驱动按 padding/缩放映射，插件不再手算 |
+| `screen_zoom` 图内坐标 | zoom-image-px | 直接 `computer_click/drag(..., from_zoom=true)`；驱动按 padding/缩放映射，插件不再手算 |
 | `screen_zoom` 输出图 | 请求区域宽 ≤500px；驱动自动加约 20% padding，超 500px 时缩放 | 结果带 `fromZoom=true`；`crop` 只是请求区域，不是换算基准 |
+
+**Explorer 文件项**：后台坐标点击会优先走 UIA hit-test/Invoke；在文件项上 Invoke 等于“打开”。单选文件请传 `foreground=true`（真实 SendInput 单击）；多选 Ctrl+click 因 `modifier` 已自动前台。2026-11-17 t15 首轮实测：background 单击 `report-draft.txt` 直接打开 Notepad，随后又打开 Photos/PDF，导致该轮作废。
 
 `screen_observe` 的文本行 `@(x,y)` 与结构化 `elements[].x/y` 必须完全一致，都是减过 `screenOrigin` 的点击空间；2026-11-14 t01 的“反复定位”根因就是文本行漏了换算。取不到窗口 `bounds` 时不会假装可点击：头部会标注“屏幕物理像素，不要直接用于 computer_click”，`coordinateSpace` 为 `screen-physical-px`。
 

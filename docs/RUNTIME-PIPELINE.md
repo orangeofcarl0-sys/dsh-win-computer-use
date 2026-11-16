@@ -107,8 +107,9 @@ humanAction / type / key / scroll / drag / set_value
   - `off`：所有点击不滑行；
   - background 投递在任何模式下都不滑行。
 - 同窗口同目标 16px/2s 内再次点击：完全跳过滑行（连续点击同一按钮不再产生一串小段移动）。
-- `from_zoom=true` 的 click/double/right：x/y 是 zoom 图像坐标；插件校验 lastZoom 与当前快照同 pid/window、zoom 不早于观察，跳过滑行，payload 带 `from_zoom:true` 由驱动映射；缺失/过期/跨窗口返回 `[zoom_missing]/[zoom_stale]`。`element` 与 `from_zoom` 互斥。
-- `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式 + 同一 count，5s 内重复，且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照。观察到变化会清除该窗口的重复计数；`double_click` 不拦。
+- `from_zoom=true` 的 click/double/right 与 drag：坐标是 zoom 图像坐标；插件校验 lastZoom 与当前快照同 pid/window、zoom 不早于观察，click 跳过滑行，payload 带 `from_zoom:true` 由驱动映射；缺失/过期/跨窗口返回 `[zoom_missing]/[zoom_stale]`。click 的 `element` 与 `from_zoom` 互斥；drag 的起终点都按 zoom 图坐标解释。
+- click 家族 `modifier` 非空时自动 `forceForeground`（Windows 修饰键只能 SendInput 前台）；drag 不开放 `modifier`——0.23.2 schema 接受但真机目标收不到修饰键状态。
+- `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式 + 同一 count + 同一 modifier 集合，5s 内重复，且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照。观察到变化会清除该窗口的重复计数；`double_click` 不拦。
 - `count:3` 不会自动变成三次点击；它是一次 `click` payload 的 count 参数，是否支持取决于驱动/目标。
 
 ### 4.2 投递失败
@@ -138,7 +139,7 @@ humanAction / type / key / scroll / drag / set_value
 - `enforce`：已消费快照的第二次动作被拒绝；所有动作应在投递前求值。
 - 元素点击现在同样受 TTL 约束；过期直接 `[snapshot_expired]`。
 - `markConsumed` 只记录最后一次动作；`markSuspect` 表示状态不确定，不阻断后续动作。
-- `screen_zoom` 不再手算 `crop.scale`：驱动 0.23.2 会加约 20% padding 并可能缩放，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，点击必须用 `computer_click(x,y,from_zoom=true)`；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且晚于当前观察。整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。请求区域宽 >500px 在插件侧直接失败，不调用驱动。
+- `screen_zoom` 不再手算 `crop.scale`：驱动 0.23.2 会加约 20% padding 并可能缩放，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，点击/拖拽必须用 `computer_click/drag(..., from_zoom=true)`；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且晚于当前观察。整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。请求区域宽 >500px 在插件侧直接失败，不调用驱动。
 - `nativeImage=auto/compact` 不再做整窗 zoom：驱动 zoom 区域宽上限 500px，无法整窗缩放；超限时明确失败并提示改 ax/vision 或 screen_zoom。
 
 ## 5. 快捷键/XAML
