@@ -4,6 +4,13 @@
 - id: credentials
   disabled: false
 
+# 固定主 agent 模型身份，便于报告审计；dsh 0.2.2 不支持 seed/top_p，
+# temperature 也不在 patch 配置键里，重复测试仍需按统计分布解读。
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: deepseek-flash
+
 - insert:
     - id: dsh-win-computer-use
       name: dsh-win-computer-use

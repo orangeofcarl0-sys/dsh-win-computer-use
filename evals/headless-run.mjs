@@ -22,6 +22,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
@@ -44,6 +45,9 @@ const tierArg = val('tier', tasksArg ? 'all' : 'smoke')
 const timeoutMin = Math.max(1, Number(val('timeout-min', '10')) || 10)
 const repeats = Math.max(1, Number(val('repeats', '1')) || 1)
 const patch = path.resolve(REPO, val('patch', path.join('evals', 'headless-patch.yml')))
+const patchSha256 = fs.existsSync(patch)
+  ? createHash('sha256').update(fs.readFileSync(patch)).digest('hex').slice(0, 16)
+  : null
 const reportPath = path.resolve(REPO, val('report', path.join('evals', 'report-last-headless.json')))
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const logDir = path.join(ROOT, 'headless-runs', stamp)
@@ -158,8 +162,8 @@ function analyze(events) {
 async function runOne(task) {
   const rec = {
     id: task.id, group: task.group, tier: task.tier,
-    verdict: 'error', steps: 0, toolErrors: 0, unverified: 0,
-    timedOut: false, turn: null, final: '', oracle: null,
+    verdict: 'error', steps: 0, innerSteps: 0, toolErrors: 0, unverified: 0,
+    timedOut: false, wallMs: 0, turn: null, final: '', oracle: null,
     setup: null, cleanup: null, dirty: false, notes: [],
   }
   const cl0 = await ps('cleanup', task.id)
@@ -187,6 +191,7 @@ async function runOne(task) {
   const base = path.join(logDir, `${task.id}-r${runOne.round}`)
   const trajFile = `${base}.trajectory.jsonl`
   rec.trajectory = trajFile
+  const runStarted = Date.now()
   const dr = await run(process.execPath, [
     DSH_ENTRY, '--profile', 'headless', '--patch', patch,
     '--permission-mode', 'read-only', '--approval-policy', 'never', '--json',
@@ -195,10 +200,13 @@ async function runOne(task) {
     timeoutMs: timeoutMin * 60000,
     env: { ...ENV, DSH_CU_TRAJECTORY_FILE: trajFile },
   })
+  rec.wallMs = Date.now() - runStarted
   fs.writeFileSync(`${base}.jsonl`, dr.stdout)
   fs.writeFileSync(`${base}.err`, dr.stderr)
   const a = analyze(parseEvents(dr.stdout))
   rec.steps = a.toolCalls
+  // computer_do 无冒号 = dispatcher status/catalog 外壳；有冒号 = 一次内层调用。
+  rec.innerSteps = a.calls.filter((c) => c !== 'computer_do').length
   rec.toolErrors = a.toolErrors
   rec.unverified = a.unverified
   rec.timedOut = Boolean(dr.timedOut)
@@ -265,21 +273,25 @@ if (!tb.json?.ok) {
 console.log(`tabstate backup: ${tb.json.backup || '(none)'} moved=${tb.json.moved ?? 0}${tb.json.already ? ' (already active)' : ''}`)
 
 const runs = []
-for (let r = 0; r < repeats; r++) {
-  runOne.round = r + 1
-  for (const task of tasks) {
-    const rec = await runOne(task)
-    rec.repeat = r + 1
-    runs.push(rec)
-    console.log(`\n== ${task.id} r${r + 1} -> ${rec.verdict} steps=${rec.steps} err=${rec.toolErrors} unverified=${rec.unverified}${rec.timedOut ? ' timeout' : ''}${rec.dirty ? ' dirty' : ''}${rec.turn ? ' turn=' + rec.turn : ''}`)
-    if (rec.oracle?.checks) console.log('   oracle:', rec.oracle.checks.map((c) => `${c.name}=${c.ok}`).join(' '))
+let tr = null
+try {
+  for (let r = 0; r < repeats; r++) {
+    runOne.round = r + 1
+    for (const task of tasks) {
+      const rec = await runOne(task)
+      rec.repeat = r + 1
+      runs.push(rec)
+      console.log(`\n== ${task.id} r${r + 1} -> ${rec.verdict} steps=${rec.steps} inner=${rec.innerSteps} err=${rec.toolErrors} unverified=${rec.unverified}${rec.timedOut ? ' timeout' : ''}${rec.dirty ? ' dirty' : ''}${rec.turn ? ' turn=' + rec.turn : ''}`)
+      if (rec.oracle?.checks) console.log('   oracle:', rec.oracle.checks.map((c) => `${c.name}=${c.ok}`).join(' '))
+    }
   }
-}
-
-const tr = await tabState('restore')
-if (!tr.json?.ok) {
-  console.error(`tabstate restore failed: ${tr.json?.reason || tr.stderr || tr.code}`)
-  if (tr.json?.backup) console.error(`backup kept at: ${tr.json.backup}; close test Notepad windows then run: powershell -File evals/lib/tabstate.ps1 restore`)
+} finally {
+  // 中途异常也必须 restore，避免 active backup 留给下一次运行。
+  tr = await tabState('restore')
+  if (!tr.json?.ok) {
+    console.error(`tabstate restore failed: ${tr.json?.reason || tr.stderr || tr.code}`)
+    if (tr.json?.backup) console.error(`backup kept at: ${tr.json.backup}; close test Notepad windows then run: powershell -File evals/lib/tabstate.ps1 restore`)
+  }
 }
 
 const summary = {
@@ -289,6 +301,8 @@ const summary = {
   tier: tierArg,
   timeoutMin,
   repeats,
+  patchPath: patch,
+  patchSha256,
   tabState: { backup: tb.json, restore: tr.json },
   runs,
 }

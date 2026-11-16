@@ -413,9 +413,9 @@ function observeToolDefs(ctx, cfg, wrap) {
         enum: ['ax', 'vision', 'native'],
         description: 'ax（默认，纯文本）/ vision（观察者描述）/ native（截图直读）；树不可解析时自动降级 native→vision→ax。',
       },
-      query: { type: 'string', description: '按控件标签过滤界面树。' },
+      query: { type: 'string', description: '只读过滤视图：按控件标签过滤界面树，不建立动作快照；需要对结果动作前请不带 query 重新观察。' },
       maxElements: { type: 'integer', description: '最多返回的编号元素数（默认 120）。' },
-      force: { type: 'boolean', description: '强制完整界面树（界面未变时默认只回极简回执以省上下文）。' },
+      force: { type: 'boolean', description: '强制完整界面树（界面未变时默认只回极简回执以省上下文）；只跳过降噪，不取消 query；需要全量快照时不要传 query。' },
     },
     output: { ...OUT({
       ...DESKTOP_FALLBACK_FIELDS,
@@ -519,7 +519,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_type',
-    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
+    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败，也不要用 SPACE/BACKSPACE/重复输入强制置脏。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
     parameters: {
       text: { type: 'string', required: true, description: '要输入的文本。' },
       element: TARGET_PARAMS.element,

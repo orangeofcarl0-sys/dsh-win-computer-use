@@ -167,6 +167,7 @@ const W = { pid: 4242, window_id: 77 }
 const scenarios = [
   // 观察组：正常 + 降级（窗口级被拒 → desktopFallback）+ 驱动错误
   { name: 'observe/ax-ok', stub: 'ok', tool: 'screen_observe', args: { window: '4242', mode: 'ax' } },
+  { name: 'observe/query-readonly', stub: 'ok', tool: 'screen_observe', args: { window: '4242', mode: 'ax', query: '保存' } },
   { name: 'observe/native-ok', stub: 'ok', tool: 'screen_observe', args: { window: '4242', mode: 'native' } },
   { name: 'observe/desktop-fallback', stub: 'window-denied', tool: 'screen_observe', args: { window: '4242', mode: 'native' } },
   { name: 'observe/driver-error', stub: 'driver-error', tool: 'screen_observe', args: { window: '4242' } },

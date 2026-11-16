@@ -52,7 +52,7 @@ export async function cuaCall(tool, args = {}) {
       return { windows: wins }
     }
     case 'get_window_state': {
-      const els = [
+      const allEls = [
         { element_index: 0, element_token: 'save', role: 'Button', label: '保存(S)', frame: { x: 900, y: 700, w: 60, h: 24 }, enabled: true },
         { element_index: 1, element_token: 'name', role: 'Edit', label: '文件名:', value: ws.value, frame: { x: 600, y: 550, w: 300, h: 30 }, enabled: true },
         { element_index: 2, element_token: 'status', role: 'Text', label: ws.status, frame: { x: 180, y: 1130, w: 100, h: 20 } },
@@ -68,6 +68,9 @@ export async function cuaCall(tool, args = {}) {
           { element_index: 11, element_token: 'p-close', role: 'MenuItem', label: '退出', frame: { x: 110, y: 170, w: 80, h: 20 } },
         ] : []),
       ]
+      const els = args.query
+        ? allEls.filter((e) => String(e.label || '').includes(String(args.query)))
+        : allEls
       return {
         window: WINDOW(), elements: els, element_count: els.length,
         screenshot_width: 800, screenshot_height: 600, snapshot_id: 's' + String(Date.now()),
@@ -145,6 +148,25 @@ stub.ws.popup = true
 const popupObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
 check('T19: 真正弹出菜单项才提示', /菜单已打开/.test(raw(popupObs)), raw(popupObs).split('\n').slice(0, 8).join(' | '))
 stub.ws.popup = false
+
+// 8. query 是只读过滤视图：不建立动作快照，不污染差分/降噪
+await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+const qobs = await call('screen_observe', { window_id: 7, mode: 'ax', query: '保存' })
+check('T21: query 只读、无快照、仅匹配元素', qobs.ok === true && qobs.snapshotId === null
+  && qobs.elementCount === 1 && /query 过滤视图（只读）/.test(raw(qobs))
+  && /未建立动作快照/.test(raw(qobs)), raw(qobs).split('\n').slice(0, 8).join(' | '))
+const qclick = await call('computer_click', { element: 0 })
+check('T22: query 后 element 点击被拒', qclick.ok === false
+  && /snapshot_missing|没有可用的观察快照/.test(raw(qclick)), raw(qclick))
+const qkey = await call('computer_key', { key: 'ctrl+s' })
+check('T23: query 后按键被拒且不误判对话框', qkey.ok === false && /snapshot_missing/.test(raw(qkey))
+  && !/对话框|没有可用的菜单栏/.test(raw(qkey)), raw(qkey))
+const fullAgain = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+check('T24: query 不污染差分，全量观察重建快照', fullAgain.ok === true && Boolean(fullAgain.snapshotId)
+  && fullAgain.changes?.added === 0 && (fullAgain.elements?.length || 0) >= 9,
+  JSON.stringify({ snapshotId: fullAgain.snapshotId, changes: fullAgain.changes, elements: fullAgain.elements?.length }))
+const afterFull = await call('computer_click', { element: 0 })
+check('T25: 全量观察后动作恢复', afterFull.ok === true, raw(afterFull))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)
