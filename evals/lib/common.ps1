@@ -1027,3 +1027,357 @@ function Close-TaskWindows {
   }
   return $closed
 }
+
+function Get-WindowPid([int]$Hwnd) {
+  $wpid = 0
+  try { [void][S4W32]::GetWindowThreadProcessId([IntPtr]$Hwnd, [ref]$wpid) } catch {}
+  return [int]$wpid
+}
+
+function Get-ProcessStartIso([int]$TargetPid) {
+  try { return (Get-Process -Id $TargetPid -ErrorAction Stop).StartTime.ToString('o') } catch { return '' }
+}
+
+function Test-ProcessIdentity([int]$TargetPid, [string]$StartIso) {
+  if (-not $TargetPid) { return $false }
+  try {
+    $p = Get-Process -Id $TargetPid -ErrorAction Stop
+    if (-not $StartIso) { return $true }
+    return ($p.StartTime.ToString('o') -eq [string]$StartIso)
+  } catch { return $false }
+}
+
+function Open-TestAppWindow {
+  # Generic state-scoped app window opener for dirty-desktop tasks.
+  # Requires a NEW top-level HWND whose process name matches and whose title
+  # contains one of TitleNeedle. Never reuses/closes an existing user window.
+  param(
+    [string]$Exe,
+    [string[]]$Arguments = @(),
+    [string]$ProcessName,
+    [string[]]$TitleNeedle = @(),
+    [string]$StateFile,
+    [int]$TimeoutSec = 20
+  )
+  if (-not (Test-Path $Exe)) {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = "exe not found: $Exe" }
+  }
+  $before = @(Get-TopLevelWindows | ForEach-Object { [int]$_.hwnd })
+  try {
+    if ($Arguments.Count -gt 0) {
+      Start-Process -FilePath $Exe -ArgumentList $Arguments | Out-Null
+    } else {
+      Start-Process -FilePath $Exe | Out-Null
+    }
+  } catch {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = $_.Exception.Message }
+  }
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  $hit = $null
+  while ((Get-Date) -lt $deadline) {
+    foreach ($w in @(Get-TopLevelWindows)) {
+      if ($before -contains [int]$w.hwnd) { continue }
+      $wpid = Get-WindowPid ([int]$w.hwnd)
+      if (-not $wpid) { continue }
+      $proc = ''
+      try { $proc = (Get-Process -Id $wpid -ErrorAction Stop).ProcessName } catch {}
+      if ($ProcessName -and $proc -and $proc -ine $ProcessName) { continue }
+      $titleOk = $true
+      if ($TitleNeedle.Count -gt 0) {
+        $titleOk = $false
+        foreach ($n in @($TitleNeedle)) {
+          if ([string]$w.title -and ([string]$w.title).IndexOf([string]$n, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            $titleOk = $true
+            break
+          }
+        }
+      }
+      if ($titleOk) { $hit = $w; break }
+    }
+    if ($hit) { break }
+    Start-Sleep -Milliseconds 400
+  }
+  if (-not $hit) {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = 'new app window not found (existing window was not touched)' }
+  }
+  # Office often shows a transient "Opening..." splash window before the real
+  # document window. Prefer a later new window whose title is not the loading
+  # title, so cleanup closes the document window rather than the splash.
+  Start-Sleep -Milliseconds 1800
+  $loading = -join @([char]0x6B63, [char]0x5728, [char]0x6253, [char]0x5F00)
+  $better = $null
+  foreach ($w in @(Get-TopLevelWindows)) {
+    if ($before -contains [int]$w.hwnd) { continue }
+    $cpid = Get-WindowPid ([int]$w.hwnd)
+    if (-not $cpid) { continue }
+    $cproc = ''
+    try { $cproc = (Get-Process -Id $cpid -ErrorAction Stop).ProcessName } catch {}
+    if ($ProcessName -and $cproc -and $cproc -ine $ProcessName) { continue }
+    $t = [string]$w.title
+    if (-not $t) { continue }
+    if ($t.IndexOf($loading, [System.StringComparison]::Ordinal) -ge 0) { continue }
+    $better = $w
+  }
+  if ($better) { $hit = $better }
+  $hwnd = [int]$hit.hwnd
+  $wpid = Get-WindowPid $hwnd
+  $state = [ordered]@{
+    ok = $true; hwnd = $hwnd; title = [string]$hit.title; owned = $true
+    pid = $wpid; processStart = (Get-ProcessStartIso $wpid)
+    processName = $ProcessName; exe = $Exe; at = (Get-Date).ToString('o')
+  }
+  if ($StateFile) { [void](Write-TestState $StateFile $state) }
+  return $state
+}
+
+function Close-TestAppWindow {
+  # Close only the exact HWND recorded by Open-TestAppWindow. Verifies PID and
+  # process start time, dismisses only proven-modal save prompts, and never kills
+  # the process by name (or by PID).
+  param([string]$StateFile)
+  $res = [ordered]@{ closed = $false; reason = ''; title = '' }
+  if (-not $StateFile -or -not (Test-Path $StateFile)) {
+    $res.closed = $true; $res.reason = 'no state file (nothing to close)'; return $res
+  }
+  $s = Read-TestState $StateFile
+  if (-not $s -or -not $s.owned) { $res.reason = 'not task-owned'; return $res }
+  if (-not (Test-WindowAlive ([int]$s.hwnd))) {
+    $res.closed = $true; $res.reason = 'window already gone'; return $res
+  }
+  if ($s.pid -and -not (Test-ProcessIdentity ([int]$s.pid) ([string]$s.processStart))) {
+    $res.reason = 'pid/start-time mismatch (refusing to close)'; return $res
+  }
+  $w = Find-WindowByHwnd ([int]$s.hwnd)
+  if (-not (Close-WindowUia ([int]$s.hwnd))) {
+    [void][S4W32]::PostMessage([IntPtr]$s.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+  }
+  Start-Sleep -Milliseconds 800
+  for ($i = 0; $i -lt 4; $i++) {
+    if (-not (Test-WindowAlive ([int]$s.hwnd))) { break }
+    if (-not (Dismiss-TestSavePrompt ([int]$s.hwnd) ([int]$s.pid))) { break }
+    Start-Sleep -Milliseconds 800
+  }
+  if (Test-WindowAlive ([int]$s.hwnd)) {
+    $res.reason = 'close not confirmed'; $res.title = if ($w) { [string]$w.title } else { '' }
+  } else {
+    $res.closed = $true
+  }
+  return $res
+}
+
+function Open-TestPaintDoc {
+  # Paint 11 may be a tabbed app. We require a NEW top-level HWND with a unique
+  # seed title; if Paint merges into an existing user window we fail closed rather
+  # than closing a user tab/window.
+  param([string]$SeedPath, [string]$TitleNeedle, [string]$StateFile)
+  $exe = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\mspaint.exe'
+  if (-not (Test-Path $exe)) { $exe = 'mspaint.exe' }
+  return Open-TestAppWindow -Exe $exe -Arguments @($SeedPath) -ProcessName 'mspaint' -TitleNeedle @($TitleNeedle) -StateFile $StateFile
+}
+
+function Close-TestPaintDoc {
+  param([string]$StateFile)
+  return Close-TestAppWindow -StateFile $StateFile
+}
+
+function Open-TestBrowserWindow {
+  # Reuse the user's browser profile, but require a NEW window/HWND from --new-window.
+  # Never creates a dedicated profile and never closes an existing user window.
+  param([string]$Url, [string]$TitleNeedle, [string]$StateFile)
+  $candidates = @(
+    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe')
+  )
+  $exe = ''
+  foreach ($c in $candidates) { if ($c -and (Test-Path $c)) { $exe = $c; break } }
+  if (-not $exe) {
+    return [ordered]@{ ok = $false; hwnd = 0; pid = 0; title = ''; owned = $false; reason = 'no supported browser exe found' }
+  }
+  $procName = 'chrome'
+  if ($exe -match 'msedge') { $procName = 'msedge' }
+  return Open-TestAppWindow -Exe $exe -Arguments @('--new-window', $Url) -ProcessName $procName -TitleNeedle @($TitleNeedle) -StateFile $StateFile
+}
+
+function Close-TestBrowserWindow {
+  param([string]$StateFile)
+  return Close-TestAppWindow -StateFile $StateFile
+}
+
+# Image/office helpers are optional but small; dot-source after core definitions.
+try { . (Join-Path $PSScriptRoot 'image.ps1') } catch { }
+try { . (Join-Path $PSScriptRoot 'office.ps1') } catch { }
+
+function Get-S4Sha256([string]$Path) {
+  if (-not (Test-Path $Path)) { return '' }
+  return (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLowerInvariant()
+}
+
+function Get-S4DownloadsDir {
+  return (Join-Path $env:USERPROFILE 'Downloads')
+}
+
+function Test-S4PdfFile([string]$Path, [int]$MinBytes = 50000) {
+  if (-not (Test-Path $Path)) { return $false }
+  $fi = Get-Item $Path
+  if ($fi.Length -lt $MinBytes) { return $false }
+  $fs = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+  try {
+    $head = New-Object byte[] ([Math]::Min(1024, $fs.Length))
+    [void]$fs.Read($head, 0, $head.Length)
+    $headText = [Text.Encoding]::ASCII.GetString($head)
+    if ($headText.IndexOf('%PDF-') -lt 0) { return $false }
+    $tailLen = [Math]::Min(4096, $fs.Length)
+    $fs.Seek(-$tailLen, [IO.SeekOrigin]::End) | Out-Null
+    $tail = New-Object byte[] $tailLen
+    [void]$fs.Read($tail, 0, $tail.Length)
+    $tailText = [Text.Encoding]::ASCII.GetString($tail)
+    return ($tailText.IndexOf('%%EOF') -ge 0)
+  } finally { $fs.Dispose() }
+}
+
+function Get-S4NewPdfCandidates([string]$Dir, [datetime]$StartedAt) {
+  if (-not (Test-Path $Dir)) { return @() }
+  return @(Get-ChildItem -Path $Dir -Filter '*.pdf' -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTimeUtc -ge $StartedAt.ToUniversalTime() } | Sort-Object LastWriteTimeUtc -Descending)
+}
+
+function Wait-S4DownloadMatch([string]$Dir, [datetime]$StartedAt, [string]$ExpectedHash, [int]$TimeoutSec = 60) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    foreach ($f in @(Get-S4NewPdfCandidates $Dir $StartedAt)) {
+      if (-not (Test-S4PdfFile $f.FullName)) { continue }
+      $h = Get-S4Sha256 $f.FullName
+      if ($h -eq $ExpectedHash) { return $f }
+    }
+    Start-Sleep -Milliseconds 800
+  }
+  return $null
+}
+
+function Remove-S4MatchedDownloads([string]$Dir, [datetime]$StartedAt, [string]$ExpectedHash) {
+  $removed = @()
+  foreach ($f in @(Get-S4NewPdfCandidates $Dir $StartedAt)) {
+    if (-not (Test-S4PdfFile $f.FullName)) { continue }
+    if ((Get-S4Sha256 $f.FullName) -eq $ExpectedHash) {
+      try { Remove-Item $f.FullName -Force -ErrorAction Stop; $removed += $f.FullName } catch {}
+    }
+  }
+  return @($removed)
+}
+
+function Start-TestFormServer {
+  param([string]$Root, [string]$ResultFile, [string]$StateFile)
+  $node = 'node.exe'
+  $c = Get-Command node -ErrorAction SilentlyContinue
+  if ($c) { $node = $c.Source }
+  if (-not $node -or -not (Test-Path $node)) {
+    return [ordered]@{ ok = $false; reason = 'node.exe not found' }
+  }
+  if (Test-Path $StateFile) { Remove-Item $StateFile -Force -ErrorAction SilentlyContinue }
+  $script = Join-Path $PSScriptRoot 'form-server.mjs'
+  $proc = $null
+  try {
+    $q = { param($v) if (($v + '') -match 's') { return ('"' + $v + '"') } return ($v + '') }
+    $proc = Start-Process -FilePath $node -ArgumentList @((& $q $script), '--root', (& $q $Root), '--result', (& $q $ResultFile), '--state', (& $q $StateFile)) -PassThru -WindowStyle Hidden
+  } catch {
+    return [ordered]@{ ok = $false; reason = $_.Exception.Message }
+  }
+  $deadline = (Get-Date).AddSeconds(15)
+  $json = $null
+  while ((Get-Date) -lt $deadline) {
+    if (Test-Path $StateFile) {
+      try { $json = Get-Content $StateFile -Raw | ConvertFrom-Json } catch {}
+      if ($json -and $json.port) { break }
+    }
+    Start-Sleep -Milliseconds 300
+  }
+  if (-not $json -or -not $json.port) {
+    if ($proc) { try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {} }
+    return [ordered]@{ ok = $false; reason = 'form server did not become ready' }
+  }
+  $start = ''
+  try { $start = (Get-Process -Id $proc.Id -ErrorAction Stop).StartTime.ToString('o') } catch {}
+  $state = [ordered]@{
+    ok = $true; pid = [int]$proc.Id; processStart = $start; port = [int]$json.port
+    root = $Root; result = $ResultFile; at = (Get-Date).ToString('o')
+  }
+  [void](Write-TestState $StateFile $state)
+  return $state
+}
+
+function Stop-TestFormServer {
+  param([string]$StateFile)
+  $res = [ordered]@{ stopped = $false; reason = '' }
+  if (-not $StateFile -or -not (Test-Path $StateFile)) { $res.stopped = $true; $res.reason = 'no state file'; return $res }
+  $s = Read-TestState $StateFile
+  if (-not $s -or -not $s.pid) { $res.reason = 'invalid state'; return $res }
+  if (-not (Test-ProcessIdentity ([int]$s.pid) ([string]$s.processStart))) {
+    $res.reason = 'pid/start-time mismatch (refusing to stop)'; return $res
+  }
+  try { Stop-Process -Id ([int]$s.pid) -Force -ErrorAction Stop; $res.stopped = $true } catch { $res.reason = $_.Exception.Message }
+  return $res
+}
+
+function New-TestPdfFromFile {
+  # Render a local HTML file to PDF with Edge/Chrome headless. Only the
+  # helper-started browser process is stopped by PID.
+  param([string]$HtmlPath, [string]$PdfPath)
+  if (Test-Path $PdfPath) { Remove-Item $PdfPath -Force }
+  $candidates = @(
+    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe')
+  )
+  $exe = ''
+  foreach ($c in $candidates) { if ($c -and (Test-Path $c)) { $exe = $c; break } }
+  if (-not $exe) { return [ordered]@{ ok = $false; reason = 'no browser exe for PDF generation' } }
+  $url = [System.Uri]::new($HtmlPath).AbsoluteUri
+  $args = @('--headless=new', '--disable-gpu', '--no-pdf-header-footer', ('--print-to-pdf=' + $PdfPath), $url)
+  $p = $null
+  try { $p = Start-Process -FilePath $exe -ArgumentList $args -PassThru -WindowStyle Hidden } catch {
+    return [ordered]@{ ok = $false; reason = $_.Exception.Message }
+  }
+  $deadline = (Get-Date).AddSeconds(30)
+  while ((Get-Date) -lt $deadline) {
+    if ((Test-Path $PdfPath) -and ((Get-Item $PdfPath).Length -gt 1000)) { break }
+    Start-Sleep -Milliseconds 400
+  }
+  if ($p) { try { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } } catch {} }
+  if ((Test-Path $PdfPath) -and ((Get-Item $PdfPath).Length -gt 1000)) {
+    return [ordered]@{ ok = $true; path = $PdfPath; size = (Get-Item $PdfPath).Length }
+  }
+  return [ordered]@{ ok = $false; reason = 'PDF not produced' }
+}
+
+function Close-OrphanTestExplorer {
+  # Close ONLY Explorer windows whose title contains a task-unique needle AND
+  # whose UIA list contains at least one expected test file. Used to recover from
+  # a setup that failed before it could write a state file.
+  param([string]$TitleNeedle, [string[]]$Files = @())
+  Add-Type -AssemblyName UIAutomationClient
+  $closed = 0
+  foreach ($w in @(Find-WindowsByTitle $TitleNeedle)) {
+    $root = $null
+    try { $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$w.hwnd) } catch {}
+    if (-not $root) { continue }
+    $names = @()
+    try {
+      $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::ListItem)
+      foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+        try { $names += [string]$e.Current.Name } catch {}
+      }
+    } catch {}
+    $proof = $false
+    foreach ($f in @($Files)) { if ($names -contains [string]$f) { $proof = $true; break } }
+    if (-not $proof) { continue }
+    if (-not (Close-WindowUia ([int]$w.hwnd))) {
+      [void][S4W32]::PostMessage([IntPtr]$w.hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    }
+    Start-Sleep -Milliseconds 500
+    if (-not (Test-WindowAlive ([int]$w.hwnd))) { $closed++ }
+  }
+  return $closed
+}

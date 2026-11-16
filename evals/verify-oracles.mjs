@@ -12,7 +12,7 @@
  * - timeout 用 taskkill /T /F 收进程树并等待。
  */
 import { spawn } from 'node:child_process'
-import { readdirSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readdirSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -20,10 +20,23 @@ const root = join(dirname(fileURLToPath(import.meta.url)))
 const TABSTATE = join(root, 'lib', 'tabstate.ps1')
 const TEMP = process.env.S4_TEMP || join(process.env.LOCALAPPDATA || process.env.USERPROFILE || '', 'Temp')
 const ENV = { ...process.env, TEMP, TMP: TEMP }
-const ORACLE_IDS = readdirSync(join(root, 'tasks'))
-  .filter((f) => f.endsWith('.md'))
-  .map((f) => f.replace(/\.md$/, '').split('-')[0])
+const args = process.argv.slice(2)
+const tasksArg = (() => {
+  const i = args.indexOf('--tasks')
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : ''
+})()
+const taskFiles = readdirSync(join(root, 'tasks')).filter((f) => f.endsWith('.md'))
+const taskMeta = new Map(taskFiles.map((f) => {
+  const id = f.replace(/\.md$/, '').split('-')[0]
+  const md = readFileSync(join(root, 'tasks', f), 'utf8').replace(/\r\n/g, '\n')
+  const isolation = (md.match(/\*\*isolation:\s*(\w+)\*\*/) || md.match(/^- isolation:\s*(\w+)/m) || [])[1] || 'notepad'
+  const ac2 = (md.match(/\*\*ac2:\s*(\w+)\*\*/) || md.match(/^- ac2:\s*(\w+)/m) || [])[1] || 'full'
+  return [id, { id, isolation, ac2 }]
+}))
+const ORACLE_IDS = [...taskMeta.keys()]
+  .filter((id) => !tasksArg || tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase()))
   .sort()
+const needsTabState = ORACLE_IDS.some((id) => taskMeta.get(id)?.isolation !== 'dirty')
 const POWERSHELL = process.env.S4_POWERSHELL || 'powershell.exe'
 const STAMP = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const LOG_DIR = join(root, 'verify-runs', STAMP)
@@ -87,15 +100,20 @@ function writeStep(id, name, r) {
   } catch { /* 日志失败不阻断验证 */ }
 }
 
-// Same isolation as headless-run: user TabState is backed up before any setup and
-// restored after all tasks. Without it, task N's tabs leak into task N+1.
-const tb = await runPsArgs(TABSTATE, ['backup'], 60000)
-const tbJson = parseJson(tb.out)
-if (!tbJson?.ok) {
-  console.error(`tabstate backup failed: ${tbJson?.reason || tb.err || tb.code}`)
-  process.exit(2)
+// Same isolation as headless-run, but only for Notepad tasks. Dirty-only
+// selections must not touch the user's TabState or require closing Notepad.
+let tbJson = { ok: true, skipped: true }
+if (needsTabState) {
+  const tb = await runPsArgs(TABSTATE, ['backup'], 60000)
+  tbJson = parseJson(tb.out)
+  if (!tbJson?.ok) {
+    console.error(`tabstate backup failed: ${tbJson?.reason || tb.err || tb.code}`)
+    process.exit(2)
+  }
+  console.log(`tabstate backup: ${tbJson.backup || '(none)'} moved=${tbJson.moved ?? 0}${tbJson.already ? ' (already active)' : ''}`)
+} else {
+  console.log('tabstate: skipped (dirty tasks only)')
 }
-console.log(`tabstate backup: ${tbJson.backup || '(none)'} moved=${tbJson.moved ?? 0}${tbJson.already ? ' (already active)' : ''}`)
 
 const results = []
 let failed = 0
@@ -104,7 +122,7 @@ for (const id of ORACLE_IDS) {
   const s = (k) => join(root, k, `${id}.ps1`)
   const rec = {
     id, setupOk: false, emptyFail: false, simPass: false, simRepeat: false,
-    cleanupOk: true, cleanupDirty: false, envError: null, envBlocked: false, notes: [],
+    cleanupOk: true, cleanupDirty: false, envError: null, envBlocked: false, ac2Skip: taskMeta.get(id)?.ac2 === 'none', notes: [],
   }
   const st = existsSync(s('setup'))
 
@@ -129,9 +147,11 @@ for (const id of ORACLE_IDS) {
     const steps = [
       ...(st ? [['setup', s('setup'), 120]] : []),
       ['oracle-empty', s('oracle'), 120],
-      ['simulate', s('simulate'), 120],
-      ['oracle-pass', s('oracle'), 120],
-      ['oracle-pass-2', s('oracle'), 120],
+      ...(rec.ac2Skip ? [] : [
+        ['simulate', s('simulate'), 120],
+        ['oracle-pass', s('oracle'), 120],
+        ['oracle-pass-2', s('oracle'), 120],
+      ]),
     ]
     let emptyCode = null
     for (const [name, script, to] of steps) {
@@ -143,6 +163,7 @@ for (const id of ORACLE_IDS) {
       if (name === 'setup') rec.setupOk = r.code === 0
       if (name === 'oracle-pass') rec.simPass = r.code === 0
       if (name === 'oracle-pass-2') rec.simRepeat = r.code === 0
+      if (r.code === 2 || (j && j.envError)) rec.envBlocked = true
       if (r.code === 2 || r.code === 'SPAWN_ERR' || r.code === 'TIMEOUT') {
         rec.envError = `${name}: code=${r.code} ${(j?.envError || r.err || '').slice(0, 300)}`
         break
@@ -159,11 +180,11 @@ for (const id of ORACLE_IDS) {
     await cleanupStep('final')
   }
 
-  rec.envBlocked = Boolean(rec.envError)
-    && /calculator|clipboard|tabstate|tab state|notepad process|backup dir/i.test(rec.envError)
-  const ok = rec.setupOk && rec.emptyFail && rec.simPass && rec.simRepeat
-    && rec.cleanupOk && !rec.cleanupDirty && !rec.envError
-  const status = rec.envBlocked ? 'ENV' : ok ? 'PASS' : 'FAIL'
+  rec.envBlocked = rec.envBlocked || (Boolean(rec.envError)
+    && /calculator|clipboard|tabstate|tab state|notepad process|backup dir|network|arxiv|paint|powerpoint|excel|browser|edge|chrome/i.test(rec.envError))
+  const baseOk = rec.setupOk && rec.emptyFail && rec.cleanupOk && !rec.cleanupDirty && !rec.envError
+  const ok = baseOk && (rec.ac2Skip || (rec.simPass && rec.simRepeat))
+  const status = rec.envBlocked ? 'ENV' : (!baseOk ? 'FAIL' : (rec.ac2Skip ? 'SKIP' : (ok ? 'PASS' : 'FAIL')))
   rec.status = status
   if (status === 'FAIL') failed++
   if (status === 'ENV') envs++
@@ -171,12 +192,15 @@ for (const id of ORACLE_IDS) {
   results.push(rec)
 }
 
-const tr = await runPsArgs(TABSTATE, ['restore'], 60000)
-const trJson = parseJson(tr.out)
-if (!trJson?.ok) {
-  console.error(`tabstate restore failed: ${trJson?.reason || tr.err || tr.code}`)
-  if (trJson?.backup) console.error(`backup kept at: ${trJson.backup}`)
-  failed++
+let trJson = { ok: true, skipped: true }
+if (needsTabState) {
+  const tr = await runPsArgs(TABSTATE, ['restore'], 60000)
+  trJson = parseJson(tr.out)
+  if (!trJson?.ok) {
+    console.error(`tabstate restore failed: ${trJson?.reason || tr.err || tr.code}`)
+    if (trJson?.backup) console.error(`backup kept at: ${trJson.backup}`)
+    failed++
+  }
 }
 try {
   writeFileSync(join(LOG_DIR, 'summary.json'), JSON.stringify({

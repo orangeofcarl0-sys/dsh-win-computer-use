@@ -143,5 +143,63 @@ const dismissFn = (common.match(/function Dismiss-TestSavePrompt[^{]*\{[\s\S]*?\
 check('S24: 保存提示只处理已证明模态窗', /Get-ModalTestWindows/.test(dismissFn)
   && /noSave|Don.t Save/.test(dismissFn))
 
+// 10. dirty-desktop tasks: new app/process names, state-scoped helpers, no broad closes
+const dirtyKillers = []
+for (const f of files) {
+  const src = readFileSync(f, 'utf8')
+  if (/Get-Process\s+-Name\s+['"](?:mspaint|POWERPNT|EXCEL|msedge|chrome)['"][\s\S]{0,300}?Stop-Process/i.test(src)) {
+    dirtyKillers.push(relative(root, f))
+  }
+}
+check('S25: 不按 Paint/Office/浏览器进程名 Stop-Process', dirtyKillers.length === 0, dirtyKillers.join(', '))
+
+const broadCloses = []
+for (const f of files) {
+  const src = readFileSync(f, 'utf8')
+  if (/Close-TaskWindows\s+@\([^\n]*(?:Paint|PowerPoint|Excel|Chrome|Edge)/i.test(src)) broadCloses.push(relative(root, f))
+}
+check('S26: 不宽匹配关闭 Paint/Office/浏览器', broadCloses.length === 0, broadCloses.join(', '))
+
+const taskSrc = (id, kind) => readFileSync(join(evals, kind, `${id}.ps1`), 'utf8')
+check('S27a: t11 使用 PaintDoc/Browser state helpers', /Open-TestPaintDoc/.test(taskSrc('t11', 'setup'))
+  && /Close-TestPaintDoc/.test(taskSrc('t11', 'cleanup'))
+  && /Open-TestBrowserWindow/.test(taskSrc('t11', 'setup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('t11', 'cleanup')))
+check('S27b: t12 使用 Office/Browser state helpers', /Open-TestAppWindow/.test(taskSrc('t12', 'setup'))
+  && /Close-TestAppWindow/.test(taskSrc('t12', 'cleanup'))
+  && /Open-TestBrowserWindow/.test(taskSrc('t12', 'setup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('t12', 'cleanup')))
+check('S27c: t13 使用 Browser state + hash cleanup', /Open-TestBrowserWindow/.test(taskSrc('t13', 'setup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('t13', 'cleanup'))
+  && /Remove-S4MatchedDownloads/.test(taskSrc('t13', 'cleanup')))
+check('S27d: t14 使用 Excel state helpers', /Open-TestAppWindow/.test(taskSrc('t14', 'setup'))
+  && /Close-TestAppWindow/.test(taskSrc('t14', 'cleanup')))
+check('S27e: t15 使用 Explorer state helpers', /Open-TestExplorer/.test(taskSrc('t15', 'setup'))
+  && /Close-TestExplorer/.test(taskSrc('t15', 'cleanup')))
+check('S27f: t16 使用 form server + Browser state helpers', /Start-TestFormServer/.test(taskSrc('t16', 'setup'))
+  && /Open-TestBrowserWindow/.test(taskSrc('t16', 'setup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('t16', 'cleanup'))
+  && /Stop-TestFormServer/.test(taskSrc('t16', 'cleanup')))
+check('S27g: t17 使用 Browser + Excel state helpers', /Open-TestBrowserWindow/.test(taskSrc('t17', 'setup'))
+  && /Open-TestAppWindow/.test(taskSrc('t17', 'setup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('t17', 'cleanup'))
+  && /Close-TestAppWindow/.test(taskSrc('t17', 'cleanup')))
+
+for (const id of ['t11', 't12', 't13', 't14', 't16', 't17']) {
+  const c = taskSrc(id, 'cleanup')
+  check(`S28: ${id} cleanup 可 dirty/leftover`, /-Dirty/.test(c) && /Save-LeftoverState/.test(c))
+}
+check('S29: 新 app/browser helper 记录并复核 pid/start', /processStart/.test(common)
+  && /Test-ProcessIdentity/.test(common)
+  && /function Close-TestAppWindow[^{]*\{[\s\S]*?Test-ProcessIdentity/.test(common)
+  && /function Open-TestAppWindow[^{]*\{[\s\S]*?processStart/.test(common))
+check('S30: t13 不宽删 Downloads', !/Remove-Item[^\n]*Downloads/i.test(taskSrc('t13', 'cleanup'))
+  && !/Get-ChildItem[^\n]*Downloads[^\n]*Remove-Item/i.test(taskSrc('t13', 'cleanup')))
+
+for (const id of ['t11', 't12', 't13', 't14', 't15', 't16', 't17']) {
+  const md = readFileSync(join(evals, 'tasks', `${id}-${({ t11: 'paint-replica', t12: 'ppt-replica', t13: 'paper-download', t14: 'excel-chart', t15: 'explorer-organize', t16: 'browser-form', t17: 'pdf-excerpt' })[id]}.md`), 'utf8')
+  check(`S31: ${id} 标记 dirty isolation`, /\*\*isolation:\s*dirty\*\*/.test(md))
+}
+
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)
