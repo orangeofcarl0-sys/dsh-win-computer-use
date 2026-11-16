@@ -8,12 +8,13 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 477 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **22 套 / 483 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **21/21 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **10/10**（2026-11-15 18:40 复跑，含 `x1`） | Windows 11 | `node evals/verify-oracles.mjs` |
-| S4 真机任务 | **t01 3/3 pass**（99/9/10 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
+| S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
+| query 只读视图 | **✅** query 后 `snapshotId=null`、动作 `[snapshot_missing]`、不污染差分/降噪 | Windows（离线） | `tests/observe.truth` T21-T25 + `schema.conformance` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
 | 打包面 | **38 文件**（新增 lib/menu.js；含 docs/RUNTIME-PIPELINE.md、lib/keyFallback.js、lib/loopGuard.js、lib/trajectory.js、lib/windowMap.js 等） | — | `npm pack --dry-run` |
@@ -228,6 +229,8 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | from_zoom 真机探针 | **pass**：请求 crop 160×100 → 返回 224×140；图中心 (112,70) 点击按钮成功写 marker | `node evals/probe-from-zoom.mjs`；证明驱动 padding/缩放映射可用 |
 | WinUI 键鼠通道探针 | **Ctrl+A**：hotkey 两模式失败；press_key bg 未选中且插入裸 `a`；press_key fg / 编辑→全选均选中全文。**Alt+F**：仅 press_key fg 打开文件菜单。**Alt+Tab**：仅 press_key fg 切换前台 | `node evals/probe-winui-keys.mjs`；矩阵见 docs/WINDOWS.md §4.1 |
 | 第二轮离线（2026-11-16） | **22 套 / 477 断言全绿**；`key.xaml` 33（alt+f 默认/opt-in、ctrl+a 菜单优先/press-only、press 失败不误导、菜单已开拒绝）、`action.echo` 30（菜单专用注记/复核菜单态、文档不置脏、set_value 语义）、`observe.truth` 20（文档不置脏提示） | `npm test`；语法 21/21；pack 38 文件 |
+| 第三轮离线 + t01 新基线（2026-11-16） | **22 套 / 483 断言全绿**；`observe.truth` 25（新增 query 只读/无快照/动作拒绝/不污染差分）、`schema.conformance` 45。t01 新题面 ×5：**5/5 pass**，steps 17/32/8/19/11（median 17）、wall 98.0/278.5/69.2/129.8/81.0s；中间题面版本（未加“一次输入两行”）曾 **4/5**，r5 模型打开编辑菜单后点“全选”结束、未保存（oracle len=0）；两版都未再出现 52/66 步的星号强制置脏循环 | `npm test`；`evals/headless-run.mjs`；轨迹在 `evals/headless-runs/`（gitignored） |
+| query 只读回归（2026-11-16） | **✅** query 后 `snapshotId=null`、header/footer 明确只读、click/type/key 返回 `[snapshot_missing]`、差分/降噪不被污染；全量观察后动作恢复 | `tests/observe.truth` T21-T25；`schema.conformance` observe/query-readonly |
 | verifyAfterAction A/B（2026-11-16） | **10/10 pass**：t01 off 9/19/52 步、61.6/117.1/377.3s；auto 66/15/8 步、533.2/98.1/60.9s；t05 off 24/34 步；auto 22/26 步。中位数 auto 略好（t01 15 步/98.1s vs 19 步/117.1s；t05 24 步/177.4s vs 29 步/181.8s），但区间重叠、auto 有 533s 尾部且每轮多 2-12 次 click 复核；默认保持 `off` | 原始 report/trajectory 在 `evals/headless-runs/ab/`（gitignored），不入库 |
 | verify-oracles（2026-11-15 18:40 复跑） | **10/10 PASS**：10 项全部 setup/emptyFail/simPass/repeat/cleanup；tabstate restored | t03 Explorer 慢关闭重试生效；此前 14-39 run 曾 9/10，15-02 run 在 t10 setup 被人工暂停 |
 | P2 运行时修复 | L3 恢复带 pid（windowMap）；bring_to_front refused 判失败；app_launch/menu/clipboard/hover 不再假成功；stale token 清快照；computer_do data；窗口别名；监控 loop 语义修正 | `npm test` 22 套 / 419 断言（当时）；verify-runtime 17/17 |

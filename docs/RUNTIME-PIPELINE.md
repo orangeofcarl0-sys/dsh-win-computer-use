@@ -55,6 +55,7 @@ pickObserveTarget
   -> rawElements.filter(isActionable)
   -> resolveObserveMode(ax/native/vision/desktop fallback)
   -> markStructuralPasswords（Windows sidecar，最多 5s）
+  -> query 非空？只读分支：跳过 diff/cache/dedup，clearSnapshot，snapshotId=null
   -> diffObserve（标题/输入值/状态栏/元素增删；必须在密码标记之后）
   -> consumedBefore / suspectBefore
   -> cacheSnapshot（x/y 已减 screenOrigin）
@@ -70,6 +71,7 @@ pickObserveTarget
 - 缺 `bounds` 时：`screenOrigin=null`、`coordinateSpace=screen-physical-px`，头部明确警告“不要直接点击”。
 - 同 pid 多窗口：`window_id` 精确匹配优先；否则按 on-screen、z_index、标题具体度排序。同标题匹配多个窗口时头部/降噪 stub 都明确提示 `目标匹配 N 个窗口`，要求改用 `window_id`。
 - 目标列表排除插件自己的 `Cua.AgentCursorOverlay*` 光标覆盖层；显式指定 overlay 返回专门错误。失败观察的快照策略：`picked.none` 清空；`picked.notFound` 保留新鲜旧快照并提示；桌面降级/`mode.fail` 只有失败目标与当前快照同 pid/window 时才清空。
+- `query` 非空是**只读过滤视图**：驱动返回过滤树后跳过 `diffObserve`/`cacheSnapshot`/`dedupEvaluate`，并 `clearSnapshot()`（query 调用已让旧 token 失效）；输出 `snapshotId=null`，header/footer 明确“编号不能用于动作/from_zoom”，需要动作时重新全量观察。
 - 权限面 30s 缓存；`apply`/降级时清空。去重仍发生在驱动工作之后，但 stub 现在带关键控件，模型不必为“编号在哪”再 force/native。
 - 未找到目标、窗口级观察失败、桌面降级、native 失败：清空旧快照，避免动作继续落到旧窗口。
 - `dedupEvaluate` 的 suspect 必须在 `cacheSnapshot` 之前捕获；安装新快照会清 suspect。

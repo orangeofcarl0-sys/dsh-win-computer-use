@@ -280,6 +280,8 @@ flowchart TD
 4. 上次观察后没有动作消费快照（`consumedBefore === false`）；
 5. 没有 `force`、没有 `query`。
 
+`query` 观察是**只读过滤视图**：不参与降噪、不更新差分/快照，并会 `clearSnapshot()`（query 的 `get_window_state` 已让旧 token 失效）；输出 `snapshotId=null`，header/footer 要求动作前重新全量观察。这样 query 的子集不会削弱保存门禁、菜单栏判断或动作后复核。
+
 命中时返回 `summary`（前 10 个 `index:role` 摘要 + 关键控件 `[编号] 角色 "标签" 值=...`）或 `brief`（单行）；结构化 `elements` 复用上次映射结果，模型不必为“编号在哪”再 force/native。全量与 stub 都带 `自上次观察` 差分和 `changedSinceLast`；`force=true` 走全量并刷新哈希。`dedupReset()` 在每次 `apply()` 调用时清空降噪/差分/权限缓存。
 
 ## 7. 快照与新鲜度
@@ -406,7 +408,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：22 套、477 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：22 套、483 断言（2026-11-16）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 10 条任务（含 x1 委派通道）+ oracle 双向验证 10/10。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

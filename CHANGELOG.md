@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-15）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-16）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 
 ## 0.5.7 (未发布)
 
@@ -13,6 +13,24 @@
 **2026-11-16：输入回读与保存门禁——阻止部分输入/错字后误保存；Codex overlay、菜单提示、app_launch 语义**
 
 **2026-11-16（第二轮）：WinUI opt-in 前台 press 回退、菜单状态反馈、文档“不置脏”提示**
+
+**2026-11-16（第三轮）：query 只读过滤视图、t01 星号证据修正、探索指标**
+
+### 2026-11-16 Added（第三轮）
+
+- **`screen_observe(query)` 改为只读过滤视图**：query 调用后跳过 `cacheSnapshot`/`diffObserve`/`dedupEvaluate`，并 `clearSnapshot()`（driver 的 `get_window_state` 已让旧 token 失效）；输出 `snapshotId=null`，header/footer 明确“编号不能用于动作/from_zoom，需要动作请重新全量观察”。这样 query 的子集不会削弱保存门禁、菜单栏判断、`nearestEntry` 或动作后复核。
+- **t01 题面星号证据修正**：`evals/tasks/t01-notepad-save.md` 不再要求“标题 `*note.txt` → `note.txt`”，改为以 oracle 文件内容为准，并禁止为制造星号使用空格/退格/重复输入/查找替换。
+- **`DOCUMENT_INPUT_NOTE` 强化**：明确“星号不出现/标签页未修改都属正常；不要用 SPACE/BACKSPACE/重复输入强制置脏”；观察头部与 `computer_type` 描述同步。
+- **`evals/analyze-trajectory.mjs` 探索指标**：`typeCalls/retypeSame/retypeDiff/nativeObserves/forceObserves/queryObserves/zoomCalls/clipboardCalls/dragCalls/menuCalls/snapshotMismatch/repeatSuppressed/innerSteps/strategy`；解析抽成可导出 `analyzeTrajectory(file)`。
+- **`evals/ab-summary.mjs`**：汇总 report+trajectory 的 median/p90/IQR、strategy 分布、paired delta；n<8 标 `p90Unstable`。
+- **`evals/headless-run.mjs`**：report 增加 `patchPath/patchSha256`，每 run 增加 `wallMs/innerSteps`；TabState restore 放入 `finally`；两份 eval patch 固定 `agent-default-model`（dsh 0.2.2 不支持 seed/top_p）。
+
+### 2026-11-16 Fixed（第三轮）
+
+- **query 过滤树覆盖主快照**：`query="文本编辑器"` 只返回 1 个元素时，`computer_key` 会误判“没有菜单栏，更像对话框”，模型转向 zoom/拖拽/剪贴板。现在 query 不建立动作快照，动作前必须全量 observe。
+- **t01 慢跑的强制置脏循环**：旧题面的星号证据在 UIA 不置脏下不可满足；模型用 SPACE/BACKSPACE 制造又消除星号。题面与插件注记同时修正。
+- **t01 单次输入约束**：真机 r5 模型把两行拆成两次 `computer_type` 并在中间按 Enter（delivery_failed 但实际插入换行），随后在编辑菜单里点“全选”结束、未保存。题面明确“在一次 computer_type 中包含换行输入两行，不要分两次/行间按回车”，减少该策略分支。
+- **验证（第三轮）**：离线 **22 套 / 483 断言**，语法 21/21；t01 新题面 ×5 **5/5 pass**，steps 17/32/8/19/11（median 17）；中间题面版本曾 4/5（r5 点“全选”结束未保存）。两版都未再出现 52/66 步的星号强制置脏循环。query 只读由 `observe.truth` T21-T25 + `schema.conformance` 守门。
 
 ### 2026-11-16 Added（第二轮）
 

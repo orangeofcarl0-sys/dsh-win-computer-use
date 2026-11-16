@@ -138,6 +138,8 @@ runner 侧用 `--pin-model "DeepSeek V4.1 Flash (OpenCode)" --pin-effort High` �
 > 2026-11-16 WinUI 键鼠成测试：`node evals/probe-winui-keys.mjs`（Ctrl+A/Alt+F/Alt+Tab × hotkey/press_key/菜单回退）。结果见 `docs/WINDOWS.md §4.1`：Ctrl+A 可靠回退是“编辑→全选”或 press_key foreground；Alt+F 仅 press_key foreground；Alt+Tab 仅 press_key foreground（会真实切前台）。`press_key` + 修饰键 background 会插入裸键，不能用于组合键。
 >
 > 同一轮加入了 CU 轨迹监控：`headless-run.mjs` 自动写 `<task>-r<n>.trajectory.jsonl`。首个干净 t01 样本 443 events / 589.5s，34 observe / 39 action，53 次 `move_cursor` / 7257px，自动标出 3 次重复 click、连续 observe、另存为窗口 native+ax 重复观察。第二轮修正了 `computer_do` 外壳重复计数，并增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`；分析命令：`node evals/analyze-trajectory.mjs <file>`。
+> 2026-11-16：分析器增加 `typeCalls/retypeSame/retypeDiff/native/force/query/zoom/clipboard/drag/menu/snapshotMismatch/repeatSuppressed/strategy`，用于解释同任务步数方差；`evals/ab-summary.mjs` 汇总 report+trajectory 的 median/p90/IQR、strategy 分布与 paired delta。测量产物仍只写 `evals/headless-runs/`（gitignored）。
+> 2026-11-16 t01 新题面（星号证据修正 + 单次输入约束）×5：**5/5 pass**，steps 17/32/8/19/11（median 17）；中间题面版本 4/5（r5 打开编辑菜单后点“全选”结束、未保存）。两版都未再出现 52/66 步的强制置脏循环，但 32 步 exploratory 仍在，说明策略方差需要统计分布而非单轮步数。
 
 ## 运行期语义（试跑定案 2026-09-07）
 

@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-16 · `npm test` 22 套 / **477 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-16 · `npm test` 22 套 / **483 断言** · `npm run check` **21/21** · `verify-runtime` **17/17**。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
 
 ## 1. 原则
@@ -18,7 +18,7 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 21 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 477 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、轨迹监控、eval 安全、Notepad 标签分类 |
+| 离线单元/契约 | `npm test` | 22 套 / 483 断言 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -34,9 +34,9 @@
 | `posture.smoke.mjs` | 37 | 零审批姿态、密码硬保护（AX/UIA/结构位/掩码）、极危注记、桌面降级、快照新鲜度 I 系列、执行侧接线、zoom pid/500px/fromZoom、compact 明确失败 |
 | `tools.smoke.mjs` | 26 | stop/resume 锁存、verify unknown≠成功、wait_for 超时、clipboard/menu/hover、失败回执（clipboard error_code/supported:false、menu 缺 effect、hover refusal、stop/resume 驱动失败、engineRefusal ok:false、menu 路径分隔/顶层编号指引） |
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
-| `schema.conformance.mjs` | 44 | 22 个工具 / 44 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级形态 |
+| `schema.conformance.mjs` | 45 | 22 个工具 / 45 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
-| `observe.truth.mjs` | 20 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示 |
+| `observe.truth.mjs` | 25 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示、query 只读/无快照/动作拒绝/不污染差分 |
 | `observe.coords.mjs` | 14 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
 | `human.click.mjs` | 16 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/零滑行/缺失与跨窗口拒绝 |
@@ -166,19 +166,21 @@ node evals/verify-oracles.mjs
 只改配置，不改插件默认值。两份 patch 除 `verifyAfterAction` 外必须完全一致；实验 patch 放 `evals/headless-runs/ab/`（`.gitignore` 已覆盖该目录），不提交。
 
 ```bash
-# off 臂
-node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 12 \
+# 5 轮/臂；建议每轮 --repeats 1 交替 off/auto，而不是一次 repeats=5
+node evals/headless-run.mjs --tasks t01 --repeats 5 --timeout-min 12 \
   --patch evals/headless-patch.yml --report evals/headless-runs/ab/off-t01.json
 # auto 臂（patch 只多 verifyAfterAction: auto）
-node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 12 \
+node evals/headless-run.mjs --tasks t01 --repeats 5 --timeout-min 12 \
   --patch evals/headless-runs/ab/verify-auto.yml --report evals/headless-runs/ab/auto-t01.json
+# 汇总 markers/strategy/median/p90/paired delta
+node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 ```
 
-- 交替跑 off/auto（可每轮 `--repeats 1`）抵消机器漂移；两臂不要并发。
-- 指标：report 的 `verdict/steps/toolErrors/unverified/dirty/timedOut`；对每轮 `trajectory` 跑 `node evals/analyze-trajectory.mjs <file> --json`，取 `durationMs/observeActionRatio/observeStubs/loops/staleSnapshots/drivers.get_window_state/snapshotReadsByTool`。
+- 交替跑 off/auto（每轮 `--repeats 1` 最稳）抵消机器漂移；两臂不要并发。两臂 patch 必须都固定 `agent-default-model`；dsh 0.2.2 不支持 seed/top_p，temperature 也不在 patch 配置键里，因此重复测试只能按统计分布解读。
+- report 现在带 `patchPath/patchSha256/wallMs/innerSteps`；trajectory 分析用 `node evals/analyze-trajectory.mjs <file> --json`，新增 `typeCalls/retypeSame/retypeDiff/nativeObserves/forceObserves/queryObserves/zoomCalls/clipboardCalls/dragCalls/menuCalls/snapshotMismatch/repeatSuppressed/strategy`。
 - `snapshotReadsByTool` 按 `driver.parent` 归属统计 `get_window_state`：`computer_click` 的计数含 verifyAfterAction 复核与 XAML 回退扫描；两臂差异主要来自复核。
-- 决策规则：auto 的 pass 数不低于 off、中位 steps/duration 不恶化超过约 15%，且至少改善一项（stale/重复点击/未验证后绕路）才建议后续考虑默认；否则保持 `off`。3 轮只作方向性判断。
-- **2026-11-16 首轮结果**：10/10 pass。t01 off 9/19/52 步、61.6/117.1/377.3s；auto 66/15/8 步、533.2/98.1/60.9s。t05 off 24/34 步、146.1/217.5s；auto 22/26 步、145.3/209.5s。auto 中位略优，但区间重叠、auto 有 533s 尾部、每轮多 2-12 次 click 复核；默认保持 `off`。
+- 决策规则：pass 不下降；median steps/duration 不恶化超过约 15%；p90 不恶化超过约 25%（n<8 标 `p90Unstable`，不作强结论）；没有新增 dirty/timeout；strategy 分布不更偏 exploratory。否则保持 `off`。
+- **2026-11-16 首轮结果**：10/10 pass。t01 off 9/19/52 步（strategy fast/exploratory/exploratory）；auto 66/15/8 步（exploratory/direct/fast）。t05 off 24/34 步；auto 22/26 步。auto 中位略优，但区间重叠、auto 有 533s 尾部、每轮多 2-12 次 click 复核；默认保持 `off`。这组也说明：只报 steps 会把“策略混合”误当噪声，必须同时报 strategy 分布。
 - 注意：`supersession=enforce` 下复核刷新 + `markConsumed` 可能产生 `[snapshot_consumed]`；A/B 用默认 `note`。
 
 ## 7. 新增测试/工具
@@ -212,10 +214,10 @@ node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 12 \
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 477 ✅ / 0 ❌ |
+| 离线 | 22 套 / 483 ✅ / 0 ❌ |
 | 语法 | 21/21 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
-| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 修复后 **3/3 pass**（99/9/10 步）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
+| dsh 真机 | headless 1 轮 5 步（2 可见/20 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；任务集 10 条 |
 | 打包 | `npm pack --dry-run` 38 文件 |

@@ -146,6 +146,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `screen_observe` | 观察窗口：编号树 / 截图直读 / 视觉描述；未变时回极简回执 | — | `window`、`window_id`、`mode`、`query`、`maxElements`、`force` |
 | `screen_zoom` | 区域放大 / 树空目标的定位原语（请求区域宽 ≤500px JPEG） | `window_id` | `pid`、`x1`、`y1`、`x2`、`y2` |
 
+`screen_observe(query=...)` 是**只读过滤视图**：只返回匹配元素，不建立动作快照；query 调用也会让旧 token 失效。需要动作/from_zoom 时，必须不带 query 重新 `screen_observe` 取得完整快照。
+
 ### 动作
 
 | 工具 | 作用 | 必填 | 常用可选 |
@@ -371,7 +373,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（21/21 JS）
-npm test                           # 22 套离线测试，477 个断言
+npm test                           # 22 套离线测试，483 个断言
 node verify-runtime.mjs            # 真驱动运行时验证（16 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -381,7 +383,7 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 10/10；2026-11-15 本机 7/10，t04/t06/t10 环境问题）
 ```
 
-`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 44 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（22 个工具 / 45 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 
