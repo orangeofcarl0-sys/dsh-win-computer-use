@@ -18,6 +18,7 @@
 | 视觉观察者 | 宿主 `ctx.llm`（`vision` 模式） | 截图 + 问题交给配置的视觉模型 |
 | 子 agent 委派 | 宿主 `subagents.start`（`computer_task`） | 一次性子会话，能力受宿主限制 |
 | 结构密码扫描 | `powershell.exe` + `tools/uia-password-scan.ps1` | Windows，只读 UIA/样式位 |
+| 私有拖拽 | `powershell.exe` + `tools/private-drag.ps1` | Windows 前台 SendInput；仅 modifier drag / dwell_ms 路径，原子手势并恢复原前台 |
 
 插件**不**使用 `approval` 服务；动作零审批、零打断。
 
@@ -48,7 +49,21 @@ spawn('powershell.exe', [
 - 脚本是随包只读文件 `tools/uia-password-scan.ps1`；超时 5s；输出单行 JSON；失败返回 null 并降级启发式。
 - 不写文件、不联网、不读用户文件；只读目标窗口的 UIA 属性与 Win32 样式位。
 
-### 2.3 非运行时脚本
+### 2.3 私有拖拽 helper（Windows，按需）
+
+```js
+spawn('powershell.exe', [
+  '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+  '-File', 'tools/private-drag.ps1',
+], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+```
+
+- 仅在 `computer_drag` 带 `modifier` 或 `dwell_ms` 时惰性启动；持久进程，stdin/stdout JSON 行；父进程退出后 stdin EOF 自动退出；空闲 120s 退出。
+- 一次手势内完成：前台校验 → modifier down → mouse down → 插值 move → mouse up → modifier up → 恢复原前台；失败路径 `finally` 释放按钮/修饰键。
+- 坐标是屏幕物理像素（virtual desktop），由插件从 `screenOrigin + 截图尺寸` 映射；私有路径不支持 `from_zoom`（明确报错，不静默丢 modifier）。
+- 不写用户文件、不联网；`Add-Type` 使用调用方用户 TEMP（不是 `C:\Windows\TEMP`）。
+
+### 2.4 非运行时脚本
 
 `install.sh` / `uninstall.sh` 是给用户手动执行的安装辅助脚本，**不是 npm lifecycle**；`package.json` 没有 `install` / `postinstall` / `prepare` 等脚本。
 
@@ -61,8 +76,8 @@ spawn('powershell.exe', [
 | 用户文件/项目文件读写 | ❌ 无 |
 | 直接文件写入 | ❌ 无（截图经宿主 attachments 持久化） |
 | 直接文件读取 | ⚠️ 仅 `existsSync()` 探测驱动可执行文件是否存在（`lib/cua.js`） |
-| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（后者仅手动探针） |
-| 临时文件 | 无（测试脚本除外，测试在工作区 `.dsh-test/` 下建工作副本） |
+| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1`（私有拖拽） |
+| 临时文件 | Windows PowerShell `Add-Type` 会在用户 TEMP 写临时编译文件（UIA scan / private drag）；插件不主动写用户文件；测试在工作区 `.dsh-test/` 下建工作副本 |
 
 ### 3.2 环境变量
 

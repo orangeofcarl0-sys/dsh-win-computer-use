@@ -183,6 +183,8 @@ node evals/headless-run.mjs --tasks t11 --repeats 3 --timeout-min 20   # activat
 node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40   # Office 单独宽预算
 node evals/verify-oracles.mjs                         # AC2：全部 oracle 双向独立验证
 node evals/probe-modifier.mjs                         # click modifier 真机门禁 + drag modifier 缺口
+node evals/probe-combo-foreground.mjs                 # 组合键自动前台（Ctrl+V 到 WinForms TextBox）
+node evals/probe-private-drag.mjs                     # 私有 SendInput 拖拽：Ctrl+Shift 到 down/move/up，drop 后无卡键
 node evals/probe-native-freshness.mjs                 # driver/plugin native 截图 freshness
 node evals/stop-stale.mjs "<url>" 18                  # 止损：停 >18min 的残留进行中回合
 node evals/maintain.mjs "<url>"                       # 停残留 + 拒绝待审批

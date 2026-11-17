@@ -65,6 +65,25 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 **Explorer 文件项**：后台坐标点击会优先走 UIA hit-test/Invoke；在文件项上 Invoke 等于“打开”。单选文件请传 `foreground=true`（真实 SendInput 单击）；多选 Ctrl+click 因 `modifier` 已自动前台。2026-11-17 t15 首轮实测：background 单击 `report-draft.txt` 直接打开 Notepad，随后又打开 Photos/PDF，导致该轮作废。
 
+### 3.1 私有拖拽（modifier / dwell_ms）
+
+`computer_drag` 的 `modifier` 非空（或 `dwell_ms>0`）时不再走 driver drag，而是由 `tools/private-drag.ps1` 执行一次原子 SendInput 手势：
+
+1. 父进程把窗口截图坐标按 `screenOrigin + 截图尺寸` 映射为屏幕物理像素；
+2. helper 设置 PMv2 DPI、校验目标成为前台；
+3. `SetCursorPos` + 真实 `MOVE|ABSOLUTE|VIRTUALDESK` 到起点；
+4. modifier keydown（Ctrl/Shift/Alt/Win；用户已按住的键不重复按、也不代释放）；
+5. 鼠标 down → 100ms → 先移动 6px 越过 4px 拖拽阈值 → 按 `steps/duration_ms` 插值 → 终点 → 可选 `dwell_ms`；
+6. 鼠标 up → 70ms → modifier 反向 keyup；`finally` 释放按钮/修饰键；恢复原前台；
+7. 回执带 `sent`、`foregroundRestored`、`stuckButton/stuckModifiers`；界面结果仍需 observe。
+
+限制：
+- 私有路径**不支持 `from_zoom`**（驱动 zoom 的真实 padding/scale 没有复刻，手算会重蹈 A7）；明确报 `[private_drag_zoom_unsupported]`。
+- 需要快照的 `screenOrigin`/截图尺寸；query 只读视图没有动作快照；报 `[private_drag_no_frame]`。
+- UIPI：中完整性 helper 不能向高完整性目标注入，`SendInput` 返回 0 时回执明确失败；不要假成功。
+- 不自动重试：drag 非幂等；只有前台校验失败（未发送输入）才可让模型 activate 后重试一次。
+- 已验证：WinForms 探针 `probe-private-drag` **3/3** 在 down/move/up 三个点读到 `Shift, Control`，drop 后 `stuckModifiers` 为空。Explorer Ctrl+drag 复制、Excel 工作表标签 Ctrl+drag、PPT Shift 约束尚未纳入自动回归，作为下一轮真机项。
+
 `screen_observe` 的文本行 `@(x,y)` 与结构化 `elements[].x/y` 必须完全一致，都是减过 `screenOrigin` 的点击空间；2026-11-14 t01 的“反复定位”根因就是文本行漏了换算。取不到窗口 `bounds` 时不会假装可点击：头部会标注“屏幕物理像素，不要直接用于 computer_click”，`coordinateSpace` 为 `screen-physical-px`。
 
 **宿主预览缩放**：2558×1598 的窗口截图在模型侧可能显示成 1610×1006，但 `@(x,y)`/`computer_click` 始终是原图像素。2026-11-17 t14 r2 与 t17 r2 都把 A1 点成 B1，就是因为按预览尺寸估坐标。头部现在带 `源图 W×H` 并明确“预览缩放时用 `screen_zoom` + `from_zoom=true`”；网格/画布/图标定位不要用整窗预览量像素。
@@ -230,6 +249,9 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | 回执里出现 `background_delivery_failed` 但文字已进入目标 | 这是驱动的“建议升级前台”escalation，不是硬失败；旧版整段 JSON 子串误判 | 已用词边界修正；以 `effect:unverifiable`/回读为准，不要重复输入 |
 | `Ctrl+V`/`Ctrl+A` 只落成 `v`/`a` | 后台 synthetic 不更新 OS 修饰键状态 | 组合键已自动前台；仍异常时先 `computer_activate(pid,window_id)` 再重试一次 |
 | A1 点成 B1 / 坐标偏移一列 | 按模型侧缩放预览估算原图像素 | 用 `screen_zoom`（宽≤500）+ `from_zoom=true`；头部 `源图 W×H` 才是点击空间 |
+| `[private_drag_zoom_unsupported]` | 私有拖拽未复刻 driver zoom padding/scale | 用窗口截图坐标重发；不要 modifier+from_zoom |
+| `[private_drag_no_frame]` | 快照缺 `screenOrigin`/截图尺寸 | 先 `screen_observe`（不要 query 只读视图）再拖 |
+| 私有拖拽 `foreground_unavailable` / `sendinput_blocked` | 前台锁或 UIPI 阻止 SendInput | 未发送输入；先 `computer_activate` 或提升 helper 完整性后再试一次；不要重复已发送的 drag |
 | 剪贴板 read 为空 | 被其它进程占用 | write 后 verify/重试；用粘贴流 |
 | `app_launch` 后无法关闭 | High IL + UIPI | 提示用户手动关闭；不要按进程名杀 |
 | 测试选中错误窗口 | 桌面有同名/残留窗口 | 用唯一命名临时文件 + 标题精确匹配；不要用进程名 |

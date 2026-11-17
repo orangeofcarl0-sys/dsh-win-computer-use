@@ -344,13 +344,22 @@ const FROM_ZOOM_PARAM = {
  * modifier：按住修饰键的手势。Windows 上 driver 的 click 家族要求前台 SendInput；
  * 插件在 modifier 非空时自动前台投递并恢复原前台。
  * 注意：0.23.2 的 drag 虽在 schema 声明 modifier，但真机探针显示目标收不到修饰键
- * 状态（MouseDown/Move/Up 全是 None），因此 drag 不开放该参数。
+ * 状态；带 modifier 的 drag 改走私有 SendInput helper（tools/private-drag.ps1）。
  */
 const MODIFIER_PARAM = {
   modifier: {
     type: 'array',
     items: { type: 'string' },
     description: '可选：按住修饰键（ctrl/shift/alt/win 数组，如 ["ctrl"]）。Windows 修饰键点击必须前台注入；插件会自动前台投递并恢复原前台（即使配置为 background）。',
+  },
+}
+
+/** drag 私有路径：modifier 与 from_zoom 互斥（私有 helper 不复刻驱动 zoom 映射）。 */
+const DRAG_MODIFIER_PARAM = {
+  modifier: {
+    type: 'array',
+    items: { type: 'string' },
+    description: '可选：拖拽期间按住的修饰键（ctrl/shift/alt/win）。非空时走私有 SendInput 前台拖拽（原子手势，修饰键持有到 drop），不支持 from_zoom；无 modifier 仍走 driver。',
   },
 }
 
@@ -587,14 +596,17 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_drag',
-    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。注意：driver 0.23.2 的 drag 虽接受 modifier，但 Windows 实测目标收不到修饰键状态，因此本工具不提供 modifier。',
+    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。modifier 非空时走私有 SendInput 前台拖拽：原子手势、修饰键持有到 drop、失败路径释放；私有路径不支持 from_zoom（明确报错），无 modifier 仍走 driver。button 支持 left/right/middle；dwell_ms 用于 Explorer 弹簧文件夹/拖放悬停。',
     parameters: {
       from_x: { type: 'integer', required: true, description: '起点 x（截图像素；from_zoom=true 时为 zoom 图坐标）。' },
       from_y: { type: 'integer', required: true, description: '起点 y。' },
       to_x: { type: 'integer', required: true, description: '终点 x。' },
       to_y: { type: 'integer', required: true, description: '终点 y。' },
       duration_ms: { type: 'integer', description: '可选：拖拽耗时毫秒（0-10000），默认 500。' },
-      steps: { type: 'integer', description: '可选：中间 WM_MOUSEMOVE 事件数（1-200），默认 20；越大轨迹越平滑。' },
+      steps: { type: 'integer', description: '可选：中间移动事件数（1-200），默认 20；越大轨迹越平滑。' },
+      button: { type: 'string', enum: ['left', 'right', 'middle'], description: '可选：鼠标按钮，默认 left。' },
+      dwell_ms: { type: 'integer', description: '可选：到达终点后按住悬停毫秒（0-2000），Explorer 弹簧文件夹可用 500-1000。' },
+      ...DRAG_MODIFIER_PARAM,
       ...FROM_ZOOM_PARAM,
       ...SNAPSHOT_ID_PARAM,
       ...FOREGROUND_PARAM,

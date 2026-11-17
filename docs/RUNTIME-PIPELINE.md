@@ -108,7 +108,8 @@ humanAction / type / key / scroll / drag / set_value
   - background 投递在任何模式下都不滑行。
 - 同窗口同目标 16px/2s 内再次点击：完全跳过滑行（连续点击同一按钮不再产生一串小段移动）。
 - `from_zoom=true` 的 click/double/right 与 drag：坐标是 zoom 图像坐标；插件校验 lastZoom 与当前快照同 pid/window、zoom 不早于观察，click 跳过滑行，payload 带 `from_zoom:true` 由驱动映射；缺失/过期/跨窗口返回 `[zoom_missing]/[zoom_stale]`。click 的 `element` 与 `from_zoom` 互斥；drag 的起终点都按 zoom 图坐标解释。
-- click 家族 `modifier` 非空时自动 `forceForeground`（Windows 修饰键只能 SendInput 前台）；drag 不开放 `modifier`——0.23.2 schema 接受但真机目标收不到修饰键状态。
+- drag `modifier`（或 `dwell_ms>0`）走私有 SendInput helper：`screenOrigin + 截图尺寸` 映射屏幕物理像素，helper 前台校验 → modifier down → mouse down → 6px 阈值 → 插值 → mouse up → modifier up → 恢复；请求/响应为 stdin/stdout JSON 行。私有路径不支持 `from_zoom`（`[private_drag_zoom_unsupported]`），缺 frame 报 `[private_drag_no_frame]`；无 modifier 的 drag 仍走 driver。
+- click 家族 `modifier` 非空时自动 `forceForeground`（Windows 修饰键只能 SendInput 前台）。drag 的 `modifier`/`dwell_ms` 走私有 SendInput helper（原子手势，modifier 持有到 drop）；无 modifier 的 drag 仍走 driver（0.23.2 的 drag modifier 不读取）。
 - `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式 + 同一 count + 同一 modifier 集合，5s 内重复，且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照。观察到变化会清除该窗口的重复计数；`double_click` 不拦。
 - `count:3` 不会自动变成三次点击；它是一次 `click` payload 的 count 参数，是否支持取决于驱动/目标。
 

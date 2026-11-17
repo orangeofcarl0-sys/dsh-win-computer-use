@@ -97,8 +97,9 @@ function session(mode) {
   const clickProps = defs.get('computer_click')?.parameters?.properties || {}
   const dragProps = defs.get('computer_drag')?.parameters?.properties || {}
   check('A4b click 暴露 modifier', Boolean(clickProps.modifier), Object.keys(clickProps).join(','))
-  check('A4c drag 暴露 from_zoom/steps 且不暴露 modifier',
-    Boolean(dragProps.from_zoom) && Boolean(dragProps.steps) && !dragProps.modifier,
+  check('A4c drag 暴露 modifier/button/dwell_ms/from_zoom/steps',
+    Boolean(dragProps.modifier) && Boolean(dragProps.button) && Boolean(dragProps.dwell_ms)
+      && Boolean(dragProps.from_zoom) && Boolean(dragProps.steps),
     Object.keys(dragProps).join(','))
   check('A5 catalog 不改变注册面', s.reg.size === 2, `reg=${s.reg.size}`)
   check('A6 隐藏 click 不在注册表', !s.reg.has('computer_click'))

@@ -153,7 +153,7 @@
 |---|---|---|---|
 | 结构化优先 | AX/UIA/DOM 元素 + 语义动作 | 已有 element token/UIA + click modifier；drag 无 element | 保留 element 优先；后续评估 drag element |
 | 像素兜底 | 坐标 + 当前 frame/capture + zoom 映射 | window screenshot 坐标；click/drag 均支持 from_zoom；drag 支持 steps | native freshness probe 已完成；按应用复现再修 |
-| 手势 | click/drag 带 modifier、steps、down/up、hold | click modifier 已真机验证；drag modifier 在 0.23.2 目标端收不到；有 steps | drag 不暴露 modifier；后续评估 down/up 绕过 driver 限制 |
+| 手势 | click/drag 带 modifier、steps、down/up、hold | click modifier 已真机验证；driver drag modifier 在 0.23.2 目标端收不到；有 steps | 第八轮 drag modifier 改为私有 SendInput helper（`tools/private-drag.ps1`）；后续评估 down/up 原语 |
 | 焦点 | 显式 activate/bring_to_front；foreground 恢复 | 新增 `computer_activate`；foreground L3 恢复 | 脏桌面先 activate；t11 画布先焦点 click |
 | 验证 | 每步 screenshot/回执 + 最终 oracle | 有快照/回执/verify/oracle | 保持；明确 `unverifiable` 不是成功 |
 | 长任务 | plan/subgoal/checkpoint；Cua 不做 loop | computer_task + eval runner | 子代理限制权限；每步 checkpoint |
@@ -161,13 +161,14 @@
 
 ## 9. 对本插件的结论
 
-1. **t15 有明确、低风险的插件层解；t11 的 drag modifier 没有**：driver 0.23.2 的 `click` 已支持 `modifier`，真机探针确认 element/坐标两条路径都能到达目标；`drag` 虽在 schema 接受 `modifier`，但 MouseDown/Move/Up 读到的 `Control.ModifierKeys` 全是 `None`，因此插件只接 drag 的 `from_zoom/steps`，不暴露 drag modifier。
+1. **t15 有明确、低风险的插件层解；t11 的 drag modifier 在 driver 0.23.2 没有，但第八轮已私有实现**：driver 0.23.2 的 `click` 已支持 `modifier`，真机探针确认 element/坐标两条路径都能到达目标；`drag` 虽在 schema 接受 `modifier`，但 MouseDown/Move/Up 读到的 `Control.ModifierKeys` 全是 `None`。第八轮改为 `modifier`/`dwell_ms` 走 `tools/private-drag.ps1`（SendInput 原子手势），无 modifier 的 drag 仍走 driver。
 2. **t11 不能只靠“更好提示词”**：ZCode CU 的真机探针证明，Windows 上缺少 activation 时，画布坐标 drag 会被应用忽略；必须 `computer_activate` + 画布焦点 click + 精确画布原点/线宽。setup 用 UIA 固定 8px、题面给 `(879,600)` 后 **3/3 pass，70/88/48 步**。
 3. **t15 的逐文件循环不是纯模型问题**：没有 Ctrl+click，非连续多选不可用；补 `modifier` 后 **3/3 pass，77/72/59 步**（各 5 次 Ctrl+click）。但文件单选必须 `foreground=true`，否则后台 UIA Invoke 会打开文件。
 4. **t12 没有通用 CU 解，但白底 seed + 直接输入可以进预算**：形状选择可以被元素级动作改善（ZCode 能按 `S4 Bar Q1` 选中），但 PowerPoint 文本/颜色/保存仍是应用层成本；白底 seed + 按形状名选择 + 双击柱直接输入 + 每柱保存 + 40 分钟后，**2/2 pass，140/169 步**（此前 25 分钟/190 步仅 red/blue + Q1）。仍不建议写 Office 专用 CU 层。
 5. **不要为单个应用写专用 CU 层**：Codex 的 LibreOffice 路线、Claude for Excel 的结构化路线都说明，Office 可靠路径是 API/OOXML，不是屏幕点击。
 6. **Excel/PDF 的通用 GUI 路径仍可进任务预算，但靠任务级确定性**：t14 用 `Ctrl+Shift+End` 选 A1:D6 + `Alt+F1`（2/2 pass，141/71 步）；t17 用三击句子 + Ctrl+C、Excel 先 Save As 再粘贴（2/2 pass，89/63 步）。这不是专用 CU 层，而是把“选区/保存”做成可复现的题面纪律。
 7. **2026-11-17 第七轮把这里的 P0 建议落地了**：`deliveryFailure` 不再把 `background_delivery_failed` 子串当硬失败；无 Document 的 type 保留快照；组合键自动前台；forced click/scroll/drag 先前置再单次执行。t14 新题面 **3/3 pass，59/41/57 步**，forced pointer 后 **42 步**；t17 **3/3 pass，37/53/48 步**，forced pointer 后 **42 步**；t15 **85/67 步**；t11 **58/94 步**。下一层仍是 `selectText`/key hold/drag element 与 Office 专用能力，不在本轮范围。
+8. **2026-11-17 第八轮：drag modifier 改为私有实现**。cua-driver 0.23.2 的 `DragTool::invoke` 声明 modifier 但不读取；上游 PR #5667 / 0.39.0 已用 `modifier_hold_inputs` 修复。本插件不强制升级驱动，而是在 `computer_drag` 的 modifier/dwell 路径走 `tools/private-drag.ps1`：持久 PowerShell + C# P/Invoke，PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台；`from_zoom` 明确拒绝。WinForms 探针 **3/3** 在 down/move/up 均读到 `Shift, Control`，drop 后无卡键。Explorer Ctrl+drag 复制、Excel 标签 Ctrl+drag、PPT Shift 约束留作下一轮 drop-target 真机项。
 
 ## 10. 参考（主要）
 

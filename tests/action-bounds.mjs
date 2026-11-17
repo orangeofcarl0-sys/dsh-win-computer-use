@@ -8,6 +8,7 @@
  *  P0-5：指定窗口未匹配时 fail-closed、不建立快照、给候选列表。
  *  P1-A：computer_set_value 注册且 payload 走 element_token + value。
  */
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { makeWorkCopy, writeStubDriver, loadPlugin, makeServices, makeCtx, makeChecks, cleanupWork } from './lib/harness.mjs'
@@ -55,6 +56,15 @@ export async function cuaCall(tool, args = {}) {
 export async function cuaDeliver(tool, payload) { return { value: await cuaCall(tool, payload), note: '' } }
 `)
 
+writeFileSync(join(work, 'lib', 'privateDrag.js'), `
+export const calls = []
+export async function privateDrag(req) {
+  calls.push(req)
+  return { ok: true, sent: 42, foregroundRestored: true, stuckButton: false, stuckModifiers: '' }
+}
+export function stopPrivateDrag() {}
+`)
+
 const plugin = await loadPlugin(work)
 const { check, state } = makeChecks()
 const lib = (name) => import(pathToFileURL(join(work, 'lib', name)).href)
@@ -62,6 +72,7 @@ const { clearSnapshot, getSnapshot, setSnapshot, freshnessIssueParts } = await l
 const { settleAction } = await lib('receipt.js')
 const { calls } = await lib('cua.js')
 const { noteZoom, clearZoom } = await lib('observe.js')
+const priv = await lib('privateDrag.js')
 
 const cfg = {
   ttlMs: 60000, maxElements: 120, observeDedup: 'off', verboseReceipts: false,
@@ -171,6 +182,43 @@ r = await call('computer_drag', { from_x: null, from_y: 2, to_x: 3, to_y: 4 })
 check('D6 drag null 坐标被拒', r.ok === false && !calls.some((c) => c.tool === 'drag'),
   String(r.result).slice(0, 80))
 
+// D7-D9：modifier 走私有 SendInput；私有路径不复刻 from_zoom，且需要 screenOrigin
+priv.calls.length = 0
+calls.length = 0
+r = await call('computer_drag', {
+  from_x: 10, from_y: 10, to_x: 20, to_y: 20, modifier: ['control', 'CTRL'],
+})
+const privCall = priv.calls[0]
+check('D7 modifier drag 走私有 SendInput 并映射屏幕坐标', r.ok === true
+  && priv.calls.length === 1
+  && privCall?.modifier?.join(',') === 'ctrl'
+  && privCall?.fromX === 110 && privCall?.fromY === 110
+  && privCall?.toX === 120 && privCall?.toY === 120
+  && !calls.some((c) => c.tool === 'drag')
+  && /私有 SendInput/.test(String(r.result)), JSON.stringify(privCall || {}))
+
+priv.calls.length = 0
+calls.length = 0
+r = await call('computer_drag', {
+  from_x: 10, from_y: 10, to_x: 20, to_y: 20, dwell_ms: 500,
+})
+check('D7b dwell_ms 无 modifier 也走私有路径', r.ok === true
+  && priv.calls.length === 1 && priv.calls[0]?.dwellMs === 500
+  && Array.isArray(priv.calls[0]?.modifier) && priv.calls[0].modifier.length === 0
+  && !calls.some((c) => c.tool === 'drag'), JSON.stringify(priv.calls[0] || {}))
+
+noteZoom(42, 7, { imageW: 280, imageH: 140 })
+priv.calls.length = 0
+calls.length = 0
+r = await call('computer_drag', {
+  from_x: 10, from_y: 10, to_x: 20, to_y: 20, from_zoom: true, modifier: ['ctrl'],
+})
+check('D8 modifier+from_zoom 明确拒绝', r.ok === false
+  && /private_drag_zoom_unsupported/.test(String(r.result))
+  && priv.calls.length === 0 && !calls.some((c) => c.tool === 'drag'),
+  String(r.result).slice(0, 100))
+clearZoom(42)
+
 // G1：scroll/drag 也必须校验显式 snapshot_id（之前 schema 接受但实现忽略）
 calls.length = 0
 r = await call('computer_scroll', { direction: 'down', snapshot_id: 's-wrong' })
@@ -182,6 +230,18 @@ r = await call('computer_drag', { from_x: 1, from_y: 1, to_x: 2, to_y: 2, snapsh
 check('G1 drag 的 snapshot_id 不匹配被拒',
   r.ok === false && /\[snapshot_mismatch\]/.test(String(r.result)) && !calls.some((c) => c.tool === 'drag'),
   String(r.result).slice(0, 70))
+
+// D9：私有拖拽需要 screenOrigin/截图尺寸
+setSnapshot({
+  at: Date.now(), ttlMs: cfg.ttlMs, pid: 42, windowId: 7, appName: 'Stub', snapshotId: 's-noframe',
+  entries: new Map(),
+})
+priv.calls.length = 0
+r = await call('computer_drag', { from_x: 1, from_y: 2, to_x: 3, to_y: 4, modifier: ['ctrl'] })
+check('D9 无 screenOrigin → private_drag_no_frame', r.ok === false
+  && /private_drag_no_frame/.test(String(r.result)) && priv.calls.length === 0,
+  String(r.result).slice(0, 100))
+await call('screen_observe', { window: 'Stub' })
 
 // ── P1-A：set_value 走 element_token + value ────────────────────────
 calls.length = 0

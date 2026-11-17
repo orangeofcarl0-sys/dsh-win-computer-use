@@ -159,7 +159,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `computer_set_value` | 直接设值（UIA `ValuePattern`；文本框/滑块/下拉优先） | `element`、`value` | `snapshot_id` |
 | `computer_key` **H** | 按键/快捷键（组合键走 `hotkey`；绑定快照窗口；组合键自动前台并恢复原前台） | `key` | `snapshot_id`、`foreground` |
 | `computer_scroll` **H** | 滚动 | — | `direction`、`amount`、`element`、`snapshot_id`、`foreground` |
-| `computer_drag` | 窗口截图坐标拖拽；支持 zoom 坐标与平滑轨迹 | `from_x`、`from_y`、`to_x`、`to_y` | `duration_ms`、`steps`、`from_zoom`、`snapshot_id`、`foreground` |
+| `computer_drag` | 窗口截图坐标拖拽；modifier 走私有 SendInput 原子手势；支持 zoom 坐标/平滑轨迹 | `from_x`、`from_y`、`to_x`、`to_y` | `duration_ms`、`steps`、`modifier`、`button`、`dwell_ms`、`from_zoom`、`snapshot_id`、`foreground` |
 | `computer_wait` | 本地等待（不调引擎） | `ms` | — |
 | `app_list` | 列出运行中应用（显示上限 20 条） | — | — |
 | `app_launch` | 后台启动应用，可选前置 | `name` 或 `bundle_id` | `bring_to_front`、`creates_new_instance` |
@@ -201,7 +201,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 1. **element 路径优先。** `element_token` 由驱动定位，支持后台/隐藏窗口，不受 DPI 混合影响。
 2. **像素路径是 best-effort。** 驱动 0.23.2 的像素点击在混合 DPI 下有实测落点偏差（见 [docs/WINDOWS.md](docs/WINDOWS.md) 与 [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) A7）；像素点击后请用 `screen_observe` / `computer_verify` 复核。
 3. **不要自己乘 2、加窗口偏移，也不要按预览显示尺寸估坐标。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。宿主可能把 2558px 截图缩成 1610px 预览；网格/画布/图标像素定位先用 `screen_zoom`（宽 ≤500），图内坐标必须加 `from_zoom=true`。
-4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。`computer_click` 与 `computer_drag` 都支持；drag 的起终点都按 zoom 图坐标解释。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。
+4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。`computer_click` 与 `computer_drag` 都支持；drag 的起终点都按 zoom 图坐标解释。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。**私有拖拽（`modifier` 或 `dwell_ms`）不支持 `from_zoom`**：会明确报 `[private_drag_zoom_unsupported]`，请用窗口截图坐标重发。
 5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
 
 ### 观察真相：当前值 + 状态差分
@@ -323,7 +323,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 - **管理员窗口仍是系统边界。** 驱动能操作它自己启动的高完整性窗口，但非提权客户端不能清理；具体按目标与通道判断，不是“管理员窗口一律不可操作”。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
 - **Explorer 文件项的单选要用 `foreground=true`。** 后台坐标点击会优先走 UIA hit-test/Invoke；在 Explorer 文件项上这等于“打开”，会弹出 Notepad/Photos/PDF 等应用。t15 首轮因此污染；题面已明确文件单击必须前台。Ctrl+click 的 `modifier` 本身已强制前台。
-- **多选与 zoom 拖拽已接线，但仍有边界。** `computer_click`/`double_click`/`right_click` 支持 `modifier`（Ctrl+click 多选已真机验证，Windows 上自动前台注入）；`computer_drag` 支持 `from_zoom`/`steps`，但**不提供 `modifier`**——driver 0.23.2 的 drag 虽在 schema 接受该字段，真机探针显示目标的 MouseDown/Move/Up 全是 `None`，修饰键没有进入目标。仍无元素源拖拽、`selectText`、key hold；Paint 画布/Office 形状仍以坐标或 AX 元素为主。具体轨迹与建议见 [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) 与 [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md)。
+- **多选与 modifier 拖拽已接线，但仍有边界。** `computer_click`/`double_click`/`right_click` 支持 `modifier`（Ctrl+click 多选已真机验证，Windows 上自动前台注入）。`computer_drag` 的 `modifier` 走**私有 SendInput helper**（`tools/private-drag.ps1`）：原子手势、modifier 持有到 drop、失败路径释放、恢复原前台；`button` 支持 left/right/middle，`dwell_ms` 支持 Explorer 弹簧文件夹。私有路径不支持 `from_zoom`（明确报错）；无 modifier 的 drag 仍走 driver，保留 driver 的 zoom/后台路径。仍无元素源拖拽、`selectText`、key hold；Paint 画布/Office 形状仍以坐标或 AX 元素为主。具体轨迹与建议见 [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) 与 [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md)。
 - **native 截图 freshness 已有确定性探针，但未复现陈旧。** `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver `screenshot_png_b64` 与插件 native 图的 hash/字节数，当前均随文本变化；t11 轨迹里的“同一 PNG hash”仍可能是特定应用/去重路径，未定位前不要把它当成普适结论。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 A10。
 - **PowerPoint/Office 的可靠路径是结构化优先。** 能读 OOXML/COM/API 就不要靠 ribbon 点击；必须走 GUI 时，把 t12 这类任务按“改色/加标签/保存”拆分或放宽预算，不要用通用 CU 硬解。
 - **`screen_zoom` 需要当前模型支持图片输入。** 它不做视觉观察者降级；小字号 JPEG 可能不可读，读文字请用 `native`（无损 PNG）。
@@ -365,6 +365,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `background_unavailable` | 目标输入栈丢弃后台事件 | 回执为 `ok:false`；用 `deliveryMode: auto` 自动前台，或单次 `foreground: true`；不要重复同一动作 |
 | `delivery_failed` | 投递未确认（常见于后台按键） | 先 `screen_observe`，必要时 `foreground: true` 重试一次；`background_delivery_failed` 是升级建议，不是硬失败 |
 | 回执“已前置目标并点击/拖拽一次（未验证）” | 强制前台指针动作不做失败后重试 | 先 observe 看结果；不要重复同一动作，必要时手动重试一次 |
+| `[private_drag_zoom_unsupported]` | 私有拖拽未复刻驱动 zoom 映射 | 用窗口截图坐标重发；或先 screen_zoom 观察，不要加 modifier+from_zoom |
+| `[private_drag_no_frame]` | 快照缺 screenOrigin/截图尺寸 | 先 `screen_observe` 目标窗口（不要用 query 只读视图）再拖拽 |
 | `foreground_unavailable` | Windows 前台锁拦截 | 自动升级 L3；仍失败时先让目标前置 |
 | UIA accelerator 超时 | WinUI/XAML 组合键通道不可达（#3908） | 改点菜单/按钮；或稍后重试 |
 | `native` 被拒 | 当前模型未声明 image 输入 | 换视觉模型或用 `mode:"vision"` |
@@ -378,8 +380,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（21/21 JS）
-npm test                           # 22 套离线测试，551 项检查
+npm run check                      # 语法检查 + bash -n（22/22 JS）
+npm test                           # 22 套离线测试，555 项检查
 node verify-runtime.mjs            # 真驱动运行时验证（17 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \

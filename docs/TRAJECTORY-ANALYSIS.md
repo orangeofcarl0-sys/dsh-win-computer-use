@@ -181,7 +181,7 @@
 |---|---|---|
 | **P0** | `computer_click`/`double_click`/`right_click` 加 `modifier` | **已实现并真机验证**（element/坐标两条路径，Ctrl 到达目标） |
 | **P0** | `computer_drag` 加 `from_zoom`/`steps` | **已实现**；拖拽起点/终点按 zoom 图坐标映射，steps 1–200 |
-| **P0** | `computer_drag` 加 `modifier` | **不实现**：driver 0.23.2 schema 接受，但真机 MouseDown/Move/Up 的 `Control.ModifierKeys` 全是 `None`；t11 不用 Shift |
+| **P0** | `computer_drag` 加 `modifier` | **第八轮已私有实现**：driver 0.23.2 schema 接受但真机 `Control.ModifierKeys` 全是 `None`；改走 `tools/private-drag.ps1` 原子 SendInput（t11 题面仍不用 Shift，避免改变任务） |
 | **P0** | t15 用 Ctrl+click 批量跑 3–5 次 | **已跑**：3/3 pass，77/72/59 步，各 5 次 Ctrl+click；见 §9.1 |
 | **P1** | t11 题面加“activate + 画布焦点 click + foreground 重试”；固定线宽/原点 | **已完成**：setup 用 AX `大小` 固定 8px，题面给精确画布原点；3/3 pass，70/88/48 步；见 §9.2 |
 | **P1** | t12 35–40 分钟；白底 seed + 预填 title/subtitle/占位柱；按形状名选择/直接输入标签 | **已完成**：白底 seed + 直接输入；**2/2 pass，140/169 步**，oracle 全绿；oracle 颜色目标未改；见 §9.3 |

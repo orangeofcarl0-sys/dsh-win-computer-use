@@ -36,7 +36,7 @@ git status --short
 # 1. 语法 + 安装脚本
 npm run check; echo "check=$?"
 
-# 2. 离线测试（22 套 / 551 项检查；&& 串联，必须看 $?）
+# 2. 离线测试（22 套 / 555 项检查；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
 # 3. 真驱动运行时（只读观察；17/17）
@@ -60,7 +60,7 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 
 # 8. 文档一致性（版本/工具数/配置键三处对齐）
 grep -n '"version"' package.json package-lock.json
-grep -rn "551\|23 个工具\|21 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
+grep -rn "555\|23 个工具\|21 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
 ```
 
 历史上真正抓出过问题的检查：

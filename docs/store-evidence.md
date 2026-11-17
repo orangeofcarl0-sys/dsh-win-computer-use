@@ -37,15 +37,15 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **21/21** JS + `bash -n install.sh/uninstall.sh` |
+| 语法 + 安装脚本 | `npm run check` | **22/22** JS + `bash -n install.sh/uninstall.sh` |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **22 套 / 551 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **22 套 / 555 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
 | 安全护栏 | `guard()` / `wrap()` | 凭据硬保护、无快照/过期拒绝、`allowedApps`、极危注记、stop/resume 锁存 |
 | 权限声明 | `PERMISSIONS.md` + `package.json dsh.permissions` | spawn 固定 argv；核心无网络；可选 GLM 外呼如实声明；无 lifecycle |
-| 打包面 | `npm pack --dry-run --json` | **38 文件**（见 §4），无 `node_modules` / `.dsh-test` / `tests` / `evals` |
+| 打包面 | `npm pack --dry-run --json` | **42 文件**（见 §4），无 `node_modules` / `.dsh-test` / `tests` / `evals` |
 
 ## 3. STORE 五信号
 
@@ -54,13 +54,13 @@ rm -rf "$DSH_HOME"
 | 规范仓库 | `package.json` `repository` → `git+https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git` |
 | Node 兼容性 | `engines.node >= 22.18.0` + `dsh.compatibility.node`；dsh 兼容基线 `>=0.2.2-rc.1 <0.3.0` |
 | 供应链 | 运行时 peer 依赖仅 `@deepseek-ai/dsh-tools` + `@deepseek-ai/schemastery`（宿主提供）；无第三方 runtime/optional 依赖；devDependencies 只用于测试 |
-| 文件权限 | 有 `spawn`（cua-driver）——插件核心能力；无用户文件读写；仅 `existsSync` 探测驱动 |
-| 命令权限 | 固定 argv、`shell:false`：`cua-driver call …`；Windows `powershell.exe -File tools/uia-password-scan.ps1`（只读） |
+| 文件权限 | 有 `spawn`（cua-driver；Windows 按需 powershell.exe 跑 UIA 密码扫描/私有拖拽）——插件核心能力；无用户文件读写；仅 `existsSync` 探测驱动 |
+| 命令权限 | 固定 argv、`shell:false`：`cua-driver call …`；Windows `powershell.exe -File tools/uia-password-scan.ps1`（只读）、`tools/private-drag.ps1`（私有 SendInput 拖拽，按需） |
 | 网络权限 | 核心无网络；可选 GLM 视觉兜底在配置 `ZHIPU_API_KEY`/`GLM_API_KEY` 后向 `GLM_API_BASE` 外呼（含截图）；`native`/DeepSeek 观察者经宿主模型通道 |
 | 凭据权限 | 仅环境变量：`CUA_DRIVER_BIN`、`CUA_SESSION`、`ZHIPU_API_KEY`/`GLM_API_KEY`、`GLM_API_BASE`、`GLM_VISION_MODEL`；不读密钥文件 |
 | 生命周期脚本 | 无 install/postinstall/prepare |
 
-## 4. 打包内容（38 文件）
+## 4. 打包内容（42 文件）
 
 ```text
 LICENSE
@@ -71,10 +71,12 @@ assets/demo-verified.png
 cordis.patch.yml
 docs/ARCHITECTURE.md
 docs/COMPATIBILITY-0.2.2.md
+docs/CU-RESEARCH.md
 docs/RUNTIME-PIPELINE.md
-docs/store-evidence.md
 docs/TESTING.md
+docs/TRAJECTORY-ANALYSIS.md
 docs/WINDOWS.md
+docs/store-evidence.md
 index.js
 lib/actions.js
 lib/attach.js
@@ -85,9 +87,11 @@ lib/guard.js
 lib/human.js
 lib/keyFallback.js
 lib/loopGuard.js
+lib/menu.js
 lib/observe.js
 lib/ops.js
 lib/passwordScan.js
+lib/privateDrag.js
 lib/receipt.js
 lib/roles.js
 lib/snapshot.js
@@ -98,6 +102,7 @@ lib/windowMap.js
 package.json
 tools/make_theme.py
 tools/password-probe.ps1
+tools/private-drag.ps1
 tools/uia-password-scan.ps1
 verify-runtime.mjs
 ```

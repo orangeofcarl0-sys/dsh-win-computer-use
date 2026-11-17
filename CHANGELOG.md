@@ -22,6 +22,8 @@
 
 **2026-11-17（第七轮）：输入真实性与前台语义——background_delivery_failed 分类、组合键自动前台、强制指针 L3、t14/t17 轨迹修复与评测硬化**
 
+**2026-11-17（第八轮）：私有 SendInput 拖拽——modifier/button/dwell_ms、持久 PowerShell helper、社区调研**
+
 ### 2026-11-17 Added（第六轮）
 
 - **click 家族 `modifier`**：`computer_click`/`double_click`/`right_click` 新增 `modifier: string[]`，支持 ctrl/shift/alt/win，`control→ctrl`、`option→alt` 规范化去重；Windows 上非空 modifier 自动 `forceForeground`（SendInput 前台注入）并在回执说明。driver 0.23.2 的 element 与坐标两条路径均已在 WinForms 探针中确认 Ctrl 到达目标。
@@ -60,6 +62,21 @@
 - 回归 t12：白底 PPT **1/1 pass，152 步**（1 页/16:9/title/subtitle/Q1-Q3/红蓝绿三柱全 true，1069s）。
 - AC2：`verify-oracles --tasks t14,t17` => SKIP（`ac2:none`）；setup/empty-fail/cleanup 通过，t17 setup 的 `PDF page 3 ready=true`。
 - 回归：t11/t15/t12 见下方本轮补充；所有运行 `dirty=false`，测试窗口按 state HWND/标题清理，未提交 report/trajectory/measurement 产物。
+
+### 2026-11-17 验证（第八轮）
+
+- 离线：`npm test` 22 套 / **555 项检查**全绿；`npm run check` **22/22**；`verify-runtime` 17/17；`eval-safety` 全绿。
+- 私有拖拽探针：**3/3 pass**；`probe-private-drag` 经真实插件 `computer_drag(modifier=["ctrl","shift"], dwell_ms=120)` 调用持久 helper；WinForms 目标在 down/move/up 三个点均读到 `Shift, Control`，`sent=30`，`foregroundRestored=true`，`stuckButton=false`，`stuckModifiers=""`。
+- 单测：D7（modifier 私有路由+屏幕坐标映射）、D7b（dwell 无 modifier 也走私有）、D8（modifier+from_zoom 明确拒绝）、D9（缺 screenOrigin 明确拒绝）；action-bounds 30→34，总断言 551→555。
+- 无 modifier 的 drag 路径未改，既有 t11/t12/t14/t15/t17 结果仍适用；Explorer Ctrl+drag 复制、Excel 工作表标签 Ctrl+drag、PPT Shift 约束尚未纳入自动回归，作为下一轮真机项。
+
+### 2026-11-17 Added（第八轮）
+
+- **私有拖拽 helper**：新增 `tools/private-drag.ps1`（持久 PowerShell + Add-Type C# P/Invoke）与 `lib/privateDrag.js`。一次手势内完成 PMv2 DPI、前台校验、modifier keydown、mouse down、6px 阈值、16ms 插值、可选 dwell、mouse up、modifier 反向 keyup、恢复原前台；失败路径 `finally` 释放按钮/修饰键。
+- **`computer_drag` 新参数**：`modifier`（ctrl/shift/alt/win）、`button`（left/right/middle）、`dwell_ms`（0-2000）。`modifier` 或 `dwell_ms` 非空时走私有路径；无 modifier 仍走 driver（保留 from_zoom/background）。私有路径不支持 `from_zoom`，明确报 `[private_drag_zoom_unsupported]`；缺 frame 报 `[private_drag_no_frame]`。
+- **坐标映射**：私有路径用快照 `screenOrigin + screenshotWidth/Height + bounds` 把窗口截图坐标映射到屏幕物理像素；`hwnd` 用 `window_id`，helper 在 virtual desktop 上归一化。
+- **社区调研**：确认 cua-driver 0.23.2 的 drag `modifier` 不读取，上游 PR #5667/0.39.0 已修；OpenAI CUA/Anthropic/ZCode CU/UI-TARS/Agent-S 的 drag 语义对比、SendInput/PostMessage/UIA 边界、DPI/多显示器、drag 阈值/时序、modifier 生命周期与不重试原则已整理进 `docs/CU-RESEARCH.md` / `docs/WINDOWS.md`。
+- **探针**：新增 `evals/probe-private-drag.mjs`（真实插件 → helper → WinForms down/move/up 修饰键验证）；不加入 npm test。
 
 ### 2026-11-17 Added（第七轮）
 
