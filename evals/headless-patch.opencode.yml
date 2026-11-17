@@ -1,0 +1,56 @@
+# headless S4 探针叠加层（opencode-go 通道）：启用 credentials，插入本插件。
+# 与 headless-patch.yml 相同，只把 agent 模型换成 opencode-go/deepseek-v4.1-flash，
+# 用于 DeepSeek 官方额度不足或需要对照通道时。用法：
+#   node evals/headless-run.mjs --tasks t11 --repeats 1 --timeout-min 20 \
+#     --patch evals/headless-patch.opencode.yml
+#
+# 注意：headless profile 默认没有 llm-pi-ai 适配器，本 patch 会插入；
+# dsh 凭据库的 OPENCODE_GO_API_KEY 必须有效（2026-11-18 实测旧 key
+# 返回 401 api_key_expired，需在 OpenCode Console 重新生成后替换到
+# ~/.dsh/.credentials.yaml；不要把 key 写进仓库）。
+- id: credentials
+  disabled: false
+
+# headless profile 默认只装 deepseek 适配器；opencode-go 由 llm-pi-ai 提供。
+- insert:
+    - id: llm-pi-ai
+      name: "@deepseek-ai/dsh-llm-pi-ai"
+      config:
+        providers:
+          opencode-go:
+            displayName: OpenCode Go (S4)
+            apiKeyEnv: OPENCODE_GO_API_KEY
+            api: openai-completions
+            baseURL: https://opencode.ai/zen/go/v1
+            headers:
+              x-opencode-session: s4-evals
+            retryPolicy:
+              mode: normal
+              maxRetries: 10
+            models:
+              - id: deepseek-v4.1-flash
+                name: DeepSeek V4.1 Flash (OpenCode)
+                contextWindow: 1000000
+                maxTokens: 128000
+                input:
+                  - text
+                  - image
+                reasoningEfforts:
+                  low: low
+                  high: high
+                  max: max
+
+- id: agent-default-model
+  config:
+    provider: opencode-go
+    model: deepseek-v4.1-flash
+
+- insert:
+    - id: dsh-win-computer-use
+      name: dsh-win-computer-use
+      config:
+        surfaceMode: dispatcher
+        ttlMs: 60000
+        maxElements: 120
+        passwordScan: off
+        deliveryMode: background

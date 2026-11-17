@@ -194,6 +194,7 @@ node evals/maintain.mjs "<url>"                       # 停残留 + 拒绝待审
 
 - `headless-run.mjs`：不依赖浏览器；复用 setup/oracle/cleanup，逐条保存 `evals/headless-runs/<stamp>/<task>-r<n>.jsonl`，统计任务级 pass/fail、工具错误、未验证、超时。前置：headless profile 可解析 `dsh-win-computer-use`；`DSH_BIN` 可覆盖 dsh 的 `lib/bin.js`；`TEMP/TMP` 自动指到用户临时目录。
 - 驱动兼容：`probe-driver-shape.mjs` 用 raw transport（不经归一化）记录 `get_window_state` 默认/显式 `tree_format`、`window_bounds`、`frame`/`screenshot_frame`、session、zoom MIME 与 click 回执；升级 cua-driver 前后各跑一次。兼容层矩阵见 [docs/DRIVER-SDK](../docs/DRIVER-SDK.md)。
+- provider 通道：默认 `headless-patch.yml` 固定 `deepseek-official/deepseek-flash`。DeepSeek 余额不足时可改用 `--patch evals/headless-patch.opencode.yml`（opencode-go/deepseek-v4.1-flash）；该 profile 需要 `@deepseek-ai/dsh-llm-pi-ai`（patch 已插入），且 dsh 凭据库的 `OPENCODE_GO_API_KEY` 必须有效。
 - `--dsh-url` 缺省调 `~/.dsh/restart-dsh-capture.ps1`（token 每次重启轮换，stdout 捕获至 `~/.dsh/web-latest.log`）。
 - 浏览器：本机 Chrome headless（`--remote-debugging-port`，零 npm 依赖）。
 - 报告：headless runner 写 `evals/report-last-headless.json`（已 gitignore；真值产物不入库，AC5）；`run.mjs` 的 `report-last.json` 仅 legacy 调试使用。仓库只进 runner/任务/oracle。
