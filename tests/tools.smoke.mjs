@@ -77,6 +77,7 @@ export async function cuaCall(tool, args = {}) {
   }
   return {}
 }
+export async function cuaDriverCapabilities() { return { pointerCapture: false, dragModifier: false, treeFormat: true, profile: 'stub', frameSpace: null } }
 `)
 
 const libUrl = (name) => pathToFileURL(join(work, 'lib', name)).href

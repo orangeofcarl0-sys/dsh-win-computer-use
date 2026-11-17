@@ -194,6 +194,7 @@ async function main() {
     await raw('start_session', { session })
 
     const plain = await raw('get_window_state', {
+      session: SESSION,
       pid: win.pid, window_id: win.window_id, include_screenshot: true, max_elements: 80,
     })
     report.plain = {
@@ -221,6 +222,7 @@ async function main() {
     let clickElements = plain.elements || []
     try {
       const t = await raw('get_window_state', {
+        session: SESSION,
         pid: win.pid, window_id: win.window_id, include_screenshot: false,
         max_elements: 40, tree_format: 'elements',
       })
@@ -231,10 +233,62 @@ async function main() {
         elements: (t.elements || []).length,
         keys: keysOf(t),
         has_tree_markdown: typeof t.tree_markdown === 'string',
+        sample: (t.elements || []).slice(0, 6).map(describeElement),
       }
     } catch (err) {
       treeFormatError = String(err?.message || err).slice(0, 300)
       report.tree_format = { accepted: false, error: treeFormatError }
+    }
+
+    // 先点（token 最新），再建立截图上下文并 zoom；0.52 的 zoom 需要同一窗口
+    // 最近一次带截图的读取，否则 screenshot_context_missing。
+    const elems = clickElements
+    const btn = elems.find((e) => /SHAPE-BTN/i.test(String(e.label || e.name || e.value || '')))
+      || elems.find((e) => e.element_token)
+    if (btn) {
+      try {
+        // 0.52 的 foreground click 会校验目标 HWND 真的是前台；先精确前置。
+        const prev = await raw('bring_to_front', {
+          session: SESSION, pid: win.pid, window_id: win.window_id,
+        })
+        const c = await raw('click', {
+          session: SESSION,
+          pid: win.pid, window_id: win.window_id, element_token: btn.element_token,
+          count: 1, button: 'left', delivery_mode: 'foreground',
+        })
+        report.click = { keys: keysOf(c), receipt: scrub(c) }
+        if (prev?.previous_fg_hwnd) {
+          const list = await raw('list_windows', {})
+          const back = (list.windows || []).find((w) => Number(w.window_id) === Number(prev.previous_fg_hwnd))
+          if (back) {
+            await raw('bring_to_front', {
+              session: SESSION, pid: back.pid, window_id: back.window_id,
+            }).catch(() => undefined)
+          }
+        }
+      } catch (err) {
+        report.click = { error: String(err?.message || err).slice(0, 300) }
+      }
+    }
+    await sleep(800)
+    report.click_marker = existsSync(MARK) ? readFileSync(MARK, 'utf8').trim() : ''
+
+    try {
+      const combo = await raw('get_window_state', {
+        session: SESSION,
+        pid: win.pid, window_id: win.window_id, include_screenshot: true,
+        max_elements: 1, tree_format: 'elements',
+      })
+      report.combined = {
+        keys: keysOf(combo),
+        elements: (combo.elements || []).length,
+        screenshot_width: combo.screenshot_width,
+        screenshot_height: combo.screenshot_height,
+        b64_len: typeof combo.screenshot_png_b64 === 'string' ? combo.screenshot_png_b64.length : null,
+        tree_format: combo.tree_format,
+      }
+    } catch (err) {
+      report.combined = { error: String(err?.message || err).slice(0, 300) }
     }
 
     try {
@@ -257,24 +311,6 @@ async function main() {
     } catch (err) {
       report.zoom = { error: String(err?.message || err).slice(0, 300) }
     }
-
-    const elems = clickElements
-    const btn = elems.find((e) => /SHAPE-BTN/i.test(String(e.label || e.name || e.value || '')))
-      || elems.find((e) => e.element_token)
-    if (btn) {
-      try {
-        const c = await raw('click', {
-          session: SESSION,
-          pid: win.pid, window_id: win.window_id, element_token: btn.element_token,
-          count: 1, button: 'left', delivery_mode: 'foreground',
-        })
-        report.click = { keys: keysOf(c), receipt: scrub(c) }
-      } catch (err) {
-        report.click = { error: String(err?.message || err).slice(0, 300) }
-      }
-    }
-    await sleep(800)
-    report.click_marker = existsSync(MARK) ? readFileSync(MARK, 'utf8').trim() : ''
     report.frame_space = {
       window_x: win.bounds?.x ?? win.x,
       window_y: win.bounds?.y ?? win.y,
@@ -286,7 +322,7 @@ async function main() {
         ? Number((plain.screenshot_width / (win.bounds?.width ?? win.width)).toFixed(6)) : null,
       scale_y: plain.screenshot_height && (win.bounds?.height ?? win.height)
         ? Number((plain.screenshot_height / (win.bounds?.height ?? win.height)).toFixed(6)) : null,
-      sample: (plain.elements || []).slice(0, 3).map((e) => ({
+      sample: (clickElements || []).slice(0, 3).map((e) => ({
         label: e.label || e.name,
         frame: e.frame || null,
         screenshot_frame: e.screenshot_frame || null,

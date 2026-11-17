@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-17）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-18）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 
 ## 0.5.7 (未发布)
 
@@ -23,6 +23,19 @@
 **2026-11-17（第七轮）：输入真实性与前台语义——background_delivery_failed 分类、组合键自动前台、强制指针 L3、t14/t17 轨迹修复与评测硬化**
 
 **2026-11-17（第八轮）：私有 SendInput 拖拽——modifier/button/dwell_ms、持久 PowerShell helper、社区调研**
+
+**2026-11-18（第九轮）：cua-driver 兼容层——0.52/0.53 形态适配、session 快照、像素截图预取、原生 modifier drag**
+
+### 2026-11-18 Added（第九轮）
+
+- **内部驱动 SDK**：新增 `lib/driver/transport.js`（唯一 spawn、超时/退出码/JSON/contract/session/结构化拒绝分类）、`capabilities.js`（版本、能力标志、请求映射、响应/错误自适应）、`normalize.js`（0.23.2/0.52/0.53 响应 → 内部规范形态）、`info.js`（进程级驱动信息缓存）。`lib/cua.js` 保留原导出作为 facade，45 个调用点无需改动。
+- **0.52+ 形态适配**：`get_window_state` 总是显式 `tree_format:"elements"`（0.52 默认 markdown，无 `elements`）；注入统一 `session`（element_token/zoom 快照按 session 归属）；`window_bounds/window_title` 合成内部 `window`；`frame`/`screenshot_frame` 校准并统一屏幕坐标；`zoom` MIME、`clipboard plain_text`、`verify satisfied`、`list_windows is_minimized`、`check_permissions postmessage`、MCP `content[]` 全部归一。
+- **像素截图上下文**：0.52+ 的像素 click/drag/scroll 与 `zoom` 前必须有截图读取；快照无 capture 时自动补 `get_window_state(include_screenshot:true)`，并把旧 element_token 标为失效（坐标动作继续，编号动作要求重新观察）。`screen_zoom` 同样补 capture，`from_zoom` 不受影响。
+- **原生 modifier drag**：0.39+ 且探测可用时走驱动原生 modifier（foreground 持有到 release）；0.23.2/未知版本/`dragEngine:private` 走私有 SendInput helper；`dwell_ms` 始终私有；原生失败不自动重拖。
+- **真实性修复**：非零退出 + JSON 结构化拒绝当回执值，继续走前台升级链；`contract mismatch` 明确要求 CLI 与 daemon 一起升级；组合键回执遇到 `foreground_restored:false` 不再声称已恢复原前台；`move_cursor` 在 0.52+ 的 window scope 改为屏幕坐标，`glideCursor`/`hover` 用快照原点换算并去掉旧驱动才接受的 `origin` 字段。
+- **配置/诊断**：新增 `driverProfile: auto|legacy|latest`、`dragEngine: auto|private`；`computer_do(action="status")` 显示驱动版本/能力/警告；`verify-runtime` 与探针可区分驱动形态。
+- **测试**：新增 `driver.normalize` / `driver.capabilities` / `driver.transport` / `driver.compat` 四套与 fixtures；现有 22 套零改动通过。离线 **26 套 / 619 项检查**，语法 **26/26**。
+- **0.52.13 canary 真机**：`verify-runtime` 17/17；`live-action.e2e` 33/33；`probe-driver-shape` 确认默认 markdown/显式 elements、session 归属、像素截图上下文；`probe-modifier` `ok=true / dragModifierSupported=true`（Ctrl click + Shift drag 均到达）；combo/private/from_zoom/native-freshness 全通过；t14 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`，其余 oracle 全 true，未出现兼容层错误）；t17 **37 步 pass**（capture 复用后；r1 75 步，oracle exact、seed unchanged）。0.53 的 `screenshot_frame` 已预留，待真机验证。
 
 ### 2026-11-17 Added（第六轮）
 

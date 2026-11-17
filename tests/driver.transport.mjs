@@ -60,6 +60,21 @@ const main = async () => {
     })
   })
 
+  await check('T2b 非零退出 + JSON → kind=structured，value 可供投递升级', async () => {
+    const t = createTransport({
+      spawnImpl: () => fakeChild({
+        code: 1,
+        out: '{"code":"background_unavailable","suggestion":"foreground"}',
+      }),
+      log: noLog,
+    })
+    await assert.rejects(t.rawCall('click', {}), (e) => {
+      assert.equal(e.kind, 'structured')
+      assert.equal(e.value.code, 'background_unavailable')
+      return true
+    })
+  })
+
   await check('T3 非 JSON → kind=nonjson', async () => {
     const t = createTransport({
       spawnImpl: () => fakeChild({ out: 'not-json' }), log: noLog,

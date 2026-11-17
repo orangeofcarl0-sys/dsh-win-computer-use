@@ -145,6 +145,7 @@
 ### 7.4 Cua/cua-driver
 
 - 工程上最值得参考：`get_window_state` 同时返回 AX 树 + 截图；`element_token` 绑定 snapshot；`capture_id` 单次使用 + 60s 过期；点击/拖拽支持 `modifier`、`from_zoom`、`steps`、`button`；`bring_to_front`、`set_window_frame`、`invoke_menu` 是一等工具；background 强制第一次尝试，失败才 foreground；`verified` 只认 accessibility read-back。
+- 版本演进要点（2026-11-18 核）：0.39.0 修复 drag modifier、`type_text` UTF-16/尾字符、`press_key` 布局；0.52.9 `list_windows` 不依赖 UIA；0.52.13 已把 `get_window_state` 默认改为 `tree_format:"markdown"`、快照按 session 归属、像素动作要求截图上下文；0.53.0 contract 0.8.0，新增 `run_steps`/`run_script`/`get_guide` 等，`get_window_state` 元素预期带 `screenshot_frame`。CLI 与 daemon 必须同版本升级。
 - 不做 agent loop，任务分解交给 harness；一个 session 共享屏幕/键盘/焦点，不能在同一桌面并行跑多个 GUI 子代理。
 
 ## 8. 共同模式与本插件的映射
@@ -169,6 +170,7 @@
 6. **Excel/PDF 的通用 GUI 路径仍可进任务预算，但靠任务级确定性**：t14 用 `Ctrl+Shift+End` 选 A1:D6 + `Alt+F1`（2/2 pass，141/71 步）；t17 用三击句子 + Ctrl+C、Excel 先 Save As 再粘贴（2/2 pass，89/63 步）。这不是专用 CU 层，而是把“选区/保存”做成可复现的题面纪律。
 7. **2026-11-17 第七轮把这里的 P0 建议落地了**：`deliveryFailure` 不再把 `background_delivery_failed` 子串当硬失败；无 Document 的 type 保留快照；组合键自动前台；forced click/scroll/drag 先前置再单次执行。t14 新题面 **3/3 pass，59/41/57 步**，forced pointer 后 **42 步**；t17 **3/3 pass，37/53/48 步**，forced pointer 后 **42 步**；t15 **85/67 步**；t11 **58/94 步**。下一层仍是 `selectText`/key hold/drag element 与 Office 专用能力，不在本轮范围。
 8. **2026-11-17 第八轮：drag modifier 改为私有实现**。cua-driver 0.23.2 的 `DragTool::invoke` 声明 modifier 但不读取；上游 PR #5667 / 0.39.0 已用 `modifier_hold_inputs` 修复。本插件不强制升级驱动，而是在 `computer_drag` 的 modifier/dwell 路径走 `tools/private-drag.ps1`：持久 PowerShell + C# P/Invoke，PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台；`from_zoom` 明确拒绝。WinForms 探针 **3/3** 在 down/move/up 均读到 `Shift, Control`，drop 后无卡键。Explorer Ctrl+drag 复制、Excel 标签 Ctrl+drag、PPT Shift 约束留作下一轮 drop-target 真机项。
+9. **2026-11-18 第九轮：把 cua-driver 版本差异收口成兼容层**。0.52.13 实测：`get_window_state` 默认 `tree_format:"markdown"`（无 `elements`）；element_token/zoom 快照按 session 归属；**像素** click/drag/scroll 与 `zoom` 前必须有截图上下文（否则 `screenshot_context_missing`）；原生 drag modifier 已可用；非零退出会返回结构化 JSON 拒绝。插件新增 `lib/driver/`（transport/capabilities/normalize/info），`cuaCall` 统一注入 `tree_format:"elements"` + `CUA_SESSION`、归一化 0.23.2/0.52/0.53 形态、像素动作前补 capture、把结构化非零退出当回执值。0.23.2 与 0.52.13 的 `verify-runtime` 均 17/17；0.52.13 上 live-action **33/33**、modifier probe **ok / dragModifierSupported**、combo/private/from_zoom/native-freshness 全通过。0.53 的 `screenshot_frame` 形态已预留但待真机验证。
 
 ## 10. 参考（主要）
 

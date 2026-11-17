@@ -85,6 +85,14 @@ const last = stub.moves[stub.moves.length - 1]
 check('H4: foreground auto 只做 1 次移动', stub.moves.length === 1, `moves=${stub.moves.length}`)
 check('H5: 滑行终点 = 窗口截图坐标', last && last.x === 70 && last.y === 72, JSON.stringify(last))
 
+// 2a. 0.52+：window scope 要屏幕坐标；插件用快照原点换算
+process.env.CUA_STUB_MOVE_CURSOR_SCREEN = '1'
+;({ call, obs } = await fresh({ deliveryMode: 'foreground' }))
+await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+const last52 = stub.moves[stub.moves.length - 1]
+check('H5b: 0.52 window scope 换算屏幕坐标', last52 && last52.x === 170 && last52.y === 172, JSON.stringify(last52))
+delete process.env.CUA_STUB_MOVE_CURSOR_SCREEN
+
 // 2b. human：显式开启后保留 5 段弧线
 ;({ call, obs } = await fresh({ deliveryMode: 'foreground', cursorMotion: 'human' }))
 r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })

@@ -182,15 +182,18 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20   # Ctrl+cl
 node evals/headless-run.mjs --tasks t11 --repeats 3 --timeout-min 20   # activate/焦点纪律
 node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40   # Office 单独宽预算
 node evals/verify-oracles.mjs                         # AC2：全部 oracle 双向独立验证
-node evals/probe-modifier.mjs                         # click modifier 真机门禁 + drag modifier 缺口
+node evals/probe-modifier.mjs                         # click modifier + 原生/私有 drag modifier 真机门禁
 node evals/probe-combo-foreground.mjs                 # 组合键自动前台（Ctrl+V 到 WinForms TextBox）
 node evals/probe-private-drag.mjs                     # 私有 SendInput 拖拽：Ctrl+Shift 到 down/move/up，drop 后无卡键
+node evals/probe-from-zoom.mjs                        # zoom padding/缩放后的 from_zoom 点击
 node evals/probe-native-freshness.mjs                 # driver/plugin native 截图 freshness
+node evals/probe-driver-shape.mjs                     # 驱动原始形态：tree_format/window_bounds/frame/session/zoom MIME/click
 node evals/stop-stale.mjs "<url>" 18                  # 止损：停 >18min 的残留进行中回合
 node evals/maintain.mjs "<url>"                       # 停残留 + 拒绝待审批
 ```
 
 - `headless-run.mjs`：不依赖浏览器；复用 setup/oracle/cleanup，逐条保存 `evals/headless-runs/<stamp>/<task>-r<n>.jsonl`，统计任务级 pass/fail、工具错误、未验证、超时。前置：headless profile 可解析 `dsh-win-computer-use`；`DSH_BIN` 可覆盖 dsh 的 `lib/bin.js`；`TEMP/TMP` 自动指到用户临时目录。
+- 驱动兼容：`probe-driver-shape.mjs` 用 raw transport（不经归一化）记录 `get_window_state` 默认/显式 `tree_format`、`window_bounds`、`frame`/`screenshot_frame`、session、zoom MIME 与 click 回执；升级 cua-driver 前后各跑一次。兼容层矩阵见 [docs/DRIVER-SDK](../docs/DRIVER-SDK.md)。
 - `--dsh-url` 缺省调 `~/.dsh/restart-dsh-capture.ps1`（token 每次重启轮换，stdout 捕获至 `~/.dsh/web-latest.log`）。
 - 浏览器：本机 Chrome headless（`--remote-debugging-port`，零 npm 依赖）。
 - 报告：headless runner 写 `evals/report-last-headless.json`（已 gitignore；真值产物不入库，AC5）；`run.mjs` 的 `report-last.json` 仅 legacy 调试使用。仓库只进 runner/任务/oracle。

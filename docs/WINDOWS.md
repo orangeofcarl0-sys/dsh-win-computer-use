@@ -137,6 +137,21 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 `computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；它不要求快照，但激活后要操作窗口内容仍需 `screen_observe` 取编号。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。`window_id` 来自 `screen_observe` / `app_list`；未知 id 会明确失败并提示重新观察。
 
+### 4.2 驱动版本差异（0.52+ 实测）
+
+| 现象 | 触发条件 | 插件处理 |
+|---|---|---|
+| `get_window_state` 默认只给 markdown，无 `elements` | 0.52+ 不传 `tree_format` | 兼容层总是传 `tree_format:"elements"`；旧驱动接受该字段 |
+| `stale_element_token` / `current_snapshots:[]` | 观察未带 session，动作带 session | `get_window_state` 注入统一 `CUA_SESSION` |
+| `screenshot_context_missing / no_screenshot` | 像素 click/drag/scroll 或 `zoom` 前没有截图读取 | 快照无 capture 时补 `get_window_state(include_screenshot:true)`；旧 token 标失效 |
+| 前台 click 校验目标 HWND | 目标不在前台 | 既有 `bring_to_front` 前置/绕锁链；探针先激活 |
+| `hotkey` 回执 `foreground_restored:false` | 驱动没有恢复原前台 | 组合键注记动态写“原前台未恢复”，不再声称已恢复 |
+| 非零退出 + JSON 拒绝 | `background_unavailable` 等 | 当回执值，继续前台升级；不当传输故障 |
+
+坐标提示：0.52 的 `screenshot` 与 `window_bounds` 仍可能差 1–2px；归一化优先用
+`capture`/`screenshot_frame`，没有时按 `frame - bounds.origin` 兼容。精确像素任务
+仍建议 `screen_zoom + from_zoom=true`。完整矩阵见 [DRIVER-SDK](DRIVER-SDK.md)。
+
 ## 5. 观察与结构密码扫描
 
 - `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建新快照；如果已有新鲜旧快照，会明确提示它仍有效（只有同窗口失败才清空）。

@@ -71,7 +71,11 @@ flowchart LR
 | `lib/receipt.js` | `receipt`、`refusalReceipt`、`settleAction`、`UNVERIFIED_NOTE`、`SUSPECTED_NOOP_NOTE`、`INPUT_UNVERIFIED_NOTE`、`SET_VALUE_NOTE` | 动作回执唯一出口：规范化 → 判拒绝 → 标快照 → 紧凑文本；输入类区分部分写入/不得 foreground 重输 | cua / engine / snapshot |
 | `lib/engine.js` | `engineRefusal`、`isSuspectedNoop`、`uiaAcceleratorTimeout` | 驱动回执的拒绝形态统一识别（refusal/effect/error/code/ok:false/supported:false） | — |
 | `lib/dispatcher.js` | `SURFACE_MODES`、`STABLE_TOOLS`、`HOT_TOOLS`、`visibleToolsForMode`、`hiddenToolNames`、`catalogOf` | 工具面常量、可见/隐藏清单、catalog 紧凑签名 | — |
-| `lib/cua.js` | `CUA_BIN`、`CUA_SESSION`、`cuaCall`、`cuaDeliver`、`isUnverified`、`normalizeMcp` | 驱动定位、会话自愈、三级投递链、错误规范化 | node:child_process |
+| `lib/cua.js` | `CUA_BIN`、`CUA_SESSION`、`cuaCall`、`cuaDeliver`、`isUnverified`、`normalizeMcp`、`cuaDriverCapabilities` | 驱动 facade：会话自愈、请求映射、响应归一化、三级投递链、错误分类 | `lib/driver/*` |
+| `lib/driver/transport.js` | `resolveBin`、`createTransport`、`DriverCallError`、`defaultTransport` | **唯一 spawn**：超时/退出码/JSON/contract/session/结构化拒绝分类；`runOnce` 只读版本/状态探测 | node:child_process |
+| `lib/driver/capabilities.js` | `parseVersionText`、`capabilitiesFor`、`mapRequest`、`learnFromResponse`、`learnFromError`、`capabilitySummary` | 版本/能力标志；`tree_format`/`session` 注入；响应/错误自适应 | — |
+| `lib/driver/normalize.js` | `normalizeWindowState`、`normalizeWindowList`、`normalizeZoom`、`normalizeReceipt`、`unwrapDriverPayload` | 0.23.2/0.52/0.53 形态 → 内部规范；保留未知字段；frame 空间校准 | — |
+| `lib/driver/info.js` | `configureDriver`、`ensureDriverInfo`、`driverStatusLine`、`resetDriverInfo` | 进程级驱动信息缓存与 status 文本 | transport / capabilities |
 | `lib/vision.js` | `routeImageCapable`、`modelImageCapable`、`deepseekVisionDescribe`、`glmVisionDescribe`、`glmVisionConfigured` | 当前 route 的 image 能力探测；DeepSeek 观察者；GLM 兜底 | 宿主 `llm`；GLM 需 `fetch` |
 | `lib/passwordScan.js` | `scanPasswords`、`markElementsFromScan`、`IS_WINDOWS` | Windows UIA sidecar 结构密码扫描与坐标标记 | `powershell.exe` |
 | `lib/roles.js` | `isPasswordCandidate`、`isMaskedValue`、`isActionableRole` | 跨平台角色语义：密码三态、可交互过滤 | — |
@@ -422,7 +426,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：22 套、555 项检查（2026-11-17；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：26 套、619 项检查（2026-11-18；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。t11/t12/t15 的模型行为与失败模式见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

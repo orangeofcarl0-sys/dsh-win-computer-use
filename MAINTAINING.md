@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 22 套 / 555 项检查；`npm run check` 22/22；`verify-runtime` 17/17。
+- **测试基线**：`npm test` 26 套 / 619 项检查；`npm run check` 26/26；`verify-runtime` 17/17（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 文档地图
 
@@ -20,6 +20,7 @@
 |---|---|
 | [README](README.md) | 用户入口、工具参考、配置、边界 |
 | [docs/ARCHITECTURE](docs/ARCHITECTURE.md) | 模块、流水线、快照/投递、扩展指南、已知缺口 |
+| [docs/DRIVER-SDK](docs/DRIVER-SDK.md) | cua-driver 兼容层、规范形态、能力标志、版本矩阵、错误分类 |
 | [docs/COMPATIBILITY-0.2.2](docs/COMPATIBILITY-0.2.2.md) | dsh 0.2.2 契约矩阵与 P0/P1 兼容缺口 |
 | [docs/WINDOWS](docs/WINDOWS.md) | Windows 工程细节、冒烟矩阵、清理规则 |
 | [docs/RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 宿主/插件/驱动/session/eval 的完整运行时链路与失败语义 |
@@ -39,7 +40,7 @@
 | 项 | 值 |
 |---|---|
 | 工作副本 | `F:\Codex_Work_Space\DSH plugin\dsh-computer-use`（目录名未改；分支 `main`） |
-| cua-driver | `C:\Users\66494\.cua-driver\packages\current\cua-driver.exe`（0.23.2；daemon 由 `serve --socket \\.\pipe\cua-driver` 持有） |
+| cua-driver | `C:\Users\66494\.cua-driver\packages\current\cua-driver.exe`（canary **0.52.13**；基线 0.23.2 仍在 `packages/releases/`；daemon 由 `autostart kick` 的 `serve` 持有） |
 | dsh | 全局 `0.2.2-rc.1`（自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` / `schemastery 3.19.0`）；兼容基线 `>=0.2.2-rc.1 <0.3.0` |
 | 重启 harness | `~/.dsh/restart-dsh-capture.ps1`（把当前 boot 的 tokened URL 落盘） |
 | URL/token | `~/.dsh/web-latest.log` 最后一条 |
@@ -49,6 +50,34 @@
 | 一次性探针 | 工作区 `_probe-surface.yml`、`_probe-win-cu-deepseek.yml`、`_parity-observe.mjs`、`_tool-surface.mjs`（不入库） |
 
 **不要**把 key、token、实验产物写进仓库。模型通道的 key 只从本地配置读取，测试脚本不打印。
+
+### 3.1 cua-driver 升级 / 回退
+
+```powershell
+# 安装指定版本（官方 installer；版本 pin 走环境变量）
+$env:CUA_DRIVER_RS_VERSION = "0.52.13"
+powershell -NoProfile -ExecutionPolicy Bypass -File <install.ps1>
+
+# installer 若在临时目录清理阶段中止：版本目录已装好，手动完成切换
+cua-driver stop
+# current 是 junction：先删链接，再指向新版本（不要删 releases 目录）
+cmd /c rmdir "$env:USERPROFILE\.cua-driver\packages\current"
+cmd /c mklink /J "$env:USERPROFILE\.cua-driver\packages\current" `
+  "$env:USERPROFILE\.cua-driver\packages\releases\0.52.13-x86_64-pc-windows-msvc"
+cua-driver autostart kick
+```
+
+- **CLI 与 daemon 必须一起升级**；contract 不匹配会明确报
+  `contract version X does not match SDK Y`，插件给同步升级指引。
+- 升级后顺序：`cua-driver --version` → `status` → `doctor` →
+  `node verify-runtime.mjs` → `node evals/probe-driver-shape.mjs` →
+  `probe-modifier` / `probe-combo-foreground` / `probe-private-drag` /
+  `probe-from-zoom` / `probe-native-freshness` → t11/t14/t15/t17。
+- 回退：重新 pin 0.23.2 安装，或把 `current` junction 指回
+  `releases/0.23.2-x86_64-pc-windows-msvc`，再 `stop` + `autostart kick`。
+- 插件侧回退：配置 `driverProfile: legacy`（不发 `tree_format`、私有 modifier drag）；
+  原生 drag 异常时 `dragEngine: private`。
+- 每个版本目录不可变；不要覆盖 `releases/<version>/`，也不要把测量产物提交。
 
 ## 4. 硬知识（实验实证，勿凭直觉推翻）
 

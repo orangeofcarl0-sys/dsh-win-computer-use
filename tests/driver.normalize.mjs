@@ -208,13 +208,16 @@ check('N20 normalizeResponse 按工具分派；未知工具原样返回', () => 
   assert.deepEqual(normalizeResponse('unknown_tool', { a: 1 }), { a: 1 })
 })
 
-check('N21 mapRequest：默认加 tree_format，legacy profile 也不丢', () => {
+check('N21 mapRequest：默认加 tree_format 与 session，legacy profile 也不丢', () => {
   const caps = baseCapabilities()
-  assert.equal(mapRequest('get_window_state', { pid: 1 }, caps).tree_format, 'elements')
-  assert.equal(mapRequest('get_window_state', { tree_format: 'both' }, caps).tree_format, 'both')
-  assert.equal(mapRequest('list_windows', {}, caps).tree_format, undefined)
+  const m = mapRequest('get_window_state', { pid: 1 }, caps, 'sess')
+  assert.equal(m.tree_format, 'elements')
+  assert.equal(m.session, 'sess')
+  assert.equal(mapRequest('get_window_state', { tree_format: 'both' }, caps, 'sess').tree_format, 'both')
+  assert.equal(mapRequest('get_window_state', { session: 'x' }, caps, 'sess').session, 'x')
+  assert.equal(mapRequest('list_windows', {}, caps, 'sess').tree_format, undefined)
   caps.treeFormat = false
-  assert.equal(mapRequest('get_window_state', { pid: 1 }, caps).tree_format, undefined)
+  assert.equal(mapRequest('get_window_state', { pid: 1 }, caps, 'sess').tree_format, undefined)
 })
 
 check('N22 boundsOf 统一 width/height 与 w/h', () => {

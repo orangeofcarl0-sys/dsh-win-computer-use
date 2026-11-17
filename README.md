@@ -315,6 +315,28 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `xamlKeyFallback` | `off` | 实验性：`off` 只给控件路径指引；`auto` 对 `ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o` 自动“点菜单栏项 → 点唯一菜单项”；对话框无菜单栏且已前台时对编辑类组合额外尝试一次前台 `press_key`。歧义/缺失即停 |
 | `xamlPressFallback` | `off` | 实验性：`auto` 对 `ctrl+a` / `alt+f` 在 UIA 加速器不可用时允许一次**前台** `press_key`。两者都开时 `ctrl+a` 仍菜单优先，仅菜单不可用时兜底；想 press 优先可把 `xamlKeyFallback` 设为 `off`。`alt+f` 成功打开文件菜单后清快照。不含 Alt+Tab |
 | `deliveryMode` | `auto` | 后台/自动/前台投递策略 |
+| `driverProfile` | `auto` | cua-driver 兼容档：`auto` 按 `--version` 推断并自适应；`legacy` 强制旧请求形态（不发 `tree_format`、私有 drag）；`latest` 强制新形态（`tree_format`、原生 drag、像素截图预取）。排障/回退用 |
+| `dragEngine` | `auto` | modifier drag 引擎：`auto` = 驱动 >=0.39 且探测可用时原生，否则私有 SendInput；`private` = 强制私有 helper（原生 modifier 异常时回退；`from_zoom` 不支持）。`dwell_ms` 始终私有 |
+
+## 驱动兼容（cua-driver 0.23.2 → 0.52/0.53）
+
+插件不直接假设某个驱动版本的返回形态：所有驱动 I/O 经 `lib/cua.js` →
+`lib/driver/`，由兼容层做请求映射、响应归一化与能力学习。实测差异与处理：
+
+- 0.52+ 的 `get_window_state` 默认 `tree_format:"markdown"`，不带 `elements`：
+  兼容层总是显式请求 `tree_format:"elements"`。
+- 0.52+ 的 element_token / zoom 快照按 **session** 归属：兼容层给
+  `get_window_state` 注入统一 `CUA_SESSION`，否则动作会得到
+  `stale_element_token`。
+- 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要同一窗口的截图上下文：
+  快照没有 capture 时先补一次 `get_window_state(include_screenshot:true)`；
+  这会替换驱动 index map，旧 element_token 标为失效（坐标动作继续可用）。
+- 0.39+ 原生 drag modifier；0.23.2 仍用私有 SendInput helper。
+- 驱动以非零退出返回的结构化拒绝（如 `background_unavailable`）按回执值处理，
+  继续走前台升级链，而不是当传输故障。
+
+版本矩阵、能力标志、错误分类与新增驱动工具的步骤见
+[docs/DRIVER-SDK.md](docs/DRIVER-SDK.md)。
 
 ## 能力边界（诚实说明）
 
@@ -380,8 +402,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 
 ```bash
 npm install
-npm run check                      # 语法检查 + bash -n（22/22 JS）
-npm test                           # 22 套离线测试，555 项检查
+npm run check                      # 语法检查 + bash -n（26/26 JS）
+npm test                           # 26 套离线测试，619 项检查
 node verify-runtime.mjs            # 真驱动运行时验证（17 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -391,13 +413,14 @@ npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可�
 node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 10/10；2026-11-15 本机 7/10，t04/t06/t10 环境问题）
 ```
 
-`npm test` 的 22 套：posture / tools / delivery-chain / schema.conformance（23 个工具 / 47 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
+`npm test` 的 26 套：posture / tools / delivery-chain / schema.conformance（23 个工具 / 47 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / driver.normalize / driver.capabilities / driver.transport / driver.compat / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 文档地图
 
 | 文档 | 读者 | 内容 |
 |---|---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 贡献者 | 模块、工具面、请求/观察流水线、投递链、快照状态机、扩展指南 |
+| [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md) | 贡献者/排障 | cua-driver 兼容层：规范形态、能力标志、版本矩阵、错误分类、新增驱动工具 |
 | [docs/RUNTIME-PIPELINE.md](docs/RUNTIME-PIPELINE.md) | 贡献者/排障 | 宿主→插件→驱动→session→eval 的完整链路、失败语义、日志解码 |
 | [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md) | 升级审查 | dsh 0.2.2 契约矩阵、P0/P1 兼容缺口、升级顺序 |
 | [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 用户/贡献者 | 完整性级别、前台锁、输入通道、坐标/DPI、清理规则、冒烟矩阵 |
@@ -422,7 +445,7 @@ Windows-first Computer Use plugin for the DeepSeek Harness: 23 tools (22 desktop
 - **Cache-friendly surface**: `surfaceMode` is either `dispatcher` (default, 2 visible) or `hybrid` (2 + 5 hot tools). The old dynamic enter/exit surface was removed.
 - **Honest boundaries**: Windows is the deep-tested target; macOS is basic; Linux is unverified. Delegation tool restriction is not available on dsh 0.2.2 (`startActivation` has no `toolFilter`), so the sub-agent may have parent-level capabilities; the receipt says so.
 
-**Install**: install cua-driver, then `git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git && ./install.sh` (set `DSH_HOME` on Windows/Linux). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full table above.
+**Install**: install cua-driver (0.23.2 baseline; 0.52.x canary tested; 0.53 expected), then `git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git && ./install.sh` (set `DSH_HOME` on Windows/Linux). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full table above. Driver-version differences and the compatibility layer are documented in [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md).
 
 Derived from [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) (MIT); see [Acknowledgements](#出处与致谢).
 

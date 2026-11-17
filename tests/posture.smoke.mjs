@@ -53,6 +53,7 @@ export function deliveryFailure(v) {
   return null
 }
 export async function cuaDeliver(tool, payload) { return { value: await cuaCall(tool, payload), note: '' } }
+export async function cuaDriverCapabilities() { return { pointerCapture: false, dragModifier: false, treeFormat: true, profile: 'stub', frameSpace: null } }
 `)
 
 const libUrl = (name) => pathToFileURL(join(work, 'lib', name)).href

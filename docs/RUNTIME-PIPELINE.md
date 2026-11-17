@@ -17,6 +17,7 @@ dsh CLI
        -> wrap（stop latch / 未知参数 / guard）
        -> 工具实现
             -> screen_observe / actions / ops / task
+            -> lib/cua.js -> lib/driver（请求映射/响应归一化/能力）
             -> cua-driver（每次调用一个子进程）
        -> 输出 schema 校验（宿主）
   -> tool/result 写入 session
@@ -97,7 +98,30 @@ humanAction / type / key / scroll / drag / set_value
        -> markConsumed / markSuspect
 ```
 
-### 4.1 坐标、滑行与重复点击
+### 4.1 驱动兼容层（0.23.2 / 0.52+）
+
+`cuaCall` 是唯一驱动 I/O 收口：
+
+```text
+ensureDriverInfo（--version/status，进程级缓存）
+  -> mapRequest（get_window_state: tree_format:"elements" + session）
+  -> transport.rawCall（唯一 spawn）
+  -> normalizeResponse（window/elements/zoom/receipt → 内部规范）
+  -> learnFromResponse / learnFromError（frameSpace、flatWindow、tree_format 兼容）
+```
+
+- 0.52+ 默认 `tree_format:"markdown"`，不显式请求就没有 `elements`；兼容层总是带
+  `tree_format:"elements"`。
+- 0.52+ 的 element_token/zoom 按 session 归属；`get_window_state` 注入
+  `CUA_SESSION`，否则动作端 `current_snapshots:[]` / `stale_element_token`。
+- 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要截图上下文：快照无 capture 时
+  先 `get_window_state(include_screenshot:true)`，并 `markTokensStale`（坐标动作继续，
+  编号动作要求重新观察）。
+- 非零退出 + JSON（如 `background_unavailable`）解析成 `DriverCallError.value`；
+  动作类当回执值继续升级，观察类仍抛错走降级。
+- 完整能力矩阵与错误分类见 [DRIVER-SDK](DRIVER-SDK.md)。
+
+### 4.2 坐标、滑行与重复点击
 
 - 快照条目 x/y = driver frame 中心减窗口原点；元素点击的 token 路径不依赖坐标，但可视滑行使用该坐标。
 - token 点击 payload 也带 `window_id`：Win11 记事本单进程多窗口（主窗/另存为/覆盖确认同 pid），只带 pid 时 L3 `bring_to_front` 可能选错窗口。
@@ -108,12 +132,12 @@ humanAction / type / key / scroll / drag / set_value
   - background 投递在任何模式下都不滑行。
 - 同窗口同目标 16px/2s 内再次点击：完全跳过滑行（连续点击同一按钮不再产生一串小段移动）。
 - `from_zoom=true` 的 click/double/right 与 drag：坐标是 zoom 图像坐标；插件校验 lastZoom 与当前快照同 pid/window、zoom 不早于观察，click 跳过滑行，payload 带 `from_zoom:true` 由驱动映射；缺失/过期/跨窗口返回 `[zoom_missing]/[zoom_stale]`。click 的 `element` 与 `from_zoom` 互斥；drag 的起终点都按 zoom 图坐标解释。
-- drag `modifier`（或 `dwell_ms>0`）走私有 SendInput helper：`screenOrigin + 截图尺寸` 映射屏幕物理像素，helper 前台校验 → modifier down → mouse down → 6px 阈值 → 插值 → mouse up → modifier up → 恢复；请求/响应为 stdin/stdout JSON 行。私有路径不支持 `from_zoom`（`[private_drag_zoom_unsupported]`），缺 frame 报 `[private_drag_no_frame]`；无 modifier 的 drag 仍走 driver。
-- click 家族 `modifier` 非空时自动 `forceForeground`（Windows 修饰键只能 SendInput 前台）。drag 的 `modifier`/`dwell_ms` 走私有 SendInput helper（原子手势，modifier 持有到 drop）；无 modifier 的 drag 仍走 driver（0.23.2 的 drag modifier 不读取）。
+- drag `modifier`：0.39+ 驱动原生支持（foreground 持有到 release）；0.23.2/未知版本/`dragEngine:private` 走私有 SendInput helper（`screenOrigin + 截图尺寸` 映射屏幕物理像素，helper 前台校验 → modifier down → mouse down → 6px 阈值 → 插值 → mouse up → modifier up → 恢复）。私有路径不支持 `from_zoom`（`[private_drag_zoom_unsupported]`），缺 frame 报 `[private_drag_no_frame]`；原生路径失败只在明确未投递时提示改用 private，不自动重拖。
+- click 家族 `modifier` 非空时自动 `forceForeground`（Windows 修饰键只能 SendInput 前台）。drag 的 `dwell_ms` 始终私有（驱动没有 dwell 参数）。
 - `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式 + 同一 count + 同一 modifier 集合，5s 内重复，且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照。观察到变化会清除该窗口的重复计数；`double_click` 不拦。
 - `count:3` 不会自动变成三次点击；它是一次 `click` payload 的 count 参数，是否支持取决于驱动/目标。
 
-### 4.2 投递失败
+### 4.3 投递失败
 
 - `deliveryFailure(value)` 识别 `background_unavailable`、`foreground_unavailable`、`delivery_failed`。`delivery_failed` 用词边界匹配：驱动的 `escalation.reason='background_delivery_failed'` 是“建议升级前台”，结构化 `effect` 仍是 `unverifiable`，不能当成硬失败（2026-11-17 t14 r1 的 26/28 次假失败根因）。
 - `settleAction` 在这类值上返回 `ok:false`，不消费快照；`delivery_failed` 另标 suspect。
@@ -124,7 +148,7 @@ humanAction / type / key / scroll / drag / set_value
 - L3 只有 retry 不是 delivery failure/refusal 时才写“重试完成”；否则写“重试仍未送达”。
 - `stale_element_token`：驱动报告编号失效时 `clearSnapshot()`，回执要求重新 observe，不再用旧编号重试；`keyFallback` 点菜单栏前用 `windowState` 重新取唯一菜单栏 token。
 
-### 4.3 动作回执
+### 4.4 动作回执
 
 - 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。这样点错按钮（例如把“否”当“是”）在回执里立刻可见。
 - 输入/设值同样回显目标元素或窗口焦点。
@@ -136,7 +160,7 @@ humanAction / type / key / scroll / drag / set_value
 - `app_launch`：启动成功即 `ok:true`，前置失败只写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）；避免把可选前置失败误判为启动失败而重复启动。
 - `computer_menu`：path 支持 `"文件/保存"`；`menu_path_unavailable` 时若快照里有对应顶层菜单栏项，回执给出具体 `element=<编号>`。
 
-### 4.4 快照语义
+### 4.5 快照语义
 
 - 默认 `supersession: note`：同一快照可连续动作，只附一致性注记。
 - `enforce`：已消费快照的第二次动作被拒绝；所有动作应在投递前求值。

@@ -39,6 +39,7 @@ check('C3 0.23.2 → legacy，tree_format 可用但原生 drag 不可用', () =>
   assert.equal(c.profile, 'legacy')
   assert.equal(c.treeFormat, true)
   assert.equal(c.dragModifier, false)
+  assert.equal(c.pointerCapture, false)
   assert.equal(c.flatWindow, false)
   assert.equal(c.screenshotFrame, false)
 })
@@ -47,7 +48,14 @@ check('C4 0.39.0 → modern，原生 drag modifier', () => {
   const c = capabilitiesFor({ version: '0.39.0' })
   assert.equal(c.profile, 'modern')
   assert.equal(c.dragModifier, true)
+  assert.equal(c.pointerCapture, false)
   assert.equal(c.flatWindow, false)
+})
+
+check('C4b 0.52.13 → 像素动作需要截图上下文', () => {
+  const c = capabilitiesFor({ version: '0.52.13' })
+  assert.equal(c.pointerCapture, true)
+  assert.equal(c.profile, 'modern')
 })
 
 check('C5 0.53.0 → latest，flat window + screenshot_frame', () => {

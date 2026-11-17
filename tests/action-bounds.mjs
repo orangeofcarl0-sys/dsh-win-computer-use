@@ -185,6 +185,17 @@ r = await call('computer_drag', { from_x: null, from_y: 2, to_x: 3, to_y: 4 })
 check('D6 drag null 坐标被拒', r.ok === false && !calls.some((c) => c.tool === 'drag'),
   String(r.result).slice(0, 80))
 
+// D11：0.52+ 像素动作前必须建立截图上下文（否则 screenshot_context_missing）
+process.env.CUA_STUB_POINTER_CAPTURE = '1'
+calls.length = 0
+r = await call('computer_click', { x: 5, y: 5 })
+const preflight = calls.findIndex((c) => c.tool === 'get_window_state'
+  && c.args.include_screenshot === true && c.args.max_elements === 1)
+const clickAt = calls.findIndex((c) => c.tool === 'click')
+check('D11 0.52+ 像素点击先预取截图上下文', r.ok === true && preflight >= 0 && clickAt > preflight,
+  JSON.stringify(calls.map((c) => c.tool)))
+delete process.env.CUA_STUB_POINTER_CAPTURE
+
 // D7-D9：modifier 走私有 SendInput；私有路径不复刻 from_zoom，且需要 screenOrigin
 priv.calls.length = 0
 calls.length = 0

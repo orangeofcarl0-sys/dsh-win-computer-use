@@ -165,6 +165,9 @@ async function main() {
 
     // 1) element_token + ctrl
     try { rmSync(MARK_CLICK, { force: true }) } catch { /* ignore */ }
+    // 0.52+ 的前台点击需要目标真的在前台（否则可能报 screenshot_context_missing）。
+    await cuaCall('bring_to_front', withSession({ pid: w.pid, window_id: w.window_id })).catch(() => null)
+    await sleep(300)
     const elementClick = await cuaCall('click', withSession({
       pid: w.pid, window_id: w.window_id, element_token: btn.element_token,
       count: 1, button: 'left', modifier: ['ctrl'], delivery_mode: 'foreground',
@@ -173,6 +176,12 @@ async function main() {
 
     // 2) coordinate + ctrl
     try { rmSync(MARK_CLICK, { force: true }) } catch { /* ignore */ }
+    await cuaCall('bring_to_front', withSession({ pid: w.pid, window_id: w.window_id })).catch(() => null)
+    // 0.52+ 像素动作需要截图上下文；0.23.2 也接受该字段。
+    await cuaCall('get_window_state', {
+      pid: w.pid, window_id: w.window_id, include_screenshot: true, max_elements: 200,
+    }).catch(() => null)
+    await sleep(200)
     const coordClick = await cuaCall('click', withSession({
       pid: w.pid, window_id: w.window_id, x: bc.x, y: bc.y,
       count: 1, button: 'left', modifier: ['ctrl'], delivery_mode: 'foreground',
@@ -184,6 +193,9 @@ async function main() {
       try { rmSync(p, { force: true }) } catch { /* ignore */ }
     }
     await cuaCall('bring_to_front', withSession({ pid: w.pid, window_id: w.window_id }))
+    await cuaCall('get_window_state', {
+      pid: w.pid, window_id: w.window_id, include_screenshot: true, max_elements: 200,
+    }).catch(() => null)
     await sleep(500)
     const btnDrag = await cuaCall('drag', withSession({
       pid: w.pid, window_id: w.window_id,
@@ -198,6 +210,9 @@ async function main() {
       try { rmSync(p, { force: true }) } catch { /* ignore */ }
     }
     await cuaCall('bring_to_front', withSession({ pid: w.pid, window_id: w.window_id }))
+    await cuaCall('get_window_state', {
+      pid: w.pid, window_id: w.window_id, include_screenshot: true, max_elements: 200,
+    }).catch(() => null)
     await sleep(400)
     const panelDrag = await cuaCall('drag', withSession({
       pid: w.pid, window_id: w.window_id,

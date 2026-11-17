@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-17 · `npm test` 22 套 / **555 项检查** · `npm run check` **22/22** · `verify-runtime` **17/17**。
+> 最近基线：2026-11-18 · `npm test` 26 套 / **619 项检查** · `npm run check` **26/26** · `verify-runtime` **17/17**（0.23.2 与 0.52.13 均通过）。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t14/t15/t17 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 1. 原则
@@ -17,14 +17,16 @@
 
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
-| 语法/安装脚本 | `npm run check` | 21 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 555 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、私有 modifier drag 路由/坐标映射、目标回显/重复抑制、投递失败/强制前台 L3、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类 |
+| 语法/安装脚本 | `npm run check` | 26 JS（含 lib/driver）+ 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
+| 离线单元/契约 | `npm test` | 26 套 / 619 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、私有 modifier drag 路由/坐标映射、原生 modifier drag、0.52+ 像素截图预取、目标回显/重复抑制、投递失败/强制前台 L3、结构化非零退出、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类、驱动响应归一化/版本能力/传输错误/端到端兼容 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
-| modifier 手势 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达目标；driver drag modifier 在 0.23.2 上不进入目标（记录为 driver 缺口；插件已用 private helper 绕过，见 `probe-private-drag`） |
+| modifier 手势 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达目标；0.23.2 上 driver drag modifier 不进入目标（私有 helper 绕过）；0.52.13 上原生 modifier drag 实测 delivered（`Shift` 贯穿 down/move/up） |
 | 组合键前台 | `node evals/probe-combo-foreground.mjs` | 1 项 | blocker 在前台时，真实插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms TextBox |
 | 私有拖拽 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 `computer_drag(modifier=["ctrl","shift"], dwell_ms)` → 持久 helper → WinForms down/move/up 均读到 `Shift, Control`，drop 后无卡键；3/3 通过 |
+| 驱动形态 | `node evals/probe-driver-shape.mjs` | 1 项 | `get_window_state` 默认/显式 `tree_format`、`window_bounds`、`frame`/`screenshot_frame`、session、zoom MIME、click 回执与坐标空间 |
+| 驱动兼容层 | `tests/driver.*.mjs` | 4 套 / 60 项 | 0.23.2 与 0.53 fixtures 归一化一致；版本/能力/请求映射；fake spawn 超时/非 JSON/contract/session/结构化退出；真实 observe/refresh 端到端兼容 |
 | native freshness | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
@@ -259,15 +261,15 @@ node evals/headless-run.mjs --tasks t17 --repeats 3 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 555 ✅ / 0 ❌ |
-| 语法 | 22/22 JS + `bash -n` 两脚本 |
-| 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
+| 离线 | 26 套 / 619 ✅ / 0 ❌ |
+| 语法 | 26/26 JS + `bash -n` 两脚本 |
+| 运行时 | `verify-runtime` 17/17（Windows 11；cua-driver 0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
 | dirty 真机（首轮） | t13 论文下载 **pass 19 步**；t15 Explorer **pass 112 步**；t16 表单 **pass 17 步**；t11 Paint **fail 107 步**、t12 PPT **fail 126 步**（均未保存输出）；t14/t17 仅 setup/cleanup 验证；cleanup clean、TabState skipped |
 | dirty 修复轮（2026-11-16） | t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用、12 drag）；t15 新题面 **3/3 pass**（177/146/89 步，仍高于旧 112）；t12 16:9 seed/占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过，仍高风险 |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；dirty 组 t11/t15/t16 PASS（AC2 full）、t12/t13/t14/t17 SKIP；任务集 17 条 |
-| 打包 | `npm pack --dry-run` 42 文件 |
+| 打包 | `npm pack --dry-run` 47 文件 |
 
 > t11/t12/t15 的逐轮时间线、工具计数、失败模式与 ZCode CU 对比见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；CU 社区对照见 [CU-RESEARCH](CU-RESEARCH.md)。
 | 证据 | [VERIFICATION](../VERIFICATION.md) |

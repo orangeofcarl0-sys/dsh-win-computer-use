@@ -11,6 +11,7 @@
 | 能力 | 机制 | 范围 |
 |---|---|---|
 | 桌面观察 | `cua-driver call get_window_state / get_desktop_state / list_windows / check_permissions …` | AX/UIA 树、窗口截图、权限面探测 |
+| 驱动探测 | `cua-driver --version` / `status` | 只读版本/契约探测；进程级缓存，每进程 1–2 次 |
 | 桌面动作 | `cua-driver call click / type_text / set_value / press_key / hotkey / scroll / drag / …` | 虚拟光标、UIA/PostMessage/SendInput |
 | 应用枚举/启动 | `cua-driver call list_apps / launch_app / bring_to_front` | 运行中应用与启动 |
 | 验证/剪贴板/菜单 | `cua-driver call verify_state / clipboard_* / invoke_menu / move_cursor` | 确定性谓词、剪贴板、菜单、悬停 |
@@ -35,6 +36,7 @@ spawn(CUA_BIN, ['call', tool, JSON.stringify(args)], {
 - `shell` 默认 `false`（非 shell 固定 argv）；没有 `exec` / `eval` / `shell:true`。
 - `CUA_BIN` 解析顺序：`CUA_DRIVER_BIN` → `PATH` → `~/.local/bin`、`/usr/local/bin`、`/opt/homebrew/bin`、`%LOCALAPPDATA%\cua-driver`、`~/.cua-driver/packages/current` → 兜底 `cua-driver`。
 - 子进程只承载一次 `call`，不常驻；daemon 由驱动自身管理。
+- 另有固定 argv 的只读探测 `cua-driver --version` 与 `cua-driver status`（能力/契约）；`runOnce` 不写文件、不联网、不执行 `update`。
 
 ### 2.2 PowerShell sidecar（Windows 可选）
 
@@ -84,6 +86,9 @@ spawn('powershell.exe', [
 | 变量 | 必填 | 用途 |
 |---|---|---|
 | `CUA_DRIVER_BIN` | 否 | 显式指定 cua-driver 路径 |
+| `CUA_DRIVER_VERSION` | 否 | 覆盖版本探测（离线测试/排障） |
+| `CUA_DRIVER_PROFILE` | 否 | 覆盖兼容档 `auto/legacy/latest`（配置 `driverProfile` 优先） |
+| `CUA_CALL_TIMEOUT_MS` | 否 | 单次驱动调用超时，默认 30000ms |
 | `PATH` | 否 | 查找 `cua-driver` / `powershell.exe` |
 | `CUA_SESSION` | 否 | 虚拟光标会话 id，默认 `dsh-win-computer-use` |
 | `ZHIPU_API_KEY` / `GLM_API_KEY` | 否 | GLM 视觉兜底；未配置则该路径停用 |
@@ -118,7 +123,7 @@ spawn('powershell.exe', [
 | 信号 | 状态 | 说明 |
 |---|---|---|
 | 文件权限 | ⚠️ 命中 | `spawn` 子进程是核心能力；无用户文件读写，仅 `existsSync` 探测驱动 |
-| 命令权限 | ⚠️ 命中 | 固定 argv：`cua-driver` 与 Windows `powershell.exe`（随包只读 sidecar）；`shell:false`；无 `exec`/`eval` |
+| 命令权限 | ⚠️ 命中 | 固定 argv：`cua-driver call/--version/status` 与 Windows `powershell.exe`（随包只读 sidecar）；`shell:false`；无 `exec`/`eval` |
 | 网络权限 | ⚠️ 条件命中 | 核心无网络；可选 GLM 兜底在配置 key 后向 `GLM_API_BASE` 外呼（含截图） |
 | 凭据权限 | ⚠️ 轻微命中（可选） | 读取 `ZHIPU_API_KEY`/`GLM_API_KEY` 环境变量；不读密钥文件；`CUA_DRIVER_BIN` 仅定位 |
 | 生命周期脚本 | ✅ 无 | `package.json` 无 install/postinstall/prepare |
