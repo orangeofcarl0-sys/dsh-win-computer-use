@@ -249,3 +249,97 @@
 - 残留：r2 有 3 次 delivery/stale/snapshotMismatch、9 次 zoom、3 次 repeat_suppressed，主要来自 Save As 文件名/A1 坐标的重复尝试；r3 用 7 次 activate + 7 次 wait 规避。下一步可把“Save As 对话框出现后先 activate 再 set_value”写得更硬，或给对话框场景增加 `wait_for` 谓词。
 - 后续 forced pointer 前置单次后复跑：**42 步 pass**（260s，typeCalls=0、deliveryFailures=0、click=11、activate=5、wait=2、A1 exact）；与 37/53/48 同一量级，说明去掉失败后重试未破坏 PDF/Excel 路径。
 - 清理：不能关 Firefox 窗口/进程（会带走用户标签）。旧轮跑完后在“测试标签仍被选中”时发一次 Ctrl+W，只关测试标签；确认选中态变成用户标签、窗口仍有 7 个用户标签。新题面下不再产生测试标签，cleanup 只关 setup Chrome。
+
+## 10. 2026-11-18 0.52.13 + opencode-go canary 复盘
+
+### 10.1 运行集
+
+五个目标任务在 `cua-driver 0.52.13` + `opencode-go / deepseek-v4.1-flash` 上全部通过；同一题面在 DeepSeek 官方通道上有 t14 2/3、t17 37/75 的历史样本。opencode 样本不是受控 A/B：桌面脏状态、模型采样和驱动 0.52 的 capture 行为都会影响步数。
+
+| 任务 | 结果 | 步数 | 时长 | observe | click | type | drag | zoom | activate | errors / unverified | oracle |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| t11 Paint | pass | 77 | 929s | 46 | 17 | 0 | 5 | 0 | 5 | 4 / 20 | 白底/红蓝黑 ROI 全 true |
+| t12 PowerPoint | pass | 112 | 1581s | 58 | 28 | 4 | 0 | 2 | 5 | 2 / 41 | 1 页/16:9/文本/三色柱全 true |
+| t14 Excel | pass | 60 | 585s | 18 | 8 | 2 | 0 | 8 | 4 | 10 / 19 | 24 格/barChart/标题/Sales/Month 全 true |
+| t15 Explorer | pass | 55 | 419s | 23 | 15 | 1 | 0 | 0 | 1 | 0 / 28 | 所有文件/旧路径 true |
+| t17 PDF+Excel | pass（pre-fix） | 40 | 332s | 12 | 4 | 0 | 0 | 7 | 5 | 9 / 7 | A1 exact、seed unchanged |
+| t17 PDF+Excel | pass（post-fix） | 86 | 885s | 34 | 17 | 4 | 0 | 0 | 3 | 1 / 37 | A1 exact、seed unchanged |
+| t14 Excel | pass（post-fix） | 59 | 633s | 18 | 8 | 3 | 0 | 6 | 4 | 9 / 21 | 24 格/barChart/标题/Sales/Month 全 true |
+
+> `pre-fix` = `pointerCaptureReady` / 裸 code 拒绝修复前；`post-fix` = 修复后。t11/t12/t15 未在 post-fix 重跑，但它们没有 `screenshot_context_missing` 假成功路径。
+
+### 10.2 任务级模型行为
+
+**t15（最干净，55 步 / 0 任务错误）**
+
+- 第一次 activate 后直接进入 Explorer 文件列表；用 `F2 → Ctrl+A → type → Enter` 原地改名，避免了另存为/扩展名问题。
+- 分组用 **Ctrl+click**（5 次），`Ctrl+X → 导航目标文件夹 → Enter → Ctrl+V` 循环三组；共 15 次 click、12 次 key、1 次 type。
+- 28 次动作全部前台（`delivery:foreground=28`），但 0 delivery failure；文件单选的 `foreground=true` 是必要的，后台 UIA Invoke 会把文件当默认动作打开。
+- 23 次 observe、21 次 changed observe；模型不是盲目重试，每一步都在确认文件列表/文件夹切换。没有 zoom、没有 drag、没有错误恢复，是五条里最接近“题面即策略”的一条。
+
+**t11（77 步 / 5 次 activate / 5 次 drag）**
+
+- 模型在每次 drag 前都先 `computer_activate`，再点一次画布 `(959,690)` 取得焦点；5 次 drag 对应三色图形，其中红/蓝各重画一次。`activateBeforeDrag=true`、`focusClickAtDragStart=true`，说明它已经学会“画布 drag 需要前台+焦点”，但每个图形都重复一次，成本高。
+- 46 次 observe 中有 12 次 native、4 次 query；模型频繁用截图/过滤树确认颜色、线宽和图形是否出现。`computer_drag` 平均 7.8s，是工具耗时最高的项。
+- 3 个快照类错误都恢复了：无快照点击、矩形工具的 `stale_element_token`、`snapshot_mismatch`；最后的 `screen_observe(window="s4-t11-canvas")` 失败是因为保存后窗口标题变成 `replica.png`，不是图形失败。
+- 结论：t11 的主要成本不是“不会画”，而是**焦点纪律 + 每步视觉确认**；forced drag 前置单次已经避免了双画，但模型仍会主动重复 activate/focus。
+
+**t12（112 步 / 1581s / 41 unverified）**
+
+- 58 次 observe、26 次 native、15 次 query；模型用原生截图和 query 反复检查幻灯片对象/文本框，而不是只靠 AX 树。28 次 click、8 次 key、4 次 type、2 次 double-click、1 次 set_value；没有 drag。
+- 41 次 unverified 全部来自 PowerPoint 的前台文本/形状/格式动作；0 delivery failure，说明动作都送达，只是应用不提供可验证回执。oracle 通过，模型用 native/query 自行确认。
+- 与 DeepSeek 的 t12（152 步/1069s；39 click/29 key/12 zoom/5 set_value/77 unverified）相比：opencode 少 40 步、少 11 次 click、少 21 次 key、少 10 次 zoom，但多 9 次 native、15 次 query，墙钟反而多 512s。**步数更省，单步更贵**。
+- 两个 `snapshot_missing` 都是“先点后观察”的顺序错误，模型立即补 observe；没有 stale/mismatch。
+
+**t14（60 → 59 步）**
+
+- 策略完整贴合题面：`clipboard write` TSV → A1 zoom/from_zoom → 功能区 Paste → `Ctrl+Shift+End` → `Alt+F1` → 双击标题 → `Ctrl+A`/type → `F12` Save As → `set_value` 文件名 → `Ctrl+S`。
+- 8 次 zoom（A1、Paste、图表区、标题、保存对话框）；3 次 wait；4 次 activate。`clipboard=1/2`、`type=2/3`，没有逐格输入。
+- pre-fix 10 errors 中有一组 `foreground_unavailable`/`bring_to_front` refused（F12/Ctrl+S 期间另一个窗口持有前台），还有 2 次 `delivery_failed` key、2 次 snapshot expired、2 次 stale、2 次 mismatch、1 次 zoom 宽 1090>500、1 次把数字当窗口标题。模型全部通过 observe/activate/foreground 恢复。
+- post-fix 59 步、3 refusals、7 delivery failures、0 stale/mismatch；capture 预取把 stale/mismatch 换成了更多“未送达→前台重试”，最终 oracle 全 true。说明修复改变了失败分布，但没有破坏任务路径。
+
+**t17（pre-fix 40 步；post-fix 86 步）**
+
+- pre-fix：三击 PDF 句子 → `Ctrl+C` → `clipboard read`；Excel `F12` → A1 `from_zoom` click → `Ctrl+V` → `Ctrl+S`。7 次 zoom、5 次 activate、9 个错误（多数是 schema/前台锁），A1 exact。
+- pre-fix 的关键问题在 seq 74-76：Save As 对话框 native observe 后，模型做像素 click `(1024,787)`，驱动返回 `{"code":"screenshot_context_missing","reason":"no_screenshot"}`，但 `engineRefusal` 不认识裸 `code`，`settleAction` 把回执写成 **“点击完成”**。动作没有发生，回执却像成功——这是本轮轨迹复盘发现的最严重真实性问题。
+- post-fix：原生截图不再被当作 click capture；像素动作前 `pointerCaptureReady` 为 false，插件补 `get_window_state(include_screenshot:true,max_elements:1)`；裸 `screenshot_context_missing` 按拒绝上报。模型改走“F12/文件名/手动输入+退格”路径，0 zoom、17 次 key、4 次 type、8 次 wait，86 步仍 pass，且只有 1 个 `snapshot_missing`，没有假成功。**真实性修好了，代价是模型选了更啰嗦的保存/输入路径**；这是模型方差，不是驱动兼容回归。
+
+### 10.3 错误分类（去掉启动 cursor theme 噪声）
+
+| 类别 | 证据 | 根因 | 模型恢复 | 插件动作 |
+|---|---|---|---|---|
+| 启动 cursor theme | 每条轨迹 1 次 `set_agent_cursor_theme` 失败（rainbow 主题未安装） | 环境主题缺失；fire-and-forget | 不影响任务 | 可考虑静默/降级；当前只计入 driver error |
+| 快照守卫 | `snapshot_missing`（t11/t12/t14/t17）、`snapshot_expired`（t14）、`stale_element_token`（t11）、`snapshot_mismatch`（t11/t14） | 模型先点后观察、旧 snapshot_id、capture 预取替换 index map | 重新 observe，1–2 步 | 守卫按设计 fail-closed；`markTokensStale` 让旧编号明确失效 |
+| 前台锁 | t14 `foreground_unavailable` + `bring_to_front` refused；t17 两次 activate refused；`delivery_failed` key | Windows 前台锁/另一个窗口（ZCode/Chrome/对话框）持有前台 | `computer_activate`、foreground 重试、重新 observe | L3 已尽力；拒绝时不假装成功 |
+| 参数 schema | t17 `screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)`；t14 zoom 宽 1090>500 | 模型套用了别的工具的参数 | 按拒绝文本重发 | dispatcher 未知参数拒绝是正确行为；工具描述可再给示例 |
+| 数值当窗口标题 | t14 `window:"2231898"`、t17 `window:"7081698"` | 模型把 window_id 填进 window | 候选列表后改用 window_id/标题 | fail-closed，不静默回退 |
+| `screenshot_context_missing` | t17 pre-fix seq 74-76 | native 截图被误当 click capture；裸 code 未被识别 | 重新 observe/zoom | **已修**：`pointerCaptureReady` + `engineRefusal` 裸 code |
+
+### 10.4 轨迹驱动的修复
+
+本轮不是“看代码猜问题”，而是从 t17 pre-fix 轨迹里拿到了具体反例：
+
+1. **native 截图 ≠ 像素动作 capture**：`cacheSnapshot` 原来用 `hasCapture = capture_id || screenshot_png_b64`；native observe 有截图，于是 `ensurePointerCapture` 跳过预取。但 0.52 的 click 仍报 `no_screenshot`。现在新增 `pointerCaptureReady`，只有 `ensurePointerCapture` / `screenZoom` 显式建立 capture 后才为 true；native 截图只用于模型展示，不再冒充点击上下文。
+2. **裸 `code` 拒绝必须 fail-closed**：`engineRefusal` 原来只认 `effect/status/refusal/ok:false/error_code` 和三个 code；`screenshot_context_missing` 落到了成功分支。现在 `FAILURE_CODES` 包含 `screenshot_context_missing`、`window_target_not_found`、`target_not_found`、`stale_element_token`、`element_not_visible`、`menu_path_unavailable`，裸 code 也会返回拒绝。
+3. **测试锁住**：`action.echo` E31 覆盖裸 `screenshot_context_missing` 回执；`action-bounds` D12 覆盖“native 截图但 pointerCaptureReady=false 仍要预取”。离线 26 套 / 621 项全绿。
+4. **post-fix 真机**：t17 86 步、1 个 snapshot_missing、0 假成功；t14 59 步、0 stale/mismatch、oracle 全 true。t14/t17 都仍 pass。
+
+### 10.5 跨 provider 对比（同题面、非受控 A/B）
+
+| 任务 | DeepSeek 官方 | opencode-go | 观察 |
+|---|---|---|---|
+| t11 | 58 / 94 步 | 77 步 | opencode 高于最好、低于最差；t11 方差主要来自 activate/focus 重复 |
+| t12 | 152 步 / 1069s | 112 步 / 1581s | opencode 少 40 步，但 native/query 更多、墙钟更慢 |
+| t14 | 53 / 51 pass，64 fail | 60 步（post-fix 59） | DeepSeek 最好更快；opencode 更稳（本轮 2/2 全绿） |
+| t15 | 85 / 67 步 | 55 步 | opencode 明显更省 click/key |
+| t17 | 37 / 75 步 | 40 步（pre-fix）/ 86（post-fix） | 最好样本同量级；post-fix 走手动输入路径，真实性优先 |
+
+结论：**没有“opencode 一定更快”**。opencode 在 t12/t15 更省步数，t11/t14/t17 与 DeepSeek 同量级或略慢；t12 的 1581s 说明少步数不等于低墙钟（native/query 单次 4–5s）。驱动兼容层对两个 provider 的行为一致，差异主要来自模型策略。
+
+### 10.6 剩余摩擦与建议
+
+1. **启动主题错误是噪声**：每轮 `set_agent_cursor_theme` 失败 1 次；如果主题未安装，建议插件静默或降级为空主题，避免轨迹 error 计数虚高。
+2. **前台锁是环境成本**：t14/t17 的 `foreground_unavailable` 多发生在 F12/另存为/对话框；L3 有时被系统拒绝。模型已学会 activate/重新 observe，不建议再加自动重试（会重复点击/重复输入）。
+3. **工具描述可更明确**：t17 的 `screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)` 都是 1 步可恢复的 schema 误用；在描述里给一个参数示例即可降低。
+4. **`markTokensStale` 是必要代价**：像素 capture 预取会替换驱动 index map，旧编号必须失效；模型重新 observe 的 1–2 步是正确行为，不应为了省步数而保留陈旧编号。
+5. **t17 post-fix 的 86 步**：模型改走手动输入/保存循环，原因是它没有用 zoom/from_zoom；这更像题面策略选择，不是插件回归。若要把 t17 稳定压回 40 步，下一轮应在题面里再次强调“先 zoom A1 再粘贴”，而不是放宽 capture 真实性。

@@ -8,11 +8,11 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **26 套 / 619 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **26 套 / 621 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **26/26 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17**（0.23.2 与 0.52.13 均通过） | Windows 11 / cua-driver 0.23.2 + 0.52.13 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
-| 0.52.13 canary 探针 | **✅**：形态探针确认默认 markdown/显式 elements、session 归属、像素截图上下文；`live-action.e2e` **33/33**；modifier probe **ok=true / dragModifierSupported=true**；combo/private/from_zoom/native-freshness 均通过；插件像素 click 的 `move_cursor` 实测 screen (762,595) = local (301,235) + origin (461,360)，无 `origin` 字段，marker 命中；t14 在 deepseek 上 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`），在 opencode 上 **pass 60 步**（oracle 全 true）；t17 在 deepseek 上 **pass 37 步**（capture 复用后；r1 75 步），在 opencode 上 **pass 40 步**（oracle exact、seed unchanged）；opencode-go/deepseek-v4.1-flash 上 t11 **pass 77 步**（全部白底/红蓝黑 ROI 检查 true）、t15 **pass 55 步**（全部文件/旧路径检查 true，0 错误）、t12 **pass 112 步**（1 页/16:9/文本/三色柱全 true） | Windows 11 / cua-driver 0.52.13 | `evals/probe-*.mjs`；`tests/live-action.e2e.mjs`；`evals/headless-run.mjs --tasks t14/t17/t11/t15/t12` |
+| 0.52.13 canary 探针 | **✅**：形态探针确认默认 markdown/显式 elements、session 归属、像素截图上下文；`live-action.e2e` **33/33**；modifier probe **ok=true / dragModifierSupported=true**；combo/private/from_zoom/native-freshness 均通过；插件像素 click 的 `move_cursor` 实测 screen (762,595) = local (301,235) + origin (461,360)，无 `origin` 字段，marker 命中；t14 在 deepseek 上 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`），opencode 上 **60 步**、post-fix **59 步**；t17 在 deepseek 上 **37 步**，opencode pre-fix **40 步**、post-fix **86 步**（修复 `screenshot_context_missing` 假成功后 0 false success）；opencode-go/deepseek-v4.1-flash 上 t11 **77 步**、t15 **55 步**、t12 **112 步**全部 pass（全部 oracle 检查 true） | Windows 11 / cua-driver 0.52.13 | `evals/probe-*.mjs`；`tests/live-action.e2e.mjs`；`evals/headless-run.mjs --tasks t14/t17/t11/t15/t12` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **2026-11-17：t11/t15 PASS、t12/t14/t17 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过；t17 setup 现含 PDF page-3 readiness） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15,t14,t17` |
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |

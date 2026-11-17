@@ -118,7 +118,8 @@ drag 默认走私有 helper（已知可靠）。
 |---|---|---|
 | `get_window_state` 默认 `tree_format:"markdown"`，不带 `elements` | 首次调用 keys 有 `element_count=7`、`tree_markdown`，无 `elements`；显式 `tree_format:"elements"` 返回 7 个元素 | `mapRequest` 总是带 `tree_format:"elements"` |
 | element_token / zoom 快照按 **session** 归属 | 观察不带 session、点击带 session → `stale_element_token` / `current_snapshots:[]` | `mapRequest` 给 `get_window_state` 注入 `CUA_SESSION` |
-| 像素 click/drag/scroll 需要截图上下文 | 无截图时 `screenshot_context_missing / no_screenshot`；先 `get_window_state(include_screenshot:true)` 后成功 | `ensurePointerCapture` 预取；`markTokensStale` |
+| 像素 click/drag/scroll 需要截图上下文 | 无截图时 `screenshot_context_missing / no_screenshot`；先 `get_window_state(include_screenshot:true)` 后成功 | `ensurePointerCapture` 预取；`markTokensStale`。**native 观察的截图只用于模型展示，不算 click capture**：`pointerCaptureReady` 只由显式预取/zoom 置 true（t17 轨迹实证） |
+| 裸 `code` 拒绝 | `{"code":"screenshot_context_missing","reason":"no_screenshot"}` | `engineRefusal` 的 `FAILURE_CODES` 按拒绝上报；否则会被写成“点击完成”（t17 pre-fix） |
 | `zoom` 需要截图上下文 | 同上；`screen_zoom` 在无 capture 时补读 | `screenZoom` 预取 + `markTokensStale` |
 | 结构化拒绝以非零退出返回 | `background_unavailable` JSON + exit 1 | `transport` 解析为 `DriverError.value`；动作类当回执值参与升级 |
 | 前台点击校验目标 HWND 前台 | `foreground_unavailable: ... not foreground after the click` | 既有 `bring_to_front` 前置/绕锁链 |

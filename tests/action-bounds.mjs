@@ -196,6 +196,26 @@ check('D11 0.52+ 像素点击先预取截图上下文', r.ok === true && preflig
   JSON.stringify(calls.map((c) => c.tool)))
 delete process.env.CUA_STUB_POINTER_CAPTURE
 
+// D12：native 观察自带截图（hasCapture=true）不等于驱动 click 的截图上下文；
+// pointerCaptureReady 仍为 false，必须补一次显式 capture。
+setSnapshot({
+  at: Date.now(), ttlMs: 60000, pid: 42, windowId: 7, appName: 'Stub',
+  coordinateSpace: 'window-screenshot-px',
+  screenOrigin: { x: 100, y: 100, width: 800, height: 600 },
+  snapshotId: 's-native', title: 'Stub', entries: new Map(),
+  elementCount: 0, totalElementCount: 0, mode: 'native', maxElements: 120,
+  screenshotWidth: 800, screenshotHeight: 600,
+  captureId: null, hasCapture: true, pointerCaptureReady: false,
+})
+process.env.CUA_STUB_POINTER_CAPTURE = '1'
+calls.length = 0
+r = await call('computer_click', { x: 6, y: 6 })
+const preflightNative = calls.findIndex((c) => c.tool === 'get_window_state'
+  && c.args.include_screenshot === true && c.args.max_elements === 1)
+check('D12 native 截图也要补 pointer capture', r.ok === true && preflightNative >= 0
+  && getSnapshot()?.pointerCaptureReady === true, JSON.stringify(calls.map((c) => c.tool)))
+delete process.env.CUA_STUB_POINTER_CAPTURE
+
 // D7-D9：modifier 走私有 SendInput；私有路径不复刻 from_zoom，且需要 screenOrigin
 priv.calls.length = 0
 calls.length = 0

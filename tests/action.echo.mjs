@@ -34,6 +34,9 @@ const WINDOW = () => ({
 })
 export async function cuaDeliver(tool, payload) {
   clicks.push({ tool, payload })
+  if (tool === 'click' && process.env.CUA_CLICK_CODE) {
+    return { value: { code: process.env.CUA_CLICK_CODE, reason: 'no_screenshot' }, note: '' }
+  }
   if (tool === 'click' && process.env.CUA_STALE_CLICK === '1') {
     return { value: { refusal: { code: 'stale_element_token', message: 'element_token is stale' } }, note: '' }
   }
@@ -213,6 +216,14 @@ delete process.env.CUA_STALE_CLICK
 const after = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
 check('E11: stale 后旧编号被拒绝', after.ok === false
   && /没有可用的观察快照|snapshot_missing/.test(raw(after)), raw(after))
+
+// 9b. 裸 code 拒绝（0.52 的 screenshot_context_missing）不能当成功
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_CLICK_CODE = 'screenshot_context_missing'
+const bareCode = await call('computer_click', { x: 5, y: 5, snapshot_id: obs.snapshotId })
+check('E31: screenshot_context_missing 按拒绝上报', bareCode.ok === false
+  && /screenshot_context_missing/.test(raw(bareCode)), raw(bareCode))
+delete process.env.CUA_CLICK_CODE
 
 // 10. verifyAfterAction=auto：unverifiable 后抓一次状态差分
 ;({ call, obs } = await fresh({ verifyAfterAction: 'auto', actionGuard: 'off' }))
