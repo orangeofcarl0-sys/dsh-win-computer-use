@@ -72,7 +72,7 @@ export async function cuaCall(tool, args = {}) {
       return { ok: true, effect: 'confirmed' }
     }
     case 'get_window_state': {
-      const els = [
+      const allEls = [
         { element_index: 0, element_token: 'save', role: 'Button', label: '保存(S)', frame: { x: 700, y: 500, w: 0, h: 0 }, enabled: true },
         { element_index: 1, element_token: 'yes', role: 'Button', label: '是(Y)', frame: { x: 357, y: 171, w: 0, h: 0 }, enabled: true },
         { element_index: 2, element_token: 'no', role: es.role, label: '否(N)', frame: { x: 465, y: 171, w: 0, h: 0 }, enabled: true },
@@ -88,6 +88,9 @@ export async function cuaCall(tool, args = {}) {
             ]
           : []),
       ]
+      const els = process.env.CUA_NO_DOC === '1'
+        ? allEls.filter((e) => String(e.role) !== 'Document')
+        : allEls
       return {
         window: WINDOW(), elements: els, element_count: els.length,
         screenshot_width: 800, screenshot_height: 600, snapshot_id: 's' + String(Date.now()),
@@ -353,6 +356,26 @@ check('E27: 无 element + 快照有 Document → 文档提示', typeFocus.ok ===
 const svNote = await call('computer_do', { action: 'call', tool: 'computer_set_value', args: { element: 5, value: 'abc' } })
 check('E28: set_value 成功 → 不置脏语义', svNote.ok === true
   && /设值说明/.test(raw(svNote)) && /不要据此判断失败/.test(raw(svNote)), raw(svNote))
+
+// 15. 无 Document 的聚焦输入：保留窗口快照，连续按键可继续（t14 逐格输入 churn）
+process.env.CUA_NO_DOC = '1'
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+const typedGrid = await call('computer_type', { text: 'Month' })
+const tabAfterGrid = await call('computer_key', { key: 'tab' })
+delete process.env.CUA_NO_DOC
+delete process.env.CUA_UNVERIFIED
+check('E29: 无可回读文本控件 → 不清快照，Tab 可继续', typedGrid.ok === true
+  && /未刷新快照/.test(raw(typedGrid)) && tabAfterGrid.ok === true
+  && !/snapshot_missing/.test(raw(tabAfterGrid)), raw(typedGrid).slice(0, 220))
+
+// 16. 有 Document 的输入仍走逐字回读，不被上面的优化绕过
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_UNVERIFIED = '1'
+const typedDocStill = await call('computer_type', { text: 'x' })
+delete process.env.CUA_UNVERIFIED
+check('E30: 有 Document 仍走输入回读', typedDocStill.ok === true
+  && /输入回读/.test(raw(typedDocStill)) && !/未刷新快照/.test(raw(typedDocStill)), raw(typedDocStill).slice(0, 220))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

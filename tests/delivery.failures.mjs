@@ -20,7 +20,7 @@ export function deliveryFailure(v) {
   const s = typeof v === 'string' ? v : JSON.stringify(v || {})
   if (/foreground_unavailable/i.test(s)) return 'foreground'
   if (/background_unavailable/i.test(s)) return 'background'
-  if (/delivery_failed/i.test(s)) return 'delivery_failed'
+  if (/\\bdelivery_failed\\b/i.test(s)) return 'delivery_failed'
   return null
 }
 const WINDOW = { pid: 42, window_id: 7, app_name: 'Stub', title: 'Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5, is_on_screen: true }
@@ -29,6 +29,7 @@ function failure() {
   if (mode === 'background') return { code: 'background_unavailable', detail: 'stub' }
   if (mode === 'foreground') return { code: 'foreground_unavailable', detail: 'stub' }
   if (mode === 'delivery_failed') return { effect: 'unverifiable', delivery: { mode: 'background' }, escalation: { reason: 'delivery_failed', target: 'foreground' } }
+  if (mode === 'background_delivery_failed') return { effect: 'unverifiable', delivery: { mode: 'background' }, escalation: { reason: 'background_delivery_failed', target: 'foreground' } }
   if (mode === 'unverified') return { effect: 'unverifiable', delivery: { mode: 'background' } }
   return { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }
 }
@@ -85,6 +86,14 @@ for (const [name, fn] of actions) {
   const { call, obs } = await fresh()
   const r = await fn(call, obs.snapshotId)
   check(`D-unverified-${name}: 仍为 ok:true`, r.ok === true, r.result)
+}
+
+process.env.CUA_DELIVERY_MODE = 'background_delivery_failed'
+{
+  const { call, obs } = await fresh()
+  const r = await call('computer_type', { text: 'x', snapshot_id: obs.snapshotId })
+  check('D-bg-delivery-failed-type: 仍为 ok:true 且不报未送达',
+    r.ok === true && !/未送达/.test(r.result || '') && /未验证/.test(r.result || ''), r.result)
 }
 
 process.env.CUA_DELIVERY_MODE = 'ok'

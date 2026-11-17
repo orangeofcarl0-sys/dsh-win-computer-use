@@ -12,7 +12,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界）。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 22 套 / 533 项检查；`npm run check` 21/21；`verify-runtime` 17/17。
+- **测试基线**：`npm test` 22 套 / 551 项检查；`npm run check` 21/21；`verify-runtime` 17/17。
 
 ## 2. 文档地图
 

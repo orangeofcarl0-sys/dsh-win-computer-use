@@ -11,6 +11,7 @@ try {
     Out-Finish -Ok $false -Checks @((Add-Check 'Excel shellnew seed' $false $blank)) -Kind 'setup' -EnvError 'Excel shellnew seed missing'
   }
   Copy-Item $blank $seed -Force
+  $seedHash = Get-S4Sha256 $seed
   $startedAt = (Get-Date).ToUniversalTime()
   $excelExe = Join-Path $env:ProgramFiles 'Microsoft Office\root\Office16\EXCEL.EXE'
   $stateFile = Join-Path $base 'excel.json'
@@ -19,7 +20,8 @@ try {
     $x = Open-TestAppWindow -Exe $excelExe -Arguments @($seed) -ProcessName 'EXCEL' -TitleNeedle @('seed.xlsx', 'seed') -StateFile $stateFile -TimeoutSec 30
   }
   $checks += (Add-Check 'Excel test window' ([bool]$x.ok) ("hwnd=$($x.hwnd) title=$($x.title) reason=$($x.reason)"))
-  [void](Write-TestState (Join-Path $base 'state.json') ([ordered]@{ startedAt = $startedAt.ToString('o'); seed = $seed }))
+  $checks += (Add-Check 'seed unchanged before run' ((Get-S4Sha256Shared $seed) -eq $seedHash) $seed)
+  [void](Write-TestState (Join-Path $base 'state.json') ([ordered]@{ startedAt = $startedAt.ToString('o'); seed = $seed; seedHash = $seedHash }))
   if (-not $x.ok) { Out-Finish -Ok $false -Checks $checks -Kind 'setup' -EnvError ("Excel unavailable: " + $x.reason) }
   Out-Finish -Ok $true -Checks $checks -Kind 'setup'
 } catch {

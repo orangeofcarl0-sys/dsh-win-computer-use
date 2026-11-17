@@ -36,18 +36,20 @@ export function deliveryFailure(v) {
   const s = typeof v === 'string' ? v : JSON.stringify(v || {})
   if (/foreground_unavailable|foreground unavailable/i.test(s)) return 'foreground'
   if (/background_unavailable|background unavailable/i.test(s)) return 'background'
-  if (/delivery_failed|delivery failed/i.test(s)) return 'delivery_failed'
+  if (/\\bdelivery_failed\\b|\\bdelivery failed\\b/i.test(s)) return 'delivery_failed'
   return null
 }
 
 export const clicks = []
 export const clickPayloads = []
 export const presses = []
+export const deliveries = []
 let popup = ''
-export function resetAll() { clicks.length = 0; clickPayloads.length = 0; presses.length = 0; popup = '' }
+export function resetAll() { clicks.length = 0; clickPayloads.length = 0; presses.length = 0; deliveries.length = 0; popup = '' }
 const mode = () => process.env.CUA_KEY_MODE || 'xaml-throw'
 
-export async function cuaDeliver(tool, payload) {
+export async function cuaDeliver(tool, payload, deliveryMode, opts = {}) {
+  deliveries.push({ tool, deliveryMode, forceForeground: opts.forceForeground === true, keys: payload.keys, key: payload.key })
   if (tool === 'hotkey') {
     const m = mode()
     if (m === 'xaml-throw' || m === 'ambiguous' || m === 'no-menu' || m === 'menu-open') {
@@ -313,6 +315,20 @@ call = await fresh({ xamlKeyFallback: 'off', xamlPressFallback: 'auto' })
 r = await call('computer_key', { key: 'alt+f' })
 check('K32: 菜单可能已打开 → 拒绝 alt+f', r.ok === false
   && /菜单可能已打开/.test(r.result || '') && stub.presses.length === 0, r.result)
+
+// 23. 组合键自动前台（t14 r1 Ctrl+V 只落 v）
+reset('ok')
+call = await fresh({ xamlKeyFallback: 'off' })
+r = await call('computer_key', { key: 'ctrl+s' })
+check('K33: 组合键默认强制前台', stub.deliveries.at(-1)?.tool === 'hotkey'
+  && stub.deliveries.at(-1)?.forceForeground === true, JSON.stringify(stub.deliveries.at(-1)))
+check('K34: 回执说明组合键已前台', /组合键需前台注入/.test(r.result || ''), r.result)
+
+reset('ok')
+call = await fresh({ xamlKeyFallback: 'off' })
+r = await call('computer_key', { key: 'return' })
+check('K35: 普通按键仍按配置后台', stub.deliveries.at(-1)?.tool === 'press_key'
+  && stub.deliveries.at(-1)?.forceForeground === false, JSON.stringify(stub.deliveries.at(-1)))
 
 delete process.env.CUA_KEY_MODE
 cleanupWork(work)

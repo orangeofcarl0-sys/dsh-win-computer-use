@@ -23,7 +23,7 @@ export function deliveryFailure(v) {
   const s = typeof v === 'string' ? v : JSON.stringify(v || {})
   if (/foreground_unavailable|foreground unavailable/i.test(s)) return 'foreground'
   if (/background_unavailable|background unavailable/i.test(s)) return 'background'
-  if (/delivery_failed|delivery failed/i.test(s)) return 'delivery_failed'
+  if (/\\bdelivery_failed\\b|\\bdelivery failed\\b/i.test(s)) return 'delivery_failed'
   return null
 }
 export async function cuaDeliver(tool, payload) { return { value: await cuaCall(tool, payload), note: '' } }
@@ -105,6 +105,20 @@ o = await call('screen_observe', { window: 'Cua.AgentCursorOverlay.default', mod
 check('C13: 显式 overlay 被拒绝', o.ok === false && /覆盖层/.test(String(o.result || '')), String(o.result || '').slice(0, 80))
 o = await call('screen_observe', { window: 'Codex Computer Use Cursor Overlay', mode: 'ax' })
 check('C14: Codex overlay 也被拒绝', o.ok === false && /覆盖层/.test(String(o.result || '')), String(o.result || '').slice(0, 80))
+
+// 5. 前台提示：显式观察 z 序落后的辅助窗口时，提示先 computer_activate
+call = await fresh()
+o = await call('screen_observe', { window: '42', window_id: 7, mode: 'ax' })
+check('C15: z 序落后目标提示 computer_activate', /computer_activate/.test(String(o.result || ''))
+  && /window_id=7/.test(String(o.result || '')) && /Alt\+Tab|任务栏/.test(String(o.result || '')),
+String(o.result || '').split('\n').slice(0, 5).join(' | '))
+check('C16: 头部带源图尺寸与预览缩放提示', /800×600/.test(String(o.result || ''))
+  && /预览/.test(String(o.result || '')) && /from_zoom=true/.test(String(o.result || '')),
+String(o.result || '').split('\n').slice(0, 5).join(' | '))
+o = await call('screen_observe', { window: '42', window_id: 8, mode: 'ax' })
+check('C17: 最前窗口无 activate 提示', !/computer_activate/.test(String(o.result || '')), String(o.result || '').slice(0, 160))
+check('C18: footer 明确预览像素规则', /不是预览显示像素/.test(String(o.result || ''))
+  && /from_zoom=true/.test(String(o.result || '')), String(o.result || '').split('\n').slice(-1)[0])
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

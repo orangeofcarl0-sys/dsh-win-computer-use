@@ -1,8 +1,8 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-17 · `npm test` 22 套 / **533 项检查** · `npm run check` **21/21** · `verify-runtime` **17/17**。
-> 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t15 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
+> 最近基线：2026-11-17 · `npm test` 22 套 / **551 项检查** · `npm run check` **21/21** · `verify-runtime` **17/17**。
+> 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t14/t15/t17 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 1. 原则
 
@@ -18,11 +18,12 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 21 JS + 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 22 套 / 533 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/自动前台、目标回显/重复抑制、投递失败/强制前台 L3、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类 |
+| 离线单元/契约 | `npm test` | 22 套 / 551 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、目标回显/重复抑制、投递失败/强制前台 L3、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
 | modifier 手势 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达目标；drag modifier 在 0.23.2 上不进入目标（记录为 driver 缺口） |
+| 组合键前台 | `node evals/probe-combo-foreground.mjs` | 1 项 | blocker 在前台时，真实插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms TextBox |
 | native freshness | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
@@ -39,13 +40,13 @@
 | `schema.conformance.mjs` | 47 | 23 个工具 / 47 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活/modifier click 形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
 | `observe.truth.mjs` | 25 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示、query 只读/无快照/动作拒绝/不污染差分 |
-| `observe.coords.mjs` | 14 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝 |
+| `observe.coords.mjs` | 18 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝；z 序落后目标提示 `computer_activate`；源图尺寸/预览缩放提示 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
 | `human.click.mjs` | 22 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/零滑行/缺失与跨窗口拒绝、modifier 规范化/自动前台/非法值/double/right 透传 |
-| `action.echo.mjs` | 34 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、modifier 与普通 click 的重复签名区分、app_launch 启动成功+前置未确认/window_id、computer_activate 窗口激活/未知 id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示 |
-| `delivery.failures.mjs` | 25 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true |
-| `delivery.foreground.mjs` | 13 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出 |
-| `key.xaml.mjs` | 33 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败不再建议 foreground=true）；alt+f/ctrl+a 的 xamlPressFallback 前景回退、菜单优先、清快照与菜单已开拒绝 |
+| `action.echo.mjs` | 36 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、modifier 与普通 click 的重复签名区分、app_launch 启动成功+前置未确认/window_id、computer_activate 窗口激活/未知 id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示、无 Document 的 type 不清快照且 Tab 可继续 |
+| `delivery.failures.mjs` | 26 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true；`background_delivery_failed` 是升级建议、type 仍 ok:true 且不报未送达 |
+| `delivery.foreground.mjs` | 21 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出；force + unverified click/scroll/drag 前置单次（不重试）、type 不前置；`background_delivery_failed` 分类 |
+| `key.xaml.mjs` | 37 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败不再建议 foreground=true）；alt+f/ctrl+a 的 xamlPressFallback 前景回退、菜单优先、清快照与菜单已开拒绝；组合键默认强制前台、普通按键保持后台 |
 | `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
 | `trajectory.test.mjs` | 18 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报 repeat_observe、观察提示不伪造 delivery/unverified、modifier 独立 loop 签名、driver 层 drag/click 手势参数保留 |
 | `eval-safety.mjs` | 65 | 禁止按 Notepad/mspaint/POWERPNT/EXCEL/chrome/msedge 进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明；dirty 任务 helper/Dirty/Downloads 按 hash 清理 |
@@ -194,16 +195,18 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 | t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 三色 ROI mask/bbox/覆盖率容差；Paint 最大化后调色板/形状工具在 AX 树 |
 | t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 单页 16:9 seed + 预填 title/subtitle + 3 个灰色占位柱 + `seedHash` 变化 + PPTX XML 文本/颜色/位置（无 COM） |
 | t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 中新增 PDF 的 SHA-256 |
-| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart part |
+| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart part；seedHash 未变 |
 | t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态（8 文件，先重命名再移动） |
 | t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
-| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本（高风险） |
+| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本（不 Trim）+ seedHash 未变；setup UIA page-3 readiness（高风险） |
 
 ```bash
 node evals/verify-oracles.mjs --tasks t11,t12,t13,t14,t15,t16,t17
 node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch evals/headless-patch.yml
 node evals/headless-run.mjs --tasks t11 --repeats 3 --timeout-min 20 --patch evals/headless-patch.yml
 node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40 --patch evals/headless-patch.yml
+node evals/headless-run.mjs --tasks t14 --repeats 3 --timeout-min 25 --patch evals/headless-patch.yml
+node evals/headless-run.mjs --tasks t17 --repeats 3 --timeout-min 20 --patch evals/headless-patch.yml
 ```
 
 - `ac2: none`（t12/t13/t14/t17）在 verify-oracles 中显示 **SKIP**，表示 setup/oracle-empty/cleanup 已验，但无 simulate；不是假 PASS。
@@ -215,6 +218,12 @@ node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40 --patch eva
 - 2026-11-17 t12 白底轮：白底 seed + 按形状名选择 + 标准色/直接输入标签 + 40 分钟预算；**2/2 pass，140/169 步**（hash/1 页/16:9/Q1-Q3/三色柱全 true）。此前 25 分钟/190 步只完成 red/blue + Q1。
 - 2026-11-17 t14 Excel 轮：表先输入，A1 + `Ctrl+Shift+End` 选 A1:D6，`Alt+F1` 插原生柱状图，标题 `S4 Sales`，最后 Save As；oracle 接受分类公式或缓存标签。**2/2 pass，141/71 步**（24 格/barChart/标题/Sales/Month categories 全 true）。
 - 2026-11-17 t17 PDF 轮：三击句子 + Ctrl+C（禁止 Ctrl+A），Excel 先 Save As 再 Ctrl+V；**2/2 pass，89/63 步**，A1 两次精确匹配。模型把测试 PDF 开进了用户 Firefox 的新标签；跑完只在测试标签被选中时 Ctrl+W，保留其余用户标签，未关 Firefox 窗口/进程。
+- 2026-11-17 第七轮 t14：`deliveryFailure` 词边界 + 组合键自动前台 + 剪贴板 TSV/功能区 Paste + activate/wait + zoom 坐标。**3/3 pass，59/41/57 步**（typeCalls=1/1/2，clipboard=1，seed unchanged，oracle 全 true）；旧题面 141/71。
+- 2026-11-17 第七轮 t17：题面禁止其它浏览器 + activate/wait/reload + Save As set_value + A1 zoom；setup 增加 PDF page-3 readiness，oracle 精确 A1/seedHash。**3/3 pass，37/53/48 步**（typeCalls=0，clipboard=1，A1 exact，用户 Firefox 无测试标签）；forced pointer 前置单次后复跑 **42 步 pass**；旧题面 89/63。
+- 2026-11-17 第七轮 t15：forced click 前置单次后 **85/67 步 pass**（8 文件/内容/旧路径全 true；第二轮 5 次 Ctrl+click 批量，明显快于逐文件剪切）。
+- 2026-11-17 第七轮 t12：forced pointer 前置单次后 **1/1 pass，152 步**（1 页/16:9/title/subtitle/Q1-Q3/红蓝绿三柱全 true；1069s）。
+- 2026-11-17 第七轮组合键：`probe-combo-foreground` 在 blocker 前台时，插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms TextBox，文本完整到达。
+- 2026-11-17 第七轮 t11 回归：首次发现 forced drag 的 L3 重试把单次拖拽变成 ~9s/两遍，模型误入鼠标键/设置；改为“前置 → 只拖一次 → 恢复”后 **58 步 pass**；全部指针（click/scroll/drag）前置单次后 **94 步 pass**。两轮三色 ROI/coverage/precision 全绿，无鼠标键/设置离题；t11 方差仍大。
 - 2026-11-17 手势轮：`probe-modifier` 证明 click element/坐标的 Ctrl 真机到达；drag 的 modifier 在 driver 0.23.2 上不进入目标键状态，插件不开放该参数。t12 seed 改为白底、只留 title/subtitle 占位符和三条灰柱，AC2 setup 记录 `replica.pptx - PowerPoint`，无修复对话框；`probe-native-freshness` 未复现陈旧 native 截图。
 - 首轮真机样本：t13 论文下载 **pass 19 步**（NeurIPS PDF SHA-256，cleanup removed=1）；t15 Explorer 整理 **pass 112 步**（能收敛但探索很长）；t16 本地表单 **pass 17 步**；cleanup 干净、TabState skipped、无用户窗口被关。
 
@@ -249,7 +258,7 @@ node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 22 套 / 533 ✅ / 0 ❌ |
+| 离线 | 22 套 / 551 ✅ / 0 ❌ |
 | 语法 | 21/21 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11，cua-driver 0.23.2） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |

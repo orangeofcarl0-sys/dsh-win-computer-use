@@ -1,4 +1,4 @@
-# TRAJECTORY ANALYSIS — t11 / t12 / t15 的模型行为与失败模式
+# TRAJECTORY ANALYSIS — t11 / t12 / t14 / t15 / t17 的模型行为与失败模式
 
 > 数据日期：2026-11-16/17。对象：`dsh-win-computer-use` 插件 + dsh 0.2.2-rc.1 的真实 dirty 桌面运行，以及同机 ZCode CU 的能力探针。
 >
@@ -14,20 +14,39 @@
 | t11 显式题面 A | **pass 84** | 82 | 47 | 13 | 1 | 12 | 4 | 1 | 4 / 29 | 734s |
 | t11 显式题面 B | **pass 77** | 76 | 41 | 19 | 2 | 7 | 3 | 1 | 3 / 29 | 707s |
 | t11 显式题面 C | fail 49 | 47 | 22 | 10 | 2 | 7 | 0 | 1 | 1 / 23 | 350s |
+| t11 第七轮 A | **pass 58** | 57 | 32 | 15 | 1 | 4 | 0 | 3 | 6 / 20 | 398s |
+| t11 第七轮 B | **pass 94** | 91 | 29 | 17 | 3 | 9 | 24 | 7 | 3 / 26 | 934s |
 | t12 旧 seed | fail 189 | 187 | 51 | 47 | 20 | 2 | 0 | 0 | 6 / 129 | 1191s |
 | t12 简化无占位柱 | fail 160 | 157 | 64 | 40 | 9 | 4 | 0 | 1 | 2 / 88 | 1192s |
 | t12 保存按钮 | fail 162 | 160 | 62 | 38 | 12 | 1 | 6 | 0 | 5 / 93 | 1189s |
 | t12 占位柱 | fail 178 | 174 | 71 | 61 | 6 | 0 | 5 | 2 | 25 / 77 | 1191s |
 | t12 预填+占位柱 25min | fail 190 | 186 | 79 | 60 | 8 | 0 | 8 | 3 | 10 / 97 | 1492s |
+| t12 第七轮 | **pass 152** | 150 | 50 | 39 | 3 | 0 | 12 | 3 | 9 / 76 | 1069s |
 | t15 r1 | **pass 177** | 176 | 77 | 26 | 1 | 0 | 26 | 1 | 9 / 90 | 1110s |
 | t15 r2 | **pass 146** | 143 | 43 | 40 | 2 | 1 | 0 | 2 | 9 / 85 | 853s |
 | t15 r3 | **pass 89** | 88 | 30 | 42 | 0 | 1 | 1 | 1 | 14 / 55 | 560s |
+| t15 第七轮 A | **pass 85** | 84 | 39 | 17 | 2 | 0 | 1 | 0 | 4 / 40 | 555s |
+| t15 第七轮 B | **pass 67** | 64 | 22 | 12 | 7 | 0 | 0 | 0 | 6 / 36 | 356s |
+| t14 旧题面 r1 | **pass 141** | 140 | 57 | 8 | 28 | 0 | 0 | 0 | 31 / 73 | 925s |
+| t14 旧题面 r2 | **pass 71** | 69 | 24 | 9 | 2 | 0 | 8 | 2 | 5 / 23 | 502s |
+| t14 新题面 r1 | **pass 59** | 58 | 20 | 10 | 1 | 0 | 9 | 2 | 3 / 20 | 404s |
+| t14 新题面 r2 | **pass 41** | 40 | 12 | 7 | 1 | 0 | 6 | 2 | 6 / 15 | 253s |
+| t14 新题面 r3 | **pass 57** | 54 | 12 | 7 | 2 | 0 | 10 | 5 | 10 / 17 | 314s |
+| t17 旧题面 r1 | **pass 89** | 85 | 33 | 10 | 4 | 0 | 6 | 2 | 4 / 35 | 575s |
+| t17 旧题面 r2 | **pass 63** | 61 | 25 | 12 | 0 | 0 | 2 | 1 | 8 / 19 | 400s |
+| t17 新题面 r1 | **pass 37** | 36 | 13 | 8 | 0 | 0 | 2 | 5 | 4 / 10 | 257s |
+| t17 新题面 r2 | **pass 53** | 51 | 16 | 13 | 0 | 0 | 9 | 2 | 11 / 12 | 323s |
+| t17 新题面 r3 | **pass 48** | 47 | 10 | 5 | 0 | 0 | 11 | 7 | 4 / 7 | 294s |
+| t14 指针回归 | **pass 42** | 40 | 10 | 5 | 2 | 0 | 7 | 2 | 3 / 17 | 240s |
+| t17 指针回归 | **pass 42** | 41 | 17 | 11 | 0 | 0 | 0 | 5 | 3 / 13 | 260s |
 
 原始 run id：
 
 - t11：`2026-11-16T10-45-11`（旧题面 71）、`11-09-17`（84）、`11-22-15`（r2 为 49）、`11-46-40`（77）
 - t12：`12-10-08`（189）、`12-32-32`（160）、`13-37-29`（162）、`14-01-08`（178）、`14-29-56`（190）
 - t15：`12-53-31`（r1/r2/r3）
+- t14 旧题面：`2026-11-17T07-12-15`（141/71）；新题面：`10-14-28`（59）、`10-22-40`（41/57）
+- t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
 
 ## 2. t11：不是“不会画”，是焦点 + 首次拖拽 + 状态判定
 
@@ -183,12 +202,14 @@
 - 第一次复跑（未改题面）在 54 步时被中止：模型用了 6 次 Ctrl+click，但普通文件单击走 `background`，driver 的 UIA hit-test/Invoke 把 `report-draft.txt`、`alpha.txt`、`chart.png` 当成“默认动作”打开，弹出了 Notepad/Photos（还激活了一个用户 PDF 窗口）。这不是模型双击，而是后台点击语义。
 - 题面加入“文件单选必须 `foreground=true`”后，第二次复跑不再打开任何 Notepad/Photos；但 F2 编辑框保留了 `.txt` 扩展名，输入 `report-final.txt` 得到 `report-final.txt.txt`。
 - 题面再加入“F2 后先 Ctrl+A 全选含扩展名，再输入完整文件名；若变成 `.txt.txt` 再改回”后，**3/3 pass**：77/72/59 steps（5/5/5 次 Ctrl+click；29/28/24 observe），文件树与内容全部正确，无 Notepad/Photos 误开，dirty=false。相比 2026-11-16 的 177/146/89 步，中位从 146 降到 72。
+- 2026-11-17 第七轮：forced click 原先在 unverified 时被 L3 重试，t15 的 16 次 foreground click 全部重试、单次约 9s；改为前置单次后 **85/67 steps pass**（第二轮 5 次 Ctrl+click 批量，明显快于逐文件剪切）。8 文件/内容/旧路径全 true。
 
 ### 9.2 t11：先修的是画布原点和线宽，不是提示词气势
 
 - UIA 实测：最大化 Paint 的画布是 `(879,600) 800x600` window-screenshot 像素，1:1，没有 150% DPI 放大。两轮失败轨迹用的原点是 `(872–875, 594–595)`，偏 4–7px；同时默认线宽太细，导致 `visible/bbox/area` 全过、`reference coverage` 全 false。
 - Paint 的 AX `大小` 按钮可打开 `3/5/8 像素` 菜单。setup 现在依次选中 `矩形/椭圆/直线`，用 UIA TogglePattern + MenuItem Invoke 把三者都设为 `8 像素`，再回到矩形；题面不再让模型碰 `大小`。
 - 修正后 **3/3 pass：70/88/48 steps**（68/85/47 inner；5/6/3 drags；`activateBeforeFirstDrag`/`focusClickAtDragStart` 均 true，app_launch=0）。之前 1:1 失败轮是 99 steps；setup 固定线宽 + 精确原点把无效重画压掉了。
+- 2026-11-17 第七轮回归发现：forced drag 的 L3 重试把单次拖拽变成约 9s、同一形状画两遍；模型看到重复图形后尝试 `ALT+SHIFT+NUMLOCK`、打开“设置 → 鼠标键”，离题。改为 **先 bring_to_front → 只拖一次 → 恢复原前台** 后 **58 steps pass**；再把 forced click/scroll 也改为前置单次后 **94 steps pass**（17 clicks、24 zoom、7 activate；方差仍大）。两轮三色 ROI/coverage/precision 全绿；Mouse Keys 侧效应已关闭并复核。
 - 注意：UIA 同名元素会同时出现 `ListItem`（只支持虚拟化）和真正的 `ToggleButton`；helper 必须遍历同名元素并依次尝试 Invoke/Toggle/SelectionItem/Legacy，否则会在 ListItem 上误判“不支持的模式”。
 
 ### 9.3 t12：白底 seed + 直接输入标签，首次真机通过
@@ -196,6 +217,7 @@
 - 白底 seed 只保留 title/subtitle 占位符和三条灰柱，模板装饰被裁掉；setup 用 `TitleNeedle='replica'` 记录加载完成的窗口，AC2 setup 无修复对话框。
 - 题面按 AX 形状名选择 `S4 Bar Q1/Q2/Q3`；红/蓝用标准色，绿用主题色；双击柱直接输入 Q1/Q2/Q3（不再插入文本框）；每柱后保存；颜色/格式对话框关闭后 `computer_activate` 主窗。
 - 40 分钟预算下 **2/2 pass，140/169 steps**（139/168 inner；2 errors；71/96 unverified）。两轮 oracle 都是 hash 变化、1 页/16:9、title/subtitle/Q1/Q2/Q3、red/blue/green bar 全 true。此前 25 分钟/190 步只完成 red/blue + Q1；白底 seed 和直接输入把剩余两条柱压进了预算。
+- 2026-11-17 第七轮：forced pointer 前置单次后复跑 **1/1 pass，152 steps**（150 inner；50 observe/39 click/29 key/12 zoom/7 double-click/5 set_value；1069s）；1 页/16:9/Q1-Q3/三色柱全 true。仍在 40 分钟预算内，组合键前台与 type 保留快照未破坏 PowerPoint 路径。
 
 ### 9.4 t14：Excel 表格+原生柱状图
 
@@ -203,10 +225,16 @@
 - 名称框和“提前 Save As”两个变体都回退：名称框/Go To 绕步多；提前保存让模型逐格输入，最终输出还是空白。
 - 最终题面：先输表，点 A1 → `Ctrl+Shift+End` 选 A1:D6 → `Alt+F1` → 标题 `S4 Sales` → 最后 Save As；25 分钟预算。oracle 同时接受 `catFormula` 含 A2 或图表缓存里的 Jan..May 分类。
 - 结果：**2/2 pass，141/71 steps**；24 格、barChart、标题、Sales 系列、Month categories 全 true。
+- 2026-11-17 第七轮：`deliveryFailure` 对 `background_delivery_failed` 改用词边界（此前 26/28 次 type 假“未送达”），组合键自动前台，题面改为剪贴板 TSV + 功能区 Paste、activate/wait、A1 用 zoom/from_zoom、Save As 用 `computer_set_value`。**3/3 pass，59/41/57 steps**（404/253/314s）；`typeCalls=1/1/2`（只剩图表标题），`clipboard=1`，`activate=2/2/5`，`wait=2/2/0`；24 格/barChart/标题/Sales/Month 全 true，seed unchanged。
+- 残留：驱动仍会在少数 type/key 上返回精确 `delivery_failed`（本轮 0/3/5 次），文字实际已落、模型靠 observe 恢复；下一轮可评估“type 的 delivery_failed 降级为未验证”，而不是继续当硬失败。
+- 后续 forced pointer（click/scroll/drag）全部改为前置单次后复跑：**42 步 pass**（240s，typeCalls=2、deliveryFailures=0、click=5、zoom=7）；说明去掉失败后重试不会破坏表格/图表路径。
 
 ### 9.5 t17：PDF 单行句子用三击比“文本选择原语”更实际
 
 - Chrome setup 窗和用户 Firefox 同时存在；模型把测试 PDF 开进了用户 Firefox 的一个新标签（Firefox 主窗口有 8 个标签，测试页被选中）。
 - 题面要求三击句子（`computer_click(count=3)`）+ Ctrl+C，禁止 Ctrl+A；Excel 先 Save As `out\excerpt.xlsx`，再 Ctrl+V，最后 Ctrl+S。
 - 结果：**2/2 pass，89/63 steps**，A1 两次精确匹配。模型最后用 `computer_clipboard` 回读剪贴板，确认是完整句子。
-- 清理：不能关 Firefox 窗口/进程（会带走用户标签）。跑完后在“测试标签仍被选中”时发一次 Ctrl+W，只关测试标签；确认选中态变成用户标签、窗口仍有 7 个用户标签。这个顺序是安全的，反过来先切标签再 Ctrl+W 会关错。
+- 2026-11-17 第七轮：题面写死“只用 setup 打开的浏览器，禁止在 Firefox/其它浏览器打开 PDF”；先 activate + wait 2000-4000ms，空白时 force observe + reload；Excel 文件名用 `computer_set_value`；A1 用 zoom/from_zoom。setup 新增 UIA page-3 readiness（`S4-T17:`），oracle 去掉 Trim 并校验 seedHash。**3/3 pass，37/53/48 steps**（257/323/294s）；`typeCalls=0`、`clipboard=1`、`activate=5/2/7`、`wait=1/1/7`；A1 exact 三次，seed unchanged；用户 Firefox 仍 8 个标签，无 `s4-t17` 测试标签。
+- 残留：r2 有 3 次 delivery/stale/snapshotMismatch、9 次 zoom、3 次 repeat_suppressed，主要来自 Save As 文件名/A1 坐标的重复尝试；r3 用 7 次 activate + 7 次 wait 规避。下一步可把“Save As 对话框出现后先 activate 再 set_value”写得更硬，或给对话框场景增加 `wait_for` 谓词。
+- 后续 forced pointer 前置单次后复跑：**42 步 pass**（260s，typeCalls=0、deliveryFailures=0、click=11、activate=5、wait=2、A1 exact）；与 37/53/48 同一量级，说明去掉失败后重试未破坏 PDF/Excel 路径。
+- 清理：不能关 Firefox 窗口/进程（会带走用户标签）。旧轮跑完后在“测试标签仍被选中”时发一次 Ctrl+W，只关测试标签；确认选中态变成用户标签、窗口仍有 7 个用户标签。新题面下不再产生测试标签，cleanup 只关 setup Chrome。

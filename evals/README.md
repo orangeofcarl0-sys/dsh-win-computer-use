@@ -7,7 +7,7 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 >
 > **2026-11-14 状态**：`run.mjs` 是 dsh 0.1.5 时代的 Web UI runner，已**退役**；在 0.2.2 下它会创建空会话并误读步数，默认直接拒绝运行（`--allow-legacy-web` 仅供旧 UI 调试，`--dry-setup` 不受影响）。当前 S4 用 `headless-run.mjs`（dsh 0.2.2 已验证）。
 >
-> **轨迹复盘**：t11/t12/t15 的逐轮时间线、工具计数、失败模式与 ZCode CU 探针见 [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](../docs/CU-RESEARCH.md)。原始 report/trajectory 在 `evals/headless-runs/`（gitignored），不提交测量产物。
+> **轨迹复盘**：t11/t12/t14/t15/t17 的逐轮时间线、工具计数、失败模式与 ZCode CU 探针见 [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](../docs/CU-RESEARCH.md)。原始 report/trajectory 在 `evals/headless-runs/`（gitignored），不提交测量产物。
 
 ## 任务集（2026-09-09 基线后重排：只留重要×快；重要但慢的做优化）
 
@@ -42,18 +42,19 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 | id | 任务 | 依赖 | oracle / 备注 |
 |---|---|---|---|
 | t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 三色 ROI mask/bbox/coverage 容差；setup 用 AX `大小` 固定 8px，题面给精确画布原点并先 activate/焦点 click；2026-11-17 **3/3 pass，70/88/48 步** |
-| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 白底单页 16:9 seed + 预填 title/subtitle + 3 个灰色占位柱 + `seedHash`；题面按形状名选择/标准色/直接输入标签；40 分钟预算；2026-11-17 **2/2 pass，140/169 步**；AC2 SKIP |
+| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 白底单页 16:9 seed + 预填 title/subtitle + 3 个灰色占位柱 + `seedHash`；题面按形状名选择/标准色/直接输入标签；40 分钟预算；2026-11-17 **2/2 pass，140/169 步**；第七轮 forced pointer 后 **1/1 pass，152 步**；AC2 SKIP |
 | t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 新增 PDF 的 SHA-256；只删匹配新文件 |
-| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + 原生 barChart；A1 + `Ctrl+Shift+End` 选 A1:D6 + `Alt+F1`；2026-11-17 **2/2 pass，141/71 步**；AC2 SKIP |
+| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + 原生 barChart；先 activate/wait，表格用剪贴板 TSV + 功能区 Paste（禁止逐格 type），A1 用 zoom/from_zoom，F12 失败走 File > Save As > Browse；setup/oracle 校验 seedHash 未变；2026-11-17 新题面 **3/3 pass，59/41/57 步**；forced pointer 前置单次后 **42 步 pass**（旧题面 141/71）；AC2 SKIP |
 | t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态（8 文件；先重命名再移动；Ctrl+click 用 `computer_click(..., modifier:["ctrl"])`；文件单选用 `foreground=true`；2026-11-17 **3/3 pass，77/72/59 步**） |
 | t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
-| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本；三击句子 + Ctrl+C，Excel 先 Save As 再粘贴；2026-11-17 **2/2 pass，89/63 步**；高风险；AC2 SKIP |
+| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本（不 Trim）；只允许 setup 浏览器窗口，禁止在 Firefox/其它浏览器打开 PDF；activate + wait/reload，三击句子 + Ctrl+C；Excel 先 Save As，文件名 set_value；setup 用 UIA 轮询 `S4-T17:` 做 page-3 readiness，并记录 seedHash；2026-11-17 新题面 **3/3 pass，37/53/48 步**；forced pointer 后 **42 步 pass**（旧题面 89/63）；用户 Firefox 无测试标签；高风险，已满足 3/3；AC2 SKIP |
 
 - 这些 md 标记 `- **isolation: dirty**`；`headless-run.mjs` 只在选中任务含 Notepad 任务时做 TabState backup/restore，dirty 组不碰用户 Notepad。
 - setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）记 `verdict=env`；`verify-oracles` 对 `ac2: none` 任务显示 SKIP，不伪造 PASS。
 - 用户已有 Paint/PowerPoint/Excel/浏览器/Notepad 窗口一律不关；cleanup 只关 setup 记录的测试 HWND/文档，证明不了就 leftover+dirty。
 - t11 setup 若已有 `mspaint` 进程会 fail-closed 为 ENV（Paint 11 单进程多标签，无法证明 seed 没合进用户窗口）；t12 从 `WidescreenPresentation.potx` 裁剪出白底单页 16:9 seed 并直接打开最终输出文件；t15 题面把重命名放在移动之前，并提供命令栏“重命名”回退。
-- 手势边界：click/double/right 的 `modifier` 已真机验证（Ctrl+click 可用）；drag 的 `modifier` 在 driver 0.23.2 上目标端收不到，题面与插件都不使用；drag 的 `from_zoom`/`steps` 已接线。
+- 手势边界：click/double/right 的 `modifier` 已真机验证（Ctrl+click 可用）；drag 的 `modifier` 在 driver 0.23.2 上目标端收不到，题面与插件都不使用；drag 的 `from_zoom`/`steps` 已接线。组合键（Ctrl+C/V/S 等）由插件自动前台；普通按键仍可后台。
+- 输入真实性：`background_delivery_failed` 是驱动的升级建议，不是硬失败；Excel 网格等无 Document 的聚焦输入在未验证时保留快照，避免每格 observe。t14/t17 题面已按此改写。
 
 ### 退役（2026-09-09，git 历史可恢复）
 
@@ -80,7 +81,7 @@ evals/
   headless-patch.yml   headless 探针叠加层（启用 credentials + 插入本插件）
   verify-oracles.mjs   oracle 独立验证（AC2）：setup→oracle 必须 fail；simulate→oracle 必须 pass
   lib/
-    common.ps1         PS 共享前置：沙箱根、JSON 输出、路径约定（所有 PS1 dot-source）
+    common.ps1         PS 共享前置：沙箱根、JSON 输出、路径约定（所有 PS1 dot-source）；含 Wait-TestPdfPageReady、Get-S4Sha256Shared
     tabstate.ps1       Notepad TabState backup/restore（隔离用户会话，防任务间标签串味）
     cdp.mjs            零依赖 CDP 客户端（Node 22 原生 WebSocket，驱动 headless Chrome）
   tasks/<id>.md        任务定义：prompt 原文 + 元数据（WAA 组含溯源头）

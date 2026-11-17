@@ -558,7 +558,8 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_key',
-    description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（绑定快照窗口；默认后台 PostMessage 投递，目标窗口无需前台）。调用前必须先 screen_observe。'
+    description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（绑定快照窗口；普通按键默认后台 PostMessage 投递，目标窗口无需前台）。调用前必须先 screen_observe。'
+      + '带修饰键的组合键需要 OS 级修饰键状态：插件会自动前台投递并恢复原前台（即使配置为 background），避免后台只落末键。'
       + 'XAML/WinUI 目标（Win11 记事本等）的组合键常因命令在关闭菜单里而失败；失败回执会给“点菜单栏项→点菜单项”的指引。'
       + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。',
     parameters: {

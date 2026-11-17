@@ -321,7 +321,8 @@ stateDiagram-v2
 | L1 命中 `background_unavailable` | L2 重试；回执注明“已前台重试一次” |
 | L2 命中 `foreground_unavailable` | L3（`hotkey` 或无 `pid` 除外） |
 | L1/L2 返回 `unverifiable` 且工具 ∈ `{click, scroll, drag}` 且有 `pid` | L3 |
-| `hotkey` 命中前台锁 | 不 L3（XAML 先验拒绝重试同样失败），回执说明 |
+| 强制前台（`foreground:true`）的 click/scroll/drag | 不走失败后重试：先 `bring_to_front`，只执行一次，再恢复原前台；避免重复点击/滚动/画形状。auto 非强制路径仍保留 `unverifiable + 指针 → L3` |
+| `hotkey` 命中前台锁 | 不 L3（XAML 先验拒绝重试同样失败），回执说明；组合键本身自动前台 |
 | 无 `pid`（desktop scope） | 不 L3（无锁可绕） |
 | L3 的 `bring_to_front` 未返回 `previous_fg_hwnd` | 不回写恢复，回执明确“原前台未恢复，请检查” |
 
@@ -409,12 +410,16 @@ stateDiagram-v2
 | A10 | native observe | `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver/plugin 两层，未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
 | A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PowerPoint 形状拖拽仍靠坐标；t17 的单行 PDF 句子已用三击 + Ctrl+C 覆盖（2/2 pass） | 评估 selectText/key hold/down-up；drag 支持 from_element |
 | A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后 3/3 pass；t15 文件单选用 foreground=true 后不再误开应用 | 已有 `computer_activate`；保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
+| A13 | 组合键前台语义 | background synthetic 不更新 OS 修饰键状态，`Ctrl+V` 只落 `v`；插件现对组合键自动前台并恢复原前台 | 普通按键仍可后台；XAML hotkey 失败仍走原指引 | 回归 t12/t15；真机探针 `probe-combo-foreground` |
+| A14 | 输入真实性 | `deliveryFailure` 整段 JSON 子串把 `background_delivery_failed` 误判成硬失败；`postInputVerify` 对无 Document 的 type 刷新快照导致每格 observe | 词边界分类 + 无回读控件保留快照；有 Document 的输入仍逐字回读 | 单测 D-bg/F17-F20/E29-E30；t14/t17 复跑观察 typeCalls/observe 次数 |
+| A15 | 观察提示 | 目标 z 序落后时提示 `computer_activate`；坐标行带源图尺寸并警告预览缩放；网格/画布用 `screen_zoom`+`from_zoom` | z 序不是 OS 前台，文案保守；`z_index=null` 不提示 | 单测 C15-C18；t14/t17 的 B1 误点复跑 |
+| A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试；auto 非强制路径保持 L3 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11 **58/94 步**、t15 **85/67 步**、t14/t17 **42/42 步**回归 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 ROADMAP |
 | G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 PUBLISH |
 
 ## 14. 测试与证据
 
-- 离线：22 套、533 项检查（2026-11-17；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：22 套、551 项检查（2026-11-17；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。t11/t12/t15 的模型行为与失败模式见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。

@@ -12,7 +12,7 @@
  *
  * 运行：node tests/delivery.foreground.mjs
  */
-import { cuaDeliver } from '../lib/cua.js'
+import { cuaDeliver, deliveryFailure, isUnverified } from '../lib/cua.js'
 import { resetWindowMap } from '../lib/windowMap.js'
 import { makeChecks } from './lib/harness.mjs'
 
@@ -50,8 +50,8 @@ function makeCall({ retry = 'ok' } = {}) {
     forceForeground: true, call,
   })
   check('F1: force 失败后 L3 重试成功', r.value?.effect === 'confirmed', JSON.stringify(r.value))
-  check('F2: bring_to_front 用 pid+window_id', calls[1]?.tool === 'bring_to_front'
-    && calls[1]?.args?.window_id === 7 && calls[1]?.args?.pid === 42, JSON.stringify(calls[1]))
+  check('F2: bring_to_front 用 pid+window_id', calls[0]?.tool === 'bring_to_front'
+    && calls[0]?.args?.window_id === 7 && calls[0]?.args?.pid === 42, JSON.stringify(calls[0]))
   check('F3: 重试后恢复原前台（pid+window_id）', calls.some((c) => c.tool === 'bring_to_front'
     && c.args?.window_id === 99 && c.args?.pid === 7), JSON.stringify(calls.slice(-1)))
   check('F4: 注记不再说“重试完成”以外的假成功', /绕锁后重试完成/.test(r.note), r.note)
@@ -143,6 +143,104 @@ function makeCall({ retry = 'ok' } = {}) {
     })
   } catch { threw = true }
   check('F13: 非 foreground 异常保持抛出', threw)
+}
+
+// 8. 投递分类：background_delivery_failed 是 escalation 建议，不是硬失败
+{
+  const payload = { effect: 'unverifiable', escalation: { reason: 'background_delivery_failed', target: 'foreground' } }
+  check('F17: background_delivery_failed 不算 delivery_failed', deliveryFailure(payload) === null, JSON.stringify(payload))
+  check('F18: background_delivery_failed 仍是 unverified', isUnverified(payload) === true, JSON.stringify(payload))
+  check('F19: 精确 delivery_failed 仍是硬失败', deliveryFailure({ escalation: { reason: 'delivery_failed' } }) === 'delivery_failed')
+  check('F20: 字符串形态同样按词边界', deliveryFailure('escalation.reason=background_delivery_failed') === null
+    && deliveryFailure('delivery_failed') === 'delivery_failed')
+}
+
+// 9. 强制前台 drag 前置后只拖一次（重试会画两遍）
+{
+  resetWindowMap()
+  const calls = []
+  const call = async (tool, args) => {
+    calls.push({ tool, args })
+    if (tool === 'bring_to_front') {
+      if (Number(args.window_id) === 7) return { previous_fg_hwnd: 99 }
+      return { ok: true, effect: 'confirmed' }
+    }
+    if (tool === 'list_windows') return { windows: [{ window_id: 99, pid: 7 }] }
+    if (tool === 'drag' && args.delivery_mode === 'foreground') {
+      return { ok: true, effect: 'unverifiable', delivery: { mode: 'foreground' } }
+    }
+    return { ok: true }
+  }
+  const r = await cuaDeliver('drag', {
+    session: 's', pid: 42, window_id: 7, from_x: 1, from_y: 2, to_x: 3, to_y: 4,
+  }, 'auto', { forceForeground: true, call })
+  check('F14b: force drag 前置后只拖一次', calls.filter((c) => c.tool === 'drag').length === 1
+    && calls[0]?.tool === 'bring_to_front' && calls[0]?.args?.window_id === 7
+    && /已前置目标并拖拽一次/.test(r.note || '')
+    && calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify(calls))
+}
+
+// 10. 强制前台指针 unverifiable → 前置 + 单次动作（不重试）；type 不前置
+{
+  resetWindowMap()
+  const calls = []
+  const call = async (tool, args) => {
+    calls.push({ tool, args })
+    if (tool === 'bring_to_front') {
+      if (Number(args.window_id) === 7) return { previous_fg_hwnd: 99 }
+      return { ok: true, effect: 'confirmed' }
+    }
+    if (tool === 'list_windows') return { windows: [{ window_id: 99, pid: 7 }] }
+    if (tool === 'click' && args.delivery_mode === 'foreground') {
+      return { ok: true, effect: 'unverifiable', delivery: { mode: 'foreground' } }
+    }
+    return { ok: true }
+  }
+  const r = await cuaDeliver('click', { session: 's', pid: 42, window_id: 7, x: 1, y: 2 }, 'auto', {
+    forceForeground: true, call,
+  })
+  check('F14: force+unverified click → 前置后只点一次', r.value?.effect === 'unverifiable'
+    && calls.filter((c) => c.tool === 'click').length === 1
+    && calls[0]?.tool === 'bring_to_front' && calls[0]?.args?.window_id === 7
+    && /已前置目标并点击一次/.test(r.note || '')
+    && calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify(calls))
+}
+{
+  const calls = []
+  const call = async (tool, args) => {
+    calls.push({ tool, args })
+    if (tool === 'type_text') return { ok: true, effect: 'unverifiable', delivery: { mode: 'foreground' } }
+    if (tool === 'bring_to_front') return { previous_fg_hwnd: 99 }
+    return { ok: true }
+  }
+  const r = await cuaDeliver('type_text', { session: 's', pid: 42, window_id: 7, text: 'x' }, 'auto', {
+    forceForeground: true, call,
+  })
+  check('F15: force+unverified type 不 L3', r.value?.effect === 'unverifiable'
+    && !calls.some((c) => c.tool === 'bring_to_front'), JSON.stringify(calls))
+}
+{
+  resetWindowMap()
+  const calls = []
+  const call = async (tool, args) => {
+    calls.push({ tool, args })
+    if (tool === 'bring_to_front') {
+      if (Number(args.window_id) === 7) return { previous_fg_hwnd: 99 }
+      return { ok: true, effect: 'confirmed' }
+    }
+    if (tool === 'list_windows') return { windows: [{ window_id: 99, pid: 7 }] }
+    if (tool === 'scroll' && args.delivery_mode === 'foreground') {
+      return { ok: true, effect: 'unverifiable', delivery: { mode: 'foreground' } }
+    }
+    return { ok: true }
+  }
+  const r = await cuaDeliver('scroll', { session: 's', pid: 42, window_id: 7, x: 1, y: 2, direction: 'down' }, 'auto', {
+    forceForeground: true, call,
+  })
+  check('F16: force+unverified scroll → 前置后只滚一次', r.value?.effect === 'unverifiable'
+    && calls.filter((c) => c.tool === 'scroll').length === 1
+    && /已前置目标并滚动一次/.test(r.note || '')
+    && calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify(calls))
 }
 
 process.exit(checkState.failures > 0 ? 1 : 0)

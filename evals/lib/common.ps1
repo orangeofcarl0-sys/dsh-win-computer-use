@@ -1356,6 +1356,20 @@ function Get-S4Sha256([string]$Path) {
   return (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLowerInvariant()
 }
 
+function Get-S4Sha256Shared([string]$Path) {
+  # Excel keeps seed.xlsx open while the oracle runs; Get-FileHash opens without
+  # FileShare.ReadWrite and fails. Hash through a shared read stream instead.
+  if (-not (Test-Path $Path)) { return '' }
+  try {
+    $fs = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    try {
+      $sha = [Security.Cryptography.SHA256]::Create()
+      try { $hash = $sha.ComputeHash($fs) } finally { $sha.Dispose() }
+      return ([BitConverter]::ToString($hash) -replace '-', '').ToLowerInvariant()
+    } finally { $fs.Dispose() }
+  } catch { return '' }
+}
+
 function Get-S4DownloadsDir {
   return (Join-Path $env:USERPROFILE 'Downloads')
 }
@@ -1377,6 +1391,45 @@ function Test-S4PdfFile([string]$Path, [int]$MinBytes = 50000) {
     $tailText = [Text.Encoding]::ASCII.GetString($tail)
     return ($tailText.IndexOf('%%EOF') -ge 0)
   } finally { $fs.Dispose() }
+}
+
+function Wait-TestPdfPageReady {
+  # Poll the browser PDF viewer's UIA text until the target sentence is exposed.
+  # Chrome's PDF viewer can report its window title before the page text is ready;
+  # a title-only check would let a blank viewer pass setup (2026-11-17 t17 r1).
+  param([int]$Hwnd, [string]$Needle, [int]$TimeoutSec = 20)
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  $last = 'not checked'
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName UIAutomationTypes
+  while ((Get-Date) -lt $deadline) {
+    try {
+      $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd)
+      if (-not $win) { $last = 'window not found'; Start-Sleep -Milliseconds 700; continue }
+      $chunks = @()
+      foreach ($ct in @([System.Windows.Automation.ControlType]::Text, [System.Windows.Automation.ControlType]::Document)) {
+        try {
+          $cond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)
+          $items = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+          foreach ($it in $items) {
+            try { $n = [string]$it.Current.Name; if ($n) { $chunks += $n } } catch {}
+            try {
+              $tp = $it.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
+              if ($tp) { $t = $tp.DocumentRange.GetText(-1); if ($t) { $chunks += $t } }
+            } catch {}
+          }
+        } catch {}
+      }
+      $blob = ($chunks -join "`n")
+      if ($blob.IndexOf($Needle, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        return [ordered]@{ ok = $true; reason = ''; sample = $Needle }
+      }
+      if ($blob.Length -gt 0) { $last = 'text present but needle not found' } else { $last = 'no text exposed' }
+    } catch { $last = $_.Exception.Message }
+    Start-Sleep -Milliseconds 700
+  }
+  return [ordered]@{ ok = $false; reason = $last; sample = '' }
 }
 
 function Get-S4NewPdfCandidates([string]$Dir, [datetime]$StartedAt) {

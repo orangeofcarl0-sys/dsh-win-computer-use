@@ -33,8 +33,8 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 关键点：
 
-- L3 也会在“L1/L2 返回 `unverifiable` 且工具是 click/scroll/drag 且有 pid”时触发——SendInput 可能已进系统队列但打到了错误前台。
-- `hotkey` **不做 L3**：XAML 目标的 UIA 加速器先验拒绝，重试同样失败，只会增加副作用；回执会说明。
+- L3 也会在“L1/L2 返回 `unverifiable` 且工具是 click/scroll/drag 且有 pid”时触发——SendInput 可能已进系统队列但打到了错误前台。**强制前台（`foreground:true`）的指针动作例外**：先 `bring_to_front`、只执行一次、恢复原前台，不做失败后重试；否则同一文件会被点两遍、同一形状会被画两遍（t11/t15 实测）。`deliveryMode=auto` 的非强制路径仍保留 L3。
+- `hotkey` **不做 unverified L3**：XAML 目标的 UIA 加速器先验拒绝，重试同样失败，只会增加副作用；回执会说明。但**组合键一律自动前台**（即使 `deliveryMode:background`），因为后台 synthetic 路径不更新 OS 修饰键状态，实测 `Ctrl+V` 只落 `v`。普通按键仍可后台 PostMessage。
 - 没有 `pid` 的 desktop-scope 调用没有窗口可绕锁，不升级。
 - 恢复依赖 `bring_to_front` 返回 `previous_fg_hwnd`；拿不到时回执明确写“原前台未恢复，请检查”，不假装成功。
 - 单次动作可用 `foreground: true` 强制 L2。
@@ -43,7 +43,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 | 目标类型 | 文本 | 组合键 | 菜单 | 备注 |
 |---|---|---|---|---|
-| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）走 SendInput；`press_key` 后台 PostMessage | `invoke_menu` 可用 | 对照实验：regedit `ctrl+f` 3/3 送达 |
+| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | `invoke_menu` 可用 | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键现由插件自动前台 |
 | XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**和 `could not find a UIA AcceleratorKey`（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单栏项 → 观察弹出菜单 → 点菜单项”；`xamlKeyFallback: auto`（默认 off）可实验性自动做这一步；`press_key` 可能 `effect:unverifiable` |
 | Electron / Chromium / WebView2 | 通常可 UIA ValuePattern；内容区可能不暴露树 | 后台事件可能被静默丢弃（`background_unavailable`） | 取决于应用 | 用 `native` 截图 + element/像素点击 |
 | Canvas / 游戏 / 自绘 | 无 AX 树 | 同左 | 不可用 | `native` 或 `vision`；坐标点击 best-effort |
@@ -59,13 +59,17 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 | `computer_click(x,y)` | 窗口矩形相对物理像素（= 窗口截图空间） | 探针 MouseDown 回读客户区坐标标定 |
 | 驱动元素 `frame` | 屏幕物理像素 | A6 复核：标题栏 y=806 vs 窗口原点 y=780 |
 | `get_window_state` 截图 | 窗口 `bounds` 的 1:1 物理像素裁剪 | 同窗口 bounds 1906×1166 == 截图 1906×1166 |
-| `screen_observe` 输出 `@(x,y)` | window-screenshot-px | 已在输出时减去 `screenOrigin`；可直接点击 |
+| `screen_observe` 输出 `@(x,y)` | window-screenshot-px（原图像素） | 已在输出时减去 `screenOrigin`；可直接点击。宿主预览可能缩放显示，不能按预览尺寸估坐标 |
 | `screen_zoom` 图内坐标 | zoom-image-px | 直接 `computer_click/drag(..., from_zoom=true)`；驱动按 padding/缩放映射，插件不再手算 |
 | `screen_zoom` 输出图 | 请求区域宽 ≤500px；驱动自动加约 20% padding，超 500px 时缩放 | 结果带 `fromZoom=true`；`crop` 只是请求区域，不是换算基准 |
 
 **Explorer 文件项**：后台坐标点击会优先走 UIA hit-test/Invoke；在文件项上 Invoke 等于“打开”。单选文件请传 `foreground=true`（真实 SendInput 单击）；多选 Ctrl+click 因 `modifier` 已自动前台。2026-11-17 t15 首轮实测：background 单击 `report-draft.txt` 直接打开 Notepad，随后又打开 Photos/PDF，导致该轮作废。
 
 `screen_observe` 的文本行 `@(x,y)` 与结构化 `elements[].x/y` 必须完全一致，都是减过 `screenOrigin` 的点击空间；2026-11-14 t01 的“反复定位”根因就是文本行漏了换算。取不到窗口 `bounds` 时不会假装可点击：头部会标注“屏幕物理像素，不要直接用于 computer_click”，`coordinateSpace` 为 `screen-physical-px`。
+
+**宿主预览缩放**：2558×1598 的窗口截图在模型侧可能显示成 1610×1006，但 `@(x,y)`/`computer_click` 始终是原图像素。2026-11-17 t14 r2 与 t17 r2 都把 A1 点成 B1，就是因为按预览尺寸估坐标。头部现在带 `源图 W×H` 并明确“预览缩放时用 `screen_zoom` + `from_zoom=true`”；网格/画布/图标定位不要用整窗预览量像素。
+
+`screen_observe` 还会在目标 z 序明显落后于另一个在屏窗口时提示“通常不是前台”，并给出 `computer_activate(pid,window_id)`；这不是 OS 前台判定，`z_index` 为 null 时不发提示。需要键盘/画布/foreground 动作时先 activate，不要 Alt+Tab/任务栏；后台 element 点击不需要。
 
 **A7 的诚实结论**：驱动 0.23.2 的文档契约（click = window-local PNG px）与实测行为在混合 DPI 下有矛盾；六轮实验里 screen/bounds-local/client-local 三种假设都有反例。因此：
 
@@ -223,6 +227,9 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | `menu_path_unavailable` | XAML 菜单驱动走不到 | 改点控件；不要回退像素 |
 | 像素点击偏 | 混合 DPI + 驱动 0.23.2 落点缺陷（A7） | 用 element 路径；像素点击后复核 |
 | `computer_type` 送达但无效果 | 目标不接受该通道/焦点不对 | 指定 element 走 ValuePattern；或点控件后输入 |
+| 回执里出现 `background_delivery_failed` 但文字已进入目标 | 这是驱动的“建议升级前台”escalation，不是硬失败；旧版整段 JSON 子串误判 | 已用词边界修正；以 `effect:unverifiable`/回读为准，不要重复输入 |
+| `Ctrl+V`/`Ctrl+A` 只落成 `v`/`a` | 后台 synthetic 不更新 OS 修饰键状态 | 组合键已自动前台；仍异常时先 `computer_activate(pid,window_id)` 再重试一次 |
+| A1 点成 B1 / 坐标偏移一列 | 按模型侧缩放预览估算原图像素 | 用 `screen_zoom`（宽≤500）+ `from_zoom=true`；头部 `源图 W×H` 才是点击空间 |
 | 剪贴板 read 为空 | 被其它进程占用 | write 后 verify/重试；用粘贴流 |
 | `app_launch` 后无法关闭 | High IL + UIPI | 提示用户手动关闭；不要按进程名杀 |
 | 测试选中错误窗口 | 桌面有同名/残留窗口 | 用唯一命名临时文件 + 标题精确匹配；不要用进程名 |

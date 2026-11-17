@@ -157,7 +157,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `computer_right_click` | 右键 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier` |
 | `computer_type` **H** | 输入文本；指定 element 时走 UIA `ValuePattern`，否则输入到快照窗口当前焦点 | `text` | `element`、`snapshot_id`、`foreground` |
 | `computer_set_value` | 直接设值（UIA `ValuePattern`；文本框/滑块/下拉优先） | `element`、`value` | `snapshot_id` |
-| `computer_key` **H** | 按键/快捷键（组合键走 `hotkey`；绑定快照窗口） | `key` | `snapshot_id`、`foreground` |
+| `computer_key` **H** | 按键/快捷键（组合键走 `hotkey`；绑定快照窗口；组合键自动前台并恢复原前台） | `key` | `snapshot_id`、`foreground` |
 | `computer_scroll` **H** | 滚动 | — | `direction`、`amount`、`element`、`snapshot_id`、`foreground` |
 | `computer_drag` | 窗口截图坐标拖拽；支持 zoom 坐标与平滑轨迹 | `from_x`、`from_y`、`to_x`、`to_y` | `duration_ms`、`steps`、`from_zoom`、`snapshot_id`、`foreground` |
 | `computer_wait` | 本地等待（不调引擎） | `ms` | — |
@@ -190,7 +190,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 | 量 | 空间 | 怎么用 |
 |---|---|---|
-| `screen_observe` 的 `@(x,y)` | **window-screenshot-px**（窗口截图物理像素） | 可直接传给 `computer_click(x,y)` |
+| `screen_observe` 的 `@(x,y)` | **window-screenshot-px**（窗口截图原图像素） | 可直接传给 `computer_click(x,y)` |
 | `computer_click(x,y)` / `scroll` / `drag` | **window-screenshot-px** | 与观察输出同一空间 |
 | `element` 编号 | 不涉及坐标 | 走 `element_token`，**首选、最可靠** |
 | `screen_zoom` 图内坐标 | zoom-image-px | 加 `from_zoom=true` 直接传给 `computer_click(x,y,from_zoom=true)`，由驱动换算；**不要**再手算 `crop.scale`，也不要加 `screenOrigin` |
@@ -200,7 +200,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 1. **element 路径优先。** `element_token` 由驱动定位，支持后台/隐藏窗口，不受 DPI 混合影响。
 2. **像素路径是 best-effort。** 驱动 0.23.2 的像素点击在混合 DPI 下有实测落点偏差（见 [docs/WINDOWS.md](docs/WINDOWS.md) 与 [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) A7）；像素点击后请用 `screen_observe` / `computer_verify` 复核。
-3. **不要自己乘 2 或加窗口偏移。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。
+3. **不要自己乘 2、加窗口偏移，也不要按预览显示尺寸估坐标。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。宿主可能把 2558px 截图缩成 1610px 预览；网格/画布/图标像素定位先用 `screen_zoom`（宽 ≤500），图内坐标必须加 `from_zoom=true`。
 4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。`computer_click` 与 `computer_drag` 都支持；drag 的起终点都按 zoom 图坐标解释。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。
 5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
 
@@ -214,7 +214,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 - 窗口匹配支持中英别名：`记事本 ↔ Notepad`、`计算器 ↔ Calculator`、`画图 ↔ Paint`、`文件资源管理器 ↔ Explorer`；`matchCount` 按 title+app 并集计算，多窗口同样警告。
 - `computer_do` 路由隐藏工具时保留结构化 `data`：`screen_zoom` 的 `crop/fromZoom/screenOrigin/coordinateSpace`、`verify` 的 `status/results`、`app_list.apps`、`task.structured`、`clipboard.text` 等不再丢失。
 - 目标选择会排除插件自己的 `Cua.AgentCursorOverlay*`、`Codex Computer Use Cursor Overlay` 等光标覆盖层；`notFound`/不同窗口的失败观察不会清空仍然有效的旧快照（同窗口失败才清）。
-- 输入回读：`computer_type`/`computer_set_value` 在投递失败、unverified 或已有未确认输入时，用 Document/TextArea/Edit 的 value 逐字复核（CRLF 归一）；回执只报“一致/不一致/无法回读”和长度，不打印正文。
+- 输入回读：`computer_type`/`computer_set_value` 在投递失败、unverified 或已有未确认输入时，用 Document/TextArea/Edit 的 value 逐字复核（CRLF 归一）；回执只报“一致/不一致/无法回读”和长度，不打印正文。聚焦输入到没有可回读文本控件的目标（Excel 网格、PowerPoint 画布）时，未验证结果不会刷新/清空快照，避免下一条 Tab/Enter 得到 `snapshot_missing`；完成一块后统一 native/zoom 核对。
 - 保存门禁：回读不一致/无法回读时，只拦 Ctrl+S、保存/另存为按钮和保存菜单；`type`/`set_value`、Ctrl+A/C/V/X/Z、非保存点击仍可用。回读一致、同窗口 native observe 或 screen_zoom 解除。
 - `app_launch` 启动成功即 `ok:true`；前置失败只写“启动成功，但前置未确认”，并输出 `window_id`，避免重复启动。
 
@@ -233,7 +233,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | `background` | 全程后台；不可用时返回结构化错误 + `foreground=true` 升级指引 |
 | `foreground` | 始终前台（短暂焦点交换，驱动负责恢复） |
 
-单次动作可用 `foreground: true` 覆盖，但不要默认开启：前台点击更慢（会移动指针并短暂切换焦点）。强制前台遇到 `foreground_unavailable` 时同样走 L3（`bring_to_front` 精确到 `pid+window_id` → 前台重试 → 恢复原前台）；`hotkey` 也适用。没有 `pid+window_id` 的目标不升级。
+单次动作可用 `foreground: true` 覆盖，但不要默认开启：前台点击更慢（会移动指针并短暂切换焦点）。强制前台遇到 `foreground_unavailable` 时同样走 L3（`bring_to_front` 精确到 `pid+window_id` → 前台重试 → 恢复原前台）；`hotkey` 也适用。没有 `pid+window_id` 的目标不升级。**强制前台的指针动作（click/scroll/drag）不做失败后重试**：先 `bring_to_front`、只执行一次、恢复原前台，避免同一文件点两遍/同一形状画两遍；`deliveryMode=auto` 的非强制路径仍保留 `unverifiable + 指针 → L3`。
 
 L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查 `previous_fg_hwnd` 的 pid（未知时补一次 `list_windows`）；恢复调用失败或 pid 未知时，回执明确写“原前台恢复未确认/未恢复”，不再假称成功。`bring_to_front` 返回 `ok:true + effect:"refused"` 也按拒绝处理。
 
@@ -363,7 +363,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `element_not_visible` | 目标不可见/已变化；也可能是驱动误报 | 先 `screen_observe` / `computer_verify` 复核；WinUI 改走点控件 |
 | `suspected_noop` | 引擎受理但怀疑未生效 | 不要立即重放；先观察再决定 |
 | `background_unavailable` | 目标输入栈丢弃后台事件 | 回执为 `ok:false`；用 `deliveryMode: auto` 自动前台，或单次 `foreground: true`；不要重复同一动作 |
-| `delivery_failed` | 投递未确认（常见于后台按键） | 先 `screen_observe`，必要时 `foreground: true` 重试一次 |
+| `delivery_failed` | 投递未确认（常见于后台按键） | 先 `screen_observe`，必要时 `foreground: true` 重试一次；`background_delivery_failed` 是升级建议，不是硬失败 |
+| 回执“已前置目标并点击/拖拽一次（未验证）” | 强制前台指针动作不做失败后重试 | 先 observe 看结果；不要重复同一动作，必要时手动重试一次 |
 | `foreground_unavailable` | Windows 前台锁拦截 | 自动升级 L3；仍失败时先让目标前置 |
 | UIA accelerator 超时 | WinUI/XAML 组合键通道不可达（#3908） | 改点菜单/按钮；或稍后重试 |
 | `native` 被拒 | 当前模型未声明 image 输入 | 换视觉模型或用 `mode:"vision"` |
@@ -378,7 +379,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（21/21 JS）
-npm test                           # 22 套离线测试，533 项检查
+npm test                           # 22 套离线测试，551 项检查
 node verify-runtime.mjs            # 真驱动运行时验证（17 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
@@ -400,7 +401,7 @@ node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 
 | [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 用户/贡献者 | 完整性级别、前台锁、输入通道、坐标/DPI、清理规则、冒烟矩阵 |
 | [docs/TESTING.md](docs/TESTING.md) | 贡献者 | 离线/真机/评测三层测试、断言清单、排障与新增测试 |
 | [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) | 架构/评测 | Codex、Claude Code、ZCode、Trae 与社区 CU 的复杂任务处理模型对比 |
-| [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) | 架构/评测 | t11/t12/t15 真机轨迹、模型行为、失败模式与 ZCode CU 探针 |
+| [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) | 架构/评测 | t11/t12/t14/t15/t17 真机轨迹、模型行为、失败模式与 ZCode CU 探针 |
 | [VERIFICATION.md](VERIFICATION.md) | 审查者 | 当前验证矩阵、按日期的证据、未验证项 |
 | [PERMISSIONS.md](PERMISSIONS.md) | 审查者 | 权限面、网络/凭据/命令声明、承诺验证矩阵 |
 | [docs/store-evidence.md](docs/store-evidence.md) | STORE 审查 | 一次性 profile 安装/启动/卸载证据 |

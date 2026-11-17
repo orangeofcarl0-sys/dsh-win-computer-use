@@ -20,6 +20,8 @@
 
 **2026-11-17（第六轮）：手势原语接线——click modifier、drag from_zoom/steps、t11 焦点纪律、t12 白底 seed、t15 批量测量**
 
+**2026-11-17（第七轮）：输入真实性与前台语义——background_delivery_failed 分类、组合键自动前台、强制指针 L3、t14/t17 轨迹修复与评测硬化**
+
 ### 2026-11-17 Added（第六轮）
 
 - **click 家族 `modifier`**：`computer_click`/`double_click`/`right_click` 新增 `modifier: string[]`，支持 ctrl/shift/alt/win，`control→ctrl`、`option→alt` 规范化去重；Windows 上非空 modifier 自动 `forceForeground`（SendInput 前台注入）并在回执说明。driver 0.23.2 的 element 与坐标两条路径均已在 WinForms 探针中确认 Ctrl 到达目标。
@@ -45,6 +47,31 @@
 - t14：**2/2 pass，141/71 步**（24 格/barChart/标题/Sales/Month categories 全 true；25 分钟预算）。
 - t17：**2/2 pass，89/63 步**（A1 exact；三击 PDF 句子复制；测试 Firefox 标签按选中态 Ctrl+W 单独关闭）。
 - 所有运行 `dirty=false`；测试窗口按 state HWND/标题清理；用户 Notepad 未触碰；未提交任何 report/trajectory/measurement 产物。
+
+### 2026-11-17 验证（第七轮）
+
+- 离线：`npm test` 22 套 / **551 项检查**全绿；`npm run check` 21/21；`verify-runtime` 17/17；`eval-safety` 全绿。
+- t14：新题面 **3/3 pass，59/41/57 步**（404/253/314s）；`typeCalls=1/1/2`（只剩图表标题）、`clipboard=1`、`activate=2/2/5`、`wait=2/2/0`；24 格/barChart/标题/Sales/Month 全 true，`seed unchanged=true`。旧题面 141/71。
+- t17：新题面 **3/3 pass，37/53/48 步**（257/323/294s）；`typeCalls=0`、`clipboard=1`、`activate=5/2/7`、`wait=1/1/7`；A1 exact、`seed unchanged=true`；用户 Firefox 仍 8 个标签、无 `s4-t17` 测试标签。旧题面 89/63。
+- forced pointer 前置单次后复跑：t14 **42 步**、t17 **42 步**，均 pass（oracle/seed 全 true；t14 typeCalls=2、t17 typeCalls=0）。
+- 组合键探针：`probe-combo-foreground` 在 blocker 前台时，插件 `key()` 自动前台目标并把 `Ctrl+V` 送进 WinForms TextBox，文本 `S4-COMBO` 完整到达。
+- 回归 t11：drag 前置单次后 **1/1 pass，58 步**；全部指针前置单次后 **1/1 pass，94 步**（两轮画布/白底/三色 ROI/coverage/precision 全 true，无鼠标键/设置离题；方差仍大）。
+- 回归 t15：**2/2 pass，85/67 步**（8 文件/内容/旧路径全 true；第二轮用 5 次 Ctrl+click 批量，明显快于逐文件剪切）。
+- 回归 t12：白底 PPT **1/1 pass，152 步**（1 页/16:9/title/subtitle/Q1-Q3/红蓝绿三柱全 true，1069s）。
+- AC2：`verify-oracles --tasks t14,t17` => SKIP（`ac2:none`）；setup/empty-fail/cleanup 通过，t17 setup 的 `PDF page 3 ready=true`。
+- 回归：t11/t15/t12 见下方本轮补充；所有运行 `dirty=false`，测试窗口按 state HWND/标题清理，未提交 report/trajectory/measurement 产物。
+
+### 2026-11-17 Added（第七轮）
+
+- **投递分类修正**：`deliveryFailure` 的 `delivery_failed` 改为词边界匹配。驱动返回 `escalation.reason='background_delivery_failed'` 时结构化 `effect` 仍是 `unverifiable`，不能再被整段 JSON 子串误判成硬失败。t14 r1 的 28 次 type 中 26 次“输入未送达”但 24 格全部写对，根因即此；现在回执为“输入完成（未验证）”，不拦保存。
+- **type 快照 churn**：`postInputVerify` 对没有 Document/TextArea 的聚焦输入（Excel 网格、PowerPoint 画布）不再调用 `refreshSnapshotState`；非硬失败时保留窗口快照，连续 Tab/Enter 不再 `[snapshot_missing]`。有 Document 的输入仍逐字回读。
+- **组合键自动前台**：`computer_key` 带修饰键时一律前台注入并恢复原前台（即使 `deliveryMode:background`），回执注明“组合键需前台注入”；避免后台 synthetic 路径把 `Ctrl+V` 只落成 `v`。普通按键仍可后台 PostMessage。
+- **强制前台指针前置单次**：`foreground:true` 的 click/scroll/drag 改为先 `bring_to_front` → 只执行一次 → 恢复原前台，不做失败后重试；`deliveryMode=auto` 的非强制路径仍保留 `unverifiable + 指针 → L3`。t11 实测 L3 重试让单次 drag 约 9s、同一形状画两遍，模型随后误入“鼠标键/设置”；t15 16 次 foreground click 全部重试、单次约 9s。改为前置单次后 t11 回归 **58/94 步**（均 pass）、t15 **85/67 步**（均 pass）；t11 方差仍在，t15 第二轮明显变快。
+- **观察提示**：`screen_observe` 在目标 z 序落后时提示先 `computer_activate(pid,window_id)`，不要 Alt+Tab/任务栏；坐标行带源图 `W×H` 并明确预览可能缩放，网格/画布用 `screen_zoom` + `from_zoom=true`。
+- **t14 题面**：先 activate + wait；表格用一次剪贴板 TSV + Home 功能区 Paste（不逐格 type，Ctrl+V 失败时重写剪贴板再点 Paste）；粘贴后只核对一次；A1 坐标不确定时用 zoom/from_zoom；F12 无对话框走 File > Save As > Browse，文件名用 `computer_set_value`。
+- **t17 题面**：只允许 setup 打开的 `s4-t17-doc` 浏览器窗口，禁止在 Firefox/其它浏览器打开或导航测试 PDF；activate + wait 2000-4000ms，空白时 force observe + reload；Excel 先 Save As，文件名用 `computer_set_value`，A1 用 zoom/from_zoom，Paste 后 Ctrl+S 并核对公式栏。
+- **评测硬化**：t17 setup 新增 `Wait-TestPdfPageReady`（UIA Text/Document 轮询 `S4-T17:`，20s），空白 PDF 不再通过 setup；t14/t17 setup 记录 `seedHash`，oracle 用共享读流校验 seed 未被覆盖（Excel 持锁时 `Get-FileHash` 会失败）；t17 A1 去掉 `Trim()`，严格比较并输出长度。
+- **测试/探针**：新增 `background_delivery_failed` 分类、forced unverified 指针 L3、forced drag 前置单次、组合键前台、无 Document type 保留快照、observe 前台/坐标提示等 18 项断言（533→551）；新增 `evals/probe-combo-foreground.mjs` 真机验证插件 `key()` 自动前台后 Ctrl+V 到达 WinForms TextBox。
 
 ### 2026-11-16 Added（第五轮）
 

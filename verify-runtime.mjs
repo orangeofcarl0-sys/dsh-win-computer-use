@@ -237,7 +237,7 @@ async function runTool(name, args, agent) {
   // force=true：同窗口同模式此前已观察过（降噪会回极简 stub），这里要的是完整回执
   const r = await runTool('screen_observe', { mode: 'native', window: testWindowRef, force: true }, agentWith('deepseek-official', 'deepseek-v4-flash-vision-exp'))
   const res = r.value?.result ?? ''
-  check('坐标语义标注 = 窗口截图物理像素', /窗口截图物理像素/.test(res), res.split('\n')[1]?.slice(0, 70))
+  check('坐标语义标注 = 窗口截图原图像素', /窗口截图原图像素/.test(res), res.split('\n')[1]?.slice(0, 70))
   check('coordinateSpace 字段 = window-screenshot-px', r.value?.coordinateSpace === 'window-screenshot-px', String(r.value?.coordinateSpace))
   check('screenOrigin 元数据存在（换算基准）', r.value?.screenOrigin === null || typeof r.value?.screenOrigin?.x === 'number',
     JSON.stringify(r.value?.screenOrigin))

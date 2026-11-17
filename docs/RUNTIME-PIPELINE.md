@@ -114,10 +114,11 @@ humanAction / type / key / scroll / drag / set_value
 
 ### 4.2 投递失败
 
-- `deliveryFailure(value)` 识别 `background_unavailable`、`foreground_unavailable`、`delivery_failed`。
+- `deliveryFailure(value)` 识别 `background_unavailable`、`foreground_unavailable`、`delivery_failed`。`delivery_failed` 用词边界匹配：驱动的 `escalation.reason='background_delivery_failed'` 是“建议升级前台”，结构化 `effect` 仍是 `unverifiable`，不能当成硬失败（2026-11-17 t14 r1 的 26/28 次假失败根因）。
 - `settleAction` 在这类值上返回 `ok:false`，不消费快照；`delivery_failed` 另标 suspect。
 - 普通 `effect:unverifiable` 仍是“已送达但未验证”：`ok:true` + `UNVERIFIED_NOTE`（先观察、界面已变勿重复；确认未变再考虑 foreground）。
 - 强制前台（`foreground:true` / `deliveryMode=foreground`）遇到 `foreground_unavailable` 时，只要 payload 有 `pid+window_id`，同样执行一次 L3：`bring_to_front` → 前台重试 → 恢复原前台。hotkey 也适用；XAML Accelerator 拒绝不升级。
+- 强制前台 **指针动作（click/scroll/drag）** 改为“先 `bring_to_front` → 只执行一次 → 恢复原前台”，不再失败后重试：重试会把同一形状/同一文件点两遍（2026-11-17 t11 drag 9s 画两遍；t15 16 次 foreground click 全部重试、单次约 9s）。`deliveryMode=auto` 的非强制路径仍保留 `unverifiable + click/scroll/drag → L3` 原语义；type/hotkey 不做 unverified L3。
 - L3 恢复原前台：`previous_fg_hwnd` 只有 hwnd，而 `bring_to_front` 要求 `pid+window_id`。`windowMap` 在每次 `list_windows` 时记录 `window_id→pid`；恢复时查 map，未知补一次 `list_windows`。恢复失败/pid 未知时写“原前台恢复未确认/未恢复”，不再假称成功。`bring_to_front` 的 `ok:true + effect:"refused"` 也按拒绝处理。
 - L3 只有 retry 不是 delivery failure/refusal 时才写“重试完成”；否则写“重试仍未送达”。
 - `stale_element_token`：驱动报告编号失效时 `clearSnapshot()`，回执要求重新 observe，不再用旧编号重试；`keyFallback` 点菜单栏前用 `windowState` 重新取唯一菜单栏 token。
@@ -129,6 +130,7 @@ humanAction / type / key / scroll / drag / set_value
 - 回执文字是模型唯一可靠的状态证据：目标回显 + 下一次观察差分共同承担“动作是否生效”。
 - `verifyAfterAction=auto`（实验性，默认 off）：对 `click/double_click/right_click`（含坐标）与 `key`，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删/同编号 role 变化）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。复核会刷新 `at`（延长 TTL）与差分历史；`supersession=enforce` 下可能与 `markConsumed` 组合出 `[snapshot_consumed]`。`type/set_value` 的输入回读独立于本开关。2026-11-16 首轮 A/B 10/10 pass，auto 中位略优但尾部 533s、每轮多 2-12 次复核，默认仍 off。
 - **输入回读（默认开启，仅失败/未验证路径）**：`type_text`/`set_value` 结果为 delivery 失败、unverifiable、suspected_noop，或该窗口已有 inputUnconfirmed 时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 与请求文本做 **CRLF→LF 逐字比较**（set_value 精确相等；type_text 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文；不一致/无法回读（投递失败时）设置 `inputUnconfirmed`。
+- **无回读控件的聚焦输入**：`type_text` 未指定 element 且快照没有 Document/TextArea（Excel 网格、PowerPoint 画布）时，非硬失败的 unverified 结果不调用 `refreshSnapshotState`、不清快照、不设保存门禁；回执提示“未刷新快照，连续输入可继续 Tab/Enter，完成一块后统一核对”。这消除了 t14 r1 “每格 type 后 observe”的快照 churn。
 - **保存门禁**：`guard` 在 inputUnconfirmed 时只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径）；type/set_value、Ctrl+A/C/V/X/Z、非保存点击放行。回读一致、同窗口 native observe 或 screen_zoom 会清除门禁；普通 ax observe 不清除。
 - `app_launch`：启动成功即 `ok:true`，前置失败只写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）；避免把可选前置失败误判为启动失败而重复启动。
 - `computer_menu`：path 支持 `"文件/保存"`；`menu_path_unavailable` 时若快照里有对应顶层菜单栏项，回执给出具体 `element=<编号>`。
@@ -144,7 +146,7 @@ humanAction / type / key / scroll / drag / set_value
 
 ## 5. 快捷键/XAML
 
-- 组合键 → `hotkey`；无修饰键 → `press_key`。
+- 组合键 → `hotkey`；无修饰键 → `press_key`。组合键一律自动前台并恢复原前台（即使 `deliveryMode:background`）：后台 synthetic 不更新 OS 修饰键状态，实测 `Ctrl+V` 只落 `v`；回执注明“组合键需前台注入”。
 - 两类 XAML 失败：4s UIA 超时；`could not find a UIA AcceleratorKey`（命令在关闭菜单）。
 - 默认 `xamlKeyFallback: off`：返回“点菜单栏项 → 点菜单项”的可执行指引。
 - `auto`：白名单组合；快照中唯一菜单栏项 → 后台 token 点击 → 轮询同 pid 窗口 → 唯一菜单项点击；歧义/缺失即停；成功后清空快照；不处理另存为/覆盖对话框。

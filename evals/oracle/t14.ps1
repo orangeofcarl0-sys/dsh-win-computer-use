@@ -6,6 +6,9 @@ try {
   $state = Read-TestState (Join-Path $base 'state.json')
   $out = Join-Path $base 'out\sales.xlsx'
   if (-not $state) { Out-Finish -Ok $false -Checks @((Add-Check 'state file' $false 'missing')) -EnvError 'state file missing' }
+  $seed = Join-Path $base 'seed.xlsx'
+  $seedActual = Get-S4Sha256Shared $seed
+  $checks += (Add-Check 'seed unchanged' ([string]$state.seedHash -ne '' -and $seedActual -eq [string]$state.seedHash) ("expected=$($state.seedHash) actual=$seedActual"))
   if (-not (Test-Path $out)) {
     $checks += (Add-Check 'file exists' $false $out)
     Out-Finish -Ok $false -Checks $checks

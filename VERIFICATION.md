@@ -1,23 +1,24 @@
 # VERIFICATION — 验证报告
 
 > 目的：把“声称支持”变成可复现的证据。本文按**当前矩阵 → 历史证据 → 代表性缺陷 → 未验证项 → 复现方式**组织。
-> 代码快照：`main` @ 2026-11-17（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘；2026-11-16 追加 WinUI 键鼠通道、opt-in press 回退与菜单/文档反馈；2026-11-17 追加 click modifier/drag from_zoom+steps 真机探针、t11/t12/t15 脏桌面复跑。
+> 代码快照：`main` @ 2026-11-17（`0.5.7-dev`）。最近完整运行环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1/rc.2。2026-11-12 追加 dsh headless 真机加载证据（§2.1）；2026-11-14 追加 t01 坐标/菜单复盘；2026-11-15 追加 runtime/pipeline、投递语义与 Notepad 标签级安全复盘；2026-11-16 追加 WinUI 键鼠通道、opt-in press 回退与菜单/文档反馈；2026-11-17 追加 click modifier/drag from_zoom+steps 真机探针、t11/t12/t15 脏桌面复跑，以及 t14/t17 输入真实性/前台语义修复与复跑。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；dsh 0.2.2 契约审计见 [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md)。
 
 ## 1. 当前验证矩阵
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **22 套 / 533 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **22 套 / 551 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **21/21 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17** | Windows 11 / cua-driver 0.23.2 | `node verify-runtime.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
-| S4 oracle 双向验证 | **2026-11-17：t11/t15 PASS、t12 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15` |
+| S4 oracle 双向验证 | **2026-11-17：t11/t15 PASS、t12/t14/t17 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过；t17 setup 现含 PDF page-3 readiness） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15,t14,t17` |
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
 | query 只读视图 | **✅** query 后 `snapshotId=null`、动作 `[snapshot_missing]`、不污染差分/降噪 | Windows（离线） | `tests/observe.truth` T21-T25 + `schema.conformance` |
-| dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；首轮真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出）。2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**；t15 **3/3 pass**（177/146/89 步）；t12 25 min/190 步仅 title/subtitle、红/蓝柱、Q1。2026-11-17 手势轮：t11 **3/3 pass（70/88/48 步）**；t15 **3/3 pass（77/72/59 步，各 5 次 Ctrl+click，无 Notepad/Photos 误开）**；t12 白底 seed + 直接输入 **2/2 pass（140/169 步）**（hash/1 页/16:9/Q1-Q3/三色柱全 true）；t14 **2/2 pass（141/71 步）**（24 格/barChart/标题/Sales/Month categories 全 true）；t17 **2/2 pass（89/63 步）**（A1 exact；PDF 句子三击复制；测试 Firefox 标签按选中态 Ctrl+W 单独关闭，用户其余标签保留） | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
-| CU 调研/轨迹复盘 | Codex/Claude Code/ZCode/Trae + 社区 CU 的复杂任务模型；t11/t12/t15 逐轮时间线、工具计数、失败模式；ZCode CU 的 Ctrl+click、画布拖拽、PPT 形状元素探针 | Windows 11 / ZCode CU 0.6.5 | [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md)、[docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) |
+| dirty 脏桌面套件 | t15/t16 `verify-oracles` **PASS**（AC2 full）；t12/t13/t14/t17 **SKIP**（setup/oracle-empty/cleanup 通过，无 simulate）；首轮真机 t13 **pass 19 步**（NeurIPS PDF SHA-256，removed=1）、t15 **pass 112 步**、t16 **pass 17 步**、t11 **fail 107 步**、t12 **fail 126 步**（均未保存输出）。2026-11-16 修复轮：t11 显式题面 **84/77 步 pass**；t15 **3/3 pass**（177/146/89 步）；t12 25 min/190 步仅 title/subtitle、红/蓝柱、Q1。2026-11-17 手势轮：t11 **3/3 pass（70/88/48 步）**；t15 **3/3 pass（77/72/59 步，各 5 次 Ctrl+click，无 Notepad/Photos 误开）**；t12 白底 seed + 直接输入 **2/2 pass（140/169 步）**（hash/1 页/16:9/Q1-Q3/三色柱全 true）；t14 旧题面 **2/2 pass（141/71 步）**（24 格/barChart/标题/Sales/Month categories 全 true）；t17 旧题面 **2/2 pass（89/63 步）**（A1 exact；PDF 句子三击复制；测试 Firefox 标签按选中态 Ctrl+W 单独关闭，用户其余标签保留）。2026-11-17 第七轮：t14 新题面 **3/3 pass（59/41/57 步）**，`typeCalls=1/1/2`、`clipboard=1`、seed unchanged、oracle 全 true；t17 新题面 **3/3 pass（37/53/48 步）**，`typeCalls=0`、`clipboard=1`、A1 exact、seed unchanged，用户 Firefox 无测试标签；t11 forced drag 前置单次回归 **58 步 pass**，全部指针前置单次后 **94 步 pass**（两轮三色 ROI/coverage/precision 全绿，无鼠标键/设置离题；方差仍大）；t15 **85/67 步 pass**（8 文件/内容/旧路径全 true；第二轮 5 次 Ctrl+click 批量）；t12 **152 步 pass**（1 页/16:9/Q1-Q3/三色柱全 true）；forced pointer（click/scroll/drag）全部前置单次后复跑 t14 **42 步**、t17 **42 步**，均 pass | Windows 11 / dsh 0.2.2-rc.1 | `evals/verify-oracles.mjs --tasks ...`；`evals/headless-run.mjs` |
+| CU 调研/轨迹复盘 | Codex/Claude Code/ZCode/Trae + 社区 CU 的复杂任务模型；t11/t12/t14/t15/t17 逐轮时间线、工具计数、失败模式；ZCode CU 的 Ctrl+click、画布拖拽、PPT 形状元素探针 | Windows 11 / ZCode CU 0.6.5 | [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md)、[docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) |
 | 手势探针 | click element/坐标的 Ctrl 真机到达；drag 的 `modifier` 在 0.23.2 上目标端全是 `None`（driver 缺口）；drag `from_zoom`/`steps` 已接线 | Windows 11 / cua-driver 0.23.2 | `node evals/probe-modifier.mjs` |
+| 组合键前台探针 | blocker 在前台时，真实插件 `key()` 自动前台目标并把 `Ctrl+V` 送进 WinForms TextBox，文本 `S4-COMBO` 完整到达；回执含“组合键需前台注入” | Windows 11 / cua-driver 0.23.2 | `node evals/probe-combo-foreground.mjs` |
 | native freshness | WinForms 文本变化窗口的 driver 截图 hash 与插件 native 字节数都随文本变化，未复现“AX 已变而 PNG 不变” | Windows 11 / cua-driver 0.23.2 | `node evals/probe-native-freshness.mjs` |
 | headless S4 smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.2 |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（subagents/vision/native limits/PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 §2.1.3 |
