@@ -1,0 +1,37 @@
+{
+  "current_space_id": 1,
+  "windows": [
+    {
+      "window_id": 7,
+      "pid": 42,
+      "title": "S4 Shape",
+      "app_name": "probe.exe",
+      "bounds": { "x": 461, "y": 360, "width": 1058, "height": 799 },
+      "z_index": 5,
+      "is_on_screen": true,
+      "minimized": false,
+      "layer": 0
+    },
+    {
+      "window_id": 8,
+      "pid": 43,
+      "title": "Other",
+      "app_name": "other.exe",
+      "bounds": { "x": 10, "y": 20, "w": 640, "h": 480 },
+      "z_index": 2,
+      "is_on_screen": true,
+      "is_minimized": true
+    }
+  ],
+  "_legacy_windows": [
+    {
+      "window_id": 7,
+      "pid": 42,
+      "title": "S4 Shape",
+      "x": 461,
+      "y": 360,
+      "width": 1058,
+      "height": 799
+    }
+  ]
+}

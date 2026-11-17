@@ -53,7 +53,10 @@ export async function cuaCall(tool, args = {}) {
     default: return { ok: true, effect: 'confirmed' }
   }
 }
-export async function cuaDeliver(tool, payload) { return { value: await cuaCall(tool, payload), note: '' } }
+export async function cuaDeliver(tool, payload, deliveryMode, opts = {}) {
+  const force = opts.forceForeground || deliveryMode === 'foreground'
+  return { value: await cuaCall(tool, { ...payload, delivery_mode: force ? 'foreground' : 'background' }), note: '' }
+}
 `)
 
 writeFileSync(join(work, 'lib', 'privateDrag.js'), `
@@ -206,6 +209,22 @@ check('D7b dwell_ms 无 modifier 也走私有路径', r.ok === true
   && priv.calls.length === 1 && priv.calls[0]?.dwellMs === 500
   && Array.isArray(priv.calls[0]?.modifier) && priv.calls[0].modifier.length === 0
   && !calls.some((c) => c.tool === 'drag'), JSON.stringify(priv.calls[0] || {}))
+
+// D10：驱动声明原生 drag modifier（>=0.39）时走 driver，不走私有 helper。
+process.env.CUA_STUB_DRAG_MODIFIER = '1'
+priv.calls.length = 0
+calls.length = 0
+r = await call('computer_drag', {
+  from_x: 10, from_y: 10, to_x: 20, to_y: 20, modifier: ['ctrl'],
+})
+const nativeDrag = calls.find((c) => c.tool === 'drag')
+check('D10 原生 modifier drag：payload.modifier + 强制前台', r.ok === true
+  && priv.calls.length === 0
+  && Array.isArray(nativeDrag?.args?.modifier) && nativeDrag.args.modifier.join(',') === 'ctrl'
+  && nativeDrag?.args?.delivery_mode === 'foreground'
+  && /原生 modifier 拖拽/.test(String(r.result)),
+  JSON.stringify(nativeDrag || {}))
+delete process.env.CUA_STUB_DRAG_MODIFIER
 
 noteZoom(42, 7, { imageW: 280, imageH: 140 })
 priv.calls.length = 0

@@ -26,9 +26,20 @@ export function makeWorkCopy(prefix = 't') {
   return work
 }
 
-/** 用给定源码覆盖工作副本里的 lib/cua.js（受控引擎桩）。 */
+/**
+ * 用给定源码覆盖工作副本里的 lib/cua.js（受控引擎桩）。
+ * 追加兼容层 facade 的空实现：index.js 会 import 这些符号，桩不需要真实探测。
+ */
 export function writeStubDriver(work, source) {
-  writeFileSync(join(work, 'lib', 'cua.js'), source)
+  const compat = [
+    '',
+    'export function configureDriverProfile() {}',
+    'export async function cuaWarmup() {}',
+    "export async function cuaDriverStatus() { return '驱动：stub' }",
+    'export async function cuaDriverCapabilities() { return { dragModifier: process.env.CUA_STUB_DRAG_MODIFIER === \'1\', treeFormat: true, profile: \'stub\', frameSpace: null } }',
+    '',
+  ].join('\n')
+  writeFileSync(join(work, 'lib', 'cua.js'), source + compat)
 }
 
 /** 载入工作副本里的插件（返回 plugin.default）。 */

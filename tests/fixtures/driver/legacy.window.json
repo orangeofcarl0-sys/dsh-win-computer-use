@@ -1,0 +1,52 @@
+{
+  "pid": 42,
+  "window_id": 7,
+  "snapshot_id": "s-legacy-1",
+  "element_count": 3,
+  "total_element_count": 3,
+  "elements_complete": true,
+  "degraded": false,
+  "degraded_reason": null,
+  "screenshot_width": 1056,
+  "screenshot_height": 797,
+  "screenshot_mime_type": "image/png",
+  "tree_markdown": "[element_index 0] Button \"OK\"",
+  "elements": [
+    {
+      "element_index": 0,
+      "element_token": "tok-0",
+      "role": "Button",
+      "label": "OK",
+      "value": "",
+      "enabled": true,
+      "selected": false,
+      "frame": { "x": 582, "y": 527, "w": 360, "h": 135 },
+      "parent_index": -1,
+      "depth": 1
+    },
+    {
+      "element_index": 1,
+      "element_token": "tok-1",
+      "role": "Edit",
+      "label": "Name:",
+      "value": "seed",
+      "enabled": true,
+      "selected": false,
+      "frame": { "x": 582, "y": 737, "w": 600, "h": 32 },
+      "parent_index": -1,
+      "depth": 1
+    },
+    {
+      "element_index": 2,
+      "element_token": "tok-2",
+      "role": "Button",
+      "label": "Close",
+      "value": "",
+      "enabled": true,
+      "selected": false,
+      "frame": { "x": 1307, "y": 362, "w": 71, "h": 45 },
+      "parent_index": -1,
+      "depth": 1
+    }
+  ]
+}

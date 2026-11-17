@@ -1,5 +1,5 @@
 /**
- * 语法检查（跨平台）：index.js + lib/*.js 逐个 node --check；
+ * 语法检查（跨平台）：index.js + lib 下所有 JS（含 driver 子目录）逐个 node --check；
  * install.sh / uninstall.sh 有 bash 时跑 bash -n。
  * 运行：node tests/syntax.check.mjs（npm run check）
  */
@@ -12,7 +12,10 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const node = process.execPath
 let failed = 0
 
-const jsFiles = ['index.js', ...readdirSync(join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => join('lib', f))]
+const libFiles = readdirSync(join(root, 'lib'), { recursive: true })
+  .filter((f) => String(f).endsWith('.js'))
+  .map((f) => join('lib', String(f)))
+const jsFiles = ['index.js', ...libFiles]
 for (const rel of jsFiles) {
   const abs = join(root, rel)
   if (!existsSync(abs)) { console.log(`❌ missing: ${rel}`); failed++; continue }

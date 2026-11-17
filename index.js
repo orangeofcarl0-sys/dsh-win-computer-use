@@ -52,7 +52,9 @@ import {
   click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, activate, setValue,
 } from './lib/actions.js'
 import { guard } from './lib/guard.js'
-import { cuaCall, CUA_SESSION } from './lib/cua.js'
+import {
+  cuaCall, CUA_SESSION, configureDriverProfile, cuaWarmup, cuaDriverStatus,
+} from './lib/cua.js'
 import {
   createOpsState, gate as opsGate, stop as opsStop, resume as opsResume,
   verifyOnce, waitFor, clipboard as opsClipboard, menu as opsMenu, hover as opsHover,
@@ -179,6 +181,21 @@ export const Config = z.object({
    *          不包含 alt+tab：foreground press_key 会真实切走前台，切窗口请用 app_launch/bring_to_front。
    */
   xamlPressFallback: z.union(['off', 'auto']).default('off'),
+  /**
+   * cua-driver 兼容档：
+   *   auto（默认）= 按 `cua-driver --version` 推断，并用真实响应/错误自适应；
+   *   legacy = 强制旧请求形态（不发 tree_format）且 drag modifier 走私有 helper；
+   *   latest = 强制新形态（tree_format、原生 drag modifier）。
+   * 用户装的是未记录版本时保留 auto；只有排障/回退才显式指定。
+   */
+  driverProfile: z.union(['auto', 'legacy', 'latest']).default('auto'),
+  /**
+   * drag modifier 引擎：
+   *   auto（默认）= 驱动 >=0.39 且探测可用时走原生，否则用私有 SendInput helper；
+   *   private = 强制私有 helper（原生 modifier 异常时的回退；from_zoom 不支持）。
+   * dwell_ms 始终走私有 helper（驱动没有 dwell 参数）。
+   */
+  dragEngine: z.union(['auto', 'private']).default('auto'),
 })
 
 /** 统一输出 schema：ok + result 文本。 */
@@ -977,9 +994,10 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
             }
           }
         }
+        const driver = await cuaDriverStatus()
         return {
           ok: true,
-          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。`,
+          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。\n${driver}`,
           tool: '', surface: cfg.surfaceMode, tools: hidden, scope: 'dispatcher',
         }
       }),
@@ -1018,7 +1036,13 @@ export function apply(ctx, config) {
     deliveryMode: config.deliveryMode || 'auto',
     xamlKeyFallback: config.xamlKeyFallback || 'off',
     xamlPressFallback: config.xamlPressFallback || 'off',
+    driverProfile: config.driverProfile || 'auto',
+    dragEngine: config.dragEngine || 'auto',
   }
+
+  // 能力探测按 profile 重置；异步预热，不阻塞插件加载（失败退 unknown 自适应）。
+  configureDriverProfile(cfg.driverProfile)
+  cuaWarmup().catch(() => undefined)
 
   // 初始化虚拟光标：声明统一会话 + 应用主题（异步，不阻塞插件加载）
   cuaCall('start_session', { session: CUA_SESSION }).catch(() => undefined)
