@@ -12,7 +12,7 @@
 | 语法/安装脚本 | **26/26 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 真驱动运行时 | **17/17**（0.23.2 与 0.52.13 均通过） | Windows 11 / cua-driver 0.23.2 + 0.52.13 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
-| 0.52.13 canary 探针 | **✅**：形态探针确认默认 markdown/显式 elements、session 归属、像素截图上下文；`live-action.e2e` **33/33**；modifier probe **ok=true / dragModifierSupported=true**；combo/private/from_zoom/native-freshness 均通过；插件像素 click 的 `move_cursor` 实测 screen (762,595) = local (301,235) + origin (461,360)，无 `origin` 字段，marker 命中；t14 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`，同期单元格/图表部件/标题/月份类目均 true，未出现 snapshot/capture 兼容错误）；t17 **pass 37 步**（capture 复用后；r1 75 步，oracle exact、seed unchanged） | Windows 11 / cua-driver 0.52.13 | `evals/probe-*.mjs`；`tests/live-action.e2e.mjs`；`evals/headless-run.mjs --tasks t14/t17` |
+| 0.52.13 canary 探针 | **✅**：形态探针确认默认 markdown/显式 elements、session 归属、像素截图上下文；`live-action.e2e` **33/33**；modifier probe **ok=true / dragModifierSupported=true**；combo/private/from_zoom/native-freshness 均通过；插件像素 click 的 `move_cursor` 实测 screen (762,595) = local (301,235) + origin (461,360)，无 `origin` 字段，marker 命中；t14 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`，同期单元格/图表部件/标题/月份类目均 true，未出现 snapshot/capture 兼容错误）；t17 **pass 37 步**（capture 复用后；r1 75 步，oracle exact、seed unchanged）；opencode-go/deepseek-v4.1-flash 上 t11 **pass 77 步**（全部白底/红蓝黑 ROI 检查 true）、t15 **pass 55 步**（全部文件/旧路径检查 true，0 错误） | Windows 11 / cua-driver 0.52.13 | `evals/probe-*.mjs`；`tests/live-action.e2e.mjs`；`evals/headless-run.mjs --tasks t14/t17/t11/t15` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **2026-11-17：t11/t15 PASS、t12/t14/t17 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过；t17 setup 现含 PDF page-3 readiness） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15,t14,t17` |
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
@@ -277,7 +277,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
 | 2026-11-15 t01 ×3 | setup error ×3 | 当前 Notepad 窗口仍有 2 个用户已修改标签 + 6 个测试标签；三次 seed 都落进该窗口（`owned=False`），setup fail closed，steps=0，未调用 dsh | 用户保存/关闭用户标签并清掉测试标签后，重跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
-| 0.52.13 canary t11/t15/t12 | 未完成 | 2026-11-18 运行到 t11 时 DeepSeek 余额耗尽（`QUOTA 402 Insufficient Balance`）：t11 r1 在第 20 步后中断，r2 在 step 1 即 402；不是插件错误 | 余额恢复后重跑 t11/t15/t12 各 1 次；已有 t14 2/3、t17 37 步与全套探针 |
+| 0.52.13 canary t12 | 未完成 | t11（77 步）/t15（55 步）已通过 opencode-go 通道；t12 尚未跑。DeepSeek 官方 key 余额不足（QUOTA 402），opencode-go 的 `config.json` 旧 key 过期，已改用 ZCode `provider_config.json` 的有效 key 更新 dsh 凭据库 | 用 `--patch evals/headless-patch.opencode.yml` 跑 t12 1 次 |
 | 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |

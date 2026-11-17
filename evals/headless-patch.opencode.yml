@@ -5,9 +5,10 @@
 #     --patch evals/headless-patch.opencode.yml
 #
 # 注意：headless profile 默认没有 llm-pi-ai 适配器，本 patch 会插入；
-# dsh 凭据库的 OPENCODE_GO_API_KEY 必须有效（2026-11-18 实测旧 key
-# 返回 401 api_key_expired，需在 OpenCode Console 重新生成后替换到
-# ~/.dsh/.credentials.yaml；不要把 key 写进仓库）。
+# dsh 凭据库的 OPENCODE_GO_API_KEY 必须有效。2026-11-18 实测 `config.json`
+# 里的旧 67 字符 key 返回 401 api_key_expired；`provider_config.json` 的
+# 51 字符 key 可用（已更新到 ~/.dsh/.credentials.yaml，未写入仓库）。
+# key 失效时在 OpenCode Console 重新生成后替换，不要把 key 写进仓库。
 - id: credentials
   disabled: false
 
@@ -23,7 +24,7 @@
             api: openai-completions
             baseURL: https://opencode.ai/zen/go/v1
             headers:
-              x-opencode-session: s4-evals
+              x-opencode-session: zcode-b88043d7-20260913
             retryPolicy:
               mode: normal
               maxRetries: 10

@@ -35,7 +35,7 @@
 - **真实性修复**：非零退出 + JSON 结构化拒绝当回执值，继续走前台升级链；`contract mismatch` 明确要求 CLI 与 daemon 一起升级；组合键回执遇到 `foreground_restored:false` 不再声称已恢复原前台；`move_cursor` 在 0.52+ 的 window scope 改为屏幕坐标，`glideCursor`/`hover` 用快照原点换算并去掉旧驱动才接受的 `origin` 字段。
 - **配置/诊断**：新增 `driverProfile: auto|legacy|latest`、`dragEngine: auto|private`；`computer_do(action="status")` 显示驱动版本/能力/警告；`verify-runtime` 与探针可区分驱动形态。
 - **测试**：新增 `driver.normalize` / `driver.capabilities` / `driver.transport` / `driver.compat` 四套与 fixtures；现有 22 套零改动通过。离线 **26 套 / 619 项检查**，语法 **26/26**。
-- **0.52.13 canary 真机**：`verify-runtime` 17/17；`live-action.e2e` 33/33；`probe-driver-shape` 确认默认 markdown/显式 elements、session 归属、像素截图上下文；`probe-modifier` `ok=true / dragModifierSupported=true`（Ctrl click + Shift drag 均到达）；combo/private/from_zoom/native-freshness 全通过；t14 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`，其余 oracle 全 true，未出现兼容层错误）；t17 **37 步 pass**（capture 复用后；r1 75 步，oracle exact、seed unchanged）。0.53 的 `screenshot_frame` 已预留，待真机验证。
+- **0.52.13 canary 真机**：`verify-runtime` 17/17；`live-action.e2e` 33/33；`probe-driver-shape` 确认默认 markdown/显式 elements、session 归属、像素截图上下文；`probe-modifier` `ok=true / dragModifierSupported=true`（Ctrl click + Shift drag 均到达）；combo/private/from_zoom/native-freshness 全通过；t14 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`，其余 oracle 全 true，未出现兼容层错误）；t17 **37 步 pass**（capture 复用后；r1 75 步，oracle exact、seed unchanged）；t11 **77 步 pass**、t15 **55 步 pass**（opencode-go/deepseek-v4.1-flash，全部 oracle 检查 true）。0.53 的 `screenshot_frame` 已预留，待真机验证。
 
 ### 2026-11-17 Added（第六轮）
 
