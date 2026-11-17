@@ -213,6 +213,8 @@ node evals/headless-run.mjs --tasks t12 --repeats 2 --timeout-min 40 --patch eva
 - 2026-11-17 t15 手势轮：`modifier` + 文件单选 `foreground=true` + F2 后 Ctrl+A 全选，**3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；无 Notepad/Photos 误开；dirty=false）。
 - 2026-11-17 t11 画布轮：UIA 确认画布 `(879,600) 800x600` 1:1；setup 用 AX `大小` 菜单把三种形状固定为 `8 像素`，题面给精确窗口坐标。**3/3 pass，70/88/48 步**（三色 ROI/coverage/precision 全绿；activate + 焦点 click；app_launch=0）。
 - 2026-11-17 t12 白底轮：白底 seed + 按形状名选择 + 标准色/直接输入标签 + 40 分钟预算；**2/2 pass，140/169 步**（hash/1 页/16:9/Q1-Q3/三色柱全 true）。此前 25 分钟/190 步只完成 red/blue + Q1。
+- 2026-11-17 t14 Excel 轮：表先输入，A1 + `Ctrl+Shift+End` 选 A1:D6，`Alt+F1` 插原生柱状图，标题 `S4 Sales`，最后 Save As；oracle 接受分类公式或缓存标签。**2/2 pass，141/71 步**（24 格/barChart/标题/Sales/Month categories 全 true）。
+- 2026-11-17 t17 PDF 轮：三击句子 + Ctrl+C（禁止 Ctrl+A），Excel 先 Save As 再 Ctrl+V；**2/2 pass，89/63 步**，A1 两次精确匹配。模型把测试 PDF 开进了用户 Firefox 的新标签；跑完只在测试标签被选中时 Ctrl+W，保留其余用户标签，未关 Firefox 窗口/进程。
 - 2026-11-17 手势轮：`probe-modifier` 证明 click element/坐标的 Ctrl 真机到达；drag 的 modifier 在 driver 0.23.2 上不进入目标键状态，插件不开放该参数。t12 seed 改为白底、只留 title/subtitle 占位符和三条灰柱，AC2 setup 记录 `replica.pptx - PowerPoint`，无修复对话框；`probe-native-freshness` 未复现陈旧 native 截图。
 - 首轮真机样本：t13 论文下载 **pass 19 步**（NeurIPS PDF SHA-256，cleanup removed=1）；t15 Explorer 整理 **pass 112 步**（能收敛但探索很长）；t16 本地表单 **pass 17 步**；cleanup 干净、TabState skipped、无用户窗口被关。
 

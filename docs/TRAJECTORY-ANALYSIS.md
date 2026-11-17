@@ -196,3 +196,17 @@
 - 白底 seed 只保留 title/subtitle 占位符和三条灰柱，模板装饰被裁掉；setup 用 `TitleNeedle='replica'` 记录加载完成的窗口，AC2 setup 无修复对话框。
 - 题面按 AX 形状名选择 `S4 Bar Q1/Q2/Q3`；红/蓝用标准色，绿用主题色；双击柱直接输入 Q1/Q2/Q3（不再插入文本框）；每柱后保存；颜色/格式对话框关闭后 `computer_activate` 主窗。
 - 40 分钟预算下 **2/2 pass，140/169 steps**（139/168 inner；2 errors；71/96 unverified）。两轮 oracle 都是 hash 变化、1 页/16:9、title/subtitle/Q1/Q2/Q3、red/blue/green bar 全 true。此前 25 分钟/190 步只完成 red/blue + Q1；白底 seed 和直接输入把剩余两条柱压进了预算。
+
+### 9.4 t14：Excel 表格+原生柱状图
+
+- 首轮（原题面）24 个单元格、原生 barChart、标题 `S4 Sales`、Sales 系列全过，唯一失败是 `Month categories=false`：模型没选数据范围就插图表，走了“选择数据源”。
+- 名称框和“提前 Save As”两个变体都回退：名称框/Go To 绕步多；提前保存让模型逐格输入，最终输出还是空白。
+- 最终题面：先输表，点 A1 → `Ctrl+Shift+End` 选 A1:D6 → `Alt+F1` → 标题 `S4 Sales` → 最后 Save As；25 分钟预算。oracle 同时接受 `catFormula` 含 A2 或图表缓存里的 Jan..May 分类。
+- 结果：**2/2 pass，141/71 steps**；24 格、barChart、标题、Sales 系列、Month categories 全 true。
+
+### 9.5 t17：PDF 单行句子用三击比“文本选择原语”更实际
+
+- Chrome setup 窗和用户 Firefox 同时存在；模型把测试 PDF 开进了用户 Firefox 的一个新标签（Firefox 主窗口有 8 个标签，测试页被选中）。
+- 题面要求三击句子（`computer_click(count=3)`）+ Ctrl+C，禁止 Ctrl+A；Excel 先 Save As `out\excerpt.xlsx`，再 Ctrl+V，最后 Ctrl+S。
+- 结果：**2/2 pass，89/63 steps**，A1 两次精确匹配。模型最后用 `computer_clipboard` 回读剪贴板，确认是完整句子。
+- 清理：不能关 Firefox 窗口/进程（会带走用户标签）。跑完后在“测试标签仍被选中”时发一次 Ctrl+W，只关测试标签；确认选中态变成用户标签、窗口仍有 7 个用户标签。这个顺序是安全的，反过来先切标签再 Ctrl+W 会关错。

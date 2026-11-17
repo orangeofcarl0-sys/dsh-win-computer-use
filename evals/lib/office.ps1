@@ -171,10 +171,17 @@ function Read-XlsxManifest([string]$Path) {
         $cat = ''
         $catf = $ser.SelectSingleNode(".//*[local-name()='cat']//*[local-name()='f']")
         if ($catf) { $cat = [string]$catf.InnerText }
+        # Excel may store categories as literal/cached labels instead of a
+        # formula. Read both so "Sales by Month" can be verified from the chart
+        # cache even when catFormula is empty.
+        $cats = @()
+        foreach ($cv in @($ser.SelectNodes(".//*[local-name()='cat']//*[local-name()='pt']/*[local-name()='v']"))) {
+          $cats += [string]$cv.InnerText
+        }
         $valf = ''
         $valfNode = $ser.SelectSingleNode(".//*[local-name()='val']//*[local-name()='f']")
         if ($valfNode) { $valf = [string]$valfNode.InnerText }
-        $series += [ordered]@{ name = $name; catFormula = $cat; valFormula = $valf }
+        $series += [ordered]@{ name = $name; catFormula = $cat; cats = $cats; valFormula = $valf }
       }
       $charts += [ordered]@{ name = $e.FullName; kind = $kind; title = $title; series = $series }
     }

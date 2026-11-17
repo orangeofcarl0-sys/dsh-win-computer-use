@@ -44,10 +44,10 @@ spec 见工作区 `PLAN-s4-eval-regression.md`（§3 两组结构、§6 AC、§8
 | t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 三色 ROI mask/bbox/coverage 容差；setup 用 AX `大小` 固定 8px，题面给精确画布原点并先 activate/焦点 click；2026-11-17 **3/3 pass，70/88/48 步** |
 | t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 白底单页 16:9 seed + 预填 title/subtitle + 3 个灰色占位柱 + `seedHash`；题面按形状名选择/标准色/直接输入标签；40 分钟预算；2026-11-17 **2/2 pass，140/169 步**；AC2 SKIP |
 | t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 新增 PDF 的 SHA-256；只删匹配新文件 |
-| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart；AC2 SKIP |
+| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + 原生 barChart；A1 + `Ctrl+Shift+End` 选 A1:D6 + `Alt+F1`；2026-11-17 **2/2 pass，141/71 步**；AC2 SKIP |
 | t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态（8 文件；先重命名再移动；Ctrl+click 用 `computer_click(..., modifier:["ctrl"])`；文件单选用 `foreground=true`；2026-11-17 **3/3 pass，77/72/59 步**） |
 | t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
-| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本；高风险；AC2 SKIP |
+| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本；三击句子 + Ctrl+C，Excel 先 Save As 再粘贴；2026-11-17 **2/2 pass，89/63 步**；高风险；AC2 SKIP |
 
 - 这些 md 标记 `- **isolation: dirty**`；`headless-run.mjs` 只在选中任务含 Notepad 任务时做 TabState backup/restore，dirty 组不碰用户 Notepad。
 - setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）记 `verdict=env`；`verify-oracles` 对 `ac2: none` 任务显示 SKIP，不伪造 PASS。

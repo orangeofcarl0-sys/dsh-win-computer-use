@@ -27,6 +27,8 @@
 - **防误抑制/轨迹**：`loopGuard` 签名加入排序后的 modifier，Ctrl+click 不会与普通 click 被当成同一重复动作；`trajectory` 的 action 签名加入 modifier/from_zoom/drag 参数，driver 参数白名单加入 from/to/steps/duration/from_zoom，便于复盘。
 - **t11 题面/setup**：先 `computer_activate` Paint，再在画布起点单击聚焦；第一次 drag 若 unverified 且无痕迹，重激活/聚焦后用 `foreground=true` 重试一次；黑线用 `steps=30`，不使用 drag modifier。UIA 实测画布为 `(879,600) 800x600`（1:1），setup 现在用 AX `大小` 菜单把 `矩形/椭圆/直线` 都固定为 `8 像素`，题面给出精确窗口坐标并禁止模型再碰 `大小`。修正后 **3/3 pass，70/88/48 步**（三色 ROI/coverage/precision 全绿；activate + 首次 drag 前焦点 click；app_launch=0）。
 - **t12 seed/题面**：`New-S4WidescreenPptxSeed` 改为白底（`p:bg`）并裁掉模板装饰，只保留 title/subtitle 占位符 + 三条灰色 `S4 Bar Q1/Q2/Q3`；setup 用 `TitleNeedle='replica'` 确认加载的是演示窗口；AC2 setup 无修复对话框。题面改为按形状名选择、标准色/主题色精确路径、双击柱直接输入 Q1/Q2/Q3、每柱后保存；预算 40 分钟。**2/2 pass，140/169 steps**，oracle 的 hash/1 页/16:9/三文本/三色柱全 true（此前 25 分钟/190 步仅 red/blue + Q1）。
+- **t14 Excel 题面/oracle**：题面改为先输表、点 A1 + `Ctrl+Shift+End` 选 A1:D6、`Alt+F1` 插原生柱状图、标题 `S4 Sales`、最后 Save As；25 分钟预算。`Read-XlsxManifest` 同时读取图表分类公式和缓存标签，oracle 接受 `catFormula` 含 A2 或缓存里的 Jan..May。结果 **2/2 pass，141/71 步**（24 格/barChart/标题/Sales/Month categories 全 true）。
+- **t17 PDF 题面**：三击句子（`computer_click(count=3)`）+ Ctrl+C，禁止 Ctrl+A；Excel 先 Save As `out\excerpt.xlsx`，再 Ctrl+V、Ctrl+S。结果 **2/2 pass，89/63 步**，A1 两次精确匹配。模型把测试 PDF 开进了用户 Firefox 的新标签；跑完只在测试标签被选中时 Ctrl+W 关闭单个标签，保留用户其余标签，未关 Firefox 窗口/进程。
 - **t15 题面/边界**：补充 `computer_click(element=..., modifier=["ctrl"])` 的多选用法，提醒不要 Ctrl+click 已选中项；文件单选必须 `foreground=true`——t15 首轮实测 background 点击在 Explorer 文件项上走 UIA Invoke，直接打开 Notepad/Photos/PDF，导致该轮作废；F2 后先 Ctrl+A 全选含扩展名，避免 `report-final.txt.txt`。修正后 **3/3 pass，77/72/59 步（各 5 次 Ctrl+click，无 Notepad/Photos 误开）**。
 - **click 描述**：同步写明 Explorer 文件项单选用 `foreground=true`，后台点击可能直接打开文件。
 - **度量**：`analyze-trajectory` 新增 `modifierCalls/modifierByTool/ctrlClickCalls/shiftDragCalls/fromZoomDragCalls/dragStepsCalls/waitCalls/activateBeforeFirstDrag/clickBeforeFirstDrag/focusClickAtDragStart`；`ab-summary` 输出对应列。
@@ -40,6 +42,8 @@
 - t15：**3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；无 Notepad/Photos 误开；dirty=false）。
 - t11：**3/3 pass，70/88/48 步**（三色 ROI/coverage/precision 全绿；activate + 首次 drag 前焦点 click；app_launch=0）。
 - t12：**2/2 pass，140/169 步**（hash/1 页/16:9/title/subtitle/Q1-Q3/三色柱全 true；40 分钟预算）。
+- t14：**2/2 pass，141/71 步**（24 格/barChart/标题/Sales/Month categories 全 true；25 分钟预算）。
+- t17：**2/2 pass，89/63 步**（A1 exact；三击 PDF 句子复制；测试 Firefox 标签按选中态 Ctrl+W 单独关闭）。
 - 所有运行 `dirty=false`；测试窗口按 state HWND/标题清理；用户 Notepad 未触碰；未提交任何 report/trajectory/measurement 产物。
 
 ### 2026-11-16 Added（第五轮）

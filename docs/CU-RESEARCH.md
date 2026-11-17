@@ -166,6 +166,7 @@
 3. **t15 的逐文件循环不是纯模型问题**：没有 Ctrl+click，非连续多选不可用；补 `modifier` 后 **3/3 pass，77/72/59 步**（各 5 次 Ctrl+click）。但文件单选必须 `foreground=true`，否则后台 UIA Invoke 会打开文件。
 4. **t12 没有通用 CU 解，但白底 seed + 直接输入可以进预算**：形状选择可以被元素级动作改善（ZCode 能按 `S4 Bar Q1` 选中），但 PowerPoint 文本/颜色/保存仍是应用层成本；白底 seed + 按形状名选择 + 双击柱直接输入 + 每柱保存 + 40 分钟后，**2/2 pass，140/169 步**（此前 25 分钟/190 步仅 red/blue + Q1）。仍不建议写 Office 专用 CU 层。
 5. **不要为单个应用写专用 CU 层**：Codex 的 LibreOffice 路线、Claude for Excel 的结构化路线都说明，Office 可靠路径是 API/OOXML，不是屏幕点击。
+6. **Excel/PDF 的通用 GUI 路径仍可进任务预算，但靠任务级确定性**：t14 用 `Ctrl+Shift+End` 选 A1:D6 + `Alt+F1`（2/2 pass，141/71 步）；t17 用三击句子 + Ctrl+C、Excel 先 Save As 再粘贴（2/2 pass，89/63 步）。这不是专用 CU 层，而是把“选区/保存”做成可复现的题面纪律。
 
 ## 10. 参考（主要）
 

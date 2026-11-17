@@ -33,17 +33,23 @@ try {
   $seriesOk = $false
   $titleOk = $false
   $axisOk = $false
+  $catDetail = ''
+  $months = @('Jan', 'Feb', 'Mar', 'Apr', 'May')
   foreach ($c in $bar) {
     if (([string]$c.title).IndexOf('S4 Sales', [System.StringComparison]::Ordinal) -ge 0) { $titleOk = $true }
     foreach ($s in @($c.series)) {
       if (([string]$s.name).IndexOf('Sales', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $seriesOk = $true }
       if (([string]$s.valFormula).IndexOf('B2', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $seriesOk = $true }
       if (([string]$s.catFormula).IndexOf('A2', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $axisOk = $true }
+      $labels = @($s.cats)
+      $hasMonths = ($months | Where-Object { $labels -notcontains $_ }).Count -eq 0
+      if ($hasMonths) { $axisOk = $true }
+      $catDetail = "cat=$($s.catFormula) labels=$($labels -join ',')"
     }
   }
   $checks += (Add-Check 'chart title S4 Sales' $titleOk '')
   $checks += (Add-Check 'Sales series values' $seriesOk '')
-  $checks += (Add-Check 'Month categories' $axisOk '')
+  $checks += (Add-Check 'Month categories' $axisOk $catDetail)
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

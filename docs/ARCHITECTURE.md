@@ -407,7 +407,7 @@ stateDiagram-v2
 | A8 | `computer_drag` schema/payload | `from_zoom`/`steps` 已接线；`modifier` 在 driver 0.23.2 的 schema 里存在，但真机探针显示 MouseDown/Move/Up 的 `Control.ModifierKeys` 全是 `None` | t11 不能用 Shift 约束直线；插件不暴露 drag `modifier`，避免假能力 | t11 用 activate+焦点 click+`steps`+setup 固定 8px 线宽后 **3/3 pass（70/88/48 步）**；等上游修复 drag modifier |
 | A9 | `computer_click` schema | 已接 `modifier`（ctrl/shift/alt/win），Windows 自动前台注入；真机探针确认 element 与坐标两条路径都能到达目标 | t15 **3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；文件单选 foreground=true；无 Notepad/Photos 误开） | 见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §9.1 |
 | A10 | native observe | `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver/plugin 两层，未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
-| A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PowerPoint 形状拖拽仍靠坐标 | 评估 selectText/key hold/down-up；drag 支持 from_element |
+| A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PowerPoint 形状拖拽仍靠坐标；t17 的单行 PDF 句子已用三击 + Ctrl+C 覆盖（2/2 pass） | 评估 selectText/key hold/down-up；drag 支持 from_element |
 | A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后 3/3 pass；t15 文件单选用 foreground=true 后不再误开应用 | 已有 `computer_activate`；保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 ROADMAP |
 | G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 PUBLISH |
