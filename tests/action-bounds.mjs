@@ -45,10 +45,16 @@ export async function cuaCall(tool, args = {}) {
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
     case 'list_windows': return { windows: [WINDOW] }
-    case 'get_window_state': return {
-      window: WINDOW, elements: ELEMENTS, element_count: ELEMENTS.length, total_element_count: ELEMENTS.length,
-      screenshot_width: 800, screenshot_height: 600, snapshot_id: 's00000001',
-    }
+    case 'get_window_state': return args.include_accessibility_tree === false
+      ? {
+        window: WINDOW, elements: [], element_count: 0, total_element_count: 0,
+        screenshot_width: 800, screenshot_height: 600, snapshot_id: 's00000001',
+        screenshot_png_b64: 'aGVsbG8=', screenshot_mime_type: 'image/png', capture_id: 'cap1',
+      }
+      : {
+        window: WINDOW, elements: ELEMENTS, element_count: ELEMENTS.length, total_element_count: ELEMENTS.length,
+        screenshot_width: 800, screenshot_height: 600, snapshot_id: 's00000001',
+      }
     case 'get_desktop_state': return { screenshot_width: 800, screenshot_height: 600 }
     default: return { ok: true, effect: 'confirmed' }
   }
@@ -190,9 +196,9 @@ process.env.CUA_STUB_POINTER_CAPTURE = '1'
 calls.length = 0
 r = await call('computer_click', { x: 5, y: 5 })
 const preflight = calls.findIndex((c) => c.tool === 'get_window_state'
-  && c.args.include_screenshot === true && c.args.max_elements === 1)
+  && c.args.include_screenshot === true && c.args.include_accessibility_tree === false)
 const clickAt = calls.findIndex((c) => c.tool === 'click')
-check('D11 0.52+ 像素点击先预取截图上下文', r.ok === true && preflight >= 0 && clickAt > preflight,
+check('D11 0.52+ 像素点击先预取 capture-only', r.ok === true && preflight >= 0 && clickAt > preflight,
   JSON.stringify(calls.map((c) => c.tool)))
 delete process.env.CUA_STUB_POINTER_CAPTURE
 
@@ -211,9 +217,10 @@ process.env.CUA_STUB_POINTER_CAPTURE = '1'
 calls.length = 0
 r = await call('computer_click', { x: 6, y: 6 })
 const preflightNative = calls.findIndex((c) => c.tool === 'get_window_state'
-  && c.args.include_screenshot === true && c.args.max_elements === 1)
-check('D12 native 截图也要补 pointer capture', r.ok === true && preflightNative >= 0
-  && getSnapshot()?.pointerCaptureReady === true, JSON.stringify(calls.map((c) => c.tool)))
+  && c.args.include_screenshot === true && c.args.include_accessibility_tree === false)
+check('D12 native 截图也要补 capture-only，且不失效 token', r.ok === true && preflightNative >= 0
+  && getSnapshot()?.pointerCaptureReady === true && !getSnapshot()?.tokensStale,
+  JSON.stringify(calls.map((c) => c.tool)))
 delete process.env.CUA_STUB_POINTER_CAPTURE
 
 // D7-D9：modifier 走私有 SendInput；私有路径不复刻 from_zoom，且需要 screenOrigin

@@ -36,7 +36,7 @@ export function writeStubDriver(work, source) {
     'export function configureDriverProfile() {}',
     'export async function cuaWarmup() {}',
     "export async function cuaDriverStatus() { return '驱动：stub' }",
-    'export async function cuaDriverCapabilities() { return { dragModifier: process.env.CUA_STUB_DRAG_MODIFIER === \'1\', pointerCapture: process.env.CUA_STUB_POINTER_CAPTURE === \'1\', moveCursorScreen: process.env.CUA_STUB_MOVE_CURSOR_SCREEN === \'1\', treeFormat: true, profile: \'stub\', frameSpace: null } }',
+    'export async function cuaDriverCapabilities() { return { dragModifier: process.env.CUA_STUB_DRAG_MODIFIER === \'1\', pointerCapture: process.env.CUA_STUB_POINTER_CAPTURE === \'1\', captureOnly: process.env.CUA_STUB_POINTER_CAPTURE === \'1\', moveCursorScreen: process.env.CUA_STUB_MOVE_CURSOR_SCREEN === \'1\', treeFormat: true, profile: \'stub\', frameSpace: null } }',
     '',
   ].join('\n')
   writeFileSync(join(work, 'lib', 'cua.js'), source + compat)

@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-18 · `npm test` 26 套 / **621 项检查** · `npm run check` **26/26** · `verify-runtime` **17/17**（0.23.2 与 0.52.13 均通过）。
+> 最近基线：2026-11-18 · `npm test` 26 套 / **628 项检查** · `npm run check` **26/26** · `verify-runtime` **17/17**（0.23.2 与 0.52.13 均通过）。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t14/t15/t17 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 1. 原则
@@ -18,7 +18,7 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 26 JS（含 lib/driver）+ 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 26 套 / 621 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、私有 modifier drag 路由/坐标映射、原生 modifier drag、0.52+ 像素截图预取（native 截图≠click capture）、裸 code 拒绝、目标回显/重复抑制、投递失败/强制前台 L3、结构化非零退出、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类、驱动响应归一化/版本能力/传输错误/端到端兼容 |
+| 离线单元/契约 | `npm test` | 26 套 / 628 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、私有 modifier drag 路由/坐标映射、原生 modifier drag、capture-only 像素预取（保留 token）、裸 code 拒绝、参数误用提示、theme 回退、目标回显/重复抑制、投递失败/强制前台 L3、结构化非零退出、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类、驱动响应归一化/版本能力/传输错误/端到端兼容 |
 | 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -261,7 +261,7 @@ node evals/headless-run.mjs --tasks t17 --repeats 3 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 26 套 / 621 ✅ / 0 ❌ |
+| 离线 | 26 套 / 628 ✅ / 0 ❌ |
 | 语法 | 26/26 JS + `bash -n` 两脚本 |
 | 运行时 | `verify-runtime` 17/17（Windows 11；cua-driver 0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |

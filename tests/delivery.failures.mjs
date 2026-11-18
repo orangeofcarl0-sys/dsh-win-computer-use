@@ -81,6 +81,14 @@ for (const mode of ['background', 'foreground', 'delivery_failed']) {
   }
 }
 
+process.env.CUA_DELIVERY_MODE = 'foreground'
+{
+  const { call, obs } = await fresh()
+  const r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+  check('D-foreground-hint: 前台锁提示包含 observe/activate 指引',
+    r.ok === false && /被其他窗口\/对话框覆盖/.test(r.result || ''), r.result)
+}
+
 process.env.CUA_DELIVERY_MODE = 'unverified'
 for (const [name, fn] of actions) {
   const { call, obs } = await fresh()

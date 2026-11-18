@@ -36,6 +36,17 @@ import { defineTool as rawDefineTool } from '@deepseek-ai/dsh-tools'
  * 桌面自动化里静默选错目标代价很高，因此在 wrap() 里对未知参数直接拒绝并列明可接受参数。
  */
 const toolParamNames = new Map()
+/** 常见参数误用的通用纠正提示（只在拒绝回执里出现，不改变参数/目标）。 */
+const PARAM_HINTS = {
+  screen_zoom: 'screen_zoom 只接受 pid/window_id/x1/y1/x2/y2；示例 {window_id,x1:0,y1:0,x2:400,y2:300}；x2-x1 ≤500。',
+  computer_activate: 'computer_activate 只接受 window_id/pid；它本身就是前台，不需要 foreground。',
+  computer_key: 'computer_key 只接受 key/snapshot_id/foreground；pid/window_id 由当前快照绑定；要换窗口先 screen_observe。',
+  computer_click: 'computer_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_double_click: 'computer_double_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_right_click: 'computer_right_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_type: 'computer_type 只接受 text/element/foreground/snapshot_id；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_scroll: 'computer_scroll 只接受 direction/amount/element/foreground/snapshot_id；窗口由当前快照绑定，不要传 window_id/pid。',
+}
 const defineTool = (options) => {
   toolParamNames.set(options.name, Object.keys(options.parameters || {}))
   return rawDefineTool(options)
@@ -94,8 +105,8 @@ export const Config = z.object({
   maxTaskCalls: z.number().default(3),
   /** 区域限制：允许操作的应用名白名单（空 = 不限制）。 */
   allowedApps: z.array(z.string()).default([]),
-  /** 虚拟光标主题 id（空 = 不设置，用引擎默认）。 */
-  cursorTheme: z.string().default('com.dsh.computeruse.rainbow'),
+  /** 虚拟光标主题 id（默认引擎内置 cua.default；自定义主题需先安装）。 */
+  cursorTheme: z.string().default('cua.default'),
   /**
    * 虚拟光标滑行动画：
    *   auto 默认：前台最多 1 次 move_cursor（驱动单次移动约 2–3s，5 段弧线会让一次点击多花 10s+）；
@@ -446,7 +457,7 @@ function observeToolDefs(ctx, cfg, wrap) {
       '成本：ax（文本）< screen_zoom 小裁剪 < native 整窗 PNG 直读——native 同时返回 AX 编号，读字+定位可一次完成；' +
       '不要同轮先 ax 再 native（后一次会替换快照 id，旧 snapshot_id 随即失效）。' + S3_ASSERT_PROTOCOL,
     parameters: {
-      window: { type: 'string', description: '目标窗口：pid 或标题子串；缺省取最前窗口。' },
+      window: { type: 'string', description: '目标窗口：pid 或标题子串；window_id 用独立的 window_id 参数。' },
       window_id: { type: 'integer', description: '目标窗口 id（精确匹配；多窗口同 pid 时优先用它，避免选错辅助窗口）。' },
       mode: {
         type: 'string',
@@ -497,6 +508,7 @@ function observeToolDefs(ctx, cfg, wrap) {
       '驱动会自动加约 20% padding 并可能缩放，所以不要用 crop 自己算比例；screenOrigin 只用于屏幕绝对坐标，点击时不要再加。' +
       '实证：整窗裸定位误差 median>300px 不可依赖，目标主导的小裁剪误差 13-80px——务必让目标占画面主导。' +
       '视觉断言通道提示：本工具是有损 JPEG，小字号数字常不可读（不可读即如实报 unknown）；读文字请用 screen_observe native（无损 PNG）。'
+      + '只接受 x1/y1/x2/y2（示例：{window_id,x1:0,y1:0,x2:400,y2:300}）；x2-x1 ≤500。'
       + S3_ASSERT_PROTOCOL,
     parameters: {
       pid: { type: 'integer', description: '可选：目标窗口所属进程 pid（screen_observe 输出）；缺省按 window_id 解析。' },
@@ -585,6 +597,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   {
     name: 'computer_key',
     description: '按键 / 快捷键：如 return、tab、escape、cmd+c、shift+tab（绑定快照窗口；普通按键默认后台 PostMessage 投递，目标窗口无需前台）。调用前必须先 screen_observe。'
+      + '只接受 key/snapshot_id/foreground；pid/window_id 由当前快照绑定，不要传。'
       + '带修饰键的组合键需要 OS 级修饰键状态：插件会自动前台投递并恢复原前台（即使配置为 background），避免后台只落末键。'
       + 'XAML/WinUI 目标（Win11 记事本等）的组合键常因命令在关闭菜单里而失败；失败回执会给“点菜单栏项→点菜单项”的指引。'
       + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。',
@@ -692,7 +705,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_activate',
-    description: '激活已存在的窗口到前台：按 window_id（可带 pid）调用驱动 bring_to_front。'
+    description: '激活已存在的窗口到前台：按 window_id（可带 pid）调用驱动 bring_to_front。只接受 window_id/pid；它本身就是前台，不需要 foreground。'
       + '用于脏桌面/多窗口切换，避免点任务栏或反复 Alt+Tab。不会启动/关闭应用，也不会恢复原前台；'
       + 'window_id 来自 screen_observe 或 app_list。需要操作窗口内容时，激活后仍要先 screen_observe 取快照。',
     parameters: {
@@ -916,6 +929,7 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
           ? '桌面工具入口（hybrid）：computer_do/screen_observe 与 5 个高频工具直接可见；长尾工具用 action="call" + tool + args 路由。'
           : '桌面工具入口（dispatcher）：tools 列表稳定；所有桌面动作通过 action="call" + tool + args 路由到隐藏实现。')
         + ' action="catalog" 列出隐藏工具签名；action="status" 查看模式。'
+        + ' 常用参数：screen_zoom(window_id,x1,y1,x2,y2;宽≤500) · computer_activate(window_id,pid) · computer_key(key,snapshot_id?,foreground?) · computer_drag(from_x,from_y,to_x,to_y,modifier?,steps?,from_zoom?)。'
         + '复杂参数（如 verify 的 expect JSON）先 catalog 取签名；不要把本工具当桌面动作直接执行。',
       parameters: {
         action: { type: 'string', enum: ['call', 'catalog', 'status'], required: true, description: 'call = 路由隐藏工具；catalog = 列出隐藏工具签名；status = 查看模式。' },
@@ -1047,8 +1061,19 @@ export function apply(ctx, config) {
   // 初始化虚拟光标：声明统一会话 + 应用主题（异步，不阻塞插件加载）
   cuaCall('start_session', { session: CUA_SESSION }).catch(() => undefined)
   if (cfg.cursorTheme) {
-    cuaCall('set_agent_cursor_theme', { session: CUA_SESSION, theme_id: cfg.cursorTheme })
-      .catch(() => undefined)
+    const setTheme = (themeId) => cuaCall('set_agent_cursor_theme', {
+      session: CUA_SESSION, theme_id: themeId,
+    })
+    const fallback = () => (cfg.cursorTheme === 'cua.default'
+      ? undefined
+      : setTheme('cua.default').catch(() => undefined))
+    setTheme(cfg.cursorTheme)
+      .then((v) => {
+        const refused = v && typeof v === 'object'
+          && (v.code || v.error || v.refusal || v.ok === false || v.supported === false)
+        return refused ? fallback() : undefined
+      })
+      .catch(() => fallback())
   }
 
   /** 强杀锁存状态（PLAN-tools-v0.5 §6-D2=B）：stop 后全工具拒绝，resume 唯一解锁。 */
@@ -1074,10 +1099,12 @@ export function apply(ctx, config) {
         const allowed = toolParamNames.get(toolName) || []
         const unknown = Object.keys(args || {}).filter((k) => !allowed.includes(k) && !k.startsWith('_'))
         if (unknown.length) {
+          const hint = PARAM_HINTS[toolName] ? ` ${PARAM_HINTS[toolName]}` : ''
           return {
             ok: false,
             result: `✗ 未知参数 ${unknown.join(', ')}（本工具接受：${allowed.length ? allowed.join(', ') : '无参数'}）。`
-              + '参数名不符的键会被静默丢弃并可能回退到默认目标，因此此处直接拒绝——请按上面列出的参数名重发。',
+              + '参数名不符的键会被静默丢弃并可能回退到默认目标，因此此处直接拒绝——请按上面列出的参数名重发。'
+              + hint,
           }
         }
         const g = guard(cfg, toolName, args)

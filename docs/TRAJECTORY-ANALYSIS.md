@@ -57,7 +57,7 @@
 - t15：`12-53-31`（r1/r2/r3）
 - t14 旧题面：`2026-11-17T07-12-15`（141/71）；新题面：`10-14-28`（59）、`10-22-40`（41/57）
 - t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
-- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）；t12 opencode `19-51-11`（112）
+- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）；t12 opencode `19-51-11`（112）
 
 ## 2. t11：不是“不会画”，是焦点 + 首次拖拽 + 状态判定
 
@@ -264,7 +264,10 @@
 | t15 Explorer | pass | 55 | 419s | 23 | 15 | 1 | 0 | 0 | 1 | 0 / 28 | 所有文件/旧路径 true |
 | t17 PDF+Excel | pass（pre-fix） | 40 | 332s | 12 | 4 | 0 | 0 | 7 | 5 | 9 / 7 | A1 exact、seed unchanged |
 | t17 PDF+Excel | pass（post-fix） | 86 | 885s | 34 | 17 | 4 | 0 | 0 | 3 | 1 / 37 | A1 exact、seed unchanged |
+| t17 PDF+Excel | pass（capture-only） | 29 | 335s | 9 | 5 | 1 | 0 | 4 | 2 | 2 / 10 | A1 exact、seed unchanged |
 | t14 Excel | pass（post-fix） | 59 | 633s | 18 | 8 | 3 | 0 | 6 | 4 | 9 / 21 | 24 格/barChart/标题/Sales/Month 全 true |
+| t14 Excel | pass（capture-only r1） | 76 | 1058s | 23 | 18 | 2 | 0 | 6 | 3 | 6 / 26 | 24 格/barChart/标题/Sales/Month 全 true |
+| t14 Excel | fail（capture-only r2） | 64 | 970s | 21 | 6 | 6 | 0 | 5 | 2 | 11 / 27 | 单元格全 false；图表 title/categories true；Paste 未落 |
 
 > `pre-fix` = `pointerCaptureReady` / 裸 code 拒绝修复前；`post-fix` = 修复后。t11/t12/t15 未在 post-fix 重跑，但它们没有 `screenshot_context_missing` 假成功路径。
 
@@ -297,8 +300,10 @@
 - 8 次 zoom（A1、Paste、图表区、标题、保存对话框）；3 次 wait；4 次 activate。`clipboard=1/2`、`type=2/3`，没有逐格输入。
 - pre-fix 10 errors 中有一组 `foreground_unavailable`/`bring_to_front` refused（F12/Ctrl+S 期间另一个窗口持有前台），还有 2 次 `delivery_failed` key、2 次 snapshot expired、2 次 stale、2 次 mismatch、1 次 zoom 宽 1090>500、1 次把数字当窗口标题。模型全部通过 observe/activate/foreground 恢复。
 - post-fix 59 步、3 refusals、7 delivery failures、0 stale/mismatch；capture 预取把 stale/mismatch 换成了更多“未送达→前台重试”，最终 oracle 全 true。说明修复改变了失败分布，但没有破坏任务路径。
+- capture-only r1：76 步 pass，24 格/图表全 true；23 observe/18 click/12 key/6 zoom；4 次 snapshot_expired 是长流程 TTL，不是 token 失效。
+- capture-only r2：64 步 fail，单元格全 false、图表 title/categories true。轨迹显示首次点击/粘贴目标偏离，随后把空区域做成图表；`computer_type` 多次 delivery_failed，保存前没有核对表格。没有 `screenshot_context_missing`/stale 假成功；判为模型粘贴目标与保存路径失败，不是驱动兼容错误。
 
-**t17（pre-fix 40 步；post-fix 86 步）**
+**t17（pre-fix 40 步；post-fix 86 步；capture-only 29 步）**
 
 - pre-fix：三击 PDF 句子 → `Ctrl+C` → `clipboard read`；Excel `F12` → A1 `from_zoom` click → `Ctrl+V` → `Ctrl+S`。7 次 zoom、5 次 activate、9 个错误（多数是 schema/前台锁），A1 exact。
 - pre-fix 的关键问题在 seq 74-76：Save As 对话框 native observe 后，模型做像素 click `(1024,787)`，驱动返回 `{"code":"screenshot_context_missing","reason":"no_screenshot"}`，但 `engineRefusal` 不认识裸 `code`，`settleAction` 把回执写成 **“点击完成”**。动作没有发生，回执却像成功——这是本轮轨迹复盘发现的最严重真实性问题。
@@ -308,10 +313,10 @@
 
 | 类别 | 证据 | 根因 | 模型恢复 | 插件动作 |
 |---|---|---|---|---|
-| 启动 cursor theme | 每条轨迹 1 次 `set_agent_cursor_theme` 失败（rainbow 主题未安装） | 环境主题缺失；fire-and-forget | 不影响任务 | 可考虑静默/降级；当前只计入 driver error |
+| 启动 cursor theme（修复前） | 早期轨迹每条 1 次 `set_agent_cursor_theme` 失败（rainbow 未安装） | 环境主题缺失 | 不影响任务 | 默认已改为 `cua.default`，失败回退 `cua.default`；capture-only 轮不再出现 |
 | 快照守卫 | `snapshot_missing`（t11/t12/t14/t17）、`snapshot_expired`（t14）、`stale_element_token`（t11）、`snapshot_mismatch`（t11/t14） | 模型先点后观察、旧 snapshot_id、capture 预取替换 index map | 重新 observe，1–2 步 | 守卫按设计 fail-closed；`markTokensStale` 让旧编号明确失效 |
 | 前台锁 | t14 `foreground_unavailable` + `bring_to_front` refused；t17 两次 activate refused；`delivery_failed` key | Windows 前台锁/另一个窗口（ZCode/Chrome/对话框）持有前台 | `computer_activate`、foreground 重试、重新 observe | L3 已尽力；拒绝时不假装成功 |
-| 参数 schema | t17 `screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)`；t14 zoom 宽 1090>500 | 模型套用了别的工具的参数 | 按拒绝文本重发 | dispatcher 未知参数拒绝是正确行为；工具描述可再给示例 |
+| 参数 schema | t17 `screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)`；t14 capture-only r1 `computer_click(window_id)`；zoom 宽 1090/700>500 | 模型套用了别的工具的参数 | 按拒绝文本重发，1 步 | 保持拒绝；新增 `PARAM_HINTS` + `computer_do` 常用参数速查，不自动改写参数 |
 | 数值当窗口标题 | t14 `window:"2231898"`、t17 `window:"7081698"` | 模型把 window_id 填进 window | 候选列表后改用 window_id/标题 | fail-closed，不静默回退 |
 | `screenshot_context_missing` | t17 pre-fix seq 74-76 | native 截图被误当 click capture；裸 code 未被识别 | 重新 observe/zoom | **已修**：`pointerCaptureReady` + `engineRefusal` 裸 code |
 
@@ -321,8 +326,9 @@
 
 1. **native 截图 ≠ 像素动作 capture**：`cacheSnapshot` 原来用 `hasCapture = capture_id || screenshot_png_b64`；native observe 有截图，于是 `ensurePointerCapture` 跳过预取。但 0.52 的 click 仍报 `no_screenshot`。现在新增 `pointerCaptureReady`，只有 `ensurePointerCapture` / `screenZoom` 显式建立 capture 后才为 true；native 截图只用于模型展示，不再冒充点击上下文。
 2. **裸 `code` 拒绝必须 fail-closed**：`engineRefusal` 原来只认 `effect/status/refusal/ok:false/error_code` 和三个 code；`screenshot_context_missing` 落到了成功分支。现在 `FAILURE_CODES` 包含 `screenshot_context_missing`、`window_target_not_found`、`target_not_found`、`stale_element_token`、`element_not_visible`、`menu_path_unavailable`，裸 code 也会返回拒绝。
-3. **测试锁住**：`action.echo` E31 覆盖裸 `screenshot_context_missing` 回执；`action-bounds` D12 覆盖“native 截图但 pointerCaptureReady=false 仍要预取”。离线 26 套 / 621 项全绿。
+3. **测试锁住**：`action.echo` E31/E32 覆盖裸 `screenshot_context_missing` / `window_target_not_found` 回执；`action-bounds` D11/D12 覆盖 capture-only 预取与 token 保留；`config.plumbing` B12-B16 覆盖参数误用提示与数字 window 提示；`delivery.failures` 覆盖前台锁提示。离线 26 套 / 628 项全绿。
 4. **post-fix 真机**：t17 86 步、1 个 snapshot_missing、0 假成功；t14 59 步、0 stale/mismatch、oracle 全 true。t14/t17 都仍 pass。
+5. **capture-only 验证**：0.52+ 改用 `include_accessibility_tree:false` 后，t17 从 86 步降到 **29 步**（9 observe/5 click/4 zoom/1 type；A1 exact、0 假成功）；token 不再因像素预取而失效，模型回到 zoom/from_zoom 路径。2 个错误是 1 次 snapshot_missing + 1 次 snapshot mismatch，均在 1 步内恢复。 t14 capture-only r1 **76 步 pass**（全 true）；r2 **64 步 fail**（单元格全 false，粘贴目标偏离后把空区域做成图表；非兼容错误），说明 t14 仍是高方差任务，capture-only 不保证每次路径稳定。
 
 ### 10.5 跨 provider 对比（同题面、非受控 A/B）
 
@@ -330,7 +336,7 @@
 |---|---|---|---|
 | t11 | 58 / 94 步 | 77 步 | opencode 高于最好、低于最差；t11 方差主要来自 activate/focus 重复 |
 | t12 | 152 步 / 1069s | 112 步 / 1581s | opencode 少 40 步，但 native/query 更多、墙钟更慢 |
-| t14 | 53 / 51 pass，64 fail | 60 步（post-fix 59） | DeepSeek 最好更快；opencode 更稳（本轮 2/2 全绿） |
+| t14 | 53 / 51 pass，64 fail | 60 / 59 / 76 pass，64 fail | 两边都有失败样本；t14 是高方差任务，capture-only 不改变粘贴目标选择 |
 | t15 | 85 / 67 步 | 55 步 | opencode 明显更省 click/key |
 | t17 | 37 / 75 步 | 40 步（pre-fix）/ 86（post-fix） | 最好样本同量级；post-fix 走手动输入路径，真实性优先 |
 
@@ -342,4 +348,4 @@
 2. **前台锁是环境成本**：t14/t17 的 `foreground_unavailable` 多发生在 F12/另存为/对话框；L3 有时被系统拒绝。模型已学会 activate/重新 observe，不建议再加自动重试（会重复点击/重复输入）。
 3. **工具描述可更明确**：t17 的 `screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)` 都是 1 步可恢复的 schema 误用；在描述里给一个参数示例即可降低。
 4. **`markTokensStale` 是必要代价**：像素 capture 预取会替换驱动 index map，旧编号必须失效；模型重新 observe 的 1–2 步是正确行为，不应为了省步数而保留陈旧编号。
-5. **t17 post-fix 的 86 步**：模型改走手动输入/保存循环，原因是它没有用 zoom/from_zoom；这更像题面策略选择，不是插件回归。若要把 t17 稳定压回 40 步，下一轮应在题面里再次强调“先 zoom A1 再粘贴”，而不是放宽 capture 真实性。
+5. **t17 capture-only 的 29 步**：capture-only 保留 token 后，模型回到 zoom/from_zoom 路径；不需要任务级提示。t14 capture-only 仍有 76 pass / 64 fail，失败是粘贴目标选择，不是 capture/token 问题。

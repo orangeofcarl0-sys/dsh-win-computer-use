@@ -222,7 +222,16 @@ check('E11: stale 后旧编号被拒绝', after.ok === false
 process.env.CUA_CLICK_CODE = 'screenshot_context_missing'
 const bareCode = await call('computer_click', { x: 5, y: 5, snapshot_id: obs.snapshotId })
 check('E31: screenshot_context_missing 按拒绝上报', bareCode.ok === false
-  && /screenshot_context_missing/.test(raw(bareCode)), raw(bareCode))
+  && /screenshot_context_missing/.test(raw(bareCode))
+  && /截图上下文缺失/.test(raw(bareCode)), raw(bareCode))
+delete process.env.CUA_CLICK_CODE
+
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+process.env.CUA_CLICK_CODE = 'window_target_not_found'
+const missingWin = await call('computer_click', { x: 6, y: 6, snapshot_id: obs.snapshotId })
+check('E32: window_target_not_found 给重新观察/激活指引', missingWin.ok === false
+  && /window_target_not_found/.test(raw(missingWin))
+  && /目标窗口可能已关闭/.test(raw(missingWin)), raw(missingWin))
 delete process.env.CUA_CLICK_CODE
 
 // 10. verifyAfterAction=auto：unverifiable 后抓一次状态差分

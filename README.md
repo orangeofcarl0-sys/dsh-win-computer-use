@@ -277,7 +277,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
     maxTaskCalls: 3
     supersession: note
     allowedApps: []
-    cursorTheme: com.dsh.computeruse.rainbow
+    cursorTheme: cua.default
     cursorMotion: auto
     actionGuard: on
     verifyAfterAction: off
@@ -303,7 +303,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 | `maxTaskCalls` | `3` | 每会话委派次数上限 |
 | `supersession` | `note` | 同快照连击：`note` / `enforce` / `off` |
 | `allowedApps` | `[]` | 操作类工具的应用白名单；空 = 不限制 |
-| `cursorTheme` | `com.dsh.computeruse.rainbow` | 虚拟光标主题；空 = 引擎默认 |
+| `cursorTheme` | `cua.default` | 虚拟光标主题；默认引擎内置主题，自定义主题需先用 `cua-driver cursor-theme` 安装；选择失败会回退 `cua.default` |
 | `cursorMotion` | `auto` | `auto`：前景最多 1 次移动（驱动单次 2–3s，5 段会拖到 15–18s/点击）；`human`：保留 5 段弧线；`off`：不移动。background 始终不滑行；同目标 16px/2s 内跳过 |
 | `actionGuard` | `on` | 同一窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`；`off` 关闭 |
 | `verifyAfterAction` | `off` | 实验性：`auto` 对 `click/double_click/right_click`（含坐标）与 `key` 的 unverifiable/suspected_noop 抓一次无截图状态，把差分写进回执；结构性变化清快照。每次约 +2s，且会刷新快照 token/TTL；`type/set_value` 的输入回读独立于本开关。2026-11-16 A/B 10/10，auto 中位略优但尾部更慢，默认仍 `off` |
@@ -329,9 +329,11 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
   `get_window_state` 注入统一 `CUA_SESSION`，否则动作会得到
   `stale_element_token`。
 - 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要同一窗口的截图上下文：
-  快照没有 capture 时先补一次 `get_window_state(include_screenshot:true)`；
-  这会替换驱动 index map，旧 element_token 标为失效（坐标动作继续可用）。
+  快照没有 capture 时先补 `get_window_state(include_accessibility_tree:false, include_screenshot:true)`
+  的 capture-only 读；它只截图、不替换 UIA index map，**保留 element_token**。
+  0.23.2 退回 `max_elements:1`（会替换 index map，旧 token 标失效）。
 - 0.39+ 原生 drag modifier；0.23.2 仍用私有 SendInput helper。
+- 参数误用：dispatcher 的未知参数拒绝会附通用纠正（如 `screen_zoom` 只接受 x1/y1/x2/y2、`computer_activate` 只接受 window_id/pid、`computer_key` 绑定快照窗口）；`computer_do` 描述含常用参数速查。不会静默接受或改写参数。
 - 驱动以非零退出返回的结构化拒绝（如 `background_unavailable`）按回执值处理，
   继续走前台升级链，而不是当传输故障。
 
@@ -403,7 +405,7 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（26/26 JS）
-npm test                           # 26 套离线测试，621 项检查
+npm test                           # 26 套离线测试，628 项检查
 node verify-runtime.mjs            # 真驱动运行时验证（17 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \

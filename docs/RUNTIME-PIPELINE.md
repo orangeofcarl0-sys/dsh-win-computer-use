@@ -52,7 +52,7 @@ S4 eval:
 pickObserveTarget
   -> list_windows(on_screen_only)
   -> check_permissions（30s 缓存，避免每次观察固定多付 ~2s）
-  -> get_window_state(include_screenshot?, max_elements, query?)
+  -> get_window_state(include_screenshot?, include_accessibility_tree?, max_elements, query?)
   -> rawElements.filter(isActionable)
   -> resolveObserveMode(ax/native/vision/desktop fallback)
   -> markStructuralPasswords（Windows sidecar，最多 5s）
@@ -115,8 +115,9 @@ ensureDriverInfo（--version/status，进程级缓存）
 - 0.52+ 的 element_token/zoom 按 session 归属；`get_window_state` 注入
   `CUA_SESSION`，否则动作端 `current_snapshots:[]` / `stale_element_token`。
 - 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要截图上下文：快照无 capture 时
-  先 `get_window_state(include_screenshot:true)`，并 `markTokensStale`（坐标动作继续，
-  编号动作要求重新观察）。
+  先发 `get_window_state(include_accessibility_tree:false, include_screenshot:true)` 的
+  capture-only 读。它只截图、不 walk UIA，**保留 snapshot/token**；0.23.2 没有该参数，
+  退回 `max_elements:1`（会替换 index map，`markTokensStale`）。
 - 非零退出 + JSON（如 `background_unavailable`）解析成 `DriverCallError.value`；
   动作类当回执值继续升级，观察类仍抛错走降级。
 - 完整能力矩阵与错误分类见 [DRIVER-SDK](DRIVER-SDK.md)。

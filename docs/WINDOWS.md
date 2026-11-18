@@ -143,7 +143,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 |---|---|---|
 | `get_window_state` 默认只给 markdown，无 `elements` | 0.52+ 不传 `tree_format` | 兼容层总是传 `tree_format:"elements"`；旧驱动接受该字段 |
 | `stale_element_token` / `current_snapshots:[]` | 观察未带 session，动作带 session | `get_window_state` 注入统一 `CUA_SESSION` |
-| `screenshot_context_missing / no_screenshot` | 像素 click/drag/scroll 或 `zoom` 前没有截图读取 | 快照无 capture 时补 `get_window_state(include_screenshot:true)`；旧 token 标失效 |
+| `screenshot_context_missing / no_screenshot` | 像素 click/drag/scroll 或 `zoom` 前没有截图读取 | 0.52+ 补 `get_window_state(include_accessibility_tree:false, include_screenshot:true)` 的 capture-only（保留 token）；0.23.2 退回 `max_elements:1` 并标 token 失效 |
 | 前台 click 校验目标 HWND | 目标不在前台 | 既有 `bring_to_front` 前置/绕锁链；探针先激活 |
 | `hotkey` 回执 `foreground_restored:false` | 驱动没有恢复原前台 | 组合键注记动态写“原前台未恢复”，不再声称已恢复 |
 | 非零退出 + JSON 拒绝 | `background_unavailable` 等 | 当回执值，继续前台升级；不当传输故障 |

@@ -303,6 +303,31 @@ const observeArgs = { window: '4242', mode: 'ax' }
     && /紧凑截图不可用/.test(String(vc.result || '')) && !/紧凑图）/.test(txtc), txtc.slice(0, 120))
 }
 
+// B12 参数误用提示：拒绝时给通用纠正，不改变目标
+{
+  const t = await freshConfig()
+  const z = await t.call('computer_do', {
+    action: 'call', tool: 'screen_zoom',
+    args: { window_id: 7, x: 1, y: 1, width: 10, height: 10 },
+  })
+  check('B12 screen_zoom 参数提示', z.ok === false && /x1\/y1\/x2\/y2/.test(t.raw(z)), t.raw(z).slice(0, 160))
+
+  const a = await t.call('computer_do', {
+    action: 'call', tool: 'computer_activate', args: { window_id: 7, foreground: true },
+  })
+  check('B13 computer_activate 参数提示', a.ok === false && /不需要 foreground/.test(t.raw(a)), t.raw(a).slice(0, 160))
+
+  const k = await t.call('computer_key', { key: 'return', pid: 42, window_id: 7 })
+  check('B14 computer_key 参数提示', k.ok === false && /由当前快照绑定/.test(t.raw(k)), t.raw(k).slice(0, 160))
+
+  const c = await t.call('computer_click', { x: 1, y: 1, window_id: 7 })
+  check('B16 computer_click 参数提示', c.ok === false && /不要传 window_id\/pid/.test(t.raw(c)), t.raw(c).slice(0, 160))
+
+  const n = await t.call('screen_observe', { window: '999999' })
+  check('B15 数字 window 提示改用 window_id', n.ok === false
+    && /window_id=999999/.test(t.raw(n)), t.raw(n).slice(0, 200))
+}
+
 console.log(`\n结果：${state.failures ? '❌ ' + state.failures + ' 项失败' : '✅ 全部通过'}`)
 if (!state.failures) cleanupWork(work)
 process.exit(state.failures ? 1 : 0)

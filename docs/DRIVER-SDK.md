@@ -97,6 +97,7 @@ lib/driver/info.js          进程级 driverInfo 缓存与 status 文本
 | `screenshotFrame` | 元素带 `screenshot_frame` | ❌ | ❌ | ✅（预期） |
 | `dragModifier` | 原生 drag modifier | ❌ | ✅ | ✅ |
 | `pointerCapture` | 像素动作需要截图上下文 | ❌ | ✅ | ✅ |
+| `captureOnly` | `get_window_state(include_accessibility_tree:false)` 只截图、不替换 token | ❌ | ✅ | ✅ |
 | `moveCursorScreen` | `move_cursor` window scope 用屏幕坐标 | ❌ | ✅ | ✅ |
 | `frameSpace` | `screen` / `screenshot` / `null` | `screen` | `screen` | 首次响应校准 |
 
@@ -118,13 +119,19 @@ drag 默认走私有 helper（已知可靠）。
 |---|---|---|
 | `get_window_state` 默认 `tree_format:"markdown"`，不带 `elements` | 首次调用 keys 有 `element_count=7`、`tree_markdown`，无 `elements`；显式 `tree_format:"elements"` 返回 7 个元素 | `mapRequest` 总是带 `tree_format:"elements"` |
 | element_token / zoom 快照按 **session** 归属 | 观察不带 session、点击带 session → `stale_element_token` / `current_snapshots:[]` | `mapRequest` 给 `get_window_state` 注入 `CUA_SESSION` |
-| 像素 click/drag/scroll 需要截图上下文 | 无截图时 `screenshot_context_missing / no_screenshot`；先 `get_window_state(include_screenshot:true)` 后成功 | `ensurePointerCapture` 预取；`markTokensStale`。**native 观察的截图只用于模型展示，不算 click capture**：`pointerCaptureReady` 只由显式预取/zoom 置 true（t17 轨迹实证） |
+| 像素 click/drag/scroll 需要截图上下文 | 无截图时 `screenshot_context_missing / no_screenshot`；先 `get_window_state(include_screenshot:true)` 后成功 | 0.52+ 用 `include_accessibility_tree:false` 的 **capture-only** 读建上下文；它保留 snapshot/rows/tokens，不再 `markTokensStale`。0.23.2 退回 `max_elements:1`（会替换 index map，旧 token 标失效）。**native 观察的截图只用于模型展示，不算 click capture**：`pointerCaptureReady` 只由显式 capture-only/旧预取/zoom 置 true |
 | 裸 `code` 拒绝 | `{"code":"screenshot_context_missing","reason":"no_screenshot"}` | `engineRefusal` 的 `FAILURE_CODES` 按拒绝上报；否则会被写成“点击完成”（t17 pre-fix） |
-| `zoom` 需要截图上下文 | 同上；`screen_zoom` 在无 capture 时补读 | `screenZoom` 预取 + `markTokensStale` |
+| `zoom` 需要截图上下文 | 同上；`screen_zoom` 在无 capture 时补读 | 0.52+ 用 capture-only；0.23.2 用 `max_elements:1` + `markTokensStale` |
 | 结构化拒绝以非零退出返回 | `background_unavailable` JSON + exit 1 | `transport` 解析为 `DriverError.value`；动作类当回执值参与升级 |
 | 前台点击校验目标 HWND 前台 | `foreground_unavailable: ... not foreground after the click` | 既有 `bring_to_front` 前置/绕锁链 |
 | `move_cursor` window scope 改为屏幕坐标 | 0.52 schema 文档；旧插件传窗口本地会偏移 | `glideCursor`/`hover` 用快照原点换算，并去掉 0.52 不接受的 `origin` 字段 |
 | `hotkey` 回执 `foreground_restored:false` | combo probe | 组合键注记动态说明“原前台未恢复”，不再声称已恢复 |
+
+> **capture-only 实测（0.52.13）**：先 `tree_format:"elements"` 得到 `snapshot_id=s00000206`；再
+> `include_accessibility_tree:false, include_screenshot:true` 返回**同一个 snapshot_id**、`capture_id`
+> 和 36KB 截图；旧 `element_token` 的 background click 成功，坐标 click 与 `zoom` 也成功。
+> 因此 0.52+ 的像素预取不再需要 `markTokensStale`；0.23.2 没有该参数，保留旧路径。
+> 真机 t17 从 post-fix 86 步降到 **29 步**（A1 exact、0 假成功）。
 
 ## 5. 错误分类
 
