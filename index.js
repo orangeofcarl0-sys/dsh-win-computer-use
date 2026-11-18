@@ -46,6 +46,7 @@ const PARAM_HINTS = {
   computer_right_click: 'computer_right_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
   computer_type: 'computer_type 只接受 text/element/foreground/snapshot_id；窗口由当前快照绑定，不要传 window_id/pid。',
   computer_scroll: 'computer_scroll 只接受 direction/amount/element/foreground/snapshot_id；窗口由当前快照绑定，不要传 window_id/pid。',
+  screen_observe: 'screen_observe 只接受 window/window_id/mode/query/maxElements/force；pid 请用 window 或 window_id。',
 }
 const defineTool = (options) => {
   toolParamNames.set(options.name, Object.keys(options.parameters || {}))

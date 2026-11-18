@@ -326,6 +326,9 @@ const observeArgs = { window: '4242', mode: 'ax' }
   const n = await t.call('screen_observe', { window: '999999' })
   check('B15 数字 window 提示改用 window_id', n.ok === false
     && /window_id=999999/.test(t.raw(n)), t.raw(n).slice(0, 200))
+
+  const p = await t.call('screen_observe', { pid: 42 })
+  check('B17 screen_observe 参数提示', p.ok === false && /pid 请用 window 或 window_id/.test(t.raw(p)), t.raw(p).slice(0, 160))
 }
 
 console.log(`\n结果：${state.failures ? '❌ ' + state.failures + ' 项失败' : '✅ 全部通过'}`)

@@ -57,7 +57,7 @@
 - t15：`12-53-31`（r1/r2/r3）
 - t14 旧题面：`2026-11-17T07-12-15`（141/71）；新题面：`10-14-28`（59）、`10-22-40`（41/57）
 - t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
-- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）；t12 opencode `19-51-11`（112）
+- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）
 
 ## 2. t11：不是“不会画”，是焦点 + 首次拖拽 + 状态判定
 
@@ -262,6 +262,7 @@
 | t12 PowerPoint | pass | 112 | 1581s | 58 | 28 | 4 | 0 | 2 | 5 | 2 / 41 | 1 页/16:9/文本/三色柱全 true |
 | t14 Excel | pass | 60 | 585s | 18 | 8 | 2 | 0 | 8 | 4 | 10 / 19 | 24 格/barChart/标题/Sales/Month 全 true |
 | t15 Explorer | pass | 55 | 419s | 23 | 15 | 1 | 0 | 0 | 1 | 0 / 28 | 所有文件/旧路径 true |
+| t15 Explorer | fail（capture-only） | 52 | 1200s | 18 | 3 | 1 | 0 | 6 | 3 | 8 / 11 | 文件未移动/改名；模型未用 Ctrl+click |
 | t17 PDF+Excel | pass（pre-fix） | 40 | 332s | 12 | 4 | 0 | 0 | 7 | 5 | 9 / 7 | A1 exact、seed unchanged |
 | t17 PDF+Excel | pass（post-fix） | 86 | 885s | 34 | 17 | 4 | 0 | 0 | 3 | 1 / 37 | A1 exact、seed unchanged |
 | t17 PDF+Excel | pass（capture-only） | 29 | 335s | 9 | 5 | 1 | 0 | 4 | 2 | 2 / 10 | A1 exact、seed unchanged |
@@ -273,12 +274,13 @@
 
 ### 10.2 任务级模型行为
 
-**t15（最干净，55 步 / 0 任务错误）**
+**t15（最干净样本 55 步 / 0 任务错误；capture-only 复跑 52 步 fail）**
 
 - 第一次 activate 后直接进入 Explorer 文件列表；用 `F2 → Ctrl+A → type → Enter` 原地改名，避免了另存为/扩展名问题。
 - 分组用 **Ctrl+click**（5 次），`Ctrl+X → 导航目标文件夹 → Enter → Ctrl+V` 循环三组；共 15 次 click、12 次 key、1 次 type。
 - 28 次动作全部前台（`delivery:foreground=28`），但 0 delivery failure；文件单选的 `foreground=true` 是必要的，后台 UIA Invoke 会把文件当默认动作打开。
 - 23 次 observe、21 次 changed observe；模型不是盲目重试，每一步都在确认文件列表/文件夹切换。没有 zoom、没有 drag、没有错误恢复，是五条里最接近“题面即策略”的一条。
+- capture-only 复跑（52 步 fail）：模型没有使用 Ctrl+click，先用 `screen_zoom` 裁 550px（>500 被拒），随后只选中一个文件反复 F2/右键，最终没有完成 docs/images/archive 移动；错误为 zoom 过宽、snapshot 过期、`screen_observe(pid)` 未知参数。文件操作未发生，不是 capture/token 兼容错误；t15 的方差来自文件列表选择策略。
 
 **t11（77 步 / 5 次 activate / 5 次 drag）**
 
@@ -326,7 +328,7 @@
 
 1. **native 截图 ≠ 像素动作 capture**：`cacheSnapshot` 原来用 `hasCapture = capture_id || screenshot_png_b64`；native observe 有截图，于是 `ensurePointerCapture` 跳过预取。但 0.52 的 click 仍报 `no_screenshot`。现在新增 `pointerCaptureReady`，只有 `ensurePointerCapture` / `screenZoom` 显式建立 capture 后才为 true；native 截图只用于模型展示，不再冒充点击上下文。
 2. **裸 `code` 拒绝必须 fail-closed**：`engineRefusal` 原来只认 `effect/status/refusal/ok:false/error_code` 和三个 code；`screenshot_context_missing` 落到了成功分支。现在 `FAILURE_CODES` 包含 `screenshot_context_missing`、`window_target_not_found`、`target_not_found`、`stale_element_token`、`element_not_visible`、`menu_path_unavailable`，裸 code 也会返回拒绝。
-3. **测试锁住**：`action.echo` E31/E32 覆盖裸 `screenshot_context_missing` / `window_target_not_found` 回执；`action-bounds` D11/D12 覆盖 capture-only 预取与 token 保留；`config.plumbing` B12-B16 覆盖参数误用提示与数字 window 提示；`delivery.failures` 覆盖前台锁提示。离线 26 套 / 628 项全绿。
+3. **测试锁住**：`action.echo` E31/E32 覆盖裸 `screenshot_context_missing` / `window_target_not_found` 回执；`action-bounds` D11/D12 覆盖 capture-only 预取与 token 保留；`config.plumbing` B12-B16 覆盖参数误用提示与数字 window 提示；`delivery.failures` 覆盖前台锁提示。离线 26 套 / 629 项全绿。
 4. **post-fix 真机**：t17 86 步、1 个 snapshot_missing、0 假成功；t14 59 步、0 stale/mismatch、oracle 全 true。t14/t17 都仍 pass。
 5. **capture-only 验证**：0.52+ 改用 `include_accessibility_tree:false` 后，t17 从 86 步降到 **29 步**（9 observe/5 click/4 zoom/1 type；A1 exact、0 假成功）；token 不再因像素预取而失效，模型回到 zoom/from_zoom 路径。2 个错误是 1 次 snapshot_missing + 1 次 snapshot mismatch，均在 1 步内恢复。 t14 capture-only r1 **76 步 pass**（全 true）；r2 **64 步 fail**（单元格全 false，粘贴目标偏离后把空区域做成图表；非兼容错误），说明 t14 仍是高方差任务，capture-only 不保证每次路径稳定。
 
@@ -337,7 +339,7 @@
 | t11 | 58 / 94 步 | 77 步 | opencode 高于最好、低于最差；t11 方差主要来自 activate/focus 重复 |
 | t12 | 152 步 / 1069s | 112 步 / 1581s | opencode 少 40 步，但 native/query 更多、墙钟更慢 |
 | t14 | 53 / 51 pass，64 fail | 60 / 59 / 76 pass，64 fail | 两边都有失败样本；t14 是高方差任务，capture-only 不改变粘贴目标选择 |
-| t15 | 85 / 67 步 | 55 步 | opencode 明显更省 click/key |
+| t15 | 85 / 67 步 | 55 pass / 52 fail | 最好样本更省 click/key；capture-only 复跑未用 Ctrl+click，失败是文件选择策略 |
 | t17 | 37 / 75 步 | 40 步（pre-fix）/ 86（post-fix） | 最好样本同量级；post-fix 走手动输入路径，真实性优先 |
 
 结论：**没有“opencode 一定更快”**。opencode 在 t12/t15 更省步数，t11/t14/t17 与 DeepSeek 同量级或略慢；t12 的 1581s 说明少步数不等于低墙钟（native/query 单次 4–5s）。驱动兼容层对两个 provider 的行为一致，差异主要来自模型策略。

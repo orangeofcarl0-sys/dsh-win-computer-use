@@ -2,7 +2,7 @@
 
 > 范围：本插件在 **dsh 0.2.2-rc.1** 上的清单/加载、工具契约、宿主服务、执行上下文、PTC 工具面与评测工具链。
 > 环境：Windows 11 x64 · dsh `0.2.2-rc.1` · `@deepseek-ai/dsh-tools 0.2.2-rc.1` · `schemastery 3.19.0` · cua-driver **0.23.2 基线 / 0.52.13 canary**（驱动兼容层见 [DRIVER-SDK](DRIVER-SDK.md)）。
-> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 26 套 628 项检查 + S4 数据。
+> 状态：**P0/P1/P2 均已实施**；检查方法 = 静态 API 对照 + 真机 headless/native/vision/PTC 探针 + 26 套 629 项检查 + S4 数据。
 
 ## 1. 结论
 
@@ -109,7 +109,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 | PTC + `computer_task` | `tools.computer_do({action:'call',tool:'computer_task',...})` 成功拉起子 agent；直接 `tools.computer_task` 为 `undefined`（SDK 只绑定可见工具，预期行为） |
 | `computer_task` | 0.2.2 `startActivation` 真机拉起子 agent，返回结构化 `OK`，dispose 正常 |
 | 桌面动作 smoke | 两轮 **7/8**（Round 2 4/4；`wa2` 对时间预算敏感） |
-| 离线契约 | 26 套 **628** 项检查；schema 23 工具 / 47 场景 |
+| 离线契约 | 26 套 **629** 项检查；schema 23 工具 / 47 场景 |
 | S4 oracle | 按任务集合运行；2026-11-17 t11/t15 PASS、t12 SKIP（`ac2:none`） |
 | 打包 | 47 文件（新增 `lib/driver/*` + DRIVER-SDK；含 privateDrag + private-drag.ps1 + keyFallback + menu + loopGuard + RUNTIME-PIPELINE + trajectory + windowMap） |
 
@@ -124,7 +124,7 @@ run_code: const r = await tools.screen_observe({ mode:"native" }); return r;
 ## 6. 复现命令
 
 ```bash
-npm test; echo "test=$?"                 # 628 项检查
+npm test; echo "test=$?"                 # 629 项检查
 npm run check; echo "check=$?"           # 26/26
 node verify-runtime.mjs                  # 17/17
 node evals/headless-run.mjs --tier smoke --timeout-min 10
