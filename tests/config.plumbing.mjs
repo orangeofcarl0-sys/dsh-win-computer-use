@@ -327,6 +327,11 @@ const observeArgs = { window: '4242', mode: 'ax' }
   check('B15 数字 window 提示改用 window_id', n.ok === false
     && /window_id=999999/.test(t.raw(n)), t.raw(n).slice(0, 200))
 
+  const nid = await t.call('screen_observe', { window_id: 999999 })
+  check('B15b window_id 失败不再误提示改用 window_id', nid.ok === false
+    && /window_id=999999 不存在/.test(t.raw(nid))
+    && !/请改用 window_id=999999/.test(t.raw(nid)), t.raw(nid).slice(0, 240))
+
   const p = await t.call('screen_observe', { pid: 42 })
   check('B17 screen_observe 参数提示', p.ok === false && /pid 请用 window 或 window_id/.test(t.raw(p)), t.raw(p).slice(0, 160))
 }

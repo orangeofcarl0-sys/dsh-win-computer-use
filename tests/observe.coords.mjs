@@ -28,6 +28,9 @@ export function deliveryFailure(v) {
 }
 export async function cuaDeliver(tool, payload) { return { value: await cuaCall(tool, payload), note: '' } }
 
+const PNG1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
+let snapN = 0
+
 const DOC = { pid: 42, window_id: 8, app_name: 'Stub', title: 'Doc - Stub', bounds: { x: 100, y: 100, width: 800, height: 600 }, z_index: 5, is_on_screen: true }
 const HELPER = { pid: 42, window_id: 7, app_name: 'Stub', title: 'Stub', bounds: { x: 0, y: 0, width: 223, height: 32 }, z_index: 0, is_on_screen: true }
 const OVERLAY = { pid: 99, window_id: 99, app_name: 'cua-driver.exe', title: 'Cua.AgentCursorOverlay.default', bounds: { x: 0, y: 0, width: 5120, height: 1600 }, z_index: 99, is_on_screen: true }
@@ -48,7 +51,9 @@ export async function cuaCall(tool, args = {}) {
         element_count: 1,
         screenshot_width: 800,
         screenshot_height: 600,
-        snapshot_id: 's00000001',
+        screenshot_png_b64: PNG1x1,
+        screenshot_mime_type: 'image/png',
+        snapshot_id: 's' + String(++snapN).padStart(6, '0'),
       }
     }
     case 'get_desktop_state': return { screenshot_width: 800, screenshot_height: 600 }
@@ -62,6 +67,7 @@ const { check, state: checkState } = makeChecks()
 
 async function fresh() {
   const { reg, ctx, exec } = makeCtx()
+  exec.agent.options = { provider: 'test', model: 'vision' }
   plugin.apply(ctx, {
     ttlMs: 60000, maxElements: 120, observeDedup: 'off', passwordScan: 'off',
     surfaceMode: 'hybrid', deliveryMode: 'auto', xamlKeyFallback: 'off',
@@ -119,6 +125,23 @@ o = await call('screen_observe', { window: '42', window_id: 8, mode: 'ax' })
 check('C17: 最前窗口无 activate 提示', !/computer_activate/.test(String(o.result || '')), String(o.result || '').slice(0, 160))
 check('C18: footer 明确预览像素规则', /不是预览显示像素/.test(String(o.result || ''))
   && /from_zoom=true/.test(String(o.result || '')), String(o.result || '').split('\n').slice(-1)[0])
+
+// 6. native 回执必须带当前快照 id；快照是全局单例
+call = await fresh()
+const nativeObs = await call('screen_observe', { window_id: 8, mode: 'native' })
+check('C19: native 文本带当前快照 id + 全局单例', nativeObs.ok === true
+  && /快照 s\d+/.test(String(nativeObs.result || ''))
+  && /全局单例/.test(String(nativeObs.result || ''))
+  && !/快照 (undefined|null)/.test(String(nativeObs.result || '')),
+String(nativeObs.result || '').split('\n').slice(0, 3).join(' | '))
+
+// 7. 观察另一个窗口会替换全局快照：旧 id 必须 fail-closed
+const docObs = await call('screen_observe', { window_id: 8, mode: 'ax' })
+await call('screen_observe', { window_id: 7, mode: 'ax' })
+const staleClick = await call('computer_click', { element: 0, snapshot_id: docObs.snapshotId })
+check('C20: 跨窗口观察后旧 snapshot_id 被拒绝', staleClick.ok === false
+  && /snapshot_mismatch/.test(String(staleClick.result || ''))
+  && /window_id=7/.test(String(staleClick.result || '')), String(staleClick.result || '').slice(0, 180))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

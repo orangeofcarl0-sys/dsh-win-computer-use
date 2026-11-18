@@ -1,7 +1,7 @@
 # TESTING — 测试体系与验证手册
 
 > 目标：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
-> 最近基线：2026-11-18 · `npm test` 26 套 / **629 项检查** · `npm run check` **26/26** · `verify-runtime` **17/17**（0.23.2 与 0.52.13 均通过）。
+> 最近基线：2026-11-18 · `npm test` 26 套 / **634 项检查** · `npm run check` **26/26** · `verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 > 证据报告见 [VERIFICATION](../VERIFICATION.md)；Windows 专项见 [WINDOWS](WINDOWS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t14/t15/t17 轨迹复盘见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 1. 原则
@@ -18,8 +18,8 @@
 | 层 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|
 | 语法/安装脚本 | `npm run check` | 26 JS（含 lib/driver）+ 2 bash | 语法错误、Windows glob 失效、install/uninstall 语法 |
-| 离线单元/契约 | `npm test` | 26 套 / 629 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、私有 modifier drag 路由/坐标映射、原生 modifier drag、capture-only 像素预取（保留 token）、裸 code 拒绝、参数误用提示、theme 回退、目标回显/重复抑制、投递失败/强制前台 L3、结构化非零退出、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类、驱动响应归一化/版本能力/传输错误/端到端兼容 |
-| 运行时（真驱动） | `node verify-runtime.mjs` | 17 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致 |
+| 离线单元/契约 | `npm test` | 26 套 / 634 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读视图、元素点击 TTL/滑行、from_zoom 映射、modifier click/组合键自动前台、私有 modifier drag 路由/坐标映射、原生 modifier drag、capture-only 像素预取（保留 token）、裸 code 拒绝、参数误用提示、theme 回退、目标回显/重复抑制、投递失败/强制前台 L3、结构化非零退出、background_delivery_failed 分类、无回读控件的 type 快照保留、观察失败、XAML/对话框回退、菜单未确认/菜单态反馈、文档不置脏提示、窗口激活、轨迹监控、eval 安全、Notepad 标签分类、驱动响应归一化/版本能力/传输错误/端到端兼容 |
+| 运行时（真驱动） | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标字段、文本/结构化坐标一致、native 文本快照 id |
 | WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性（UIA selection / 菜单项 / 前台 HWND） |
 | from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
 | modifier 手势 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达目标；0.23.2 上 driver drag modifier 不进入目标（私有 helper 绕过）；0.52.13 上原生 modifier drag 实测 delivered（`Shift` 贯穿 down/move/up） |
@@ -42,11 +42,11 @@
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
 | `schema.conformance.mjs` | 47 | 23 个工具 / 47 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活/modifier click 形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
-| `observe.truth.mjs` | 25 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示、query 只读/无快照/动作拒绝/不污染差分 |
-| `observe.coords.mjs` | 18 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝；z 序落后目标提示 `computer_activate`；源图尺寸/预览缩放提示 |
+| `observe.truth.mjs` | 25 | 输入值外显、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、Notepad/记事本别名、Document 正文不泄露、顶层菜单栏不误报“菜单已打开”、文档“不置脏”提示、query 只读/无快照/旧快照已清除/动作拒绝/不污染差分 |
+| `observe.coords.mjs` | 20 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；`window_id` 精确匹配；同 pid 多窗口 z 序；缺 bounds 时显式降级；Cua/Codex agent overlay 不入选/显式拒绝；z 序落后目标提示 `computer_activate`；源图尺寸/预览缩放提示；native 文本快照 id + 全局单例；跨窗口观察旧 id 拒绝 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
 | `human.click.mjs` | 22 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/零滑行/缺失与跨窗口拒绝、modifier 规范化/自动前台/非法值/double/right 透传 |
-| `action.echo.mjs` | 36 | 坐标/元素回显、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、modifier 与普通 click 的重复签名区分、app_launch 启动成功+前置未确认/window_id、computer_activate 窗口激活/未知 id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示、无 Document 的 type 不清快照且 Tab 可继续 |
+| `action.echo.mjs` | 37 | 坐标/元素回显、密码框值隐藏、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、modifier 与普通 click 的重复签名区分、app_launch 启动成功+前置未确认/window_id、computer_activate 窗口激活/未知 id、stale 清快照、verifyAfterAction 差分/role 变化清快照、输入回读一致/不一致/保存门禁/修正解除、set_value 回读、Document 正文不泄露、菜单栏专用注记/复核菜单态、文档不置脏提示、无 Document 的 type 不清快照且 Tab 可继续 |
 | `delivery.failures.mjs` | 26 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true；`background_delivery_failed` 是升级建议、type 仍 ok:true 且不报未送达 |
 | `delivery.foreground.mjs` | 21 | 真实 `cuaDeliver`：force + foreground_unavailable（含驱动抛异常）→ 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 也升级；非 foreground 异常保持抛出；force + unverified click/scroll/drag 前置单次（不重试）、type 不前置；`background_delivery_failed` 分类 |
 | `key.xaml.mjs` | 37 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击（各带正确 window_id）；歧义/缺失/非白名单/非 XAML 不回退；投递失败不再 ok:true；对话框 press_key 回退（含未显式前台/失败不再建议 foreground=true）；alt+f/ctrl+a 的 xamlPressFallback 前景回退、菜单优先、清快照与菜单已开拒绝；组合键默认强制前台、普通按键保持后台 |
@@ -55,9 +55,9 @@
 | `eval-safety.mjs` | 65 | 禁止按 Notepad/mspaint/POWERPNT/EXCEL/chrome/msedge 进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态窗口归属证明；dirty 任务 helper/Dirty/Downloads 按 hash 清理 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
-| `config.plumbing.mjs` | 25 | 21 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵 |
+| `config.plumbing.mjs` | 26 | 21 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵；数字 window/window_id 提示归属 |
 | `action-bounds.mjs` | 34 | P0 无快照/窗口绑定/`window_id` 透传/`suspected_noop`/指定窗口 fail-closed/`set_value` payload/密码硬拒；drag `steps`/`duration_ms=0`/`from_zoom`/zoom 缺失与过期/非法参数；modifier/dwell 私有路由、屏幕坐标映射、modifier+from_zoom 拒绝、缺 frame 拒绝 |
-| `dispatcher.test.mjs` | 35 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 结构化字段、工具面稳定、宿主 schema、click modifier/drag from_zoom+steps 输入面 |
+| `dispatcher.test.mjs` | 36 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 结构化字段、工具面稳定、宿主 schema、click modifier/drag from_zoom+steps 输入面、通用快照前置描述 |
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 
 ### 3.1 共享脚手架
@@ -261,13 +261,14 @@ node evals/headless-run.mjs --tasks t17 --repeats 3 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 26 套 / 629 ✅ / 0 ❌ |
+| 离线 | 26 套 / 634 ✅ / 0 ❌ |
 | 语法 | 26/26 JS + `bash -n` 两脚本 |
-| 运行时 | `verify-runtime` 17/17（Windows 11；cua-driver 0.23.2 基线 + 0.52.13 canary） |
+| 运行时 | `verify-runtime` 18/18（Windows 11；cua-driver 0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
 | dirty 真机（首轮） | t13 论文下载 **pass 19 步**；t15 Explorer **pass 112 步**；t16 表单 **pass 17 步**；t11 Paint **fail 107 步**、t12 PPT **fail 126 步**（均未保存输出）；t14/t17 仅 setup/cleanup 验证；cleanup clean、TabState skipped |
 | dirty 修复轮（2026-11-16） | t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用、12 drag）；t15 新题面 **3/3 pass**（177/146/89 步，仍高于旧 112）；t12 16:9 seed/占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过，仍高风险 |
 | 0.52.13 capture-only 回归（2026-11-18） | t11 **76 步 pass**（oracle 22/22、3 tool errors、24 unverified、1224s）；t12 **98 步 pass**（oracle 13/13、6 tool errors、44 unverified、1378s）；均无 `screenshot_context_missing`/`stale_element_token`；同轮 t17 29 步 pass、t14 76 pass/64 fail、t15 55 pass/52 fail |
+| 观察回执修复（2026-11-18） | t11 **70 步 pass**（oracle 22/22、3 tool errors、31 unverified、1000s）；t12 **100 步 pass**（oracle 13/13、3 tool errors、44 unverified、1781s）；t11/t12 `snapshot_mismatch` 均 **0**；t12 仍有 query 后 `snapshot_missing` 1 次、`snapshot_expired` 2 次；t11 仍有 1 次 `snapshot_expired`、1 次 `window_target_not_found`；离线 26/634、runtime 18/18 |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；dirty 组 t11/t15/t16 PASS（AC2 full）、t12/t13/t14/t17 SKIP；任务集 17 条 |
 | 打包 | `npm pack --dry-run` 47 文件 |

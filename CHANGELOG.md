@@ -39,6 +39,18 @@
 - **0.52.13 canary 真机**：`verify-runtime` 17/17；`live-action.e2e` 33/33；`probe-driver-shape` 确认默认 markdown/显式 elements、session 归属、capture-only；`probe-modifier` `ok=true / dragModifierSupported=true`；combo/private/from_zoom/native-freshness 全通过；t14 在 deepseek 上 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`），opencode capture-only **76 pass / 64 fail**（fail 轮 Paste 未落、单元格全 false；非兼容错误）；t17 capture-only **29 步 pass**（从 post-fix 86 步降下来；A1 exact、0 假成功）；t11 **77 步 / capture-only 76 步**、t12 **112 步 / capture-only 98 步** pass；t15 **55 步 pass / 52 步 fail**（capture-only 复跑未用 Ctrl+click，文件未移动；非兼容错误）；t14 capture-only **76 pass / 64 fail**（fail 轮 Paste 未落）。0.53 的 `screenshot_frame` 已预留，待真机验证。
 - **capture-only 回归（t11/t12）**：opencode-go/deepseek-v4.1-flash、0.52.13、脏桌面复跑，均 pass。t11 **76 步**（73 inner、3 tool errors、24 unverified、1224s；38 observe/16 click/6 drag/5 activate/3 zoom/1 type；oracle 22/22 全 true；另有 2 次 `screen_observe` 窗口标识失败）；t12 **98 步**（96 inner、6 tool errors、44 unverified、1378s；41 observe/24 click/11 key/7 type/5 right-click/3 activate/3 double-click/1 set_value；oracle 13/13 全 true）。两条轨迹均无 `screenshot_context_missing`/`stale_element_token`；错误为 snapshot_missing/mismatch/expired、前台锁、`window_target_not_found`，模型 1–2 步内恢复；t11 仍有 `screen_observe(window="17306228"/"s4-t11-canvas")` 参数误用，按拒绝文本改走窗口列表后恢复。
 
+**2026-11-18（第十轮）：观察回执状态——native/vision 快照 id、query 清除说明、密码回显**
+
+### 2026-11-18 Added（第十轮）
+
+- **native/vision 回执补快照 id**：`renderObserveText` 原来只在 ax 分支打印 `snapshot_id`；t11/t12 的 4 次 `snapshot_mismatch` 全部发生在 native/native 降级观察后，模型只能沿用或猜旧 id。现在 native/vision 文本回显 `快照 s...；全局单例`，无 id 时显示 `无快照 id`，不伪造。
+- **snapshot_mismatch 带当前窗口**：`validateSnapshotId` 的拒绝文本现在包含当前快照的 `app · title pid window_id`；跨窗口观察后误用旧 id 时，模型能直接看出“当前快照属于另一个窗口”，而不是只看到一个序号。
+- **query 清除语义明确**：`screen_observe(query=...)` 会 `clearSnapshot()`；header/footer 现在明确“未建立动作快照（旧动作快照已清除）”，query 桌面降级/模式失败分支也追加同一说明；`query` 参数描述同步。
+- **全局单例说明**：`screen_observe` 描述改为“任意新观察（含其它窗口、ax→native）都会替换 id，旧 snapshot_id 失效”；`computer_do` 描述增加通用前置“坐标/element 动作前先全量 observe；query 只读且清除旧快照；任意新观察替换 snapshot_id”。
+- **数字 window 提示按来源区分**：`pickObserveTarget` 的 notFound 记录 `source`；`window` 纯数字仍提示改用 `window_id`，`window_id` 失败改为“不存在，请从列表选择有效 id 或改用 window=...”，不再误提示“改用 window_id”。
+- **密码框回执脱敏**：`describeClickTarget` 对 `is_password:true` 的 Edit/ComboBox 等不再回显 `entry.value`，改为 `值（已隐藏）`；普通输入框保持原回显。
+- **测试/运行时**：新增 `observe.coords` C19/C20（native 文本 id/全局单例、跨窗口旧 id 拒绝）、`config.plumbing` B15b、`action.echo` E33、`dispatcher.test` A18；`observe.truth` T21 增加“旧动作快照已清除”；`verify-runtime` 增加 native 文本 id 检查。离线 **26 套 / 634 项**，运行时 **18/18**。真机复跑（opencode-go/deepseek-v4.1-flash、0.52.13、脏桌面）：t11 **70 步 pass**（22/22；`snapshot_mismatch` 0；仍有 1 次 TTL、1 次 `window_target_not_found`、2 次保存后标题观察失败）、t12 **100 步 pass**（13/13；`snapshot_mismatch` 0；仍有 2 次 TTL、1 次 query 后 `snapshot_missing`、前台锁）。
+
 ### 2026-11-17 Added（第六轮）
 
 - **click 家族 `modifier`**：`computer_click`/`double_click`/`right_click` 新增 `modifier: string[]`，支持 ctrl/shift/alt/win，`control→ctrl`、`option→alt` 规范化去重；Windows 上非空 modifier 自动 `forceForeground`（SendInput 前台注入）并在回执说明。driver 0.23.2 的 element 与坐标两条路径均已在 WinForms 探针中确认 Ctrl 到达目标。

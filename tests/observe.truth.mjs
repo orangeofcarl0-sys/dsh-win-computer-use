@@ -154,7 +154,8 @@ await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
 const qobs = await call('screen_observe', { window_id: 7, mode: 'ax', query: '保存' })
 check('T21: query 只读、无快照、仅匹配元素', qobs.ok === true && qobs.snapshotId === null
   && qobs.elementCount === 1 && /query 过滤视图（只读）/.test(raw(qobs))
-  && /未建立动作快照/.test(raw(qobs)), raw(qobs).split('\n').slice(0, 8).join(' | '))
+  && /未建立动作快照/.test(raw(qobs)) && /旧动作快照已清除/.test(raw(qobs)),
+  raw(qobs).split('\n').slice(0, 8).join(' | '))
 const qclick = await call('computer_click', { element: 0 })
 check('T22: query 后 element 点击被拒', qclick.ok === false
   && /snapshot_missing|没有可用的观察快照/.test(raw(qclick)), raw(qclick))

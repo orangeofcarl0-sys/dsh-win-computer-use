@@ -72,7 +72,8 @@ pickObserveTarget
 - 缺 `bounds` 时：`screenOrigin=null`、`coordinateSpace=screen-physical-px`，头部明确警告“不要直接点击”。
 - 同 pid 多窗口：`window_id` 精确匹配优先；否则按 on-screen、z_index、标题具体度排序。同标题匹配多个窗口时头部/降噪 stub 都明确提示 `目标匹配 N 个窗口`，要求改用 `window_id`。
 - 目标列表排除插件自己的 `Cua.AgentCursorOverlay*` 光标覆盖层；显式指定 overlay 返回专门错误。失败观察的快照策略：`picked.none` 清空；`picked.notFound` 保留新鲜旧快照并提示；桌面降级/`mode.fail` 只有失败目标与当前快照同 pid/window 时才清空。
-- `query` 非空是**只读过滤视图**：驱动返回过滤树后跳过 `diffObserve`/`cacheSnapshot`/`dedupEvaluate`，并 `clearSnapshot()`（query 调用已让旧 token 失效）；输出 `snapshotId=null`，header/footer 明确“编号不能用于动作/from_zoom”，需要动作时重新全量观察。
+- `query` 非空是**只读过滤视图**：驱动返回过滤树后跳过 `diffObserve`/`cacheSnapshot`/`dedupEvaluate`，并 `clearSnapshot()`（query 调用已让旧 token 失效）；输出 `snapshotId=null`，header/footer 明确“未建立动作快照（旧动作快照已清除）/编号不能用于动作/from_zoom”，需要动作时重新全量观察。
+- **快照是全局单例**（`lib/snapshot.js:10-11`）：任意成功全量观察（ax/vision/native，含其它窗口）都会替换当前 `snapshot_id`。native/vision 文本回显当前 id 与“全局单例”，避免模型沿用上一个窗口/上一次观察的 id；旧 id 在动作中会得到 `[snapshot_mismatch]`。
 - 权限面 30s 缓存；`apply`/降级时清空。去重仍发生在驱动工作之后，但 stub 现在带关键控件，模型不必为“编号在哪”再 force/native。
 - 未找到目标、窗口级观察失败、桌面降级、native 失败：清空旧快照，避免动作继续落到旧窗口。
 - `dedupEvaluate` 的 suspect 必须在 `cacheSnapshot` 之前捕获；安装新快照会清 suspect。
@@ -168,6 +169,7 @@ ensureDriverInfo（--version/status，进程级缓存）
 - 元素点击现在同样受 TTL 约束；过期直接 `[snapshot_expired]`。
 - `markConsumed` 只记录最后一次动作；`markSuspect` 表示状态不确定，不阻断后续动作。
 - `screen_zoom` 不再手算 `crop.scale`：驱动 0.23.2 会加约 20% padding 并可能缩放，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，点击/拖拽必须用 `computer_click/drag(..., from_zoom=true)`；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且晚于当前观察。整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。请求区域宽 >500px 在插件侧直接失败，不调用驱动。
+- 快照是全局单例：动作回执不携带 snapshot id，观察回执是唯一 id 来源；native/vision 全量观察必须在文本中回显当前 id，query 回执明确旧快照已清除。
 - `nativeImage=auto/compact` 不再做整窗 zoom：驱动 zoom 区域宽上限 500px，无法整窗缩放；超限时明确失败并提示改 ax/vision 或 screen_zoom。
 
 ## 5. 快捷键/XAML
@@ -305,4 +307,6 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 | `foreground_unavailable` | false | 不 consume | 先让目标前台/换控件 |
 | `delivery_failed` | false | suspect | 先 observe，必要时 foreground |
 | `refusal` / `error` | false | 不 consume | 按拒绝原因处理 |
+| `snapshot_missing` | false | 无 | 全量 observe（query 只读且会清除旧快照） |
+| `snapshot_mismatch` | false | 不清空 | 用最新 observe 的 id；拒绝文本带当前快照的 app/title/pid/window_id；快照是全局单例，跨窗口观察也会替换 |
 | `snapshot_expired` | false | cleared | 重新 observe |

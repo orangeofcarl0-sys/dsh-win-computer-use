@@ -405,8 +405,8 @@ L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查
 ```bash
 npm install
 npm run check                      # 语法检查 + bash -n（26/26 JS）
-npm test                           # 26 套离线测试，629 项检查
-node verify-runtime.mjs            # 真驱动运行时验证（17 项；需 cua-driver）
+npm test                           # 26 套离线测试，634 项检查
+node verify-runtime.mjs            # 真驱动运行时验证（18 项；需 cua-driver）
 dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
   --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')"   # 真机 dsh 加载（headless 需先启用 credentials）

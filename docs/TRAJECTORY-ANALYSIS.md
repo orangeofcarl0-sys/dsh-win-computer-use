@@ -57,7 +57,7 @@
 - t15：`12-53-31`（r1/r2/r3）
 - t14 旧题面：`2026-11-17T07-12-15`（141/71）；新题面：`10-14-28`（59）、`10-22-40`（41/57）
 - t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
-- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）、`08-14-46`（capture-only t11 76 / t12 98）
+- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）、`08-14-46`（capture-only t11 76 / t12 98）、`10-26-53`（回执修复后 t11 70 / t12 100）
 
 ## 2. t11：不是“不会画”，是焦点 + 首次拖拽 + 状态判定
 
@@ -70,13 +70,14 @@
 
 关键行为：模型从状态栏坐标反推画布原点：drag 起点 `956,679`，状态栏 `77,79` → 原点 `879,600`。这是它后来能精确画椭圆/直线的关键。
 
-### 2.2 77 / 76 步 pass 的差异
+### 2.2 77 / 76 / 70 步 pass 的差异
 
 - 开头同样遇到“调色板不在 AX 树”，模型用 `screen_observe(query="色")` + 全量 observe 恢复 87 个元素。
 - 它总结出 **第一次 drag 只把光标移到起点、不真正画**：背景 drag 无效果，`activate` 后第一次 foreground drag 仍空白，第二次 foreground drag 才出现形状。
 - 后续椭圆/直线主动重复 drag，7 次完成 3 个形状，比 84 步少。
 - 保存阶段仍然很贵：Save As 对话框的 `Ctrl+A`/输入被主窗口或导航树抢走；模型用 native 截图确认“out 文件夹、文件名、PNG 类型”，最后点击保存时出现 `window_target_not_found`，但文件实际已保存。
 - capture-only 复跑 **76 步 / 1224s / 3 tool errors / 24 unverified**（另有 2 次 `screen_observe` 窗口标识失败）：38 observe、16 click、6 drag、5 activate、3 zoom、1 type；仍是 activate → 画布焦点 click → drag 的纪律，红/蓝各重画一次后三色 ROI/coverage/precision 全绿。错误集中在 `snapshot_missing`/`snapshot_mismatch` 与 `screen_observe(window="17306228"/"s4-t11-canvas")`（数字/标题当窗口标识），按拒绝文本改走窗口列表后恢复；无 `screenshot_context_missing`/`stale_element_token`。
+- 回执修复后 **70 步 pass**：native/vision 文本带当前快照 id 后不再猜 `snapshot_id`，`snapshot_mismatch` 为 0；剩余 1 次 TTL、1 次 `window_target_not_found`、2 次保存后标题观察失败，均 1 步恢复。
 
 ### 2.3 49 步 fail：最快但质量最差
 
@@ -289,21 +290,23 @@
 - 23 次 observe、21 次 changed observe；模型不是盲目重试，每一步都在确认文件列表/文件夹切换。没有 zoom、没有 drag、没有错误恢复，是五条里最接近“题面即策略”的一条。
 - capture-only 复跑（52 步 fail）：模型没有使用 Ctrl+click，先用 `screen_zoom` 裁 550px（>500 被拒），随后只选中一个文件反复 F2/右键，最终没有完成 docs/images/archive 移动；错误为 zoom 过宽、snapshot 过期、`screen_observe(pid)` 未知参数。文件操作未发生，不是 capture/token 兼容错误；t15 的方差来自文件列表选择策略。
 
-**t11（77 步 pre-capture；capture-only 76 步）**
+**t11（77 步 pre-capture；capture-only 76 步；回执修复 70 步）**
 
 - 模型在每次 drag 前都先 `computer_activate`，再点一次画布 `(959,690)` 取得焦点；5 次 drag 对应三色图形，其中红/蓝各重画一次。`activateBeforeDrag=true`、`focusClickAtDragStart=true`，说明它已经学会“画布 drag 需要前台+焦点”，但每个图形都重复一次，成本高。
 - 46 次 observe 中有 12 次 native、4 次 query；模型频繁用截图/过滤树确认颜色、线宽和图形是否出现。`computer_drag` 平均 7.8s，是工具耗时最高的项。
 - 3 个快照类错误都恢复了：无快照点击、矩形工具的 `stale_element_token`、`snapshot_mismatch`；最后的 `screen_observe(window="s4-t11-canvas")` 失败是因为保存后窗口标题变成 `replica.png`，不是图形失败。
 - 结论：t11 的主要成本不是“不会画”，而是**焦点纪律 + 每步视觉确认**；forced drag 前置单次已经避免了双画，但模型仍会主动重复 activate/focus。
 - capture-only 复跑 76 步 / 1224s / 3 tool errors / 24 unverified（另有 2 次 `screen_observe` 窗口标识失败）：38 observe、16 click、6 drag、5 activate、3 zoom；activate → 画布焦点 click → drag 的纪律不变，红/蓝各重画一次，oracle 22/22 全 true。错误为 snapshot_missing/mismatch 与 `screen_observe(window="17306228"/"s4-t11-canvas")`（数字/标题当窗口标识），按拒绝文本恢复；无 capture/token 兼容错误。
+- 回执修复后 **70 步 / 1000s / 3 tool errors / 31 unverified**：28 observe、22 click、4 drag、4 activate、3 zoom、4 type、4 key；`snapshot_mismatch` **0**（此前 2 次）；仍有 1 次 `snapshot_expired`、1 次 `window_target_not_found`、2 次保存后窗口标题观察失败（`..png`/`另存为` 已关闭），均 1 步恢复；oracle 22/22。
 
-**t12（112 步 / 1581s / 41 unverified；capture-only 98 步）**
+**t12（112 步 / 1581s / 41 unverified；capture-only 98 步；回执修复 100 步）**
 
 - 58 次 observe、26 次 native、15 次 query；模型用原生截图和 query 反复检查幻灯片对象/文本框，而不是只靠 AX 树。28 次 click、8 次 key、4 次 type、2 次 double-click、1 次 set_value；没有 drag。
 - 41 次 unverified 全部来自 PowerPoint 的前台文本/形状/格式动作；0 delivery failure，说明动作都送达，只是应用不提供可验证回执。oracle 通过，模型用 native/query 自行确认。
 - 与 DeepSeek 的 t12（152 步/1069s；39 click/29 key/12 zoom/5 set_value/77 unverified）相比：opencode 少 40 步、少 11 次 click、少 21 次 key、少 10 次 zoom，但多 9 次 native、15 次 query，墙钟反而多 512s。**步数更省，单步更贵**。
 - 两个 `snapshot_missing` 都是“先点后观察”的顺序错误，模型立即补 observe；没有 stale/mismatch。
 - capture-only 复跑 98 步 / 1378s / 6 tool errors / 44 unverified：41 observe、24 click、11 key、7 type、5 right-click、3 double-click、1 set_value；错误为 snapshot_expired/mismatch、`foreground_unavailable`、`window_target_not_found`，另有 1 次 key `delivery_failed` 与 1 次 `screen_observe` 失败，均恢复；oracle 13/13 全 true。比 112 步少 14 步，仍没有 drag，格式面板/前台锁成本结构未变。
+- 回执修复后 **100 步 / 1781s / 3 tool errors / 44 unverified**：45 observe、27 click、10 key、5 type、3 double-click、2 set_value、5 activate；`snapshot_mismatch` **0**（此前 2 次）；仍 2 次 `snapshot_expired`、1 次 query 后 `snapshot_missing`（模型在 `query:"重复"` 后仍用旧 id，未读“旧动作快照已清除”）、前台锁；oracle 13/13。
 
 **t14（60 → 59 步）**
 
@@ -328,7 +331,10 @@
 | 快照守卫 | `snapshot_missing`（t11/t12/t14/t17）、`snapshot_expired`（t14）、`stale_element_token`（t11）、`snapshot_mismatch`（t11/t14） | 模型先点后观察、旧 snapshot_id、capture 预取替换 index map | 重新 observe，1–2 步 | 守卫按设计 fail-closed；`markTokensStale` 让旧编号明确失效 |
 | 前台锁 | t14 `foreground_unavailable` + `bring_to_front` refused；t17 两次 activate refused；`delivery_failed` key | Windows 前台锁/另一个窗口（ZCode/Chrome/对话框）持有前台 | `computer_activate`、foreground 重试、重新 observe | L3 已尽力；拒绝时不假装成功 |
 | 参数 schema | t17 `screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)`；t14 capture-only r1 `computer_click(window_id)`；zoom 宽 1090/700>500 | 模型套用了别的工具的参数 | 按拒绝文本重发，1 步 | 保持拒绝；新增 `PARAM_HINTS` + `computer_do` 常用参数速查，不自动改写参数 |
-| 数值当窗口标题 | t14 `window:"2231898"`、t17 `window:"7081698"` | 模型把 window_id 填进 window | 候选列表后改用 window_id/标题 | fail-closed，不静默回退 |
+| 数值当窗口标题 | t14 `window:"2231898"`、t17 `window:"7081698"`；t11 `window:"17306228"` | 模型把 window_id 填进 window | 候选列表后改用 window_id/标题 | fail-closed，不静默回退；`window`/`window_id` 失败提示已按来源区分 |
+| native/视觉观察无 snapshot id | t11 step 59→60（s28f vs s290）、step 65→66（s294 vs s295）；t12 step 9→10（s29e vs a0）、step 17→18（a3 vs a4） | `renderObserveText` 只在 ax 分支打印 `snapshot_id`，native/vision 文本没有；模型只能沿用/猜序号 | 重新 observe，1 步恢复 | **已修**：native/vision 文本回显 `快照 s...；全局单例`；回执修复后 t11/t12 mismatch 均为 **0** |
+| query 清除旧快照未说明 | t11 step 19 drag `snapshot_missing` | query 会 `clearSnapshot()`，但文案只说“未建立动作快照” | 全量 observe + 带 snapshot_id 重试，1 步 | **已修**：query header/footer 明确“旧动作快照已清除” |
+| 密码框值回显 | 静态审计发现 `describeClickTarget` 对 Edit 回显 value，未检查 `is_password` | 快照存了密码值，回执可能带出 | 不适用 | **已修**：密码框回执输出 `值（已隐藏）` |
 | `screenshot_context_missing` | t17 pre-fix seq 74-76 | native 截图被误当 click capture；裸 code 未被识别 | 重新 observe/zoom | **已修**：`pointerCaptureReady` + `engineRefusal` 裸 code |
 
 ### 10.4 轨迹驱动的修复
@@ -337,21 +343,22 @@
 
 1. **native 截图 ≠ 像素动作 capture**：`cacheSnapshot` 原来用 `hasCapture = capture_id || screenshot_png_b64`；native observe 有截图，于是 `ensurePointerCapture` 跳过预取。但 0.52 的 click 仍报 `no_screenshot`。现在新增 `pointerCaptureReady`，只有 `ensurePointerCapture` / `screenZoom` 显式建立 capture 后才为 true；native 截图只用于模型展示，不再冒充点击上下文。
 2. **裸 `code` 拒绝必须 fail-closed**：`engineRefusal` 原来只认 `effect/status/refusal/ok:false/error_code` 和三个 code；`screenshot_context_missing` 落到了成功分支。现在 `FAILURE_CODES` 包含 `screenshot_context_missing`、`window_target_not_found`、`target_not_found`、`stale_element_token`、`element_not_visible`、`menu_path_unavailable`，裸 code 也会返回拒绝。
-3. **测试锁住**：`action.echo` E31/E32 覆盖裸 `screenshot_context_missing` / `window_target_not_found` 回执；`action-bounds` D11/D12 覆盖 capture-only 预取与 token 保留；`config.plumbing` B12-B16 覆盖参数误用提示与数字 window 提示；`delivery.failures` 覆盖前台锁提示。离线 26 套 / 629 项全绿。
+3. **测试锁住**：`action.echo` E31/E32 覆盖裸 `screenshot_context_missing` / `window_target_not_found` 回执；`action-bounds` D11/D12 覆盖 capture-only 预取与 token 保留；`config.plumbing` B12-B16 覆盖参数误用提示与数字 window 提示；`delivery.failures` 覆盖前台锁提示。离线 26 套 / **634** 项全绿。
 4. **post-fix 真机**：t17 86 步、1 个 snapshot_missing、0 假成功；t14 59 步、0 stale/mismatch、oracle 全 true。t14/t17 都仍 pass。
 5. **capture-only 验证**：0.52+ 改用 `include_accessibility_tree:false` 后，t17 从 86 步降到 **29 步**（9 observe/5 click/4 zoom/1 type；A1 exact、0 假成功）；token 不再因像素预取而失效，模型回到 zoom/from_zoom 路径。2 个错误是 1 次 snapshot_missing + 1 次 snapshot mismatch，均在 1 步内恢复。 t14 capture-only r1 **76 步 pass**（全 true）；r2 **64 步 fail**（单元格全 false，粘贴目标偏离后把空区域做成图表；非兼容错误），说明 t14 仍是高方差任务，capture-only 不保证每次路径稳定。
+6. **观察回执状态缺口（2026-11-18 复盘）**：对照 t11/t12 原始 session 发现，4 次 `snapshot_mismatch` 都紧跟在 native/native 降级观察之后；native 文本不打印新 snapshot id，模型只能沿用或猜序号（t11 step 15 猜对 s27c，step 60/66 猜错，t12 step 10 跨窗口仍用 PowerPoint 旧 id）。另有 1 次 `snapshot_missing` 来自 query 清空快照但文案未说明。修复：`renderObserveText` 的 native/vision 分支回显 `快照 s...；全局单例`；query header/footer 明确“旧动作快照已清除”；数字 `window`/`window_id` 提示按来源区分；`snapshot_mismatch` 拒绝文本带当前快照的 app/title/pid/window_id；密码框点击回执改为 `值（已隐藏）`。测试新增 C19/C20、T21 断言、B15b、E33、A18，离线 26 套 / 634 项；真机 `verify-runtime` 18/18（新增 native 文本 id 检查）。回执修复后 t11 **70 步 pass**、t12 **100 步 pass**，两者 `snapshot_mismatch` 均 **0**；t12 仍有 1 次 query 后 `snapshot_missing`（模型未读清除提示）和 2 次 TTL。
 
 ### 10.5 跨 provider 对比（同题面、非受控 A/B）
 
 | 任务 | DeepSeek 官方 | opencode-go | 观察 |
 |---|---|---|---|
-| t11 | 58 / 94 步 | 77 步 / capture-only 76 步 | capture-only 与 77 步同量级；方差主要来自 activate/focus 重复 |
-| t12 | 152 步 / 1069s | 112 步 / 1581s；capture-only 98 步 / 1378s | capture-only 比 DeepSeek 少 54 步，但 native/query 更多、单步更贵 |
+| t11 | 58 / 94 步 | 77 步 / capture-only 76 / 回执修复 70 步 | 回执修复后 mismatch 0、步数下降；方差仍来自 activate/focus 重复 |
+| t12 | 152 步 / 1069s | 112 步 / 1581s；capture-only 98 / 回执修复 100 步 | 回执修复后 mismatch 0，但 query 后旧 id 仍多花 1 步；native/query 多、单步更贵 |
 | t14 | 53 / 51 pass，64 fail | 60 / 59 / 76 pass，64 fail | 两边都有失败样本；t14 是高方差任务，capture-only 不改变粘贴目标选择 |
 | t15 | 85 / 67 步 | 55 pass / 52 fail | 最好样本更省 click/key；capture-only 复跑未用 Ctrl+click，失败是文件选择策略 |
 | t17 | 37 / 75 步 | 40 步（pre-fix）/ 86（post-fix） | 最好样本同量级；post-fix 走手动输入路径，真实性优先 |
 
-结论：**没有“opencode 一定更快”**。opencode 在 t12/t15 更省步数，t11/t14/t17 与 DeepSeek 同量级或略慢；capture-only 后 t12 98 步 / 1378s，仍说明少步数不等于低墙钟（native/query 单次 4–5s）。驱动兼容层对两个 provider 的行为一致，差异主要来自模型策略。
+结论：**没有“opencode 一定更快”**。opencode 在 t12/t15 更省步数，t11/t14/t17 与 DeepSeek 同量级或略慢；capture-only 后 t12 98 步 / 1378s、回执修复后 100 步 / 1781s，说明长流程墙钟仍受 native/query 与前台锁影响。驱动兼容层对两个 provider 的行为一致，差异主要来自模型策略。
 
 ### 10.6 剩余摩擦与建议
 

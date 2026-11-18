@@ -426,8 +426,8 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：26 套、629 项检查（2026-11-18；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
-- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 17/17；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
+- 离线：26 套、634 项检查（2026-11-18；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。t11/t12/t15 的模型行为与失败模式见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)。
 - 证据报告：[VERIFICATION](../VERIFICATION.md)。
 

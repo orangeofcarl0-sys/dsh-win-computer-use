@@ -83,6 +83,7 @@ export async function cuaCall(tool, args = {}) {
         { element_index: 4, element_token: 'status', role: 'Text', label: es.status, frame: { x: 100, y: 550, w: 100, h: 20 } },
         { element_index: 5, element_token: 'doc', role: 'Document', label: '文本编辑器', value: es.body, frame: { x: 100, y: 100, w: 600, h: 400 } },
         { element_index: 6, element_token: 'file-menu', role: 'MenuItem', label: '文件', frame: { x: 100, y: 100, w: 60, h: 20 }, enabled: true },
+        { element_index: 20, element_token: 'pw', role: 'Edit', label: '密码:', value: 'hunter2', is_password: true, frame: { x: 800, y: 400, w: 200, h: 30 }, enabled: true },
         ...(process.env.CUA_MENU_POPUP === '1'
           ? [
               { element_index: 7, element_token: 'm-new', role: 'MenuItem', label: '新建', frame: { x: 110, y: 130, w: 60, h: 20 }, enabled: true },
@@ -136,6 +137,12 @@ check('E2: 坐标点击 ok', r.ok === true, raw(r))
 ;({ call, obs } = await fresh())
 r = await call('computer_click', { element: 2, snapshot_id: obs.snapshotId })
 check('E3: 元素点击回显编号/标签', /目标 \[2\] 按钮 "否\(N\)" @\(465,171\)/.test(raw(r)), raw(r))
+
+// 2b. 密码框回执不得回显值
+;({ call, obs } = await fresh())
+r = await call('computer_click', { element: 20, snapshot_id: obs.snapshotId })
+check('E33: 密码框点击回执不回显值', r.ok === true
+  && !/hunter2/.test(raw(r)) && /值（已隐藏）/.test(raw(r)), raw(r))
 
 // 3. 同目标连续点击 → 抑制
 ;({ call, obs } = await fresh())

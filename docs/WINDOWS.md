@@ -155,6 +155,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 ## 5. 观察与结构密码扫描
 
 - `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建新快照；如果已有新鲜旧快照，会明确提示它仍有效（只有同窗口失败才清空）。
+- **快照是全局单例**：任意窗口的新观察都会替换 `snapshot_id`；native/vision 回执文本回显当前 id 与“全局单例”，query 只读视图会清除旧快照。动作携带上一个窗口/上一次观察的 id 会得到 `[snapshot_mismatch]`。
 - 窗口级 `get_window_state` 失败 → `get_desktop_state` 桌面级降级：`mode=desktop-visual`、`visualOnly=true`，坐标是桌面像素，**不能直接用于窗口动作**。
 - `driverAccess` 来自 `check_permissions`（只读）：`elevated`、`integrityLevel`、`uia`、`postMessage`；结果头会显示权限面摘要。
 - `passwordScan: auto`（Windows）在观察时 spawn：
@@ -227,7 +228,7 @@ node tests/live-action.e2e.mjs 3
 node verify-runtime.mjs
 ```
 
-16 项：dispatcher 可见 2 / catalog 21 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` / native 图片落盘 / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致。只读观察，不执行桌面动作。
+18 项：dispatcher 可见 2 / catalog 21 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` / native 图片落盘 / native 文本快照 id / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致。只读观察，不执行桌面动作。
 
 ### 7.4 密码框
 
@@ -266,6 +267,8 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | A1 点成 B1 / 坐标偏移一列 | 按模型侧缩放预览估算原图像素 | 用 `screen_zoom`（宽≤500）+ `from_zoom=true`；头部 `源图 W×H` 才是点击空间 |
 | `[private_drag_zoom_unsupported]` | 私有拖拽未复刻 driver zoom padding/scale | 用窗口截图坐标重发；不要 modifier+from_zoom |
 | `[private_drag_no_frame]` | 快照缺 `screenOrigin`/截图尺寸 | 先 `screen_observe`（不要 query 只读视图）再拖 |
+| query 后动作报 `snapshot_missing` | query 只读视图会清除旧动作快照 | 不带 query 重新 `screen_observe`；回执已明确“旧动作快照已清除” |
+| 跨窗口观察后 `snapshot_mismatch` | 快照是全局单例，观察另一个窗口已替换 id | 用最新观察的 `snapshot_id`；拒绝文本会带当前快照的 app/title/pid/window_id，先确认它属于哪个窗口 |
 | 私有拖拽 `foreground_unavailable` / `sendinput_blocked` | 前台锁或 UIPI 阻止 SendInput | 未发送输入；先 `computer_activate` 或提升 helper 完整性后再试一次；不要重复已发送的 drag |
 | 剪贴板 read 为空 | 被其它进程占用 | write 后 verify/重试；用粘贴流 |
 | `app_launch` 后无法关闭 | High IL + UIPI | 提示用户手动关闭；不要按进程名杀 |

@@ -204,6 +204,8 @@ async function runTool(name, args, agent) {
   const v = r.value
   const ok = v?.ok === true && v?.image && v.image.mediaType === 'image/png' && v.image.bytes > 0
   check('native 直读：图片块 + attachments 落盘', ok, `mode=${v?.mode} ${v?.image?.mediaType} ${v?.image?.bytes}B saved=${savedImages.length}`)
+  check('native 文本带当前快照 id', /快照\s*s\w+/.test(v?.result ?? '')
+    && /全局单例/.test(v?.result ?? ''), (v?.result ?? '').split('\n')[2]?.slice(0, 90))
   // render 必须产出图片内容块
   const def = registered.get('screen_observe')
   const blocks = def.output.render({ mode: 'native' }, v)

@@ -8,11 +8,11 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **26 套 / 629 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **26 套 / 634 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **26/26 JS + 2 个 bash -n** | Windows | `npm run check` |
-| 真驱动运行时 | **17/17**（0.23.2 与 0.52.13 均通过） | Windows 11 / cua-driver 0.23.2 + 0.52.13 | `node verify-runtime.mjs` |
+| 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；新增 native 文本快照 id 检查） | Windows 11 / cua-driver 0.23.2 + 0.52.13 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
-| 0.52.13 canary 探针 | **✅**：形态探针确认默认 markdown/显式 elements、session 归属、capture-only 截图上下文；`live-action.e2e` **33/33**；modifier probe **ok=true / dragModifierSupported=true**；combo/private/from_zoom/native-freshness 均通过；插件像素 click 的 `move_cursor` 实测 screen (762,595) = local (301,235) + origin (461,360)，无 `origin` 字段，marker 命中；t14 在 deepseek 上 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`），opencode capture-only **76 步 pass / 64 步 fail**（fail 轮单元格全 false、图表 title/categories true，Paste 未落；非兼容错误）；t17 在 deepseek 上 **37 步**，opencode pre-fix **40 步**、post-fix **86 步**、capture-only **29 步**（A1 exact；0 假成功）；t11 **77 步 / capture-only 76 步**、t15 **55 步**（capture-only 复跑 52 步 fail：未用 Ctrl+click，文件未移动；非兼容错误）、t12 **112 步 / capture-only 98 步**全部有通过样本（opencode-go/deepseek-v4.1-flash，全部 oracle 检查 true；capture-only 轨迹无 `screenshot_context_missing`/`stale_element_token`） | Windows 11 / cua-driver 0.52.13 | `evals/probe-*.mjs`；`tests/live-action.e2e.mjs`；`evals/headless-run.mjs --tasks t14/t17/t11/t15/t12` |
+| 0.52.13 canary 探针 | **✅**：形态探针确认默认 markdown/显式 elements、session 归属、capture-only 截图上下文；`live-action.e2e` **33/33**；modifier probe **ok=true / dragModifierSupported=true**；combo/private/from_zoom/native-freshness 均通过；插件像素 click 的 `move_cursor` 实测 screen (762,595) = local (301,235) + origin (461,360)，无 `origin` 字段，marker 命中；t14 在 deepseek 上 **2/3 pass**（53/51 步全绿；r2 64 步仅 `Sales series values=false`），opencode capture-only **76 步 pass / 64 步 fail**（fail 轮单元格全 false、图表 title/categories true，Paste 未落；非兼容错误）；t17 在 deepseek 上 **37 步**，opencode pre-fix **40 步**、post-fix **86 步**、capture-only **29 步**（A1 exact；0 假成功）；t11 **77 步 / capture-only 76 步**、t15 **55 步**（capture-only 复跑 52 步 fail：未用 Ctrl+click，文件未移动；非兼容错误）、t12 **112 步 / capture-only 98 步**全部有通过样本（opencode-go/deepseek-v4.1-flash，全部 oracle 检查 true；capture-only 轨迹无 `screenshot_context_missing`/`stale_element_token`）；观察回执修复后 t11 **70 步 pass**、t12 **100 步 pass**（两者 `snapshot_mismatch` 均为 0；t12 仍有 query 后 `snapshot_missing` 1 次、TTL 2 次）；`verify-runtime` **18/18** | Windows 11 / cua-driver 0.52.13 | `evals/probe-*.mjs`；`tests/live-action.e2e.mjs`；`evals/headless-run.mjs --tasks t14/t17/t11/t15/t12` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | S4 oracle 双向验证 | **2026-11-17：t11/t15 PASS、t12/t14/t17 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过；t17 setup 现含 PDF page-3 readiness） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15,t14,t17` |
 | S4 真机任务 | **t01 新题面 5/5 pass**（17/32/8/19/11 步，median 17；1 次 exploratory 32 步）；**t05 3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；TabState restored |
@@ -277,7 +277,7 @@ cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
 | 2026-11-15 t01 ×3 | setup error ×3 | 当前 Notepad 窗口仍有 2 个用户已修改标签 + 6 个测试标签；三次 seed 都落进该窗口（`owned=False`），setup fail closed，steps=0，未调用 dsh | 用户保存/关闭用户标签并清掉测试标签后，重跑 `verify-oracles` 10/10 + t01 三次（auto）+ 一次默认 off |
-| 0.52.13 canary 补测 | **✅ 完成（含失败样本）** | t11 77 / capture-only 76 步、t12 112 / capture-only 98 步 pass；t17 capture-only 29 步 pass；t14 capture-only 76 pass / 64 fail；t15 55 pass / 52 fail（fail 轮未用 Ctrl+click，文件未移动，非兼容错误）（fail 轮 Paste 未落、单元格全 false，非兼容错误）。DeepSeek 官方余额不足与 opencode `config.json` 旧 key 过期已处理 | 继续观察 t14 方差；key 失效时替换 `~/.dsh/.credentials.yaml` 的 `OPENCODE_GO_API_KEY` |
+| 0.52.13 canary 补测 | **✅ 完成（含失败样本）** | t11 77 / capture-only 76 / 回执修复 70 步、t12 112 / capture-only 98 / 回执修复 100 步 pass；t17 capture-only 29 步 pass；t14 capture-only 76 pass / 64 fail；t15 55 pass / 52 fail（fail 轮未用 Ctrl+click，文件未移动，非兼容错误）（fail 轮 Paste 未落、单元格全 false，非兼容错误）。回执修复后 t11/t12 `snapshot_mismatch` 均为 0；t12 仍有 query 后 snapshot_missing 1 次、TTL 2 次。DeepSeek 官方余额不足与 opencode `config.json` 旧 key 过期已处理 | 继续观察 t14 方差；key 失效时替换 `~/.dsh/.credentials.yaml` 的 `OPENCODE_GO_API_KEY` |
 | 部署 | 旧版 | web profile 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | npm 发布 | 未做 | 包名 `dsh-win-computer-use` 可用，账号已登录 | `npm publish --access public`（需用户明确授权） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
@@ -308,10 +308,10 @@ dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
 判据：
 
 - `npm test` 退出码 0，且最后每套都打印“全部通过”；
-- `verify-runtime` 的 `结果：17/17 通过`；
+- `verify-runtime` 的 `结果：18/18 通过`；
 - `live-action` 的 `23/23`（会打开临时记事本窗口；不杀进程，残留标签人工关闭）；
 - `verify-oracles` 的 `10/10`；
-- `npm pack --dry-run` 的 total files = 36；
+- `npm pack --dry-run` 的 total files = 47；
 - headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 21 隐藏（本次实测见 §2.1；§2.1 为 2026-11-12 的 20 隐藏历史记录）。
 - 若 `verify-oracles` 的 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp`。
 

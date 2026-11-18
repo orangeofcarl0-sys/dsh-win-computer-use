@@ -456,7 +456,7 @@ function observeToolDefs(ctx, cfg, wrap) {
       '观察屏幕：目标窗口的"编号 + 控件 + 坐标"界面树（AX，零视觉成本），文本里的 @(x,y) 与 computer_click 同空间可直接传。' +
       '动作前必须先观察取快照（60s 过期）；同一快照可连续动作，界面没变不必反复观察。' +
       '成本：ax（文本）< screen_zoom 小裁剪 < native 整窗 PNG 直读——native 同时返回 AX 编号，读字+定位可一次完成；' +
-      '不要同轮先 ax 再 native（后一次会替换快照 id，旧 snapshot_id 随即失效）。' + S3_ASSERT_PROTOCOL,
+      '快照为全局单例：任意新观察（含其它窗口、ax→native）都会替换 id，旧 snapshot_id 失效；不要同轮先 ax 再 native。' + S3_ASSERT_PROTOCOL,
     parameters: {
       window: { type: 'string', description: '目标窗口：pid 或标题子串；window_id 用独立的 window_id 参数。' },
       window_id: { type: 'integer', description: '目标窗口 id（精确匹配；多窗口同 pid 时优先用它，避免选错辅助窗口）。' },
@@ -465,7 +465,7 @@ function observeToolDefs(ctx, cfg, wrap) {
         enum: ['ax', 'vision', 'native'],
         description: 'ax（默认，纯文本）/ vision（观察者描述）/ native（截图直读）；树不可解析时自动降级 native→vision→ax。',
       },
-      query: { type: 'string', description: '只读过滤视图：按控件标签过滤界面树，不建立动作快照；需要对结果动作前请不带 query 重新观察。' },
+      query: { type: 'string', description: '只读过滤视图：按控件标签过滤界面树，不建立动作快照，并清除旧动作快照；动作前请不带 query 重新观察。' },
       maxElements: { type: 'integer', description: '最多返回的编号元素数（默认 120）。' },
       force: { type: 'boolean', description: '强制完整界面树（界面未变时默认只回极简回执以省上下文）；只跳过降噪，不取消 query；需要全量快照时不要传 query。' },
     },
@@ -931,6 +931,7 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
           : '桌面工具入口（dispatcher）：tools 列表稳定；所有桌面动作通过 action="call" + tool + args 路由到隐藏实现。')
         + ' action="catalog" 列出隐藏工具签名；action="status" 查看模式。'
         + ' 常用参数：screen_zoom(window_id,x1,y1,x2,y2;宽≤500) · computer_activate(window_id,pid) · computer_key(key,snapshot_id?,foreground?) · computer_drag(from_x,from_y,to_x,to_y,modifier?,steps?,from_zoom?)。'
+        + '通用前置：坐标/element 动作前先全量 screen_observe（query 只读且会清除旧快照）；任意新观察（含其它窗口）会替换 snapshot_id。'
         + '复杂参数（如 verify 的 expect JSON）先 catalog 取签名；不要把本工具当桌面动作直接执行。',
       parameters: {
         action: { type: 'string', enum: ['call', 'catalog', 'status'], required: true, description: 'call = 路由隐藏工具；catalog = 列出隐藏工具签名；status = 查看模式。' },

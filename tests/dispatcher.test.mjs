@@ -139,6 +139,10 @@ function session(mode) {
   check('A16 computer_do render 输出图片块', Array.isArray(blocks) && blocks.some((b) => b.type === 'image'), JSON.stringify(blocks.map((b) => b.type)))
 
   check('A17 全程 tools 列表未变化', s.reg.size === 2, `reg=${s.reg.size}`)
+
+  const doDesc = s.reg.get('computer_do').description || ''
+  check('A18 computer_do 描述含通用快照前置', /query 只读且会清除旧快照/.test(doDesc)
+    && /snapshot_id/.test(doDesc), doDesc.slice(0, 160))
 }
 
 // ── B. hybrid ───────────────────────────────────────────────────────

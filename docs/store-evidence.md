@@ -39,7 +39,7 @@ rm -rf "$DSH_HOME"
 |---|---|---|
 | 语法 + 安装脚本 | `npm run check` | **26/26** JS + `bash -n install.sh/uninstall.sh` |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **26 套 / 629 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **26 套 / 634 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <probe.yml> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
@@ -120,7 +120,7 @@ verify-runtime.mjs
 node verify-runtime.mjs
 ```
 
-期望：`结果：17/17 通过`。该脚本要求 `cua-driver` 可用且有可见窗口；只读观察，不执行桌面动作。若失败：
+期望：`结果：18/18 通过`。该脚本要求 `cua-driver` 可用且有可见窗口；只读观察，不执行桌面动作。若失败：
 
 - `cua-driver not found` → 设 `CUA_DRIVER_BIN`；
 - 没有可见窗口 → 打开一个普通应用窗口；
