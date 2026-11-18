@@ -1,0 +1,313 @@
+# EVIDENCE — 按日期归档的运行证据
+
+> 目的：保存逐轮步数、探针结果、一次性结论与失败样本；**不描述当前实现**。当前行为见 [README](../README.md) 与各参考文档。
+> 状态：历史证据（append-only；最后追加 2026-11-18）。
+> 相关：[VERIFICATION](../VERIFICATION.md)（当前矩阵）· [TESTING](TESTING.md)（测试方法）· [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)（模型行为分析）。
+
+## 1. 证据约定
+
+1. **失败也记录**：超时、环境态失败、驱动缺陷、模型策略失败都保留；修复后保留根因与守门测试。
+2. **测量产物不入库**：`evals/headless-runs/`、`report-last*.json`、trajectory JSONL、截图、工作区探针均在仓库外或被 gitignore；本文件只保留摘要与可复现命令。
+3. **环境态与插件缺陷分开**：setup ENV、应用缺失、网络不可达、临时 `TEMP` 问题不混入 pass/fail；AC2 `SKIP` ≠ PASS。
+4. **日期是运行日期**，不是文档修改日期；环境列写驱动/模型/宿主版本。
+5. **“当时”标注**：数字随版本变化（如隐藏工具数），历史记录保留当时值并标“当时”。
+
+## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
+
+环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。
+
+| 运行 | 结果 | inner steps | observe | click | type | drag | zoom | activate | errors / unverified | 时长 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| t11 旧题面 | fail 71 | 140 | 86 | 28 | 0 | 8 | 31 | 1 | 7 / 44 | 1161s |
+| t11 显式题面 A | **pass 84** | 82 | 47 | 13 | 1 | 12 | 4 | 1 | 4 / 29 | 734s |
+| t11 显式题面 B | **pass 77** | 76 | 41 | 19 | 2 | 7 | 3 | 1 | 3 / 29 | 707s |
+| t11 显式题面 C | fail 49 | 47 | 22 | 10 | 2 | 7 | 0 | 1 | 1 / 23 | 350s |
+| t11 第七轮 A | **pass 58** | 57 | 32 | 15 | 1 | 4 | 0 | 3 | 6 / 20 | 398s |
+| t11 第七轮 B | **pass 94** | 91 | 29 | 17 | 3 | 9 | 24 | 7 | 3 / 26 | 934s |
+| t11 0.52.13 opencode | **pass 77** | 75 | 46 | 17 | 0 | 5 | 0 | 5 | 4 / 20 | 929s |
+| t11 capture-only | **pass 76** | 73 | 38 | 16 | 1 | 6 | 3 | 5 | 3 / 24 | 1224s |
+| t11 回执修复 | **pass 70** | — | 28 | 22 | 4 | 4 | 3 | 4 | 3 / 31 | 1000s |
+| t12 旧 seed | fail 189 | 187 | 51 | 47 | 20 | 2 | 0 | 0 | 6 / 129 | 1191s |
+| t12 简化无占位柱 | fail 160 | 157 | 64 | 40 | 9 | 4 | 0 | 1 | 2 / 88 | 1192s |
+| t12 保存按钮 | fail 162 | 160 | 62 | 38 | 12 | 1 | 6 | 0 | 5 / 93 | 1189s |
+| t12 占位柱 | fail 178 | 174 | 71 | 61 | 6 | 0 | 5 | 2 | 25 / 77 | 1191s |
+| t12 预填+占位柱 25min | fail 190 | 186 | 79 | 60 | 8 | 0 | 8 | 3 | 10 / 97 | 1492s |
+| t12 第七轮 | **pass 152** | 150 | 50 | 39 | 3 | 0 | 12 | 3 | 9 / 76 | 1069s |
+| t12 0.52.13 opencode | **pass 112** | 110 | 60 | 28 | 4 | 0 | 2 | 5 | 2 / 41 | 1581s |
+| t12 capture-only | **pass 98** | 96 | 41 | 24 | 7 | 0 | 0 | 3 | 6 / 44 | 1378s |
+| t12 回执修复 | **pass 100** | — | 45 | 27 | 5 | 0 | 0 | 5 | 3 / 44 | 1781s |
+| t15 r1 | **pass 177** | 176 | 77 | 26 | 1 | 0 | 26 | 1 | 9 / 90 | 1110s |
+| t15 r2 | **pass 146** | 143 | 43 | 40 | 2 | 1 | 0 | 2 | 9 / 85 | 853s |
+| t15 r3 | **pass 89** | 88 | 30 | 42 | 0 | 1 | 1 | 1 | 14 / 55 | 560s |
+| t15 第七轮 A | **pass 85** | 84 | 39 | 17 | 2 | 0 | 1 | 0 | 4 / 40 | 555s |
+| t15 第七轮 B | **pass 67** | 64 | 22 | 12 | 7 | 0 | 0 | 0 | 6 / 36 | 356s |
+| t15 0.52.13 opencode | **pass 55** | 53 | 23 | 15 | 1 | 0 | 0 | 1 | 0 / 28 | 419s |
+| t15 capture-only | fail 52 | — | 18 | 3 | 1 | 0 | 6 | 3 | 8 / 11 | 1200s |
+| t14 旧题面 r1 | **pass 141** | 140 | 57 | 8 | 28 | 0 | 0 | 0 | 31 / 73 | 925s |
+| t14 旧题面 r2 | **pass 71** | 69 | 24 | 9 | 2 | 0 | 8 | 2 | 5 / 23 | 502s |
+| t14 新题面 r1 | **pass 59** | 58 | 20 | 10 | 1 | 0 | 9 | 2 | 3 / 20 | 404s |
+| t14 新题面 r2 | **pass 41** | 40 | 12 | 7 | 1 | 0 | 6 | 2 | 6 / 15 | 253s |
+| t14 新题面 r3 | **pass 57** | 54 | 12 | 7 | 2 | 0 | 10 | 5 | 10 / 17 | 314s |
+| t17 旧题面 r1 | **pass 89** | 85 | 33 | 10 | 4 | 0 | 6 | 2 | 4 / 35 | 575s |
+| t17 旧题面 r2 | **pass 63** | 61 | 25 | 12 | 0 | 0 | 2 | 1 | 8 / 19 | 400s |
+| t17 新题面 r1 | **pass 37** | 36 | 13 | 8 | 0 | 0 | 2 | 5 | 4 / 10 | 257s |
+| t17 新题面 r2 | **pass 53** | 51 | 16 | 13 | 0 | 0 | 9 | 2 | 11 / 12 | 323s |
+| t17 新题面 r3 | **pass 48** | 47 | 10 | 5 | 0 | 0 | 11 | 7 | 4 / 7 | 294s |
+| t14 指针回归 | **pass 42** | 40 | 10 | 5 | 2 | 0 | 7 | 2 | 3 / 17 | 240s |
+| t17 指针回归 | **pass 42** | 41 | 17 | 11 | 0 | 0 | 0 | 5 | 3 / 13 | 260s |
+| t14 0.52.13 canary r1 | **pass 53** | 52 | 23 | 8 | 1 | 0 | 10 | 3 | 5 / 18 | 273s |
+| t14 0.52.13 canary r2 | fail 64 | 61 | 22 | 10 | 1 | 0 | 9 | 4 | 3 / 14 | 356s |
+| t14 0.52.13 canary r3 | **pass 51** | 50 | 21 | 10 | 1 | 0 | 8 | 3 | 2 / 16 | 315s |
+| t14 0.52.13 opencode | **pass 60** | 59 | 18 | 8 | 2 | 0 | 8 | 4 | 10 / 19 | 585s |
+| t17 0.52.13 canary r1 | **pass 75** | 73 | 25 | 13 | 0 | 0 | 9 | 8 | 8 / 19 | 291s |
+| t17 0.52.13 canary r2（capture 复用） | **pass 37** | 36 | 17 | 4 | 0 | 0 | 4 | 2 | 3 / 7 | 178s |
+| t17 0.52.13 opencode | **pass 40** | 40 | 12 | 4 | 0 | 0 | 7 | 5 | 9 / 7 | 332s |
+| t17 post-fix | **pass 86** | — | 34 | 17 | 4 | 0 | 0 | 3 | 1 / 37 | 885s |
+| t17 capture-only | **pass 29** | — | 9 | 5 | 1 | 0 | 4 | 2 | 2 / 10 | 335s |
+| t14 capture-only r1 | **pass 76** | — | 23 | 18 | 2 | 0 | 6 | 3 | 6 / 26 | 1058s |
+| t14 capture-only r2 | fail 64 | — | 21 | 6 | 6 | 0 | 5 | 2 | 11 / 27 | 970s |
+
+> `capture-only` = 0.52.13 上 `include_accessibility_tree:false` 的像素预取路径；`回执修复` = 2026-11-18 native/vision 快照 id + query 清除说明。`—` 表示报告未单列该计数。
+
+## 3. 2026-11-18
+
+### 3.1 观察回执修复后的 t11/t12
+
+环境：cua-driver 0.52.13、opencode-go / deepseek-v4.1-flash、dirty 桌面；`node evals/headless-run.mjs --tasks t11,t12 --repeats 1 --timeout-min 35 --patch evals/headless-patch.opencode.yml`。
+
+| 任务 | 结果 | 步数 | 时长 | 工具错误 | unverified | oracle | 残留 |
+|---|---|---:|---:|---:|---:|---|---|
+| t11 Paint | pass | 70 | 1000s | 3 | 31 | 22/22 | `snapshot_expired` 1、`window_target_not_found` 1、保存后标题观察失败 2；`snapshot_mismatch` 0 |
+| t12 PowerPoint | pass | 100 | 1781s | 3 | 44 | 13/13 | `snapshot_expired` 2、query 后 `snapshot_missing` 1、前台锁；`snapshot_mismatch` 0 |
+
+- 3.1 之前同题面 capture-only：t11 76 步 pass（1224s、3 errors、24 unverified、oracle 22/22）；t12 98 步 pass（1378s、6 errors、44 unverified、oracle 13/13）。两条轨迹均无 `screenshot_context_missing`/`stale_element_token`。
+- 回执修复的直接效果：native/vision 文本回显 `快照 s...；全局单例`；跨窗口旧 id 的 `snapshot_mismatch` 从 2 次降到 0。t12 的 1 次 query 后 `snapshot_missing` 是模型未读“旧动作快照已清除”提示，fail-closed 正常。
+
+### 3.2 0.52.13 canary 探针
+
+| 探针/检查 | 结果 |
+|---|---|
+| `verify-runtime` | 18/18（0.23.2 与 0.52.13） |
+| `live-action.e2e` | 33/33（0.52.13） |
+| `probe-driver-shape` | 默认 markdown/显式 elements、session 归属、capture-only 截图上下文均确认 |
+| `probe-modifier` | `ok=true` / `dragModifierSupported=true`；0.52.13 原生 modifier drag delivered |
+| `probe-combo-foreground` | blocker 前台时插件 `key()` 自动前台，Ctrl+V 到达 WinForms TextBox |
+| `probe-private-drag` | 3/3；down/move/up 均读到 `Shift, Control`，drop 后无卡键 |
+| `probe-from-zoom` | 请求 160×100 → 返回 224×140，图中心点击命中 |
+| `probe-native-freshness` | WinForms 文本变化窗口未复现“AX 已变而 PNG 不变” |
+
+### 3.3 其他任务
+
+- t17 capture-only **29 步 pass**（A1 exact、0 假成功；2 errors 均为 1 步恢复）。
+- t14 capture-only **76 步 pass**；**64 步 fail**（单元格全 false、图表 title/categories true；Paste 未落，非兼容错误）。
+- t15 capture-only **55 步 pass / 52 步 fail**（fail 轮未用 Ctrl+click，文件未移动；非兼容错误）。
+- 同轮 t11 **77 步 / capture-only 76 步**、t12 **112 步 / capture-only 98 步** 均有通过样本。
+
+## 4. 2026-11-17
+
+### 4.1 手势/画布/白底轮
+
+| 任务 | 轮次 | 结果 | 步数 | 关键点 |
+|---|---|---|---:|---|
+| t15 | Ctrl+click 批量 | **3/3 pass** | 77/72/59 | 各 5 次 Ctrl+click；文件单选 `foreground=true`；无 Notepad/Photos 误开；dirty=false |
+| t11 | 画布原点/线宽 | **3/3 pass** | 70/88/48 | UIA 画布 `(879,600) 800×600`；setup 固定三种形状 8px；activate + 焦点 click；app_launch=0 |
+| t12 | 白底 seed + 直接输入 | **2/2 pass** | 140/169 | hash/1 页/16:9/Q1-Q3/三色柱全 true；40 分钟预算 |
+| t14 | 旧题面 | **2/2 pass** | 141/71 | 24 格/barChart/标题/Sales/Month categories 全 true |
+| t17 | 旧题面 | **2/2 pass** | 89/63 | A1 exact；三击句子 + Ctrl+C；测试 Firefox 标签单独 Ctrl+W |
+
+### 4.2 第七轮（输入真实性与前台语义）
+
+| 任务 | 结果 | 步数 | 关键点 |
+|---|---|---|---:|
+| t14 新题面 | **3/3 pass** | 59/41/57 | `typeCalls=1/1/2`、`clipboard=1`、seed unchanged、oracle 全 true |
+| t17 新题面 | **3/3 pass** | 37/53/48 | `typeCalls=0`、`clipboard=1`、A1 exact、seed unchanged、用户 Firefox 无测试标签 |
+| t15 回归 | pass | 85/67 | 8 文件/内容/旧路径全 true；第二轮 5 次 Ctrl+click 批量 |
+| t12 回归 | pass | 152 | 1 页/16:9/Q1-Q3/三色柱全 true；1069s |
+| t11 回归 | pass | 58 / 94 | forced drag 前置单次 58；全部指针前置单次 94；三色 ROI/coverage/precision 全绿 |
+| t14/t17 指针回归 | pass | 42 / 42 | 去掉失败后重试未破坏路径 |
+
+- `probe-combo-foreground`：blocker 前台时插件 `key()` 自动前台目标并把 `Ctrl+V` 送进 WinForms TextBox，文本 `S4-COMBO` 完整到达。
+- `probe-private-drag`：3/3；真实插件 `computer_drag(modifier=["ctrl","shift"], dwell_ms=120)` → 持久 helper；WinForms down/move/up 均读到 `Shift, Control`，`sent=30`、`foregroundRestored=true`、无卡键。
+- t14 r1 的 28 次 type 中 26 次被误报“未送达”，但 24 格全部写对；根因是 `background_delivery_failed` 被整段 JSON 子串误判为硬失败。改为词边界后消失。
+
+### 4.3 ZCode CU 同机能力探针
+
+方法：ZCode `computer-use` skill 要求 main agent only，由主会话直接执行；只验证关键原语，不是完整三题跑分。
+
+| 任务 | 探针结果 |
+|---|---|
+| t15 Explorer | 返回 291 个元素；`click(alpha)` + `click(beta, modifiers:"ctrl")` 后状态栏“已选择 2 个项目 28 字节”；命令栏剪切 → 打开 docs → Ctrl+V 成功。inline 重命名一次 `type` 返回 “response lost”，需 observe 后继续。结论：Ctrl+click 批量多选可行 |
+| t11 Paint | 返回 221 个元素，含画布 bounds `[879,600,800,600]`、矩形/椭圆/直线、红/靛蓝/黑；元素点击可选工具/颜色。坐标 drag 要求先 `get_app_state({include_screenshot:true})`；返回 frame 是 1280×800（不是 2560×1600），画布映射约 `[440,300,400,300]`；`[480,345]→[580,415]` 被接受但 Paint 状态无变化；Windows 无 `bring_to_front`/activation API。结论：ZCode CU 在 t11 同样无法稳定完成 |
+| t12 PowerPoint | 返回 353 个元素；形状以 `Image "S4 Bar Q1/Q2/Q3"` 暴露并带 bounds；标题/副标题 value 可读；`形状填充/形状轮廓` SplitButton 可见。按元素名选中形状可行；surface reference 会 retired，需要重新 observe。文本/颜色/字号/居中仍是应用层成本 |
+
+## 5. 2026-11-16
+
+### 5.1 脏桌面首轮（t11-t17）
+
+| 任务 | 结果 | 步数 | 备注 |
+|---|---|---:|---|
+| t13 论文下载 | pass | 19 | NeurIPS PDF SHA-256，cleanup removed=1 |
+| t15 Explorer | pass | 112 | 能收敛但探索很长 |
+| t16 本地表单 | pass | 17 | 本地 server result.json |
+| t11 Paint | fail | 107 | 未保存输出 |
+| t12 PPT | fail | 126 | 未保存输出 |
+| t14/t17 | 仅 setup/cleanup | — | oracle 未跑 |
+
+### 5.2 修复轮
+
+- t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用、12 drag）；旧题面 107/71 fail。
+- t15 新题面 **3/3 pass**（177/146/89 步，仍高于旧 112）。
+- t12 16:9 seed + 占位柱可打开/保存；25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过，仍高风险。
+
+### 5.3 t01 / t05 / 离线
+
+- t01 新题面 **5/5 pass**，steps 17/32/8/19/11（median 17），wall 98.0/278.5/69.2/129.8/81.0s；中间题面版本 4/5。
+- t05 **3/3 pass**，steps 26/28/19，dirty=false，tabstate restored。
+- 离线 **22 套 / 483 断言**；`observe.truth` 25、`schema.conformance` 45。
+- query 只读回归：`snapshotId=null`、动作 `[snapshot_missing]`、差分/降噪不污染、全量观察后恢复。
+- `verifyAfterAction` A/B：**10/10 pass**；t01 off 9/19/52 步、61.6/117.1/377.3s；auto 66/15/8 步、533.2/98.1/60.9s；t05 off 24/34、auto 22/26。auto 中位略优但有 533s 尾部、每轮多 2–12 次 click 复核；默认保持 `off`。
+- 第二轮离线 **22 套 / 477 断言**；pack 38 文件；`key.xaml` 33、`action.echo` 30、`observe.truth` 20。
+- 第三轮离线 **22 套 / 483 断言**；pack 39?（原文未单列）；t01 新题面 5/5。
+
+### 5.4 WinUI 键鼠通道探针
+
+| 组合 | 通道 | 实际效果 |
+|---|---|---|
+| Ctrl+A | `hotkey` background/foreground | 抛 `could not find a UIA AcceleratorKey`，无选择 |
+| Ctrl+A | `press_key` + ctrl，background | 无选择，且把裸 `a` 插入正文（textLen 27→28） |
+| Ctrl+A | `press_key` + ctrl，foreground | 选中全文（28/28） |
+| Ctrl+A | 点“编辑”菜单 → 点“全选” | 选中全文（28/28），推荐回退 |
+| Alt+F | `hotkey` background/foreground | 找不到 AcceleratorKey，菜单未打开 |
+| Alt+F | `press_key` + alt，foreground | 文件菜单打开 |
+| Alt+Tab | `hotkey` background/foreground | UIA 加速器 4s 超时，前台 HWND 不变 |
+| Alt+Tab | `press_key` + alt，foreground | 前台切换（真实切走） |
+
+- 结论：Ctrl+A 可靠回退是“点编辑菜单 → 全选”；Alt+F 只在 foreground `press_key` 可靠；Alt+Tab 优先用 `computer_activate`/`app_launch`。
+
+## 6. 2026-11-15
+
+### 6.1 runtime/pipeline 复盘
+
+- t01 50 次调用（10 click / 14 key / 7 zoom / 1 set_value / 15 observe），约 6 分钟；8 次执行点击 × 5 段滑行 ≈ 40 次小段指针移动；另存为文件名框出现 `count:3` 三连击 + 8 次 BackSpace（`delivery_failed`/unverifiable）。
+- Notepad 污染：同一窗口 8 个标签：2 个用户已修改文档 + 6 个测试文件；窗口标题无 `*`；旧 cleanup 会尝试 WM_CLOSE。
+- 修复：`cacheSnapshot` 存点击空间；`resolveClickTarget` 检查 TTL；滑行目标不再偏移 `screenOrigin`；`deliveryFailure` + `settleAction` 统一 `ok:false`；L3 retry 失败不写“完成”；notFound/降级清快照策略；suspect 去重强制全量；Notepad `Get-NotepadTabs`/`Test-NotepadTabSet` + ExpectedTabs。
+- 真机 t01 ×3：**0/3 执行，3/3 setup error（steps=0）**；seed 落进现有 Notepad 窗口（`owned=False`，含 2 个用户已修改标签 + 测试标签）；fail-closed 生效。
+- CU 轨迹监控首个样本：443 events / 589.5s；34 observe / 39 action；53 `move_cursor` / 7257px；自动标记 repeat_action、observe_burst、repeat_observe。
+- 监控下 t01：fail 76 steps / 8 errors / 15 unverified / timeout；轨迹显示 3 次重复 click、3 次连续 observe、另存为窗口重复 native+ax 观察。
+- 修复后 t01：58 steps pass（4 err / 15 unverified / 354.2s；26 observe / 30 action；2 `move_cursor` / 248px）；42 steps pass（4 err / 12 unverified / 233.9s；19 observe / 22 action；0 `move_cursor`）；原地保存 31 steps pass（1 err / 8 unverified / 184.5s）。
+- 原地保存 ×3：37/18/19 steps pass；err 1/0/1；unverified 12/4/4；273.4/121.7/104.2s；每次 1 `move_cursor` / 0px；无 timeout/dirty。
+- `verify-oracles` 2026-11-15 18:40 复跑 **10/10 PASS**；tabstate restored。
+- t01 P2 后 3x：2/3 pass（r1 9、r2 13 steps pass；r3 66 steps fail，内容不匹配）。
+- t05 旧 Save As 失败样本：fail 50 steps / 2 err / 17 unverified / dirty；oracle 文件不存在。
+- t01 观察真值轮 ×3：99/9/10 steps pass；oracle exact。
+- t05 观察真值轮 ×3：26/28/19 steps pass；err 1/2/0；unverified 11/10/9；dirty=false。
+- 输入回读/保存门禁离线 **458 断言**；`from_zoom` 真机探针 pass（请求 160×100 → 返回 224×140）。
+- 第二轮离线 2026-11-16：22 套 / 477；第三轮 483；verify-runtime 17/17（当时）。
+
+## 7. 2026-11-12
+
+### 7.1 dsh 0.2.2-rc.1 headless 真机加载
+
+```bash
+dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
+  --permission-mode read-only --approval-policy never \
+  "只做只读验证：status / screen_observe / catalog / 隐藏 computer_wait"
+```
+
+| 检查 | 结果 |
+|---|---|
+| 会话 | `session-e1d8a603-...`，1 轮 5 步，`turn_end: completed` |
+| 插件加载 | `computer_do(status)` → dispatcher；直接可见 `computer_do, screen_observe`；**当时 20 隐藏** |
+| 真实观察 | `screen_observe()` → `Arknights.exe · 明日方舟`，pid 47912 / window 14354214，4 元素，快照 `s0000001f` |
+| catalog | 20 个隐藏工具签名（当时） |
+| 隐藏路由 | `computer_do({action:"call",tool:"computer_wait",args:{ms:50}})` → `[computer_wait] 已等待 50ms。` |
+| prompt cache | `cacheReadTokens` 6528 → 6656 → 6912 → 7296；tools 列表稳定 |
+| 安全边界 | 只读 observe + 纯等待；未调用 bash/文件工具 |
+
+- headless 默认禁用 `credentials`；探针 patch 显式启用后可用。`OPENCODE_GO_API_KEY` 当时过期 401，使用默认 DeepSeek 通道。
+
+### 7.2 S4 oracle 双向验证
+
+- `TEMP=C:\Windows\TEMP` 时 `Add-Type` 报找不到 `*.cs`，首次 0/10；把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 后 **10/10 PASS**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1）。
+- 判据：setup ok → oracle 空跑 fail → simulate pass ×2 → cleanup ok。
+
+### 7.3 headless S4 smoke
+
+| 轮次 | 上限 | 结果 | 备注 |
+|---|---:|---|---|
+| Round 1（一次性 runner） | 8min | **3/4** | t01/t04/t07 pass；wa2 fail（57 调用，Archive） |
+| Round 2（headless-run） | 10min | **4/4** | t01 41 调用/err 7/unverified 13；t04 23/0/10；t07 5/0/2；wa2 72/12/16（到点但 oracle pass） |
+
+- 两轮合计 7/8；wa2 对时间预算敏感（8min fail → 10min pass）。
+- Round 2 工具级：141 次调用，19 错误（13.5%），41 unverified（29.1%）。
+
+### 7.4 dsh 0.2.2 兼容升级
+
+| 检查 | 结果 |
+|---|---|
+| `computer_task` `startActivation` | headless 真机拉起子 agent；结构化 `OK`；回执写“同级能力” |
+| API 形状 | 运行时扁平 spec；rc.2 无 `list()`，用 `getProvider` |
+| vision 默认 | `deepseek-flash`；真机观察者返回视觉理解段 |
+| native 附件限额 | `maxImageDimension`/`maxImagePixels` 纳入；compact 明确失败 |
+| G1/G5 | scroll/drag 校验 `snapshot_id`；zoom `coordinateSpace` + `fromZoom` |
+| PTC `run_code` | dispatcher / 20 hidden（当时） |
+| PTC native | 图片作为 deferred context |
+| PTC + task | `tools.computer_do` 拉起子 agent；直接 `tools.computer_task` 为 undefined |
+| 离线 | 22 套 / 458；check 20/20；pack 37 文件（当时） |
+
+## 8. 2026-11-09/10
+
+- 离线 10 套 / 231 断言（当时）；新增 `action-bounds`、`dispatcher.test`、`package-manifest`；`delivery-chain` 改为真实 `cuaDeliver`。
+- 语法 16/16；runtime 16/16（当时）；pack 31 文件（当时）。
+- P0 修复：`type`/`key` 不再盲发 desktop；`scroll`/`drag` 透传 `window_id`；`suspected_noop` 终态失败；指定窗口未匹配 fail-closed；观察降噪完整指纹。
+- 工具面：dispatcher 默认（2 可见/20 隐藏，当时）；hybrid（7/15，当时）；dynamic 删除。
+- 缓存：稳定 dispatcher 重复 99.5%、首 tool_call 后 92.1%、第二次 85.4%；tools 变化首击 0–18%。
+
+## 9. 2026-09-17
+
+- 离线 7 套 / 148 断言；schema 20 工具 / 42 场景；config.plumbing 25。
+- `live-action.e2e` **23/23**（唯一命名临时文件 + 标题匹配，不杀进程）。
+- parity：observe/zoom 29 场景 `{value,render}` 逐字节一致；20 工具工具面 JSON 逐字节一致。
+- `verify-oracles` **10/10**（首次 t04 因遗留计算器窗口失败，清理后通过）。
+- 发现并修复：`scroll`/`drag` 把结构化拒绝当成功；`runAction`/`dedupInvalidate`/`taskCallCount` 死代码；schema 覆盖 13/20 → 20/20。
+- v0.5.6 注解 tag；`main` 单分支。
+
+## 10. 2026-09-16
+
+- 离线 4 套 / 74 断言；19 工具 / 22 场景。
+- `live-action.e2e` 3 轮 **30/30**（旧版设计）。
+- 坐标标定：可控探针逐点最小二乘 **残差 ≤0.55px**；`computer_click(x,y)` = 窗口矩形相对物理像素；截图 == `list_windows.bounds` 1:1。
+- 输入通道：经典 Win32（regedit `ctrl+f`）**3/3**；WinUI3（记事本）`hotkey` **5/5 失败**（UIA 加速器 4s 超时，#3908）。
+- 驱动完整性：`cua-driver.exe` 清单 `requireAdministrator` → daemon 与 `app_launch` 子进程 High IL；非提权客户端清不掉（#3607）。
+- S4 9 任务 + AC2 **9/9**（连跑 3 次一致）；冒烟 t07 pass。
+- 客户端适配：严格输出校验、composer `Input.insertText`、页脚格式、新会话视图钉住。
+
+## 11. 2026-09-06/07
+
+- A6 密码窗口 **9/9**：结构标记注记 / guard 硬拒 / 普通框零误拒 / sidecar 时延 1.4–1.6s / zoom crop 元数据；发现并修复标记坐标系错误。
+- 快照新鲜度 **4/4**：快照 id / 首写 confirmed+readback / 同快照二写一致性注记 / 密码框硬拒。
+- A7 坐标语义六轮：驱动 0.23.2 文档契约与实测矛盾，screen/bounds-local/client-local 三假设均有反例 → 像素路径 best-effort。
+- dsv4fv 通道：ax ✓；native ✓（attachments 端到端，首 token 0.9s / 116 tok/s / 缓存 74%）；vision 观察者半通（只出思考）；GLM 无 key 优雅降级。
+- 上游反馈：#3576（密码投影）、#3586（树版本/条件请求）、#3587（干预信号）已提。
+
+## 12. 2026-08-25 / 08-15
+
+- 2026-08-25：`verify-runtime` **12/12**；12 工具注册（新增 `screen_zoom`）；AX 真实树；native text-only 拒绝；native image route PNG（1.06MB）attachments + `{type:"image"}`；zoom 区域 JPEG；vision 降级链；坐标语义；安全回归；结构化拒绝透传。
+- 2026-08-15：macOS 初始验证；cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备忘录“打开→点击→输入”闭环；TTL/白名单/危险词/密码保护；home 级 patch 安装与 HMR。此阶段危险词审批已在 0.4.0 删除，结论仅作历史。
+
+## 13. 原始 run id 索引
+
+- t11：`2026-11-16T10-45-11`（旧题面 71）、`11-09-17`（84）、`11-22-15`（r2 49）、`11-46-40`（77）
+- t12：`12-10-08`（189）、`12-32-32`（160）、`13-37-29`（162）、`14-01-08`（178）、`14-29-56`（190）
+- t15：`12-53-31`（r1/r2/r3）
+- t14 旧题面：`2026-11-17T07-12-15`（141/71）；新题面：`10-14-28`（59）、`10-22-40`（41/57）
+- t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
+- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）、`08-14-46`（capture-only t11 76 / t12 98）、`10-26-53`（回执修复后 t11 70 / t12 100）
+
+## 14. 证据边界
+
+- 原始 report/trajectory 在 gitignored 的 `evals/headless-runs/`；本文件不提交截图/文档正文/模型原始 thinking。
+- ZCode CU 探针是能力验证，不是完整 t11/t12/t15 的通过/失败统计。
+- native 截图“陈旧”目前是轨迹观测 + 模型判断；`probe-native-freshness` 在 WinForms 文本变化窗口未复现。修复前不要写成已证实的普适 bug。
+- t12 的 PowerPoint 行为来自本机 Office 16 / Windows 11 / 150% DPI，其他环境可能不同。
+- 跨 provider 对比不是受控 A/B；桌面脏状态、模型采样和驱动 capture 行为都会影响步数。

@@ -1,9 +1,9 @@
-# WINDOWS — Windows 工程细节与验证指南
+# WINDOWS — Windows 工程细节
 
-> 适用：Windows 10/11。本文记录本仓库在真机上踩过的 Windows 特性、验证步骤与清理规则。
-> 通用使用说明见 [README](../README.md)；结构见 [ARCHITECTURE](ARCHITECTURE.md)。
-> 社区 CU 的复杂任务处理模型见 [CU-RESEARCH](CU-RESEARCH.md)；t11/t12/t15 的轨迹与手势缺口见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
-> 最近一次真机环境：Windows 11 x64 · DPI 150% · cua-driver 0.23.2 · dsh 0.2.2-rc.1。
+> 目的：Windows 10/11 上的完整性级别、前台锁、输入通道、坐标/DPI、私有拖拽、密码扫描与清理规则。
+> 读者：Windows 用户、排障者、维护者。
+> 状态：当前实现（最后核对 2026-11-18；真机环境 Windows 11 x64 · DPI 150% · cua-driver 0.23.2 基线 + 0.52.13 canary · dsh 0.2.2-rc.1）。
+> 相关：[TROUBLESHOOTING](TROUBLESHOOTING.md) · [COMPATIBILITY](COMPATIBILITY.md) · [DRIVER-SDK](DRIVER-SDK.md) · [EVIDENCE](EVIDENCE.md)。
 
 ## 1. 前置与完整性级别
 
@@ -11,15 +11,15 @@
 |---|---|---|
 | `cua-driver.exe` | 二进制清单 `requireAdministrator`，daemon 以 High IL 运行 | 插件以固定 argv spawn 它；驱动自身可能需要 UAC/已提升的 daemon |
 | `app_launch` 子进程 | 继承驱动的高完整性级别（High IL） | 非提权客户端 `taskkill` / `Stop-Process` / `PostMessage(WM_CLOSE)` 都可能被 UIPI 拒绝 |
-| 对照：同一 shell 直接 `Start-Process notepad` | Medium IL | 说明 High IL 来自驱动链，不是“启动方式随便造成的” |
-| 驱动操作自己启动的 High IL 窗口 | 实测可行（提权记事本 `computer_type` 成功且 `effect:confirmed`） | “管理员窗口一律不可操作”的说法不成立；要按目标与通道分别判断 |
+| 对照：同一 shell 直接 `Start-Process notepad` | Medium IL | High IL 来自驱动链，不是“启动方式随便造成的” |
+| 驱动操作自己启动的 High IL 窗口 | 实测可行（提权记事本 `computer_type` 成功且 `effect:confirmed`） | “管理员窗口一律不可操作”不成立；要按目标与通道分别判断 |
 | WinUI/XAML 目标关闭 | `alt+f4` 可能撞 UIA 加速器超时（#3908）；`invoke_menu` 可能 `menu_path_unavailable` | 连驱动侧关闭通道也可能断，只能人工收尾 |
 
-**实践建议**：评测/自动化优先操作**已在运行的普通应用**；确需 `app_launch` 时，接受“该窗口可能需要人工关闭”的成本。不要按进程名杀记事本——见 §6。
+**实践建议**：评测/自动化优先操作**已在运行的普通应用**；确需 `app_launch` 时，接受“该窗口可能需要人工关闭”的成本。不要按进程名杀记事本——见 §7。
 
 ## 2. 前台锁与三级投递
 
-Windows 的 `ForegroundLockTimeout` 会让 `SendInput` 在目标未前台时静默打空，且不一定报错。插件的 `deliveryMode: auto` 按下面的梯子处理：
+Windows 的 `ForegroundLockTimeout` 会让 `SendInput` 在目标未前台时静默打空，且不一定报错。`deliveryMode: auto` 按下面的梯子处理：
 
 ```text
 L1 background（UIA Invoke / PostMessage，不抢焦点）
@@ -33,39 +33,34 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 关键点：
 
-- L3 也会在“L1/L2 返回 `unverifiable` 且工具是 click/scroll/drag 且有 pid”时触发——SendInput 可能已进系统队列但打到了错误前台。**强制前台（`foreground:true`）的指针动作例外**：先 `bring_to_front`、只执行一次、恢复原前台，不做失败后重试；否则同一文件会被点两遍、同一形状会被画两遍（t11/t15 实测）。`deliveryMode=auto` 的非强制路径仍保留 L3。
+- L3 也会在“L1/L2 返回 `unverifiable` 且工具是 click/scroll/drag 且有 pid”时触发——SendInput 可能已进系统队列但打到了错误前台。
+- **强制前台（`foreground:true`）的指针动作例外**：先 `bring_to_front`、只执行一次、恢复原前台，不做失败后重试；否则同一文件会被点两遍、同一形状会被画两遍。`deliveryMode=auto` 的非强制路径仍保留 L3。
 - `hotkey` **不做 unverified L3**：XAML 目标的 UIA 加速器先验拒绝，重试同样失败，只会增加副作用；回执会说明。但**组合键一律自动前台**（即使 `deliveryMode:background`），因为后台 synthetic 路径不更新 OS 修饰键状态，实测 `Ctrl+V` 只落 `v`。普通按键仍可后台 PostMessage。
 - 没有 `pid` 的 desktop-scope 调用没有窗口可绕锁，不升级。
 - 恢复依赖 `bring_to_front` 返回 `previous_fg_hwnd`；拿不到时回执明确写“原前台未恢复，请检查”，不假装成功。
-- 单次动作可用 `foreground: true` 强制 L2。
+- 单次动作可用 `foreground: true` 强制 L2；它更慢且会移动指针，不要默认开启。
 
 ## 3. 输入通道（按目标框架）
 
 | 目标类型 | 文本 | 组合键 | 菜单 | 备注 |
 |---|---|---|---|---|
-| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | `invoke_menu` 可用 | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键现由插件自动前台 |
+| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | `invoke_menu` 可用 | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
 | XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**和 `could not find a UIA AcceleratorKey`（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单栏项 → 观察弹出菜单 → 点菜单项”；`xamlKeyFallback: auto`（默认 off）可实验性自动做这一步；`press_key` 可能 `effect:unverifiable` |
 | Electron / Chromium / WebView2 | 通常可 UIA ValuePattern；内容区可能不暴露树 | 后台事件可能被静默丢弃（`background_unavailable`） | 取决于应用 | 用 `native` 截图 + element/像素点击 |
 | Canvas / 游戏 / 自绘 | 无 AX 树 | 同左 | 不可用 | `native` 或 `vision`；坐标点击 best-effort |
 
 `computer_type` 在未指定 element 时输入到**快照窗口当前焦点**，不是“当前前台窗口”；这是 P0 修复后的行为，避免盲发到别的窗口。
 
-## 4. 坐标与 DPI
+**WinUI3 组合键实测结论**（2026-11-16，详见 [EVIDENCE](EVIDENCE.md) §5.4）：
 
-本仓库在 2026-09-16 用可控探针逐点标定（最小二乘残差 ≤0.55px），结论：
+- Ctrl+A 的可靠回退是“点编辑菜单 → 全选”，不是前台裸 `press_key`；后者 background 变体会把裸 `a` 插入正文。
+- Alt+F 只在 foreground `press_key` 下可靠；`hotkey` 走 UIA AcceleratorKey 扫描，WinUI3 上不可达。
+- Alt+Tab 只在 foreground `press_key` 下生效（真实切走）；任务里优先用 `app_list`/`computer_activate`/`app_launch`。
+- 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须 observe/verify。
 
-| 量 | 空间 | 证据/用法 |
-|---|---|---|
-| `computer_click(x,y)` | 窗口矩形相对物理像素（= 窗口截图空间） | 探针 MouseDown 回读客户区坐标标定 |
-| 驱动元素 `frame` | 屏幕物理像素 | A6 复核：标题栏 y=806 vs 窗口原点 y=780 |
-| `get_window_state` 截图 | 窗口 `bounds` 的 1:1 物理像素裁剪 | 同窗口 bounds 1906×1166 == 截图 1906×1166 |
-| `screen_observe` 输出 `@(x,y)` | window-screenshot-px（原图像素） | 已在输出时减去 `screenOrigin`；可直接点击。宿主预览可能缩放显示，不能按预览尺寸估坐标 |
-| `screen_zoom` 图内坐标 | zoom-image-px | 直接 `computer_click/drag(..., from_zoom=true)`；驱动按 padding/缩放映射，插件不再手算 |
-| `screen_zoom` 输出图 | 请求区域宽 ≤500px；驱动自动加约 20% padding，超 500px 时缩放 | 结果带 `fromZoom=true`；`crop` 只是请求区域，不是换算基准 |
+**显式窗口激活**：`computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；不要求快照，但激活后操作内容仍需 `screen_observe`。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。
 
-**Explorer 文件项**：后台坐标点击会优先走 UIA hit-test/Invoke；在文件项上 Invoke 等于“打开”。单选文件请传 `foreground=true`（真实 SendInput 单击）；多选 Ctrl+click 因 `modifier` 已自动前台。2026-11-17 t15 首轮实测：background 单击 `report-draft.txt` 直接打开 Notepad，随后又打开 Photos/PDF，导致该轮作废。
-
-### 3.1 私有拖拽（modifier / dwell_ms）
+## 4. 私有拖拽（modifier / dwell_ms）
 
 `computer_drag` 的 `modifier` 非空（或 `dwell_ms>0`）时不再走 driver drag，而是由 `tools/private-drag.ps1` 执行一次原子 SendInput 手势：
 
@@ -78,13 +73,28 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 7. 回执带 `sent`、`foregroundRestored`、`stuckButton/stuckModifiers`；界面结果仍需 observe。
 
 限制：
+
 - 私有路径**不支持 `from_zoom`**（驱动 zoom 的真实 padding/scale 没有复刻，手算会重蹈 A7）；明确报 `[private_drag_zoom_unsupported]`。
 - 需要快照的 `screenOrigin`/截图尺寸；query 只读视图没有动作快照；报 `[private_drag_no_frame]`。
-- UIPI：中完整性 helper 不能向高完整性目标注入，`SendInput` 返回 0 时回执明确失败；不要假成功。
+- UIPI：中完整性 helper 不能向高完整性目标注入，SendInput 失败时回执明确失败；不要假成功。
 - 不自动重试：drag 非幂等；只有前台校验失败（未发送输入）才可让模型 activate 后重试一次。
 - 已验证：WinForms 探针 `probe-private-drag` **3/3** 在 down/move/up 三个点读到 `Shift, Control`，drop 后 `stuckModifiers` 为空。Explorer Ctrl+drag 复制、Excel 工作表标签 Ctrl+drag、PPT Shift 约束尚未纳入自动回归，作为下一轮真机项。
+- 0.39+ 驱动支持原生 modifier drag；`dragEngine: auto` 优先原生，`private` 强制 helper；`dwell_ms` 始终私有。原生失败不自动重拖。
 
-`screen_observe` 的文本行 `@(x,y)` 与结构化 `elements[].x/y` 必须完全一致，都是减过 `screenOrigin` 的点击空间；2026-11-14 t01 的“反复定位”根因就是文本行漏了换算。取不到窗口 `bounds` 时不会假装可点击：头部会标注“屏幕物理像素，不要直接用于 computer_click”，`coordinateSpace` 为 `screen-physical-px`。
+## 5. 坐标与 DPI
+
+本仓库在 2026-09-16 用可控探针逐点标定（最小二乘残差 ≤0.55px），结论：
+
+| 量 | 空间 | 证据/用法 |
+|---|---|---|
+| `computer_click(x,y)` | 窗口矩形相对物理像素（= 窗口截图空间） | 探针 MouseDown 回读客户区坐标标定 |
+| 驱动元素 `frame` | 屏幕物理像素 | A6 复核：标题栏 y=806 vs 窗口原点 y=780 |
+| `get_window_state` 截图 | 窗口 `bounds` 的 1:1 物理像素裁剪 | 同窗口 bounds 1906×1166 == 截图 1906×1166 |
+| `screen_observe` 输出 `@(x,y)` | window-screenshot-px（原图像素） | 输出时已减 `screenOrigin`；可直接点击。宿主预览可能缩放显示，不能按预览尺寸估坐标 |
+| `screen_zoom` 图内坐标 | zoom-image-px | 直接 `computer_click/drag(..., from_zoom=true)`；驱动按 padding/缩放映射，插件不再手算 |
+| `screen_zoom` 输出图 | 请求区域宽 ≤500px；驱动自动加约 20% padding，超 500px 时缩放 | 结果带 `fromZoom=true`；`crop` 只是请求区域，不是换算基准 |
+
+**Explorer 文件项**：后台坐标点击会优先走 UIA hit-test/Invoke；在文件项上 Invoke 等于“打开”。单选文件请传 `foreground=true`（真实 SendInput 单击）；多选 Ctrl+click 因 `modifier` 已自动前台。2026-11-17 t15 首轮实测：background 单击 `report-draft.txt` 直接打开 Notepad，随后又打开 Photos/PDF，导致该轮作废。
 
 **宿主预览缩放**：2558×1598 的窗口截图在模型侧可能显示成 1610×1006，但 `@(x,y)`/`computer_click` 始终是原图像素。2026-11-17 t14 r2 与 t17 r2 都把 A1 点成 B1，就是因为按预览尺寸估坐标。头部现在带 `源图 W×H` 并明确“预览缩放时用 `screen_zoom` + `from_zoom=true`”；网格/画布/图标定位不要用整窗预览量像素。
 
@@ -96,63 +106,9 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - **像素路径是 best-effort**：点击后必须用 `screen_observe` / `computer_verify` 复核；不要把它当“零标定命中”。
 - 不要把 `screenOrigin` 加进点击坐标——它是换算到屏幕绝对坐标的基准，不是点击输入。
 
-### 4.1 WinUI3 键鼠通道实测（2026-11-16）
+**0.52+ 坐标差异**：截图与 `window_bounds` 仍可能差 1–2px；归一化优先用 `capture`/`screenshot_frame`，没有时按 `frame - bounds.origin` 兼容。精确像素任务仍建议 `screen_zoom + from_zoom=true`。
 
-`node evals/probe-winui-keys.mjs` 在 Win11 Notepad（WinUI3）测试窗上验证 Ctrl+A / Alt+F / Alt+Tab；判定：Ctrl+A 用 UIA `TextPattern.GetSelection()` 覆盖全文，Alt+F 用 AX 树是否出现弹出菜单项，Alt+Tab 用 `GetForegroundWindow` HWND 是否变化。
-
-| 组合 | 通道 | 驱动结果 | 实际效果 |
-|---|---|---|---|
-| Ctrl+A | `hotkey` background/foreground | 抛 `could not find a UIA AcceleratorKey`（扫描 44 元素） | 无选择 |
-| Ctrl+A | `press_key` + ctrl，background | `effect:unverifiable` | 无选择，且把裸 `a` 插入正文（textLen 27→28）——**不要用** |
-| Ctrl+A | `press_key` + ctrl，foreground | `effect:unverifiable` | 选中全文（28/28） |
-| Ctrl+A | 点“编辑”菜单（background）→ 点“全选”（background） | 均 `effect:unverifiable` | 选中全文（28/28）——推荐回退 |
-| Alt+F | `hotkey` background/foreground | `could not find a UIA AcceleratorKey` | 菜单未打开 |
-| Alt+F | `press_key` + alt，background | `effect:unverifiable` | 菜单未打开 |
-| Alt+F | `press_key` + alt，foreground | `effect:unverifiable` | 文件菜单打开（新建标签页/新建窗口/打开/保存…） |
-| Alt+Tab | `hotkey` background/foreground | `UIA accelerator scan exceeded 4000ms` | 前台 HWND 不变 |
-| Alt+Tab | `press_key` + alt，background | `effect:unverifiable` | 前台 HWND 不变 |
-| Alt+Tab | `press_key` + alt，foreground | `effect:unverifiable` | 前台切换到 ZCode（HWND 变化）——可用但会真的切走 |
-
-结论：
-
-- **Ctrl+A 的可靠回退是“点编辑菜单 → 全选”**，不是前台裸 `press_key`；后者虽然能选中，但 background 变体会把裸键插入正文。插件 `xamlKeyFallback` 的对话框 `press_key` 分支始终走 foreground，避免该污染。
-- **Alt+F 只在 foreground `press_key` 下可靠**；`hotkey` 走 UIA AcceleratorKey 扫描，WinUI3 上不可达。
-- **Alt+Tab 只在 foreground `press_key` 下生效**（真实 OS 切换）；`hotkey` 会 4s 超时。任务里优先用 `app_list`/`computer_activate`/`app_launch` 切窗口，不要依赖 Alt+Tab。
-- 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须用 observe/verify 复核，不能把 unverifiable 当成功。
-
-插件映射（0.5.7-dev）：
-
-| 配置 | Ctrl+A | Alt+F | 说明 |
-|---|---|---|---|
-| `xamlKeyFallback=auto` | “编辑→全选”后台 token 点击；无菜单栏时对 `ctrl+a` 走前台 `press_key` | 只给控件指引 | 既有行为；对话框 press 分支始终 foreground |
-| `xamlPressFallback=auto` | 前台 `press_key`（菜单回退关闭时直接走） | 前台 `press_key` 打开文件菜单 | 只在前台通道发送；background 会把裸键插入正文 |
-| 两者都 `auto` | 菜单优先；菜单栏/菜单项不可用或打开点击失败时才 press | 前台 `press_key` | 想 press 优先可把 `xamlKeyFallback` 设为 `off` |
-
-- `alt+f` 成功后清空快照，强制重新观察取菜单项编号；若快照已显示弹出菜单项则拒绝发送，避免把菜单关掉。
-- press 失败回执写“前台 `press_key` 也未能发送 …”，不再建议刚试过的 `foreground=true`。
-- `alt+tab` 永不自动回退：foreground `press_key` 会真实切走前台；切窗口用 `computer_activate`/`app_launch`。
-- 顶层菜单栏点击在 `effect:unverifiable` 时给菜单专用注记（不要重复点同一菜单栏项）；`verifyAfterAction=auto` 时同窗口复核会报告“检测到弹出菜单项/未检测到”，但不额外扫描独立 popup 窗口。
-
-### 4.1 显式窗口激活（computer_activate）
-
-`computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；它不要求快照，但激活后要操作窗口内容仍需 `screen_observe` 取编号。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。`window_id` 来自 `screen_observe` / `app_list`；未知 id 会明确失败并提示重新观察。
-
-### 4.2 驱动版本差异（0.52+ 实测）
-
-| 现象 | 触发条件 | 插件处理 |
-|---|---|---|
-| `get_window_state` 默认只给 markdown，无 `elements` | 0.52+ 不传 `tree_format` | 兼容层总是传 `tree_format:"elements"`；旧驱动接受该字段 |
-| `stale_element_token` / `current_snapshots:[]` | 观察未带 session，动作带 session | `get_window_state` 注入统一 `CUA_SESSION` |
-| `screenshot_context_missing / no_screenshot` | 像素 click/drag/scroll 或 `zoom` 前没有截图读取 | 0.52+ 补 `get_window_state(include_accessibility_tree:false, include_screenshot:true)` 的 capture-only（保留 token）；0.23.2 退回 `max_elements:1` 并标 token 失效 |
-| 前台 click 校验目标 HWND | 目标不在前台 | 既有 `bring_to_front` 前置/绕锁链；探针先激活 |
-| `hotkey` 回执 `foreground_restored:false` | 驱动没有恢复原前台 | 组合键注记动态写“原前台未恢复”，不再声称已恢复 |
-| 非零退出 + JSON 拒绝 | `background_unavailable` 等 | 当回执值，继续前台升级；不当传输故障 |
-
-坐标提示：0.52 的 `screenshot` 与 `window_bounds` 仍可能差 1–2px；归一化优先用
-`capture`/`screenshot_frame`，没有时按 `frame - bounds.origin` 兼容。精确像素任务
-仍建议 `screen_zoom + from_zoom=true`。完整矩阵见 [DRIVER-SDK](DRIVER-SDK.md)。
-
-## 5. 观察与结构密码扫描
+## 6. 观察与结构密码扫描
 
 - `screen_observe` 先 `list_windows(on_screen_only)` 选目标；指定 `window` 未匹配时 **fail-closed**，返回候选且不建新快照；如果已有新鲜旧快照，会明确提示它仍有效（只有同窗口失败才清空）。
 - **快照是全局单例**：任意窗口的新观察都会替换 `snapshot_id`；native/vision 回执文本回显当前 id 与“全局单例”，query 只读视图会清除旧快照。动作携带上一个窗口/上一次观察的 id 会得到 `[snapshot_mismatch]`。
@@ -174,7 +130,7 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
 - 误差方向安全：坐标错配只会漏标，不会误标；漏标时启发式接管。
 - A6 真机 9/9：结构标记、guard 硬拒、普通框零误拒、sidecar 时延 1.4–1.6s、zoom crop 元数据。
 
-## 6. 窗口/标签清理规则（血泪）
+## 7. 窗口/标签清理规则
 
 Win11 记事本是**单进程多窗口/多标签**，进程可能同时持有用户未保存文档。因此：
 
@@ -193,36 +149,34 @@ Win11 记事本是**单进程多窗口/多标签**，进程可能同时持有用
    - 浏览器复用用户会话：`--new-window` 后要求新 HWND；只关该 HWND，绝不按 chrome/msedge 进程名杀。论文下载只扫描任务开始后新增的 PDF，cleanup 只删 SHA-256 匹配的新文件，绝不碰用户已有 Downloads 文件。
    - dirty 任务 md 标记 `- **isolation: dirty**`；headless/verify runner 只在选中 Notepad 任务时备份/恢复 TabState，dirty 组不碰用户 Notepad。
 
-## 7. 冒烟矩阵
+## 8. 冒烟矩阵
 
-### 7.1 引擎与加载
+### 8.1 引擎与加载
+
+```powershell
+cua-driver call get_screen_size '{}'
+dsh --profile web --dump-config | grep dsh-win-computer-use
+```
+
+headless 探针（默认禁用 credentials；用 overlay 启用）：
 
 ```bash
-# 1) 引擎连通
-cua-driver call get_screen_size '{}'
-
-# 2) 插件出现在合成配置中
-dsh --profile web --dump-config | grep dsh-win-computer-use
-
-# 3) dispatcher 面（headless 探针；headless 默认禁用 credentials，探针 patch 需启用）
-dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
+dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
   --permission-mode read-only --approval-policy never \
   "调用 computer_do(action='status')，把返回原文贴出来"
 ```
 
-期望：`status` 返回 `dispatcher` 模式、直接可见 `computer_do,screen_observe`、隐藏 21 个。2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；headless 默认 `credentials: disabled`，不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
+期望：`status` 返回 `dispatcher` 模式、直接可见 `computer_do,screen_observe`、隐藏 21 个。
 
-### 7.2 真桌面闭环（推荐脚本）
+### 8.2 真桌面闭环
 
 ```bash
 node tests/live-action.e2e.mjs 3
 ```
 
-流程：创建唯一命名临时文件 → 打开记事本 → `screen_observe(ax)` 找文档元素 → `computer_type(effect:confirmed)` → 脚本自读 UIA 文档文本含标记（独立见证）→ `computer_verify` 窗口谓词 satisfied / 自输入文本 unknown+untrusted_source → 未知参数拒绝 → 剪贴板往返 → `computer_wait`。最近一次 23/23（2026-09-17）。
+流程：唯一命名临时文件 → 打开记事本 → `screen_observe(ax)` → `computer_type(effect:confirmed)` → 脚本自读 UIA 文档文本（独立见证）→ `computer_verify` → 未知参数拒绝 → 剪贴板往返 → `computer_wait`。最近一次 23/23（2026-09-17）。清理：报告残留标签，不杀进程。
 
-清理：脚本报告残留标签，不杀进程；人工关闭临时文件标签。
-
-### 7.3 观察/截图/坐标
+### 8.3 观察/截图/坐标
 
 ```bash
 node verify-runtime.mjs
@@ -230,16 +184,15 @@ node verify-runtime.mjs
 
 18 项：dispatcher 可见 2 / catalog 21 / 隐藏 click 无快照拒绝 / `screen_observe(ax)` / native 图片落盘 / native 文本快照 id / `screen_zoom` 经 dispatcher 图片透传 / 坐标字段一致。只读观察，不执行桌面动作。
 
-### 7.4 密码框
+### 8.4 密码框
 
 ```powershell
-# 自包含探针：WinForms 密码框 + UIA 自扫 + Win32 样式真值
 powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 ```
 
 期望：结构位标记命中；`computer_type` / `computer_set_value` 硬拒；普通输入框零误拒。
 
-### 7.5 明确不再使用的旧验收项
+### 8.5 明确不再使用的旧验收项
 
 旧版 `WINDOWS_TEST.md` 曾要求“危险词按钮 → 触发审批”。**审批网关在 0.4.0 已删除**；现在的正确验收是：
 
@@ -248,48 +201,24 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 - 快照 TTL/无快照 → 结构化拒绝；
 - `computer_stop` → 全工具锁存，`computer_resume` 解锁。
 
-## 8. 故障排查
-
-| 现象 | 原因 | 处理 |
-|---|---|---|
-| `cua-driver` 启动失败/ENOENT | 不在 PATH 或未安装 | 设 `CUA_DRIVER_BIN`；确认 daemon 在跑 |
-| 窗口级观察被拒，返回 `desktop-visual` | 权限/UIPI/目标不可访问 | 换普通窗口；桌面坐标不能直接点击 |
-| `background_unavailable` | Chromium/Electron/GTK/VCL 等丢弃后台事件 | `deliveryMode: auto` 自动前台；或 `foreground:true` |
-| `foreground_unavailable` | 前台锁（对话框常见） | 自动 L3；`foreground:true` 也会升级（要求 payload 有 `pid+window_id`）；仍失败先让目标前置 |
-| `[repeat_suppressed]` | 同一窗口/目标/投递模式 5s 内重复，且观察未变化 | 先 `screen_observe`；确认要再点就换目标或 `count=2`；`actionGuard:off` 可关 |
-| `alt+f4`/hotkey 4s 超时 | WinUI3 UIA 加速器不可达（#3908） | 点菜单/工具栏控件；或稍后重试；可试 `xamlKeyFallback: auto` |
-| `could not find a UIA AcceleratorKey` | 命令在关闭菜单里（保存/全选等）；PostMessage 被忽略 | 点菜单栏项打开菜单，再点具体菜单项；不要重复按键 |
-| `menu_path_unavailable` | XAML 菜单驱动走不到 | 改点控件；不要回退像素 |
-| 像素点击偏 | 混合 DPI + 驱动 0.23.2 落点缺陷（A7） | 用 element 路径；像素点击后复核 |
-| `computer_type` 送达但无效果 | 目标不接受该通道/焦点不对 | 指定 element 走 ValuePattern；或点控件后输入 |
-| 回执里出现 `background_delivery_failed` 但文字已进入目标 | 这是驱动的“建议升级前台”escalation，不是硬失败；旧版整段 JSON 子串误判 | 已用词边界修正；以 `effect:unverifiable`/回读为准，不要重复输入 |
-| `Ctrl+V`/`Ctrl+A` 只落成 `v`/`a` | 后台 synthetic 不更新 OS 修饰键状态 | 组合键已自动前台；仍异常时先 `computer_activate(pid,window_id)` 再重试一次 |
-| A1 点成 B1 / 坐标偏移一列 | 按模型侧缩放预览估算原图像素 | 用 `screen_zoom`（宽≤500）+ `from_zoom=true`；头部 `源图 W×H` 才是点击空间 |
-| `[private_drag_zoom_unsupported]` | 私有拖拽未复刻 driver zoom padding/scale | 用窗口截图坐标重发；不要 modifier+from_zoom |
-| `[private_drag_no_frame]` | 快照缺 `screenOrigin`/截图尺寸 | 先 `screen_observe`（不要 query 只读视图）再拖 |
-| query 后动作报 `snapshot_missing` | query 只读视图会清除旧动作快照 | 不带 query 重新 `screen_observe`；回执已明确“旧动作快照已清除” |
-| 跨窗口观察后 `snapshot_mismatch` | 快照是全局单例，观察另一个窗口已替换 id | 用最新观察的 `snapshot_id`；拒绝文本会带当前快照的 app/title/pid/window_id，先确认它属于哪个窗口 |
-| 私有拖拽 `foreground_unavailable` / `sendinput_blocked` | 前台锁或 UIPI 阻止 SendInput | 未发送输入；先 `computer_activate` 或提升 helper 完整性后再试一次；不要重复已发送的 drag |
-| 剪贴板 read 为空 | 被其它进程占用 | write 后 verify/重试；用粘贴流 |
-| `app_launch` 后无法关闭 | High IL + UIPI | 提示用户手动关闭；不要按进程名杀 |
-| 测试选中错误窗口 | 桌面有同名/残留窗口 | 用唯一命名临时文件 + 标题精确匹配；不要用进程名 |
-| PowerShell `Add-Type` 报 `C:\Windows\TEMP\*.cs` 找不到 | 进程 `TEMP` 指向系统目录 | 跑 `evals/` 前设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp` |
-
-## 9. 上游问题跟踪
-
-| 编号 | 内容 | 状态 |
-|---|---|---|
-| [trycua/cua#3576](https://github.com/trycua/cua/issues/3576) | 元素投影增加 `is_password` | 已提；插件用 sidecar 结构位兜底 |
-| [trycua/cua#3586](https://github.com/trycua/cua/issues/3586) | UI 树 revision + 条件请求（no_change） | 已提；落地后 TTL 可退役为上限保险 |
-| [trycua/cua#3587](https://github.com/trycua/cua/issues/3587) | 结构化干预信号（光标位移/钩子） | 已提；落地后可疑状态可由真实干预驱动 |
-| [trycua/cua#3607](https://github.com/trycua/cua/issues/3607) | 驱动高完整性/清理边界 | 已附对照实验与清理后果 |
-| [trycua/cua#3908](https://github.com/trycua/cua/issues/3908) | WinUI3 hotkey UIA 加速器超时 | 已提；插件翻译为“改点控件”指引 |
-| — | 像素点击落点（A7） | 素材已备，未单独提交；插件层定性 best-effort |
-
-## 10. 已知限制
+## 9. 已知限制
 
 - 管理员/UIPI 窗口：驱动可操作其自己启动的高完整性窗口，但非提权客户端清不掉；这是 OS 边界，不是插件 bug。
 - WinUI3 的快捷键/菜单通道可能整体不可达；element 点击是可靠替代。
 - 像素路径受驱动 DPI 缺陷影响；element 路径优先。
 - 桌面级降级只提供视觉信息，不产生可执行窗口坐标。
+- 私有拖拽不支持 `from_zoom`；UIPI 高权限目标会失败。
 - Linux/macOS 的 Windows 专属行为（结构密码扫描、UIPI、AttachThreadInput）不适用或未验证。
+
+## 10. 上游跟踪
+
+| 编号 | 内容 | 状态 |
+|---|---|---|
+| [trycua/cua#3576](https://github.com/trycua/cua/issues/3576) | 元素投影增加 `is_password` | 已提；插件用 sidecar 结构位兜底 |
+| [trycua/cua#3586](https://github.com/trycua/cua/issues/3586) | UI 树 revision + 条件请求 | 已提；落地后 TTL 可退役为上限保险 |
+| [trycua/cua#3587](https://github.com/trycua/cua/issues/3587) | 结构化干预信号 | 已提；落地后可疑状态可由真实干预驱动 |
+| [trycua/cua#3607](https://github.com/trycua/cua/issues/3607) | 驱动高完整性/清理边界 | 已附对照实验与清理后果 |
+| [trycua/cua#3908](https://github.com/trycua/cua/issues/3908) | WinUI3 hotkey UIA 加速器超时 | 已提；插件翻译为“改点控件”指引 |
+| — | 像素点击落点（A7） | 素材已备，未单独提交；插件层定性 best-effort |
+
+路线与触发条件见 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md)；逐轮证据见 [EVIDENCE](EVIDENCE.md)。

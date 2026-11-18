@@ -1,8 +1,9 @@
-# ARCHITECTURE — dsh-win-computer-use
+# ARCHITECTURE — 内部结构
 
-> 代码快照：`main` @ 2026-11-10（`0.5.7-dev`；包版本仍为 0.5.6，发布时统一）。
-> 范围：插件内部结构、工具面、请求/观察流水线、投递链、快照语义、扩展方式。
-> 读者：要改代码或排查行为的人。使用说明见 [README](../README.md)；Windows 专项见 [WINDOWS](WINDOWS.md)。
+> 目的：模块边界、工具面、请求/观察管线、快照、投递、委派、不变量与扩展方式。
+> 读者：要改代码或排查行为的人。
+> 状态：当前实现（最后核对 2026-11-18；代码快照 `main` @ 0.5.7-dev）。
+> 相关：[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [docs/README](README.md)。
 
 ## 1. 目标与非目标
 
@@ -50,26 +51,26 @@ flowchart LR
   DRV --> OS["Windows: UIA / SendInput / PostMessage / 剪贴板"]
 ```
 
-依赖方向是单向的：`index.js → lib/* → cua-driver`；`snapshot.js`、`attach.js`、`engine.js`、`roles.js`、`dispatcher.js` 是低层叶子，不反向依赖动作/观察模块。
+依赖方向单向：`index.js → lib/* → cua-driver`；`snapshot.js`、`attach.js`、`engine.js`、`roles.js`、`dispatcher.js` 是低层叶子，不反向依赖动作/观察模块。
 
 ## 3. 模块地图
 
 | 文件 | 关键导出 | 职责 | 依赖 |
 |---|---|---|---|
-| `index.js` | `Config`、`apply`、`toolDefinitions` | 配置 schema；四组工具定义数组；`defineTool` 投影；`apply()` 注册可见工具；`wrap()` 统一管线；`computer_do` 元工具 | 全部 lib |
+| `index.js` | `Config`、`apply`、`toolDefinitions` | 配置 schema；五组工具定义；`defineTool` 投影；`apply()` 注册可见工具；`wrap()` 统一管线；`computer_do` 元工具 | 全部 lib |
 | `lib/observe.js` | `screenObserve`、`screenZoom`、`dedupEvaluate`、`dedupReset` | 目标选择、抓树、桌面降级、模式决策、结构密码标记、状态差分、快照缓存、渲染、降噪、zoom 裁剪 | cua / snapshot / attach / vision / passwordScan / roles |
-| `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp` | 动作实现；快照/窗口解析；目标回显；投递；回执 | cua / human / receipt / snapshot / engine |
+| `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp`、`activate` | 动作实现；快照/窗口解析；目标回显；投递；回执 | cua / human / receipt / snapshot / engine / privateDrag |
 | `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf`、`describeClickTarget`、`nearestEntry` | 虚拟光标滑行（auto/human/off）；element_token / 像素点击；坐标适配；目标回显 | cua / snapshot |
 | `lib/privateDrag.js` | `privateDrag`、`stopPrivateDrag` | 持久 PowerShell helper 的 stdin/stdout JSON 封装；惰性启动、串行队列、超时/崩溃恢复、空闲退出 | `tools/private-drag.ps1` |
 | `lib/loopGuard.js` | `checkRepeat`、`noteObserveChange`、`resetLoopGuard` | 同窗口/目标/投递模式 5s 重复点击抑制；观察变化清除 | human |
 | `lib/trajectory.js` | `trajectoryStart`、`runTool`、`logDriverCall`、`trajectorySummary`、`sanitizeArgs` | CU 轨迹 JSONL：脱敏、驱动归属、loop/耗时/未验证/移动数 | node:fs / node:async_hooks |
 | `lib/ops.js` | `createOpsState`、`gate`、`stop`、`resume`、`verifyOnce`、`waitFor`、`clipboard`、`menu`、`hover` | 确定性验证、轮询、剪贴板、菜单直调、悬停、强杀锁存 | cua / snapshot / attach / engine / receipt |
-| `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`DELEGATION_RECIPE` | 子 agent 委派（0.2.2 `startActivation`）、能力降级、超时/预算、结构化结果映射 | 宿主 `subagents` |
+| `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`DELEGATION_RECIPE` | 子 agent 委派（0.2.2 `startActivation`）、能力降级、超时/预算、结构化结果 | 宿主 `subagents` |
 | `lib/guard.js` | `guard`、`extremeNote` | 无快照拒绝、白名单、密码三态、极危注记、inputUnconfirmed 保存意图门禁 | snapshot / roles / keyFallback / human |
-| `lib/snapshot.js` | `setSnapshot`、`resolveToken`、`resolveWindow`、`validateSnapshotId`、`markConsumed`、`markSuspect`、`freshnessGate`、`markInputUnconfirmed`/`getInputUnconfirmed`/`clearInputUnconfirmed` | 单窗口快照、TTL、编号解析、消费/可疑标记、连击语义；跨快照的输入未确认状态 | — |
+| `lib/snapshot.js` | `setSnapshot`、`resolveToken`、`resolveWindow`、`validateSnapshotId`、`markConsumed`、`markSuspect`、`freshnessGate`、`markInputUnconfirmed`/`getInputUnconfirmed`/`clearInputUnconfirmed` | 全局单例快照、TTL、编号解析、消费/可疑标记、连击语义；跨快照的输入未确认状态 | — |
 | `lib/windowMap.js` | `rememberWindows`、`pidOfWindow`、`resetWindowMap` | list_windows 的 window_id→pid 缓存；L3 恢复原前台查 pid | — |
-| `lib/receipt.js` | `receipt`、`refusalReceipt`、`settleAction`、`UNVERIFIED_NOTE`、`SUSPECTED_NOOP_NOTE`、`INPUT_UNVERIFIED_NOTE`、`SET_VALUE_NOTE` | 动作回执唯一出口：规范化 → 判拒绝 → 标快照 → 紧凑文本；输入类区分部分写入/不得 foreground 重输 | cua / engine / snapshot |
-| `lib/engine.js` | `engineRefusal`、`isSuspectedNoop`、`uiaAcceleratorTimeout` | 驱动回执的拒绝形态统一识别（refusal/effect/error/code/ok:false/supported:false） | — |
+| `lib/receipt.js` | `receipt`、`refusalReceipt`、`settleAction`、`UNVERIFIED_NOTE`、`SUSPECTED_NOOP_NOTE`、`INPUT_UNVERIFIED_NOTE`、`SET_VALUE_NOTE` | 动作回执唯一出口：规范化 → 判拒绝 → 标快照 → 紧凑文本 | cua / engine / snapshot |
+| `lib/engine.js` | `engineRefusal`、`isSuspectedNoop`、`uiaAcceleratorTimeout`、`FAILURE_CODES` | 驱动回执的拒绝形态统一识别（refusal/effect/error/code/ok:false/supported:false） | — |
 | `lib/dispatcher.js` | `SURFACE_MODES`、`STABLE_TOOLS`、`HOT_TOOLS`、`visibleToolsForMode`、`hiddenToolNames`、`catalogOf` | 工具面常量、可见/隐藏清单、catalog 紧凑签名 | — |
 | `lib/cua.js` | `CUA_BIN`、`CUA_SESSION`、`cuaCall`、`cuaDeliver`、`isUnverified`、`normalizeMcp`、`cuaDriverCapabilities` | 驱动 facade：会话自愈、请求映射、响应归一化、三级投递链、错误分类 | `lib/driver/*` |
 | `lib/driver/transport.js` | `resolveBin`、`createTransport`、`DriverCallError`、`defaultTransport` | **唯一 spawn**：超时/退出码/JSON/contract/session/结构化拒绝分类；`runOnce` 只读版本/状态探测 | node:child_process |
@@ -80,13 +81,15 @@ flowchart LR
 | `lib/passwordScan.js` | `scanPasswords`、`markElementsFromScan`、`IS_WINDOWS` | Windows UIA sidecar 结构密码扫描与坐标标记 | `powershell.exe` |
 | `lib/roles.js` | `isPasswordCandidate`、`isMaskedValue`、`isActionableRole` | 跨平台角色语义：密码三态、可交互过滤 | — |
 | `lib/attach.js` | `saveImageAttachment` | 图片持久化到宿主 attachments 的统一出口 | — |
+| `lib/keyFallback.js` | `canonicalKey`、`isFallbackKey`、`tryXamlKeyFallback`、`xamlKeyGuidance` | XAML/WinUI 组合键的菜单/token 回退；唯一标签、歧义即停 | cua / snapshot / windowMap |
+| `lib/menu.js` | `isMenuRole`、`isTopMenuBarLabel`、`isAppMenuBarLabel`、`menuStateOf` | 菜单角色/顶层菜单/菜单状态判定 | — |
 | `tests/lib/harness.mjs` | `makeWorkCopy`、`writeStubDriver`、`makeCtx`、`validateSchema`、`makeChecks` | 测试工作副本、可编程驱动桩、严格 schema 校验 | node:fs |
 
 ## 4. 工具面：数据、注册、路由
 
 ### 4.1 工具面即数据
 
-`index.js` 里四组函数返回定义数组：
+`index.js` 里五组函数返回定义数组：
 
 | 组 | 工具 | 数量 |
 |---|---|---:|
@@ -110,7 +113,7 @@ flowchart LR
 | `dispatcher`（默认） | `computer_do`、`screen_observe` | 21 | 所有动作经 dispatcher 路由 |
 | `hybrid` | 上面 2 个 + `HOT_TOOLS` 5 个 | 16 | 热工具直接调用，长尾路由 |
 
-`HOT_TOOLS = [computer_click, computer_type, computer_key, computer_scroll, computer_verify]`。`catalogOf` 生成 `name(required,optional?)` 紧凑签名，最多 24 条。
+`HOT_TOOLS = [computer_click, computer_type, computer_key, computer_scroll, computer_verify]`。`screen_zoom` 与 `computer_activate` 在两种模式下都隐藏。`catalogOf` 生成 `name(required,optional?)` 紧凑签名，最多 24 条。
 
 ### 4.3 隐藏工具仍然走完整管线
 
@@ -136,7 +139,7 @@ const r = await def.execute(hiddenArgs, exec)
 - 不能路由当前模式已直接可见的工具（提示直接调用）。
 - 未知工具返回可用清单。
 - `screen_zoom` 的 `image` 字段经 dispatcher 透传，`renderWithImage` 生成图片块。
-- `action` 缺省按 `catalog` 处理（schema 仍要求显式 `action`）。
+- `action` 缺省按 `catalog` 处理（schema 仍要求显式 `action`）；`args` 非普通对象会被静默当成 `{}`。
 - PTC / `run_code` 模式下，SDK 只绑定直接可见的工具；隐藏工具仍需 `tools.computer_do({action:'call', tool, args})` 路由（`tools.computer_task` 为 `undefined` 是预期行为，不是注册失败）。
 
 ## 5. 请求管线
@@ -147,6 +150,7 @@ const r = await def.execute(hiddenArgs, exec)
 gate（stop 锁存；computer_do 除外）
   → 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默丢弃）
   → guard（无快照/白名单/密码/极危）
+  → checkRepeat（重复点击抑制）
   → impl(args, cfg, exec)
   → 把 guard 的 note 追加到 result
 ```
@@ -199,7 +203,7 @@ sequenceDiagram
 
 ### 5.3 回执状态
 
-`settleAction` 是动作回执的唯一出口：
+`settleAction` 是 click/double/right/type/key/scroll/drag/set_value 的唯一出口；menu/verify/clipboard/task/activate/launch/hover 有各自的回执。
 
 | 输入形态 | `ok` | 快照标记 | 文本 |
 |---|---|---|---|
@@ -207,6 +211,8 @@ sequenceDiagram
 | `unverifiable` | `true` | `markConsumed` + `markSuspect` | 附“先观察”注记 |
 | `background_unavailable` / `foreground_unavailable` / `delivery_failed` | `false` | 不消费；`delivery_failed` 另标 suspect | “未送达；不要重复，必要时 foreground=true 重试” |
 | `refusal` / `error` / `code` | `false` | 不消费（除非 `suspected_noop`） | 拒绝原因 |
+| `effect:suspected_noop` | `false` | `markSuspect`，不 `markConsumed` | 附“不要立即重放” |
+| `menu_path_unavailable` 等 | `false` | — | `refusalReceipt` |
 
 XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
 
@@ -214,10 +220,8 @@ XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
 2. `xamlKeyFallback: off`（默认）→ 直接返回“点菜单栏项 → 点菜单项”的指引，不透传 `get_window_state`；
 3. `xamlKeyFallback: auto` → 只对白名单组合，先找同 pid 窗口里现成的唯一菜单项，否则点快照里唯一的菜单栏项，轮询弹出菜单，点唯一的 enabled 目标项；全部 token 点击、后台投递；歧义/缺失立即停止；成功后清空快照并要求重新观察；不自动处理另存为/覆盖对话框。
 4. `xamlPressFallback: auto` → 对 `ctrl+a` / `alt+f` 允许一次前台 `press_key`（带 pid/window_id，forceForeground）。两者都开时 `ctrl+a` 仍菜单优先，菜单不可用才 press；`alt+f` 直接 press、成功后清快照。只在前台通道发送（background 会把裸键插入 WinUI 正文）；不含 Alt+Tab；press 失败明确返回 `ok:false`，不再建议 `foreground=true`。
-| `effect:suspected_noop` | `false` | `markSuspect`，不 `markConsumed` | 附“不要立即重放” |
-| `menu_path_unavailable` 等 | `false` | — | `refusalReceipt` |
 
-`engineRefusal` 统一识别 `effect`（refused/rejected/suspected_noop）、`error`、`refusal.code`、`code=invalid_arguments/unavailable/not_supported`；`deliveryFailure` 单独识别 `background_unavailable`/`foreground_unavailable`/`delivery_failed`，并在 `settleAction` 的 refusal 分支之前把 `ok` 置为 false。新增动作只要走 `settleAction`，就不会再出现“拒绝/未送达被当成功”的同类缺陷。
+`engineRefusal` 统一识别 `effect`（refused/rejected/suspected_noop）、`error`、`refusal.code`、`code=invalid_arguments/unavailable/not_supported` 以及 `FAILURE_CODES`（`screenshot_context_missing` 等）；`deliveryFailure` 单独识别 `background_unavailable`/`foreground_unavailable`/`delivery_failed`，并在 `settleAction` 的 refusal 分支之前把 `ok` 置为 false。新增动作只要走 `settleAction`，就不会再出现“拒绝/未送达被当成功”的同类缺陷。
 
 ## 6. 观察管线
 
@@ -229,7 +233,7 @@ flowchart TD
   D -->|否| E["fail-closed：候选列表，不建快照"]
   D -->|是| F["目标窗口"]
   C -->|否| G["z 序最前 + pickedFrontmost 注记"]
-  F --> H["check_permissions（只读）"]
+  F --> H["check_permissions（只读，30s 缓存）"]
   G --> H
   H --> I["get_window_state(include_screenshot?, max_elements, query?)"]
   I -->|失败| J["get_desktop_state → desktop-visual 降级"]
@@ -253,16 +257,18 @@ flowchart TD
 
 ### 6.1 目标选择
 
-- `window` 依次按 `pid` 精确、标题子串、应用名子串匹配。
+- `window` 依次按 `pid` 精确、标题子串、应用名/中英别名匹配；纯数字按 pid 解释，不是 window_id。
 - 指定了 `window` 但没有匹配：**fail-closed**，返回最多 8 个候选，不建立快照。不会回退到最前窗口。
 - 未指定 `window`：取 `z_index` 最前，结果头注明“已取最前窗口”。
+- 同 pid 多窗口：`window_id` 精确匹配优先；否则按 on-screen、z_index、标题具体度排序。同标题匹配多个窗口时头部/降噪 stub 都提示改用 `window_id`。
+- 目标列表排除插件自己的 `Cua.AgentCursorOverlay*`、Codex overlay 等光标覆盖层；显式指定 overlay 返回专门错误。
 
 ### 6.2 模式决策
 
 | 请求模式 | 行为 |
 |---|---|
 | `ax`（默认） | 树可用 → 文本编号树；树空/降级 → 若当前 route 支持 image → `native`；否则若 GLM key 已配置 → `vision`；否则 `ax` + `visualOnly` |
-| `native` | 要求当前 route 声明 image 输入；否则直接失败并提示换模型/用 `vision`。截图经 attachments 落盘；超单图限额或 `nativeImage=compact` 时明确失败（驱动 0.23.2 zoom 不能整窗缩放，区域宽 ≤500px），提示改 ax/vision 或 screen_zoom |
+| `native` | 要求当前 route 声明 image 输入；否则直接失败并提示换模型/用 `vision`。截图经 attachments 落盘；超单图限额或 `nativeImage=compact` 时明确失败，提示改 ax/vision 或 screen_zoom |
 | `vision` | 用 `ctx.llm` 调 `visionProvider/visionModel` 观察者；失败回退 GLM；两者都失败返回错误文本，不崩溃 |
 
 `routeImageCapable` 从 `exec.agent.session.requestHeader().config` 取当前 provider/model，再查 `llm.resolveModelInfo` 的 `inputModalities`。没有 `llm`/`attachments` 时 native 不可用。
@@ -275,9 +281,9 @@ flowchart TD
 - 输入类元素的当前值进入文本 `值="..."` 与 `elements.value`（密码/文档正文除外）；每次观察附 `自上次观察` 差分（标题/值/状态栏/元素增删），供 unverifiable 动作确认。
 - `screen_zoom` 输出 `crop{x,y,w,h}`（请求区域）与 `fromZoom`：正常 zoom 的 `coordinateSpace=zoom-image-px`，图内坐标必须用 `computer_click(x,y,from_zoom=true)` 让驱动换算（驱动会加约 20% padding 并可能缩放）；整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。`screenOrigin` 只用于再换算到屏幕绝对坐标。
 - `from_zoom` 对 click/double/right 与 drag 开放；drag 的起终点都按 zoom 图坐标解释。插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且 zoom 晚于当前观察，否则返回 `[zoom_missing]/[zoom_stale]`。
-- click 家族的 `modifier` 在 Windows 上必须前台 SendInput；插件在 modifier 非空时自动 `forceForeground` 并恢复原前台。drag 的 `modifier` 未开放：driver 0.23.2 接受字段但真机不把修饰键送进目标。
+- click 家族的 `modifier` 在 Windows 上必须前台 SendInput；插件在 modifier 非空时自动 `forceForeground` 并恢复原前台。drag 的 `modifier` 在 0.39+ 驱动原生可用；0.23.2/`dragEngine:private`/`dwell_ms` 走私有 helper。
 
-### 6.4 降噪
+### 6.4 降噪与 query
 
 `dedupEvaluate` 的条件：
 
@@ -291,6 +297,10 @@ flowchart TD
 
 命中时返回 `summary`（前 10 个 `index:role` 摘要 + 关键控件 `[编号] 角色 "标签" 值=...`）或 `brief`（单行）；结构化 `elements` 复用上次映射结果，模型不必为“编号在哪”再 force/native。全量与 stub 都带 `自上次观察` 差分和 `changedSinceLast`；`force=true` 走全量并刷新哈希。`dedupReset()` 在每次 `apply()` 调用时清空降噪/差分/权限缓存。
 
+### 6.5 快照是全局单例
+
+`lib/snapshot.js` 只有一个模块级 `snapshot`。任意成功全量观察（ax/vision/native，含其它窗口）都会替换 `snapshot_id`；native/vision 文本会回显当前 id 与“全局单例”，`snapshot_mismatch` 拒绝文本带当前快照的 app/title/pid/window_id。动作回执不携带 snapshot id；观察回执是唯一 id 来源。
+
 ## 7. 快照与新鲜度
 
 单会话单窗口模型：`snapshot = { at, pid, windowId, appName, snapshotId, entries, mode, … }`。
@@ -302,9 +312,10 @@ flowchart TD
 | `validateSnapshotId(id)` | 传入且与当前快照不一致 → `[snapshot_mismatch]`；未传/无快照不报 |
 | `markConsumed(tool)` | 成功投递后记录 `consumedBy` |
 | `markSuspect(tool)` | `unverifiable` / `suspected_noop` 后记录 `suspect` |
+| `markTokensStale()` | 0.23.2 像素预取替换 index map 后标记 token 失效；坐标动作仍可继续 |
 | `freshnessGate(cfg)` | `off` 零注记；`note` 附一致性提示；`enforce` 对已消费快照抛 `[snapshot_consumed]` |
 
-`markConsumed` 与 `markSuspect` 可同时存在。`suspected_noop` 不消费（避免复用旧快照），但标记可疑；回执会提示先观察再重试。
+`markConsumed` 与 `markSuspect` 可同时存在。`suspected_noop` 不消费（避免复用旧快照），但标记可疑；回执会提示先观察再重试。输入未确认状态与快照分离，按 `pid:windowId` 保存，TTL 10 分钟，不因观察替换丢失。
 
 ## 8. 投递链
 
@@ -327,7 +338,7 @@ stateDiagram-v2
 | L1 命中 `background_unavailable` | L2 重试；回执注明“已前台重试一次” |
 | L2 命中 `foreground_unavailable` | L3（`hotkey` 或无 `pid` 除外） |
 | L1/L2 返回 `unverifiable` 且工具 ∈ `{click, scroll, drag}` 且有 `pid` | L3 |
-| 强制前台（`foreground:true`）的 click/scroll/drag | 不走失败后重试：先 `bring_to_front`，只执行一次，再恢复原前台；避免重复点击/滚动/画形状。auto 非强制路径仍保留 `unverifiable + 指针 → L3` |
+| 强制前台（`foreground:true`）的 click/scroll/drag | 不走失败后重试：先 `bring_to_front`，只执行一次，再恢复原前台；避免重复点击/滚动/画形状 |
 | `hotkey` 命中前台锁 | 不 L3（XAML 先验拒绝重试同样失败），回执说明；组合键本身自动前台 |
 | 无 `pid`（desktop scope） | 不 L3（无锁可绕） |
 | L3 的 `bring_to_front` 未返回 `previous_fg_hwnd` | 不回写恢复，回执明确“原前台未恢复，请检查” |
@@ -360,8 +371,6 @@ stateDiagram-v2
 | `outputSchema` | 去掉 `outputSchema` 再启动 | “结果未结构化”，附拒绝原因 |
 | 全部失败 | 不启动 | `ok:false` + provider 与错误 |
 
-没有 `toolFilter` 兼容层；默认 dispatcher 下桌面工具不注册为全局工具也不再影响委派。详见 README“委派的能力边界”。
-
 ## 10. 安全姿态
 
 `guard()` 的顺序：
@@ -379,63 +388,63 @@ stateDiagram-v2
 ## 11. 不变量
 
 1. **依赖单向**：`index.js → lib → cua-driver`，lib 内无环。
-2. **闸门顺序恒定**：锁存 → 未知参数 → 守卫 → 实现 → 注记；新工具自动继承。
+2. **闸门顺序恒定**：锁存 → 未知参数 → 守卫 → 重复抑制 → 实现 → 注记；新工具自动继承。
 3. **禁止盲发 desktop scope**：`type`/`key`/`scroll`/`drag` 必须绑定快照窗口的 `pid + window_id`。
-4. **回执单一出口**：动作拒绝/成功/未验证统一走 `settleAction`。
+4. **回执单一出口**：click/double/right/type/key/scroll/drag/set_value 统一走 `settleAction`。
 5. **unknown ≠ 成功**：`computer_verify` / `wait_for` 的 `unknown` 永不计为成功。
 6. **工具列表稳定**：会话内不注册/注销工具；只注册 `visibleToolsForMode` 的结果。
 7. **隐藏工具不裸奔**：dispatcher 路由到的是包装后的 `def.execute`，不是裸实现。
 8. **注册必须用 `defineTool()` 返回值**：它把作者面 schema 投影成宿主强制子集；直接传原始字面量会被 `assertSupportedJsonSchema` 拒绝，导致整棵插件树加载失败。
 9. **不要订阅 waterfall 事件**：`tools/post-execute` 是 cordis waterfall，监听器不调用 `next()` 会让工具注册表崩溃；仅观测用 `tools/result`。
-10. **工具面可机械校验**：描述/参数/输出 schema/render 的变更要过 schema conformance 与 dispatcher 测试。
+10. **快照全局单例**：任意成功全量观察替换 id；动作/回执不得假设“每窗口一个快照”。
+11. **工具面可机械校验**：描述/参数/输出 schema/render 的变更要过 schema conformance、dispatcher 测试与 `npm run docs:check`。
 
 ## 12. 扩展指南
 
 新增一个工具：
 
-1. 在对应组（观察/动作/运营/委派）的定义数组里加一项；
+1. 在对应组（观察/动作/运营/委派/元工具）的定义数组里加一项；
 2. 决定它是否属于 `STABLE_TOOLS` / `HOT_TOOLS`；默认应隐藏在 dispatcher 后；
 3. 如果它是操作类工具，加进 `guard.js` 的 `OPERATION_TOOLS`，并确保走 `settleAction`；
 4. 在 `tests/schema.conformance.mjs` 加正常/拒绝/未验证等返回形态；
 5. 在 `tests/dispatcher.test.mjs` 校正可见/隐藏数量与 catalog；
 6. 在 `tests/action-bounds.mjs` 加边界（无快照/窗口绑定/参数校验）；
-7. 更新 `README` 工具表、`docs/ARCHITECTURE.md` 组计数、`CHANGELOG.md`；
+7. 更新 `docs/TOOLS.md`、`docs/ERRORS.md`（如有新码）、`CHANGELOG.md`；
 8. 跑 `npm test`（看退出码）、`npm run check`；有真机时跑 `verify-runtime.mjs`。
 
 改工具描述/参数名时，建议同时生成工具面 JSON 快照做前后 diff（工作区一次性脚本，不入库）；工具面是模型看到的全部接口，漂移即回归。
 
 ## 13. 已知缺口
 
-以下问题是**当前实现的真实状态**，不是文档遗漏；修复前不要按“已支持”宣传。
+以下问题是**当前实现的真实状态**，不是文档遗漏；修复前不要按“已支持”宣传。历史运行结果见 [EVIDENCE](EVIDENCE.md)。
 
 | # | 位置 | 现象 | 影响 | 方向 |
 |---|---|---|---|---|
 | A7 | `lib/actions.js` 像素路径 | 驱动 0.23.2 在混合 DPI 下像素点击落点有实测偏差（三种语义假设均有反例） | 像素点击 best-effort；element 路径不受影响 | 等上游修复；文档已降级表述 |
-| A8 | `computer_drag` schema/payload | driver 0.23.2 的 drag `modifier` 不读取；插件改为 **modifier/dwell_ms 走私有 SendInput helper**（`tools/private-drag.ps1`），无 modifier 仍走 driver；`from_zoom`/`steps` 保留 | 私有路径不支持 `from_zoom`（明确报错）；`modifier` 是原子手势，不做失败后重试 | WinForms 探针 down/move/up 读到 `Shift, Control`，drop 后无卡键；t11/t15 回归 pass；Explorer/Excel/PPT 的 modifier drop 作为下一轮真机项 |
-| A9 | `computer_click` schema | 已接 `modifier`（ctrl/shift/alt/win），Windows 自动前台注入；真机探针确认 element 与坐标两条路径都能到达目标 | t15 **3/3 pass，77/72/59 步**（各 5 次 Ctrl+click；文件单选 foreground=true；无 Notepad/Photos 误开） | 见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §9.1 |
-| A10 | native observe | `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver/plugin 两层，未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
-| A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PowerPoint 形状拖拽仍靠坐标；t17 的单行 PDF 句子已用三击 + Ctrl+C 覆盖（2/2 pass） | 评估 selectText/key hold/down-up；drag 支持 from_element |
-| A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后 3/3 pass；t15 文件单选用 foreground=true 后不再误开应用 | 已有 `computer_activate`；保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
-| A13 | 组合键前台语义 | background synthetic 不更新 OS 修饰键状态，`Ctrl+V` 只落 `v`；插件现对组合键自动前台并恢复原前台 | 普通按键仍可后台；XAML hotkey 失败仍走原指引 | 回归 t12/t15；真机探针 `probe-combo-foreground` |
-| A14 | 输入真实性 | `deliveryFailure` 整段 JSON 子串把 `background_delivery_failed` 误判成硬失败；`postInputVerify` 对无 Document 的 type 刷新快照导致每格 observe | 词边界分类 + 无回读控件保留快照；有 Document 的输入仍逐字回读 | 单测 D-bg/F17-F20/E29-E30；t14/t17 复跑观察 typeCalls/observe 次数 |
-| A15 | 观察提示 | 目标 z 序落后时提示 `computer_activate`；坐标行带源图尺寸并警告预览缩放；网格/画布用 `screen_zoom`+`from_zoom` | z 序不是 OS 前台，文案保守；`z_index=null` 不提示 | 单测 C15-C18；t14/t17 的 B1 误点复跑 |
-| A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试；auto 非强制路径保持 L3 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11 **58/94 步**、t15 **85/67 步**、t14/t17 **42/42 步**回归 |
-| A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `evals/probe-private-drag.mjs`（plugin → helper）通过；单测 D7/D7b/D8/D9；Explorer/Excel/PPT drop 待下一轮 |
-| G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 ROADMAP |
-| G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 PUBLISH |
+| A8 | `computer_drag` schema/payload | 0.23.2 的 drag `modifier` 不读取；插件改为 **modifier/dwell_ms 走私有 SendInput helper**，无 modifier 仍走 driver；0.39+ 原生可用 | 私有路径不支持 `from_zoom`（明确报错）；`modifier` 是原子手势，不做失败后重试 | WinForms 探针通过；Explorer/Excel/PPT 的 modifier drop 待真机 |
+| A10 | native observe | `probe-native-freshness` 在 WinForms 文本变化窗口未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
+| A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PPT 形状拖拽仍靠坐标；t17 的单行 PDF 句子已用三击 + Ctrl+C 覆盖 | 评估 selectText/key hold/down-up；drag 支持 from_element |
+| A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后通过；t15 文件单选用 foreground=true 后不再误开应用 | 保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
+| A13 | 组合键前台语义 | background synthetic 不更新 OS 修饰键状态，`Ctrl+V` 只落 `v`；插件对组合键自动前台并恢复原前台 | 普通按键仍可后台；XAML hotkey 失败仍走原指引 | 回归 t12/t15；真机探针 `probe-combo-foreground` |
+| A14 | 输入真实性 | 无 Document/TextArea 的聚焦输入保留快照，避免每格 observe；有回读控件仍逐字复核 | Excel/PPT 连续输入不再 snapshot churn | 单测 D-bg/F17-F20/E29-E30；t14/t17 复跑观察 |
+| A15 | 观察提示 | 目标 z 序落后时提示 `computer_activate`；坐标行带源图尺寸并警告预览缩放；网格/画布用 `screen_zoom`+`from_zoom` | z 序不是 OS 前台，文案保守；`z_index=null` 不提示 | 单测 C15-C18；t14/t17 复跑 |
+| A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11/t15/t14/t17 回归 |
+| A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；Explorer/Excel/PPT drop 待下一轮 |
+| G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
+| G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 ## 14. 测试与证据
 
 - 离线：26 套、634 项检查（2026-11-18；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
-- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
-- 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。t11/t12/t15 的模型行为与失败模式见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；社区 CU 处理模型见 [CU-RESEARCH](CU-RESEARCH.md)。
-- 证据报告：[VERIFICATION](../VERIFICATION.md)。
+- 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
+- 评测：`evals/` 17 条任务（10 条 clean + 7 条 dirty；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
+- 当前矩阵：[VERIFICATION](../VERIFICATION.md)；按日期证据：[EVIDENCE](EVIDENCE.md)；模型行为：[TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 15. 参考
 
-- [README](../README.md) — 用户入口与工具参考
-- [WINDOWS](WINDOWS.md) — Windows 工程细节与冒烟矩阵
+- [docs/README](README.md) — 唯一文档索引
+- [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md) — 宿主到驱动的完整链路
+- [TOOLS](TOOLS.md) — 工具契约
+- [ERRORS](ERRORS.md) — 错误码
+- [WINDOWS](WINDOWS.md) — Windows 工程细节
 - [TESTING](TESTING.md) — 测试体系
-- [PERMISSIONS](../PERMISSIONS.md) — 权限面与承诺矩阵
-- [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) — 路线与驱动缺口
-- [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) — 环境、硬知识、工作约定

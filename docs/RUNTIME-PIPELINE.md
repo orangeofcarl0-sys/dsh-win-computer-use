@@ -1,8 +1,9 @@
 # RUNTIME-PIPELINE — 运行时与执行链路
 
 > 目的：把 dsh 宿主、插件工具面、cua-driver、会话日志与 S4 eval 串成一张可诊断的图。
-> 适用：dsh 0.2.2-rc.1/rc.2；插件 `0.5.7-dev`；Windows 优先。
-> 相关：[ARCHITECTURE](ARCHITECTURE.md)、[WINDOWS](WINDOWS.md)、[TESTING](TESTING.md)。
+> 读者：排障者、集成者、维护者。
+> 状态：当前实现（最后核对 2026-11-18；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
+> 相关：[ARCHITECTURE](ARCHITECTURE.md) · [WINDOWS](WINDOWS.md) · [TESTING](TESTING.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 总览
 
@@ -14,7 +15,7 @@ dsh CLI
   -> 模型 step
   -> tools.execute
        -> 参数校验（defineTool）
-       -> wrap（stop latch / 未知参数 / guard）
+       -> wrap（stop latch / 未知参数 / guard / repeat）
        -> 工具实现
             -> screen_observe / actions / ops / task
             -> lib/cua.js -> lib/driver（请求映射/响应归一化/能力）
@@ -33,14 +34,14 @@ S4 eval:
 - patch 层序：profile bundles → profile `cordis.patch.yml` → `$DSH_HOME/cordis.patch.yml` → `--patch` overlays → telemetry disable。`evals/headless-patch.yml` 重新启用 `credentials` 并插入本插件。
 - 插件从 profile 的 `node_modules/dsh-win-computer-use`（junction 到仓库）解析；`inject=['tools']` 使 fiber 等 ToolsService。
 - `apply()`：
-  - 重置 dedup/task 预算；
+  - 重置 dedup/task 预算/窗口缓存/loop guard/输入门禁；
   - 归一化 Config；
   - fire-and-forget `start_session` + 光标主题；
   - 建立 stop latch 与 `wrap()`；
   - **一次性编译全部工具**；任一 schema 非法会让整行 apply 失败，dsh 只 warning，随后没有桌面工具。
   - 只注册 surface 可见子集：
-    - `dispatcher`：`computer_do` + `screen_observe`（隐藏 20）；
-    - `hybrid`：再加 click/type/key/scroll/verify（隐藏 15）。
+    - `dispatcher`：`computer_do` + `screen_observe`（隐藏 21）；
+    - `hybrid`：再加 click/type/key/scroll/verify（隐藏 16）。
 - 隐藏工具只存在于 `computer_do` 的闭包；`computer_do({action:'call'})` 直接 `def.execute`，绕过宿主 output schema/timeout/post-execute，透传 `ok/result/image/data`。
 - 宿主把插件返回的 `{ok:false}` 仍看作成功的 tool result（`isError` 不置位）；只有参数/输出 schema 错误是 host error。**失败语义必须由回执文字自己承担。**
 - 同一会话工具列表稳定；每步重建 system prompt 但工具列表不变，保护 prompt cache。
@@ -74,7 +75,7 @@ pickObserveTarget
 - 目标列表排除插件自己的 `Cua.AgentCursorOverlay*` 光标覆盖层；显式指定 overlay 返回专门错误。失败观察的快照策略：`picked.none` 清空；`picked.notFound` 保留新鲜旧快照并提示；桌面降级/`mode.fail` 只有失败目标与当前快照同 pid/window 时才清空。
 - `query` 非空是**只读过滤视图**：驱动返回过滤树后跳过 `diffObserve`/`cacheSnapshot`/`dedupEvaluate`，并 `clearSnapshot()`（query 调用已让旧 token 失效）；输出 `snapshotId=null`，header/footer 明确“未建立动作快照（旧动作快照已清除）/编号不能用于动作/from_zoom”，需要动作时重新全量观察。
 - **快照是全局单例**（`lib/snapshot.js:10-11`）：任意成功全量观察（ax/vision/native，含其它窗口）都会替换当前 `snapshot_id`。native/vision 文本回显当前 id 与“全局单例”，避免模型沿用上一个窗口/上一次观察的 id；旧 id 在动作中会得到 `[snapshot_mismatch]`。
-- 权限面 30s 缓存；`apply`/降级时清空。去重仍发生在驱动工作之后，但 stub 现在带关键控件，模型不必为“编号在哪”再 force/native。
+- 权限面 30s 缓存；`apply`/降级时清空。去重仍发生在驱动工作之后，但 stub 带关键控件，模型不必为“编号在哪”再 force/native。
 - 未找到目标、窗口级观察失败、桌面降级、native 失败：清空旧快照，避免动作继续落到旧窗口。
 - `dedupEvaluate` 的 suspect 必须在 `cacheSnapshot` 之前捕获；安装新快照会清 suspect。
 
@@ -111,16 +112,10 @@ ensureDriverInfo（--version/status，进程级缓存）
   -> learnFromResponse / learnFromError（frameSpace、flatWindow、tree_format 兼容）
 ```
 
-- 0.52+ 默认 `tree_format:"markdown"`，不显式请求就没有 `elements`；兼容层总是带
-  `tree_format:"elements"`。
-- 0.52+ 的 element_token/zoom 按 session 归属；`get_window_state` 注入
-  `CUA_SESSION`，否则动作端 `current_snapshots:[]` / `stale_element_token`。
-- 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要截图上下文：快照无 capture 时
-  先发 `get_window_state(include_accessibility_tree:false, include_screenshot:true)` 的
-  capture-only 读。它只截图、不 walk UIA，**保留 snapshot/token**；0.23.2 没有该参数，
-  退回 `max_elements:1`（会替换 index map，`markTokensStale`）。
-- 非零退出 + JSON（如 `background_unavailable`）解析成 `DriverCallError.value`；
-  动作类当回执值继续升级，观察类仍抛错走降级。
+- 0.52+ 默认 `tree_format:"markdown"`，不显式请求就没有 `elements`；兼容层总是带 `tree_format:"elements"`。
+- 0.52+ 的 element_token/zoom 按 session 归属；`get_window_state` 注入 `CUA_SESSION`，否则动作端 `current_snapshots:[]` / `stale_element_token`。
+- 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要截图上下文：快照无 capture 时先发 `get_window_state(include_accessibility_tree:false, include_screenshot:true)` 的 capture-only 读。它只截图、不 walk UIA，**保留 snapshot/token**；0.23.2 没有该参数，退回 `max_elements:1`（会替换 index map，`markTokensStale`）。native 观察的截图只用于模型展示，不算 click capture；`pointerCaptureReady` 只由显式 capture-only/旧预取/zoom 置 true。
+- 非零退出 + JSON（如 `background_unavailable`）解析成 `DriverCallError.value`；动作类当回执值继续升级，观察类仍抛错走降级。
 - 完整能力矩阵与错误分类见 [DRIVER-SDK](DRIVER-SDK.md)。
 
 ### 4.2 坐标、滑行与重复点击
@@ -141,23 +136,23 @@ ensureDriverInfo（--version/status，进程级缓存）
 
 ### 4.3 投递失败
 
-- `deliveryFailure(value)` 识别 `background_unavailable`、`foreground_unavailable`、`delivery_failed`。`delivery_failed` 用词边界匹配：驱动的 `escalation.reason='background_delivery_failed'` 是“建议升级前台”，结构化 `effect` 仍是 `unverifiable`，不能当成硬失败（2026-11-17 t14 r1 的 26/28 次假失败根因）。
+- `deliveryFailure(value)` 识别 `background_unavailable`、`foreground_unavailable`、`delivery_failed`。`delivery_failed` 用词边界匹配：驱动的 `escalation.reason='background_delivery_failed'` 是“建议升级前台”，结构化 `effect` 仍是 `unverifiable`，不能当成硬失败。
 - `settleAction` 在这类值上返回 `ok:false`，不消费快照；`delivery_failed` 另标 suspect。
 - 普通 `effect:unverifiable` 仍是“已送达但未验证”：`ok:true` + `UNVERIFIED_NOTE`（先观察、界面已变勿重复；确认未变再考虑 foreground）。
 - 强制前台（`foreground:true` / `deliveryMode=foreground`）遇到 `foreground_unavailable` 时，只要 payload 有 `pid+window_id`，同样执行一次 L3：`bring_to_front` → 前台重试 → 恢复原前台。hotkey 也适用；XAML Accelerator 拒绝不升级。
-- 强制前台 **指针动作（click/scroll/drag）** 改为“先 `bring_to_front` → 只执行一次 → 恢复原前台”，不再失败后重试：重试会把同一形状/同一文件点两遍（2026-11-17 t11 drag 9s 画两遍；t15 16 次 foreground click 全部重试、单次约 9s）。`deliveryMode=auto` 的非强制路径仍保留 `unverifiable + click/scroll/drag → L3` 原语义；type/hotkey 不做 unverified L3。
+- 强制前台 **指针动作（click/scroll/drag）** 改为“先 `bring_to_front` → 只执行一次 → 恢复原前台”，不再失败后重试：重试会把同一形状/同一文件点两遍。`deliveryMode=auto` 的非强制路径仍保留 `unverifiable + click/scroll/drag → L3` 原语义；type/hotkey 不做 unverified L3。
 - L3 恢复原前台：`previous_fg_hwnd` 只有 hwnd，而 `bring_to_front` 要求 `pid+window_id`。`windowMap` 在每次 `list_windows` 时记录 `window_id→pid`；恢复时查 map，未知补一次 `list_windows`。恢复失败/pid 未知时写“原前台恢复未确认/未恢复”，不再假称成功。`bring_to_front` 的 `ok:true + effect:"refused"` 也按拒绝处理。
 - L3 只有 retry 不是 delivery failure/refusal 时才写“重试完成”；否则写“重试仍未送达”。
 - `stale_element_token`：驱动报告编号失效时 `clearSnapshot()`，回执要求重新 observe，不再用旧编号重试；`keyFallback` 点菜单栏前用 `windowState` 重新取唯一菜单栏 token。
 
 ### 4.4 动作回执
 
-- 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。这样点错按钮（例如把“否”当“是”）在回执里立刻可见。
+- 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值（密码值隐藏）。
 - 输入/设值同样回显目标元素或窗口焦点。
 - 回执文字是模型唯一可靠的状态证据：目标回显 + 下一次观察差分共同承担“动作是否生效”。
-- `verifyAfterAction=auto`（实验性，默认 off）：对 `click/double_click/right_click`（含坐标）与 `key`，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删/同编号 role 变化）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。复核会刷新 `at`（延长 TTL）与差分历史；`supersession=enforce` 下可能与 `markConsumed` 组合出 `[snapshot_consumed]`。`type/set_value` 的输入回读独立于本开关。2026-11-16 首轮 A/B 10/10 pass，auto 中位略优但尾部 533s、每轮多 2-12 次复核，默认仍 off。
+- `verifyAfterAction=auto`（实验性，默认 off）：对 `click/double_click/right_click`（含坐标）与 `key`，在 `unverifiable`/`suspected_noop` 后抓一次无截图 `get_window_state`，把差分写进回执；结构性变化（元素增删/同编号 role 变化）直接清快照，只有值/标题变化时保留 logical snapshot_id 并换新 token。复核会刷新 `at`（延长 TTL）与差分历史；`supersession=enforce` 下可能与 `markConsumed` 组合出 `[snapshot_consumed]`。`type/set_value` 的输入回读独立于本开关。
 - **输入回读（默认开启，仅失败/未验证路径）**：`type_text`/`set_value` 结果为 delivery 失败、unverifiable、suspected_noop，或该窗口已有 inputUnconfirmed 时，抓一次无截图窗口状态，用 Document/AXTextArea/Edit 的 value 与请求文本做 **CRLF→LF 逐字比较**（set_value 精确相等；type_text 允许已有正文下的 contains）。回执只报“一致/不一致/无法回读”和长度，不打印正文；不一致/无法回读（投递失败时）设置 `inputUnconfirmed`。
-- **无回读控件的聚焦输入**：`type_text` 未指定 element 且快照没有 Document/TextArea（Excel 网格、PowerPoint 画布）时，非硬失败的 unverified 结果不调用 `refreshSnapshotState`、不清快照、不设保存门禁；回执提示“未刷新快照，连续输入可继续 Tab/Enter，完成一块后统一核对”。这消除了 t14 r1 “每格 type 后 observe”的快照 churn。
+- **无回读控件的聚焦输入**：`type_text` 未指定 element 且快照没有 Document/TextArea（Excel 网格、PowerPoint 画布）时，非硬失败的 unverified 结果不调用 `refreshSnapshotState`、不清快照、不设保存门禁；回执提示“未刷新快照，连续输入可继续 Tab/Enter，完成一块后统一核对”。
 - **保存门禁**：`guard` 在 inputUnconfirmed 时只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径）；type/set_value、Ctrl+A/C/V/X/Z、非保存点击放行。回读一致、同窗口 native observe 或 screen_zoom 会清除门禁；普通 ax observe 不清除。
 - `app_launch`：启动成功即 `ok:true`，前置失败只写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）；避免把可选前置失败误判为启动失败而重复启动。
 - `computer_menu`：path 支持 `"文件/保存"`；`menu_path_unavailable` 时若快照里有对应顶层菜单栏项，回执给出具体 `element=<编号>`。
@@ -166,11 +161,11 @@ ensureDriverInfo（--version/status，进程级缓存）
 
 - 默认 `supersession: note`：同一快照可连续动作，只附一致性注记。
 - `enforce`：已消费快照的第二次动作被拒绝；所有动作应在投递前求值。
-- 元素点击现在同样受 TTL 约束；过期直接 `[snapshot_expired]`。
+- 元素点击同样受 TTL 约束；过期直接 `[snapshot_expired]`。
 - `markConsumed` 只记录最后一次动作；`markSuspect` 表示状态不确定，不阻断后续动作。
-- `screen_zoom` 不再手算 `crop.scale`：驱动 0.23.2 会加约 20% padding 并可能缩放，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，点击/拖拽必须用 `computer_click/drag(..., from_zoom=true)`；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且晚于当前观察。整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。请求区域宽 >500px 在插件侧直接失败，不调用驱动。
-- 快照是全局单例：动作回执不携带 snapshot id，观察回执是唯一 id 来源；native/vision 全量观察必须在文本中回显当前 id，query 回执明确旧快照已清除。
-- `nativeImage=auto/compact` 不再做整窗 zoom：驱动 zoom 区域宽上限 500px，无法整窗缩放；超限时明确失败并提示改 ax/vision 或 screen_zoom。
+- `screen_zoom` 不再手算 `crop.scale`：驱动 0.23.2 会加约 20% padding 并可能缩放，正常 zoom 输出 `fromZoom=true/coordinateSpace=zoom-image-px`，点击/拖拽必须加 `from_zoom=true`；插件按 pid 记录最近 zoom，要求与当前快照同 pid/window 且晚于当前观察。整窗回退图 `fromZoom=false`，坐标为 window-screenshot-px。请求区域宽 >500px 在插件侧直接失败，不调用驱动。
+- 快照是全局单例：动作回执不携带 snapshot id，观察回执是唯一 id 来源；native/vision 全量观察在文本中回显当前 id，query 回执明确旧快照已清除。
+- `nativeImage=auto/compact` 不做整窗 zoom：驱动 zoom 区域宽上限 500px，无法整窗缩放；超限时明确失败并提示改 ax/vision 或 screen_zoom。
 
 ## 5. 快捷键/XAML
 
@@ -203,7 +198,7 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
   - 校验 pid/start time；
   - 重新枚举标签，必须等于 expectedTabs 且无 modified/unknown；cleanup 传 `-AllowDiscardTestOnlyModified` 时，允许丢弃“全部标签都在任务 allowedTabs 内”的测试修改（用户标签仍失败并留窗）；
   - 通过后先关闭测试模态对话框（`Get-ModalTestWindows`：直接 owned + 同 pid 顶层窗口的 owner 链/主窗 disabled+GetLastActivePopup 证明；标签已证明全是测试文件），否则主窗关闭会被忽略、`另存为` 残留；未证明归属的同 pid 窗口一律留窗；
-  - 关闭优先 `UIA WindowPattern.Close`，WM_CLOSE 仅兜底：Win11 Notepad 对非提权客户端的 WM_CLOSE 会静默忽略（2026-11-15 实测）；修改中的测试文档由 `Dismiss-TestSavePrompt` 点“不保存”；
+  - 关闭优先 `UIA WindowPattern.Close`，WM_CLOSE 仅兜底：Win11 Notepad 对非提权客户端的 WM_CLOSE 会静默忽略；修改中的测试文档由 `Dismiss-TestSavePrompt` 点“不保存”；
   - 只有 safeToClose 才关闭；否则留窗并写 `_leftovers/<task>-<stamp>.json`。
 - `Close-OrphanTestNotepads`：全局测试文件名白名单 + **至少一个唯一 seed**；只有全部标签都是测试文件才关闭，用户标签/未知后缀/通用名单独出现时留窗报告。`-ProtectHwnd` 保护当前 setup 已开的窗口（t10 的 a.txt）；不再仅凭 `evalOwned` 关闭通用文件名窗口。空的无标题窗口仅在 eval 期间创建时才关。
 - `Open-TestExplorer`/`Close-TestExplorer`、`Open-TestPaint`/`Close-TestPaint`：状态化 HWND/PID/start 生命周期；t03/wa2/t09 不再用 `Close-TaskWindows` 宽匹配或按 `mspaint` 进程名杀。Paint 已有用户进程时 fail closed，不杀。
@@ -227,10 +222,10 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 - 隐藏工具没有嵌套 `tool/call`；从 `computer_do` 的 `arguments.tool` 归因。
 - `--json` stdout 是截断视图（8KiB 字符串/32KiB 行，丢图片、丢 replacement）；完整复盘用 session 文件。
 - 命令：
-  - `node evals/analyze-sessions.mjs`（已支持 v4 多 frame + 隐藏工具归因）；
+  - `node evals/analyze-sessions.mjs`（支持 v4 多 frame + 隐藏工具归因）；
   - 手工解压：逐帧 `zstdDecompressSync` 后拼接。
 
-## 7.1 CU 轨迹监控（trajectory）
+### 7.1 CU 轨迹监控（trajectory）
 
 - 开启：`trajectoryFile: <path>.jsonl` 或环境变量 `DSH_CU_TRAJECTORY_FILE`；默认关闭。
 - 写入端简化（避免把用户文档/长树写进日志）：
@@ -239,64 +234,20 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
   - `list_windows` 只记数量 + 前 8 个窗口的 pid/id/app/title/z（title 截断）；
   - 每个工具一个 id，驱动调用通过 AsyncLocalStorage 归属到父工具。
 - 事件：`session_start`、`tool_start`、`tool_end`、`driver`、`loop`、`session_end`。
-- `computer_do` 外壳透明：只记录内层真实工具；`summary.tools` 不再把 58 次调用显示成 115。
+- `computer_do` 外壳透明：只记录内层真实工具；`summary.tools` 不把 58 次调用显示成 115。
 - `tool_end` 带 `unverified` / `observeStub` 标记；摘要增加 `unverified`、`observeStubs`、`toolAvgMs`、`deliveryModes`、`movesPerClick`。
-- 自动 loop 标记（2026-11-15 修正后）：
+- 自动 loop 标记：
   - `repeat_observe`：连续、同一 windowId/mode、且 `changedSinceLast !== true` 的观察≥3 次；动作后的复核观察不算 loop；
-  - `repeat_action`：只统计真实执行的动作（排除 refusal/deliveryFailure/snapshotMismatch/suppressed），签名含 text hash 与投递模式；
+  - `repeat_action`：只统计真实执行的动作（排除 refusal/deliveryFailure/snapshotMismatch/suppressed），签名含 text hash、modifier 与投递模式；
   - `observe_burst`：连续≥3 次观察没有动作；
   - `relocate_ratio`：观察/动作≥2.5 且动作≥5；
   - `pointer_burst`：3s 内≥20 次 `move_cursor`。
 - 分析：`node evals/analyze-trajectory.mjs <file>`（或 `npm run trajectory:analyze`）；输出观察/动作、stub、unverified、拖慢工具、每次点击移动数。
 - eval 集成：`headless-run.mjs` 为每次 dsh 运行设置 `DSH_CU_TRAJECTORY_FILE=<task>-r<n>.trajectory.jsonl`，报告里记录 `trajectory` 路径。
 
-## 8. 当前已知的 loop 放大点
+## 8. 失败语义速查
 
-| 点 | 现状 | 本轮处理 |
-|---|---|---|
-| 元素点击绕过 TTL | 已修：`resolveClickTarget` 检查 `isFresh` | ✅ |
-| 快照条目屏幕坐标 | 已修：`cacheSnapshot` 减 `screenOrigin` | ✅ |
-| 投递失败 `ok:true` | 已修：`deliveryFailure` → `ok:false` | ✅ |
-| L3 假成功注记 | 已修：检查 retry 值 | ✅ |
-| 后台点击也滑行 | 已修：`cursorMotion` + 近距离不画弧 | ✅ |
-| 对话框 fallback 误导 | 已修：无菜单栏时给 foreground 指引；已前台不再重复建议 foreground | ✅ |
-| 另存为文件名盲区 | 已修：输入类 `value` 进入文本/结构化/差分（密码隐藏） | ✅ |
-| unverifiable 无状态证据 | 已修：`自上次观察` 标题/值/字符数差分 + `changedSinceLast` | ✅ |
-| 点错按钮不自知 | 已修：动作回执回显目标（最近元素/编号/标签/当前值） | ✅ |
-| 连续点同一目标 | 已修：`actionGuard` 5s 重复抑制 + 观察变化清除 | ✅ |
-| 强制前台绕过 L3 | 已修：force + `foreground_unavailable` 也走 bring_to_front（精确 window_id） | ✅ |
-| 5 段滑行 15–18s/点击 | 已修：`auto` 单次移动；`human` 保留 5 段；同目标 2s 跳过 | ✅ |
-| 轨迹计数翻倍 | 已修：`computer_do` 透明；新增耗时/未验证/stub/每次点击移动数 | ✅ |
-| 每次观察重复 check_permissions | 已修：30s 缓存 | ✅ |
-| 同标题多窗口静默取最前 | 已修：头部/stub 警告“匹配 N 个，改用 window_id” | ✅ |
-| 残留另存为对话框 | 已修：cleanup 用模态归属证明关同 pid 对话框；runner 消费 dirty | ✅ |
-| L3 恢复调用缺 pid | 已修：windowMap 查 pid；未知补 list_windows；恢复失败如实注记 | ✅ |
-| `ok:true+effect:"refused"` 当成功 | 已修：bring_to_front/launch/menu 统一按 refusal/effect 判定 | ✅ |
-| `app_launch` 假“已前置” | 已修：只有 confirmed 才写已前置；前置被拒返回 ok:false | ✅ |
-| `clipboard/hover/menu` 假成功 | 已修：refusal/error_code/effect 缺失均失败或未确认 | ✅ |
-| stale token 后继续用旧编号 | 已修：清空快照 + 明确指引；keyFallback 重取菜单栏 token | ✅ |
-| `computer_do` 丢结构化字段 | 已修：新增 `data`（crop/apps/results/structured 等） | ✅ |
-| 轨迹把动作后复核当 loop | 已修：windowId/change 语义；失败/抑制动作不计数 | ✅ |
-| t10 orphan 误关第一个窗口 | 已修：ProtectHwnd + 唯一 seed 要求 + state 先写/重绑 | ✅ |
-| cleanup 缺 state 假 dirty | 已修：无 state = 无窗口可清，不 dirty；runner 消费 dirty | ✅ |
-| t04/t06 环境阻塞 | 已修：Calculator 全窗口扫描/不杀可见实例；clipboard round-trip 8 次 + EnvError | ✅ 10/10 |
-| Explorer/Paint 宽匹配/进程名杀 | 已修：状态化 Open/Close；t09 不再杀 mspaint | ✅ |
-| 动作后无状态证据 | 实验性 `verifyAfterAction=auto`（默认 off） | ⏳ 首轮 A/B 10/10，默认仍 off |
-| 失败观察清空旧快照 | 已修：notFound/不同窗口降级保留；同窗口失败才清 | ✅ |
-| suspect 去重 stub | 已修：`suspectBefore` 强制全量 | ✅ |
-| Notepad 新窗口含用户标签 | 已修：标签白名单 + fail closed + leftover | ✅ |
-| agent overlay 被当作目标 | 已修：目标/候选过滤 + 显式拒绝 | ✅ |
-| `screen_zoom` 丢 resolved pid | 已修：只传 window_id 也使用解析后的 pid | ✅ |
-| `screen_zoom` crop/scale 映射偏移 | 已修：from_zoom 交给驱动；crop 仅请求区域 | ✅ |
-| native/compact 整窗 zoom 不可实现 | 已修：明确失败 + 提示 screen_zoom/ax/vision | ✅ |
-| t05 同 pid 另存为对话框残留 | 已修：模态归属证明（owner 链/disabled+GetLastActivePopup） | ✅ |
-| 部分输入/错字后被误保存 | 已修：输入回读 + inputUnconfirmed 保存门禁；不一致/无法回读只拦保存意图 | ✅ |
-| Codex overlay 仍被默认观察 | 已修：叠加 `codex-computer-use` / `Cursor Overlay` 过滤 | ✅ |
-| 顶层菜单栏误报“菜单已打开” | 已修：只统计非顶层菜单栏的 MenuItem | ✅ |
-| Document 正文可经 label 回退泄露 | 已修：Document/AXTextArea 不再用 value 充当 label | ✅ |
-| app_launch 前置失败被当成启动失败 | 已修：ok 只看启动；前置失败写注记并输出 window_id | ✅ |
-
-## 9. 失败语义速查
+完整错误码表见 [ERRORS](ERRORS.md)。
 
 | 驱动回执 | `ok` | 快照 | 模型应做什么 |
 |---|---|---|---|
@@ -308,5 +259,5 @@ cleanup -> setup -> dsh headless -> oracle -> cleanup
 | `delivery_failed` | false | suspect | 先 observe，必要时 foreground |
 | `refusal` / `error` | false | 不 consume | 按拒绝原因处理 |
 | `snapshot_missing` | false | 无 | 全量 observe（query 只读且会清除旧快照） |
-| `snapshot_mismatch` | false | 不清空 | 用最新 observe 的 id；拒绝文本带当前快照的 app/title/pid/window_id；快照是全局单例，跨窗口观察也会替换 |
+| `snapshot_mismatch` | false | 不清空 | 用最新 observe 的 id；快照是全局单例 |
 | `snapshot_expired` | false | cleared | 重新 observe |

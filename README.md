@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-14）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认、P0/P1 安全边界与 dsh 0.2.2 兼容升级（0.2.2-rc.1 为新基线）。npm 尚未发布，部署侧可能仍是旧版——见 [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-18）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认、P0/P1 安全边界、dsh 0.2.2 兼容升级与观察回执修复。npm 尚未发布；部署侧可能仍是旧版——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 
@@ -29,7 +29,7 @@
 | 前台锁（ForegroundLockTimeout）让 `SendInput` 打空 | 后台 → 前台 → `bring_to_front`（AttachThreadInput）三级投递，结束后恢复原前台 |
 | XAML / WinUI 不吃 `PostMessage`，组合键走 UIA 加速器还会超时 | 文本走 UIA `ValuePattern`；组合键走 `hotkey` 通道并翻译 UIA 超时；保存类操作改走“点控件” |
 | 元素坐标是屏幕物理像素，点击坐标却是窗口截图空间 | `screen_observe` 输出统一换算到窗口截图空间；`element_token` 路径与像素路径分离 |
-| 驱动是高完整性进程，`app_launch` 的子进程非提权侧关不掉 | 文档与工具描述明确代价；测试清理按标题匹配，绝不按进程名杀 |
+| 驱动是高完整性进程，`app_launch` 的子进程非提权侧关不掉 | 文档与工具描述明确代价；测试清理按标题/HWND 匹配，绝不按进程名杀 |
 | 经典 Win32 密码框的 `ES_PASSWORD` 在 UIA 映射里是 `IsPassword=false` | Windows UIA sidecar 读结构位，结构位优先；启发式只作降级 |
 | 每步重观察把上下文撑爆 | 重复观察降噪（同窗口未变回极简回执）+ 紧凑动作回执 + 可选委派 |
 
@@ -49,34 +49,17 @@
 1. **“零审批”不是绕过 OS 权限。** 插件不弹审批、不询问确认，但 Windows UIPI、管理员窗口、macOS TCC 仍由操作系统决定；`cua-driver` 自身可能要求管理员权限。
 2. **“自动提权”指投递/观测的自动升级，不是提权到管理员。** 具体是后台→前台→绕前台锁，以及窗口级观测失败→桌面级采集。
 
+安全边界与威胁模型见 [SECURITY](docs/SECURITY.md)；权限声明见 [PERMISSIONS](PERMISSIONS.md)。
+
 ## 快速开始
 
 ### 1. 安装 cua-driver
 
-按 [trycua/cua](https://github.com/trycua/cua) 的说明安装驱动。插件按以下顺序定位：
-
-1. 环境变量 `CUA_DRIVER_BIN`；
-2. `PATH` 中的 `cua-driver` / `cua-driver.exe`；
-3. 常见安装路径（`~/.local/bin`、`/usr/local/bin`、`/opt/homebrew/bin`、`%LOCALAPPDATA%\cua-driver`、`~/.cua-driver/packages/current`）。
-
-找不到时所有工具返回结构化错误与自救指引，不静默失败。
+按 [trycua/cua](https://github.com/trycua/cua) 的说明安装驱动。插件按 `CUA_DRIVER_BIN` → `PATH` → 常见安装路径的顺序定位；找不到时所有工具返回结构化错误与自救指引。完整前置、定位顺序与版本要求见 [INSTALL](docs/INSTALL.md)。
 
 ### 2. 安装插件
 
-```bash
-git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git
-cd dsh-win-computer-use
-./install.sh --dry-run   # 预演：只打印将要写入的路径
-./install.sh             # 链接插件 + 写入 home 级 patch
-```
-
-Windows / Linux 先设置 `DSH_HOME`（macOS 的默认路径是 `~/Library/Application Support/harness-desktop/dsh-home`）：
-
-```bash
-export DSH_HOME=/path/to/dsh-home
-```
-
-装完重启宿主。手动安装与 STORE 证据见 [docs/store-evidence.md](docs/store-evidence.md)。
+当前 npm 未发布；可用 `install.sh`（bash，已有 `profiles/web`）或手动 junction + `cordis.patch.yml`。完整步骤、`DSH_HOME` 规则、headless/隔离 profile 与卸载见 [INSTALL](docs/INSTALL.md)。
 
 ### 3. 第一次观察
 
@@ -87,7 +70,7 @@ export DSH_HOME=/path/to/dsh-home
 4) screen_observe(window="Notepad")       # 复核
 ```
 
-`screen_observe` 返回编号元素、坐标、快照 id 与坐标空间说明。动作前没有新鲜快照会被拒绝——这是 `[snapshot_missing]`，不是工具故障。
+`screen_observe` 返回编号元素、坐标、快照 id 与坐标空间说明。动作前没有新鲜快照会被拒绝——这是 `[snapshot_missing]`，不是工具故障。参数、默认值与逐工具示例见 [TOOLS](docs/TOOLS.md)。
 
 ## 心智模型
 
@@ -108,6 +91,8 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 自动降级：AX 树为空或驱动标记降级时，若当前模型声明 image 能力 → `native`；否则若配置了 GLM key → `vision`；再否则留在 `ax` 并标注 `visualOnly`。窗口级观测被权限/引擎拒绝时，降级为桌面级采集（`mode=desktop-visual`，坐标是桌面像素，**不能直接用于窗口动作**）。
 
+快照是**全局单例**：任意窗口的新全量观察都会替换 `snapshot_id`；`query` 是只读视图，会清除旧动作快照。动作前需要全量观察。
+
 ## 工具面：默认 2 个入口
 
 23 个工具的 schema 常驻会持续占用模型注意力，也会让工具层变化打断 prompt cache。默认只注册 2 个稳定入口：
@@ -125,318 +110,54 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 > PTC / `run_code` 模式下，SDK 只绑定**直接可见**的工具；隐藏工具不会出现在 SDK 里，仍需 `tools.computer_do({action:'call', tool, args})` 路由（例如 `tools.computer_task` 为 undefined 是预期行为）。
 
-```yaml
-- id: dsh-win-computer-use
-  config:
-    surfaceMode: dispatcher   # dispatcher（默认）| hybrid
-```
-
-**为什么不用动态 enter/exit：** 旧的 `dynamic` 模式会在会话中途注册/注销工具。实测（2026-11-09，opencode / deepseek-v4.1-flash）tools 数组一变，缓存首击只剩 **0%–18%**；稳定 dispatcher 的重复请求命中 **99.5%**，首次 tool_call 后 **92.1%**，第二次后 **85.4%**。因此 `dynamic` 已彻底删除，只保留两种稳定工具面。
+**为什么不用动态 enter/exit：** 旧的 `dynamic` 模式会在会话中途注册/注销工具。实测（2026-11-09，opencode / deepseek-v4.1-flash）tools 数组一变，缓存首击只剩 **0%–18%**；稳定 dispatcher 的重复请求命中 **99.5%**，首次 tool_call 后 **92.1%**，第二次后 **85.4%**。因此 `dynamic` 已彻底删除，只保留两种稳定工具面。证据见 [EVIDENCE](docs/EVIDENCE.md) §8。
 
 **取舍**：`hybrid` 让高频动作少一层 JSON 包装，但可见面从 2 变 7；`dispatcher` 的 catalog 调用本身也占一步。复杂参数（如 `computer_verify` 的 `expect` JSON）建议先 `catalog` 看签名，必要时在 system prompt 里给一个示例。
 
-## 工具参考
+## 能力边界
 
-共 23 个：22 个桌面能力 + 1 个 dispatcher。默认 `dispatcher` 下，除 `screen_observe` / `computer_do` 外都经 `computer_do` 调用；标 **H** 的工具在 `hybrid` 下可直接调用。
-
-### 观察
-
-| 工具 | 作用 | 必填 | 常用可选 |
-|---|---|---|---|
-| `screen_observe` | 观察窗口：编号树 / 截图直读 / 视觉描述；未变时回极简回执 | — | `window`、`window_id`、`mode`、`query`、`maxElements`、`force` |
-| `screen_zoom` | 区域放大 / 树空目标的定位原语（请求区域宽 ≤500px JPEG） | `window_id` | `pid`、`x1`、`y1`、`x2`、`y2` |
-
-`screen_observe(query=...)` 是**只读过滤视图**：只返回匹配元素，不建立动作快照；query 调用也会让旧 token 失效。需要动作/from_zoom 时，必须不带 query 重新 `screen_observe` 取得完整快照。
-
-### 动作
-
-| 工具 | 作用 | 必填 | 常用可选 |
-|---|---|---|---|
-| `computer_click` **H** | 点击元素编号或窗口截图坐标；支持 Ctrl+click 多选 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier`、`count` |
-| `computer_double_click` | 双击 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier` |
-| `computer_right_click` | 右键 | `element` 或 `x,y` | `snapshot_id`、`foreground`、`from_zoom`、`modifier` |
-| `computer_type` **H** | 输入文本；指定 element 时走 UIA `ValuePattern`，否则输入到快照窗口当前焦点 | `text` | `element`、`snapshot_id`、`foreground` |
-| `computer_set_value` | 直接设值（UIA `ValuePattern`；文本框/滑块/下拉优先） | `element`、`value` | `snapshot_id` |
-| `computer_key` **H** | 按键/快捷键（组合键走 `hotkey`；绑定快照窗口；组合键自动前台并恢复原前台） | `key` | `snapshot_id`、`foreground` |
-| `computer_scroll` **H** | 滚动 | — | `direction`、`amount`、`element`、`snapshot_id`、`foreground` |
-| `computer_drag` | 窗口截图坐标拖拽；modifier 走私有 SendInput 原子手势；支持 zoom 坐标/平滑轨迹 | `from_x`、`from_y`、`to_x`、`to_y` | `duration_ms`、`steps`、`modifier`、`button`、`dwell_ms`、`from_zoom`、`snapshot_id`、`foreground` |
-| `computer_wait` | 本地等待（不调引擎） | `ms` | — |
-| `app_list` | 列出运行中应用（显示上限 20 条） | — | — |
-| `app_launch` | 后台启动应用，可选前置 | `name` 或 `bundle_id` | `bring_to_front`、`creates_new_instance` |
-| `computer_activate` | 把已存在窗口激活到前台（不启动/关闭、不恢复原前台） | `window_id` | `pid` |
-
-### 运营
-
-| 工具 | 作用 | 必填 | 常用可选 |
-|---|---|---|---|
-| `computer_verify` **H** | 1–8 条结构化谓词 AND 求值；`unknown` 永不算成功 | `window_id`、`expect` | `pid`、`include_screenshot` |
-| `computer_wait_for` | 谓词轮询等待（默认 10s，上限 60s） | `window_id`、`expect` | `pid`、`timeoutMs`、`pollMs` |
-| `computer_clipboard` | 剪贴板读写（write + ctrl+v = 粘贴流） | `action` | `text` |
-| `computer_menu` | 菜单路径直调（fail-closed，不回退像素；`unverifiable` 报“未确认”） | `window_id`、`path`（JSON 字符串或数组） | `pid` |
-| `computer_hover` | 悬停（实验性；`real=true` 才动真实指针） | `x`、`y` | `pid`、`window_id`、`real` |
-| `computer_stop` | 结束驱动会话并锁存全部桌面操作 | — | — |
-| `computer_resume` | 解锁 `stop` 并预热会话（唯一解锁路径） | — | — |
-
-### 委派与入口
-
-| 工具 | 作用 | 必填 | 常用可选 |
-|---|---|---|---|
-| `computer_task` | 把一段桌面操作交给一次性子 agent；主上下文只收一条紧凑回执 | `goal` | `success_criteria`、`constraints`、`timeout_min`（默认 5）、`model`、`model_effort` |
-| `computer_do` | dispatcher 入口：`call` / `catalog` / `status` | `action` | `tool`、`args`、`query` |
-
-## 核心机制
-
-### 坐标：两个空间，一条规则
-
-| 量 | 空间 | 怎么用 |
-|---|---|---|
-| `screen_observe` 的 `@(x,y)` | **window-screenshot-px**（窗口截图原图像素） | 可直接传给 `computer_click(x,y)` |
-| `computer_click(x,y)` / `scroll` / `drag` | **window-screenshot-px** | 与观察输出同一空间 |
-| `element` 编号 | 不涉及坐标 | 走 `element_token`，**首选、最可靠** |
-| `screen_zoom` 图内坐标 | zoom-image-px | 加 `from_zoom=true` 直接传给 `computer_click(x,y,from_zoom=true)`，由驱动换算；**不要**再手算 `crop.scale`，也不要加 `screenOrigin` |
-| `screenOrigin` | 窗口在屏幕上的物理原点 | 只用于换算到屏幕绝对坐标；不是点击输入 |
-
-规则：
-
-1. **element 路径优先。** `element_token` 由驱动定位，支持后台/隐藏窗口，不受 DPI 混合影响。
-2. **像素路径是 best-effort。** 驱动 0.23.2 的像素点击在混合 DPI 下有实测落点偏差（见 [docs/WINDOWS.md](docs/WINDOWS.md) 与 [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) A7）；像素点击后请用 `screen_observe` / `computer_verify` 复核。
-3. **不要自己乘 2、加窗口偏移，也不要按预览显示尺寸估坐标。** 0.21+ 的截图与点击共用窗口截图空间；`screen_observe` 已在输出时完成换算。宿主可能把 2558px 截图缩成 1610px 预览；网格/画布/图标像素定位先用 `screen_zoom`（宽 ≤500），图内坐标必须加 `from_zoom=true`。
-4. **zoom 图必须用 `from_zoom`。** 驱动会加约 20% padding 并可能缩放，`crop` 只是请求区域；`from_zoom=true` 由驱动映射，且要求 zoom 晚于当前观察、同 pid/window。`computer_click` 与 `computer_drag` 都支持；drag 的起终点都按 zoom 图坐标解释。整窗回退图的 `fromZoom=false`，坐标就是窗口截图坐标。**私有拖拽（`modifier` 或 `dwell_ms`）不支持 `from_zoom`**：会明确报 `[private_drag_zoom_unsupported]`，请用窗口截图坐标重发。
-5. **文本行与结构化 `elements` 必须同一空间。** `screen_observe` 的 `@(x,y)` 与 `elements[].x/y` 都是换算后的窗口截图坐标；若两者不一致，属于 bug（2026-11-14 t01 的回归测试已覆盖）。
-
-### 观察真相：当前值 + 状态差分
-
-- 输入类控件（`Edit`/`ComboBox`/`Spinner`/`Slider`/`AXTextField`）的当前值会出现在文本行 `值="..."` 与结构化 `elements[].value`。密码框不显示值；Document/AXTextArea 不展示正文。
-  - 例：`[77] 输入框 "文件名:" 值="s4-t01-seed.txt" @(708,575)`——模型不会再把旧文件名当成空框直接点保存。
-- 每次观察附一行 `自上次观察：...`：标题变化、输入值变化、状态栏字符数、元素增删。动作回执是 `unverifiable` 时，这一行就是“动作是否生效”的证据。
-  - 时间/行列噪声（`12:34`、`行 1，列 1`）会被归一，不会误报变化；密码变化只报“值变化（隐藏）”。
-- 同标题多窗口（多个“另存为”对话框）会在头部/降噪 stub 明确写“目标匹配 N 个窗口”，要求改用 `window_id`，不静默只取最前。
-- 窗口匹配支持中英别名：`记事本 ↔ Notepad`、`计算器 ↔ Calculator`、`画图 ↔ Paint`、`文件资源管理器 ↔ Explorer`；`matchCount` 按 title+app 并集计算，多窗口同样警告。
-- `computer_do` 路由隐藏工具时保留结构化 `data`：`screen_zoom` 的 `crop/fromZoom/screenOrigin/coordinateSpace`、`verify` 的 `status/results`、`app_list.apps`、`task.structured`、`clipboard.text` 等不再丢失。
-- 目标选择会排除插件自己的 `Cua.AgentCursorOverlay*`、`Codex Computer Use Cursor Overlay` 等光标覆盖层；`notFound`/不同窗口的失败观察不会清空仍然有效的旧快照（同窗口失败才清）。
-- 输入回读：`computer_type`/`computer_set_value` 在投递失败、unverified 或已有未确认输入时，用 Document/TextArea/Edit 的 value 逐字复核（CRLF 归一）；回执只报“一致/不一致/无法回读”和长度，不打印正文。聚焦输入到没有可回读文本控件的目标（Excel 网格、PowerPoint 画布）时，未验证结果不会刷新/清空快照，避免下一条 Tab/Enter 得到 `snapshot_missing`；完成一块后统一 native/zoom 核对。
-- 保存门禁：回读不一致/无法回读时，只拦 Ctrl+S、保存/另存为按钮和保存菜单；`type`/`set_value`、Ctrl+A/C/V/X/Z、非保存点击仍可用。回读一致、同窗口 native observe 或 screen_zoom 解除。
-- `app_launch` 启动成功即 `ok:true`；前置失败只写“启动成功，但前置未确认”，并输出 `window_id`，避免重复启动。
-
-### 动作回执与重复点击
-
-- 每次点击回执回显目标：`（目标 ≈ [3] 按钮 "否(N)" @(465,171)）`。坐标点击按快照条目中心 24px 内取最近元素；元素点击回显编号/角色/标签/当前值。
-- `actionGuard`（默认 `on`）：同一窗口 + 同一目标 + 同一投递模式，5s 内重复且期间观察未报告变化 → `[repeat_suppressed]`，不消耗快照；观察到变化后放行。`double_click` 不拦；`actionGuard: off` 可关闭。
-- `stale_element_token`：驱动报告编号失效时清空旧快照，回执明确写“请 screen_observe 获取新编号，不要重试旧编号”；`keyFallback` 打开菜单前重新抓菜单栏 token，避免自己的回退把 token 用旧。
-- `verifyAfterAction`（实验性，默认 `off`）：`auto` 时对 `click/double_click/right_click`（含坐标）与 `key` 的 unverifiable/suspected_noop 抓一次无截图状态，回执附 `动作后复核：...`；结构性变化清快照，防止旧编号点错。`type/set_value` 的输入回读独立于本开关（不可信时总会执行）。2026-11-16 首轮 A/B 10/10 pass，auto 中位略优但尾部更慢、每轮多 2-12 次复核，默认仍 `off`。
-
-### 投递：后台 → 前台 → 绕锁
-
-| `deliveryMode` | 行为 |
-|---|---|
-| `auto`（默认） | L1 后台；命中 `background_unavailable` → L2 前台；命中 `foreground_unavailable`（或指针类动作 `unverifiable` 且有 pid）→ L3 `bring_to_front` 绕锁 → 前台重试 → 恢复原前台 |
-| `background` | 全程后台；不可用时返回结构化错误 + `foreground=true` 升级指引 |
-| `foreground` | 始终前台（短暂焦点交换，驱动负责恢复） |
-
-单次动作可用 `foreground: true` 覆盖，但不要默认开启：前台点击更慢（会移动指针并短暂切换焦点）。强制前台遇到 `foreground_unavailable` 时同样走 L3（`bring_to_front` 精确到 `pid+window_id` → 前台重试 → 恢复原前台）；`hotkey` 也适用。没有 `pid+window_id` 的目标不升级。**强制前台的指针动作（click/scroll/drag）不做失败后重试**：先 `bring_to_front`、只执行一次、恢复原前台，避免同一文件点两遍/同一形状画两遍；`deliveryMode=auto` 的非强制路径仍保留 `unverifiable + 指针 → L3`。
-
-L3 恢复原前台需要 `pid+window_id`：插件用观察时的 `windowMap` 查 `previous_fg_hwnd` 的 pid（未知时补一次 `list_windows`）；恢复调用失败或 pid 未知时，回执明确写“原前台恢复未确认/未恢复”，不再假称成功。`bring_to_front` 返回 `ok:true + effect:"refused"` 也按拒绝处理。
-
-`app_launch` 只有在 `bring_to_front` 返回 confirmed 时才写“已前置”；前置被拒时返回“已启动，但前置未确认”，`ok:false`。`computer_menu` 只有 `effect:"confirmed"` 才算成功；effect 缺失/unverifiable 都是未确认。`clipboard` 检查 `error_code/refusal`，`hover` 检查 refusal，`stop` 驱动失败仍锁存但注记“会话结束未确认”，`resume` 驱动失败保持锁存并返回 `ok:false`。
-
-### 输入通道
-
-- **文本**：`computer_type` 指定 element 时走 UIA `ValuePattern`（XAML/WinUI 主机必需）；不指定 element 时输入到快照窗口当前焦点，回执附“密码保护无法预判焦点”的注记。
-- **设值**：`computer_set_value` 只走 UIA `ValuePattern`；Web/自绘控件可能忽略，回执提示改用 `computer_type` 或点击后输入。
-- **按键**：无修饰键走 `press_key`（PostMessage 后台）；组合键走 `hotkey`（XAML/WinUI 走 UIA 加速器，传统 Win32 走 SendInput 前台交换）。WinUI3 记事本实测两类失败：UIA 加速器 4s 超时，以及 `could not find a UIA AcceleratorKey`（命令在关闭的菜单里，上游 #3908）。回执会直接给“点菜单栏项 → 点菜单项”的可执行路径；`xamlKeyFallback: auto`（默认 `off`）可实验性自动完成这一步，但只做唯一标签的 token 点击，歧义/缺失即停，不自动处理另存为/覆盖对话框的填写。对话框（无菜单栏）已前台时，auto 会对 `ctrl+a/c/v/x/z` 额外尝试一次前台 `press_key`，并回执要求先观察输入框当前值。`xamlPressFallback: auto`（默认 `off`）额外允许 `ctrl+a` / `alt+f` 走一次前台 `press_key`（Alt+Tab 不支持）；失败会明确说“前台 press_key 也未能发送”，不会建议刚试过的 `foreground=true`。
-- **长文本/特殊字符**：`computer_clipboard(write)` + `computer_key("ctrl+v")` 是最可靠的粘贴流；剪贴板可能被其它进程占用，read 结果带隐私注记。
-
-### 快照与安全护栏
-
-- **TTL**：默认 60s；过期动作返回 `[snapshot_expired]`，请重新观察。
-- **显式基线**：动作可带 `snapshot_id`；传入且不匹配时返回 `[snapshot_mismatch]`（当前由 `click` / `double_click` / `right_click` / `type` / `key` / `set_value` 校验；`scroll` / `drag` 已接受参数但尚未校验，见 [ARCHITECTURE §13](docs/ARCHITECTURE.md#13-已知缺口)）。
-- **同快照连击**：`supersession: note`（默认）附一致性注记；`enforce` 第二次动作直接拒绝 `[snapshot_consumed]`；`off` 全关。
-- **可疑状态**：`unverifiable` 或 `suspected_noop` 会 `markSuspect`；`suspected_noop` 终态 `ok:false`，并提示“先观察再决定是否重试”，不立即重放非幂等动作。
-- **凭据硬保护**：`computer_type` / `computer_set_value` 命中密码框硬拒；`click` 等其它动作放行并附注记。Windows 结构位（`IsPassword` ∨ `ES_PASSWORD`）优先，启发式为降级；坐标模式无法预知目标控件，保护只在 element 模式生效。
-- **白名单**：`allowedApps` 只约束操作类工具（点击/输入/按键/滚动/拖拽/设值），观察/列表/启动不受限；默认空 = 关闭。
-- **锁存**：`computer_stop` 结束驱动会话、清快照、锁存全部桌面操作；`computer_resume` 是唯一解锁路径。dispatcher 本身在 stop 期间仍可进入，否则 `computer_resume` 无法经 dispatcher 解锁；隐藏工具自己的闸门仍会拒绝。
-
-### 上下文经济
-
-- **观察降噪**：同窗口、同模式、上次观察后无动作、界面哈希未变 → 回极简回执（`summary` 含编号摘要 / `brief` 单行 / `off` 关闭）；`force=true` 强制全量。哈希覆盖原始元素的 label/value/enabled/selected/actions/is_password/parent/depth/frame，并归一化时间/行列噪声。
-- **行为轨迹**：`trajectoryFile` 非空时写 JSONL（工具/驱动/loop 事件）；文本只记长度+哈希，驱动只记摘要。用 `node evals/analyze-trajectory.mjs` 看反复定位/点击、指针位移和重复动作。默认关闭。
-- **紧凑回执**：正常路径只回一行“动作 · 投递 · 效果”；`verboseReceipts: true` 才附原始 JSON。
-- **委派**：`computer_task` 把多步/高噪声操作放进一次性子 agent；主上下文只收 `ok/summary/evidence`。默认超时 5 分钟，每会话最多 3 次（`maxTaskCalls`），避免“子 agent 超时后父 agent 从头再做一遍”。
-
-## 配置
-
-```yaml
-- id: dsh-win-computer-use
-  config:
-    ttlMs: 60000
-    maxElements: 120
-    observeDedup: summary
-    surfaceMode: dispatcher
-    verboseReceipts: false
-    taskTimeoutMin: 5
-    maxTaskCalls: 3
-    supersession: note
-    allowedApps: []
-    cursorTheme: cua.default
-    cursorMotion: auto
-    actionGuard: on
-    verifyAfterAction: off
-    trajectoryFile: ''
-    nativeImage: auto
-    visionProvider: deepseek-official
-    visionModel: deepseek-flash
-    passwordScan: auto
-    extremePatterns: []
-    deliveryMode: auto
-    xamlKeyFallback: off
-    xamlPressFallback: off
-```
-
-| 配置项 | 默认 | 说明 |
-|---|---:|---|
-| `ttlMs` | `60000` | 观察快照有效期（毫秒） |
-| `maxElements` | `120` | 单次观察最多返回的编号元素数（实测常见任务 30–70 个） |
-| `observeDedup` | `summary` | 重复观察降噪：`summary` / `brief` / `off`；`force=true` 强制全量 |
-| `surfaceMode` | `dispatcher` | `dispatcher`（2 个常驻 + 21 隐藏）/ `hybrid`（2 + 5 热工具 + 16 隐藏） |
-| `verboseReceipts` | `false` | `true` = 动作回执附原始 JSON（排障用） |
-| `taskTimeoutMin` | `5` | `computer_task` 默认超时；调用方可用 `timeout_min` 覆盖（1–60） |
-| `maxTaskCalls` | `3` | 每会话委派次数上限 |
-| `supersession` | `note` | 同快照连击：`note` / `enforce` / `off` |
-| `allowedApps` | `[]` | 操作类工具的应用白名单；空 = 不限制 |
-| `cursorTheme` | `cua.default` | 虚拟光标主题；默认引擎内置主题，自定义主题需先用 `cua-driver cursor-theme` 安装；选择失败会回退 `cua.default` |
-| `cursorMotion` | `auto` | `auto`：前景最多 1 次移动（驱动单次 2–3s，5 段会拖到 15–18s/点击）；`human`：保留 5 段弧线；`off`：不移动。background 始终不滑行；同目标 16px/2s 内跳过 |
-| `actionGuard` | `on` | 同一窗口/目标/投递模式 5s 内重复且观察未变化 → `[repeat_suppressed]`；`off` 关闭 |
-| `verifyAfterAction` | `off` | 实验性：`auto` 对 `click/double_click/right_click`（含坐标）与 `key` 的 unverifiable/suspected_noop 抓一次无截图状态，把差分写进回执；结构性变化清快照。每次约 +2s，且会刷新快照 token/TTL；`type/set_value` 的输入回读独立于本开关。2026-11-16 A/B 10/10，auto 中位略优但尾部更慢，默认仍 `off` |
-| `trajectoryFile` | 空 | 非空时写 CU 轨迹 JSONL（文本只留 len/hash，驱动只留摘要）；也可用 `DSH_CU_TRAJECTORY_FILE` |
-| `nativeImage` | `auto` | `auto` 超附件限额回退 ax/vision（驱动 zoom 不能整窗缩放）/ `full` 原图 / `compact` 显式要求紧凑图，当前驱动会返回可执行错误 |
-| `visionProvider` / `visionModel` | `deepseek-official` / `deepseek-flash` | `vision` 观察者路由；0.2.2 目录用 `deepseek-flash` |
-| `passwordScan` | `auto` | Windows 结构性密码扫描；`off` = 零 spawn，退回启发式 |
-| `extremePatterns` | `[]` | 极危清单（正则源数组）：命中附警告注记，不阻断 |
-| `xamlKeyFallback` | `off` | 实验性：`off` 只给控件路径指引；`auto` 对 `ctrl+s/ctrl+shift+s/ctrl+a/c/v/x/z/f/n/o` 自动“点菜单栏项 → 点唯一菜单项”；对话框无菜单栏且已前台时对编辑类组合额外尝试一次前台 `press_key`。歧义/缺失即停 |
-| `xamlPressFallback` | `off` | 实验性：`auto` 对 `ctrl+a` / `alt+f` 在 UIA 加速器不可用时允许一次**前台** `press_key`。两者都开时 `ctrl+a` 仍菜单优先，仅菜单不可用时兜底；想 press 优先可把 `xamlKeyFallback` 设为 `off`。`alt+f` 成功打开文件菜单后清快照。不含 Alt+Tab |
-| `deliveryMode` | `auto` | 后台/自动/前台投递策略 |
-| `driverProfile` | `auto` | cua-driver 兼容档：`auto` 按 `--version` 推断并自适应；`legacy` 强制旧请求形态（不发 `tree_format`、私有 drag）；`latest` 强制新形态（`tree_format`、原生 drag、像素截图预取）。排障/回退用 |
-| `dragEngine` | `auto` | modifier drag 引擎：`auto` = 驱动 >=0.39 且探测可用时原生，否则私有 SendInput；`private` = 强制私有 helper（原生 modifier 异常时回退；`from_zoom` 不支持）。`dwell_ms` 始终私有 |
-
-## 驱动兼容（cua-driver 0.23.2 → 0.52/0.53）
-
-插件不直接假设某个驱动版本的返回形态：所有驱动 I/O 经 `lib/cua.js` →
-`lib/driver/`，由兼容层做请求映射、响应归一化与能力学习。实测差异与处理：
-
-- 0.52+ 的 `get_window_state` 默认 `tree_format:"markdown"`，不带 `elements`：
-  兼容层总是显式请求 `tree_format:"elements"`。
-- 0.52+ 的 element_token / zoom 快照按 **session** 归属：兼容层给
-  `get_window_state` 注入统一 `CUA_SESSION`，否则动作会得到
-  `stale_element_token`。
-- 0.52+ 的**像素** click/drag/scroll 与 `zoom` 需要同一窗口的截图上下文：
-  快照没有 capture 时先补 `get_window_state(include_accessibility_tree:false, include_screenshot:true)`
-  的 capture-only 读；它只截图、不替换 UIA index map，**保留 element_token**。
-  0.23.2 退回 `max_elements:1`（会替换 index map，旧 token 标失效）。
-- 0.39+ 原生 drag modifier；0.23.2 仍用私有 SendInput helper。
-- 参数误用：dispatcher 的未知参数拒绝会附通用纠正（如 `screen_zoom` 只接受 x1/y1/x2/y2、`computer_activate` 只接受 window_id/pid、`computer_key` 绑定快照窗口）；`computer_do` 描述含常用参数速查。不会静默接受或改写参数。
-- 驱动以非零退出返回的结构化拒绝（如 `background_unavailable`）按回执值处理，
-  继续走前台升级链，而不是当传输故障。
-
-版本矩阵、能力标志、错误分类与新增驱动工具的步骤见
-[docs/DRIVER-SDK.md](docs/DRIVER-SDK.md)。
-
-## 能力边界（诚实说明）
-
-- **委派不是沙箱。** `computer_task` 想给子 agent 施加三条约束（只用桌面工具、结构化输出、禁止再派生），但它们是独立的宿主能力。0.2.2 的 `subagents.startActivation` **没有 `toolFilter`**——工具集只能由 Agent Preset/宿主组合决定。插件会在回执里明确写“子 agent 拥有与父会话同级的能力”，不会假装已限制。需要严格限制时，请用宿主自己的 Agent Preset/子 agent 机制。
-- **`app_launch` 的窗口可能需要人工收尾。** 驱动二进制要求管理员权限，启动的应用继承高完整性级别；非提权客户端 `taskkill` / `Stop-Process` / `WM_CLOSE` 都会被 UIPI 拒绝。WinUI 目标上连驱动侧关闭通道也断（`alt+f4` 撞 UIA 超时、`invoke_menu` 报 `menu_path_unavailable`）。测试/自动化优先操作已在运行的普通应用。
-- **管理员窗口仍是系统边界。** 驱动能操作它自己启动的高完整性窗口，但非提权客户端不能清理；具体按目标与通道判断，不是“管理员窗口一律不可操作”。
+- **委派不是沙箱。** `computer_task` 走宿主 `startActivation`；dsh 0.2.2 没有 `toolFilter`，子 agent 可能拥有与父会话同级能力。回执会写明；需要严格限制时用宿主 Agent Preset。
+- **`app_launch` 的窗口可能需要人工收尾。** 驱动以管理员运行，启动的应用继承 High IL；非提权客户端可能关不掉。测试/自动化优先操作已在运行的普通应用。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
-- **Explorer 文件项的单选要用 `foreground=true`。** 后台坐标点击会优先走 UIA hit-test/Invoke；在 Explorer 文件项上这等于“打开”，会弹出 Notepad/Photos/PDF 等应用。t15 首轮因此污染；题面已明确文件单击必须前台。Ctrl+click 的 `modifier` 本身已强制前台。
-- **多选与 modifier 拖拽已接线，但仍有边界。** `computer_click`/`double_click`/`right_click` 支持 `modifier`（Ctrl+click 多选已真机验证，Windows 上自动前台注入）。`computer_drag` 的 `modifier` 走**私有 SendInput helper**（`tools/private-drag.ps1`）：原子手势、modifier 持有到 drop、失败路径释放、恢复原前台；`button` 支持 left/right/middle，`dwell_ms` 支持 Explorer 弹簧文件夹。私有路径不支持 `from_zoom`（明确报错）；无 modifier 的 drag 仍走 driver，保留 driver 的 zoom/后台路径。仍无元素源拖拽、`selectText`、key hold；Paint 画布/Office 形状仍以坐标或 AX 元素为主。具体轨迹与建议见 [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) 与 [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md)。
-- **native 截图 freshness 已有确定性探针，但未复现陈旧。** `evals/probe-native-freshness.mjs` 在 WinForms 文本变化窗口上对比 driver `screenshot_png_b64` 与插件 native 图的 hash/字节数，当前均随文本变化；t11 轨迹里的“同一 PNG hash”仍可能是特定应用/去重路径，未定位前不要把它当成普适结论。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 A10。
-- **PowerPoint/Office 的可靠路径是结构化优先。** 能读 OOXML/COM/API 就不要靠 ribbon 点击；必须走 GUI 时，把 t12 这类任务按“改色/加标签/保存”拆分或放宽预算，不要用通用 CU 硬解。
-- **`screen_zoom` 需要当前模型支持图片输入。** 它不做视觉观察者降级；小字号 JPEG 可能不可读，读文字请用 `native`（无损 PNG）。
-- **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层光标；能否触发目标应用的真实 hover 取决于应用，`real=true` 会移动真实指针。
+- **Explorer 文件项的单选要用 `foreground=true`。** 后台坐标点击会走 UIA Invoke，等于“打开”，会弹出 Notepad/Photos/PDF。
+- **`computer_drag` 的 `modifier`/`dwell_ms` 走私有 SendInput helper。** 原子手势、修饰键持有到 drop、失败路径释放；不支持 `from_zoom`。无 modifier 的 drag 仍走驱动。
+- **`screen_zoom` 需要当前模型支持图片输入。** 小字号 JPEG 可能不可读；读文字用 `native`。
+- **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层；`real=true` 才动真实指针。
 - **`computer_menu` fail-closed。** 路径缺失/歧义/禁用/结构不匹配即失败，绝不回退像素。
-- **平台**：Windows 是深度实测目标；macOS 保留基础可用路径（依赖驱动与 TCC 授权）；Linux 未做本仓库的真机验证。不要把 macOS/Linux 的“代码可加载”当成“已验收”。
+- **平台**：Windows 深度实测；macOS 基础可用（历史）；Linux 未验证。
 
-## 平台支持
+逐条错误与处理见 [ERRORS](docs/ERRORS.md) 与 [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)；Windows 底层原因见 [WINDOWS](docs/WINDOWS.md)。
 
-| 平台 | 状态 | 说明 |
+## 平台与兼容性
+
+| 依赖/平台 | 版本 | 状态 |
 |---|---|---|
-| Windows | ✅ 深度实测 | 三级投递、XAML/WinUI 通道、1:1 观测、结构密码扫描均在本机闭环；管理员窗口受 UIPI 约束 |
-| macOS | ⚠️ 基础可用（历史） | 需 Accessibility / Screen Recording 授权；本仓库的近期回归在 Windows，macOS 证据多为 0.1–0.2 时期 |
-| Linux | ◻ 未验证 | 桌面环境与 accessibility 栈差异大；凭据保护等承诺未做真机验证 |
+| Windows 11 x64 | — | ✅ 深度实测 |
+| macOS | — | ⚠️ 基础可用（历史，近期未回归） |
+| Linux | — | ◻ 未验证 |
+| Node.js | `>=22.18.0` | ✅ |
+| dsh | `>=0.2.2-rc.1 <0.3.0` | ✅ 基线 `0.2.2-rc.1` |
+| cua-driver | `0.23.2` 基线 / `0.52.13` canary | ✅ 两者均实测；`0.53` 预期未验证 |
+| 模型 | 工具调用；native/zoom 需 image | ✅ |
 
-### 兼容性
+完整矩阵、驱动能力标志与升级/回退步骤见 [COMPATIBILITY](docs/COMPATIBILITY.md) 与 [DRIVER-SDK](docs/DRIVER-SDK.md)。
 
-| 依赖 | 实测版本 | 兼容范围 |
-|---|---|---|
-| dsh | `0.2.2-rc.1` | `>=0.2.2-rc.1 <0.3.0` |
-| `@deepseek-ai/dsh-tools` | `0.2.2-rc.1` | `>=0.2.2-rc.1 <0.3.0`（peer） |
-| `@deepseek-ai/schemastery` | `3.19.0` | `>=3.19.0 <4`（peer） |
-| cua-driver | `0.23.2` | 以驱动 `call` 契约与工具名为准 |
-| Node.js | 22.18+ | `>=22.18.0` |
+## 文档
 
-## 故障排查
+**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。常用入口：
 
-| 现象 | 常见原因 | 处理 |
-|---|---|---|
-| `cua-driver not found` / 无法启动 | 驱动不在 PATH | 安装驱动或设 `CUA_DRIVER_BIN` |
-| 没有可见窗口 | 图形会话/窗口权限/目标最小化 | 确认目标在运行并重新观察 |
-| `[snapshot_missing]` | 动作前没有 `screen_observe` | 先观察；菜单/悬停/应用列表不要求快照 |
-| `[snapshot_expired]` | 超过 `ttlMs` | 重新观察 |
-| `[snapshot_consumed]` | `supersession: enforce` 下同一快照第二次动作 | 重新观察，或改 `note` |
-| `[snapshot_mismatch]` | 传入的 `snapshot_id` 不是当前快照 | 用最新观察的 id |
-| `[index_out_of_range]` | 编号不属于当前快照 | 重新观察取新编号 |
-| `element_not_visible` | 目标不可见/已变化；也可能是驱动误报 | 先 `screen_observe` / `computer_verify` 复核；WinUI 改走点控件 |
-| `suspected_noop` | 引擎受理但怀疑未生效 | 不要立即重放；先观察再决定 |
-| `background_unavailable` | 目标输入栈丢弃后台事件 | 回执为 `ok:false`；用 `deliveryMode: auto` 自动前台，或单次 `foreground: true`；不要重复同一动作 |
-| `delivery_failed` | 投递未确认（常见于后台按键） | 先 `screen_observe`，必要时 `foreground: true` 重试一次；`background_delivery_failed` 是升级建议，不是硬失败 |
-| 回执“已前置目标并点击/拖拽一次（未验证）” | 强制前台指针动作不做失败后重试 | 先 observe 看结果；不要重复同一动作，必要时手动重试一次 |
-| `[private_drag_zoom_unsupported]` | 私有拖拽未复刻驱动 zoom 映射 | 用窗口截图坐标重发；或先 screen_zoom 观察，不要加 modifier+from_zoom |
-| `[private_drag_no_frame]` | 快照缺 screenOrigin/截图尺寸 | 先 `screen_observe` 目标窗口（不要用 query 只读视图）再拖拽 |
-| `foreground_unavailable` | Windows 前台锁拦截 | 自动升级 L3；仍失败时先让目标前置 |
-| UIA accelerator 超时 | WinUI/XAML 组合键通道不可达（#3908） | 改点菜单/按钮；或稍后重试 |
-| `native` 被拒 | 当前模型未声明 image 输入 | 换视觉模型或用 `mode:"vision"` |
-| `screen_zoom` 返回空图/不可读 | 裁剪区域太小、JPEG 有损、窗口不可见 | 放大裁剪；读文字改 `native` |
-| 指定窗口未找到 | 标题/pid 不匹配 | 工具会 fail-closed 并列候选；从候选重选，不会静默回退最前窗口 |
-| 动作成功但界面没变 | 目标忽略该通道/焦点不对 | 用 `screen_observe`/`computer_verify` 复核；改用 element 点击或粘贴流 |
-| `app_launch` 后关不掉 | 子进程继承高完整性级别（UIPI） | 提示用户手动关闭；不要按进程名杀 |
-| 观察结果 `visualOnly` | 窗口级观测被拒，已降级桌面采集 | 桌面坐标不能直接用于窗口动作；重试窗口观察或换普通窗口 |
+| 文档 | 内容 |
+|---|---|
+| [INSTALL](docs/INSTALL.md) | 安装、升级、卸载、首跑自检 |
+| [TOOLS](docs/TOOLS.md) | 23 个工具的参数、默认值、前置、回执、示例 |
+| [CONFIGURATION](docs/CONFIGURATION.md) | 24 个配置键、环境变量、交互、陷阱 |
+| [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | 错误码总表 / 按症状排障 |
+| [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md) | 威胁模型 / 权限声明 |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 内部结构与运行时链路 |
+| [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md) | 测试体系 / 当前验证矩阵 |
+| [EVIDENCE](docs/EVIDENCE.md) | 按日期的运行证据与失败样本 |
 
-## 开发与验证
-
-```bash
-npm install
-npm run check                      # 语法检查 + bash -n（26/26 JS）
-npm test                           # 26 套离线测试，634 项检查
-node verify-runtime.mjs            # 真驱动运行时验证（18 项；需 cua-driver）
-dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
-  --permission-mode read-only --approval-policy never \
-  "调用 computer_do(action='status')"   # 真机 dsh 加载（headless 需先启用 credentials）
-node tests/live-action.e2e.mjs 3   # 真桌面动作闭环（会打开临时记事本窗口）
-npm run eval:headless              # S4 冒烟 headless 直跑（dsh 0.2.2 可用；10 分钟/条）
-node evals/verify-oracles.mjs      # S4 oracle 双向验证（2026-11-12 基线 10/10；2026-11-15 本机 7/10，t04/t06/t10 环境问题）
-```
-
-`npm test` 的 26 套：posture / tools / delivery-chain / schema.conformance（23 个工具 / 47 个场景）/ observe.dedup / observe.truth / observe.coords / observe.failure / key.xaml / menu.receipt / human.click / action.echo / delivery.failures / delivery.foreground / trajectory / eval-safety / notepad-tabs / task.tool / config.plumbing / action-bounds / dispatcher.test / driver.normalize / driver.capabilities / driver.transport / driver.compat / package-manifest。测试策略、失败模式与真机边界见 [docs/TESTING.md](docs/TESTING.md)；最近一次证据见 [VERIFICATION.md](VERIFICATION.md)。
-
-## 文档地图
-
-| 文档 | 读者 | 内容 |
-|---|---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 贡献者 | 模块、工具面、请求/观察流水线、投递链、快照状态机、扩展指南 |
-| [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md) | 贡献者/排障 | cua-driver 兼容层：规范形态、能力标志、版本矩阵、错误分类、新增驱动工具 |
-| [docs/RUNTIME-PIPELINE.md](docs/RUNTIME-PIPELINE.md) | 贡献者/排障 | 宿主→插件→驱动→session→eval 的完整链路、失败语义、日志解码 |
-| [docs/COMPATIBILITY-0.2.2.md](docs/COMPATIBILITY-0.2.2.md) | 升级审查 | dsh 0.2.2 契约矩阵、P0/P1 兼容缺口、升级顺序 |
-| [docs/WINDOWS.md](docs/WINDOWS.md) | Windows 用户/贡献者 | 完整性级别、前台锁、输入通道、坐标/DPI、清理规则、冒烟矩阵 |
-| [docs/TESTING.md](docs/TESTING.md) | 贡献者 | 离线/真机/评测三层测试、断言清单、排障与新增测试 |
-| [docs/CU-RESEARCH.md](docs/CU-RESEARCH.md) | 架构/评测 | Codex、Claude Code、ZCode、Trae 与社区 CU 的复杂任务处理模型对比 |
-| [docs/TRAJECTORY-ANALYSIS.md](docs/TRAJECTORY-ANALYSIS.md) | 架构/评测 | t11/t12/t14/t15/t17 真机轨迹、模型行为、失败模式与 ZCode CU 探针 |
-| [VERIFICATION.md](VERIFICATION.md) | 审查者 | 当前验证矩阵、按日期的证据、未验证项 |
-| [PERMISSIONS.md](PERMISSIONS.md) | 审查者 | 权限面、网络/凭据/命令声明、承诺验证矩阵 |
-| [docs/store-evidence.md](docs/store-evidence.md) | STORE 审查 | 一次性 profile 安装/启动/卸载证据 |
-| [ROADMAP.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md) | 维护者 | 已交付、待实验、驱动缺口、明确不做 |
-| [PUBLISH.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) | 维护者 | 版本口径、发布前检查、发布/部署/npm 步骤 |
-| [MAINTAINING.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) | 维护者 | 环境、硬知识、工作约定、已知缺口 |
-| [CHANGELOG.md](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) | 所有人 | 版本历史 |
-| [evals/README.md](evals/README.md) | 评测者 | S4 任务集、oracle、runner 与环境知识 |
+开发与验证命令见 [TESTING](docs/TESTING.md)；维护者环境、硬知识与发布检查见 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 与 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 
 ## English (brief)
 
@@ -444,10 +165,10 @@ Windows-first Computer Use plugin for the DeepSeek Harness: 23 tools (22 desktop
 
 - **Loop**: `screen_observe` (AX/UIA index tree, native screenshot, or vision observer) → act by `element` index or window-screenshot pixels → verify.
 - **Stance — zero-friction autonomy**: no approval prompts; background-first delivery escalates to foreground/`bring_to_front` and restores the previous foreground. The only content-level hard refusal is automated password entry (`typing` / `set_value`); `extremePatterns` adds non-blocking warning notes.
-- **Cache-friendly surface**: `surfaceMode` is either `dispatcher` (default, 2 visible) or `hybrid` (2 + 5 hot tools). The old dynamic enter/exit surface was removed.
+- **Cache-friendly surface**: `surfaceMode` is either `dispatcher` (default, 2 visible / 21 hidden) or `hybrid` (7 visible / 16 hidden). The old dynamic enter/exit surface was removed.
 - **Honest boundaries**: Windows is the deep-tested target; macOS is basic; Linux is unverified. Delegation tool restriction is not available on dsh 0.2.2 (`startActivation` has no `toolFilter`), so the sub-agent may have parent-level capabilities; the receipt says so.
 
-**Install**: install cua-driver (0.23.2 baseline; 0.52.x canary tested; 0.53 expected), then `git clone https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git && ./install.sh` (set `DSH_HOME` on Windows/Linux). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full table above. Driver-version differences and the compatibility layer are documented in [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md).
+**Install**: install cua-driver (0.23.2 baseline; 0.52.13 canary tested; 0.53 expected), then see [docs/INSTALL.md](docs/INSTALL.md). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full reference in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Derived from [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) (MIT); see [Acknowledgements](#出处与致谢).
 
