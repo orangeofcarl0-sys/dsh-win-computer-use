@@ -57,7 +57,7 @@
 - t15：`12-53-31`（r1/r2/r3）
 - t14 旧题面：`2026-11-17T07-12-15`（141/71）；新题面：`10-14-28`（59）、`10-22-40`（41/57）
 - t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
-- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）
+- 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37，capture 复用后）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）、`08-14-46`（capture-only t11 76 / t12 98）
 
 ## 2. t11：不是“不会画”，是焦点 + 首次拖拽 + 状态判定
 
@@ -70,12 +70,13 @@
 
 关键行为：模型从状态栏坐标反推画布原点：drag 起点 `956,679`，状态栏 `77,79` → 原点 `879,600`。这是它后来能精确画椭圆/直线的关键。
 
-### 2.2 77 步 pass 的差异
+### 2.2 77 / 76 步 pass 的差异
 
 - 开头同样遇到“调色板不在 AX 树”，模型用 `screen_observe(query="色")` + 全量 observe 恢复 87 个元素。
 - 它总结出 **第一次 drag 只把光标移到起点、不真正画**：背景 drag 无效果，`activate` 后第一次 foreground drag 仍空白，第二次 foreground drag 才出现形状。
 - 后续椭圆/直线主动重复 drag，7 次完成 3 个形状，比 84 步少。
 - 保存阶段仍然很贵：Save As 对话框的 `Ctrl+A`/输入被主窗口或导航树抢走；模型用 native 截图确认“out 文件夹、文件名、PNG 类型”，最后点击保存时出现 `window_target_not_found`，但文件实际已保存。
+- capture-only 复跑 **76 步 / 1224s / 3 tool errors / 24 unverified**（另有 2 次 `screen_observe` 窗口标识失败）：38 observe、16 click、6 drag、5 activate、3 zoom、1 type；仍是 activate → 画布焦点 click → drag 的纪律，红/蓝各重画一次后三色 ROI/coverage/precision 全绿。错误集中在 `snapshot_missing`/`snapshot_mismatch` 与 `screen_observe(window="17306228"/"s4-t11-canvas")`（数字/标题当窗口标识），按拒绝文本改走窗口列表后恢复；无 `screenshot_context_missing`/`stale_element_token`。
 
 ### 2.3 49 步 fail：最快但质量最差
 
@@ -112,7 +113,13 @@
 - **占位柱 / 178 步**：红/蓝柱、Q1/Q2 成功，绿柱/Q3 缺失；25 errors、26 次 force observe。占位柱确实把“插入形状”问题解决了，但每根柱的文本格式化仍然太贵。
 - **预填 title/subtitle + 25min / 190 步**：title/subtitle 保住了，红/蓝柱成功；绿柱/Q3 仍未完成。预填只省了标题，没有改变“每根柱 7 分钟”的成本结构。
 
-### 3.3 t12 根本问题
+### 3.3 capture-only 复跑：98 步 pass
+
+- 41 次 observe、24 次 click、11 次 key、7 次 type、5 次 right-click、3 次 activate、3 次 double-click、1 次 set_value；没有 drag。
+- 1378s、6 tool errors、44 unverified；报告的错误为 2 次 `snapshot_expired`、2 次 `snapshot_mismatch`、1 次 `foreground_unavailable`（PPT 精确 HWND 未激活）、1 次 `window_target_not_found`（`bring_to_front` 失败），另有 1 次 key `delivery_failed` 与 1 次 `screen_observe` 窗口查找失败；模型用 observe/activate/foreground 重试恢复。
+- oracle 13/13 全 true（1 页、16:9、title/subtitle、Q1-Q3、三色柱）。比 112 步样本少 14 步、墙钟少 203s；没有 `screenshot_context_missing`/`stale_element_token`，capture-only 没有改变 PowerPoint 的格式面板/前台锁成本结构。
+
+### 3.4 t12 根本问题
 
 1. **模板标题页的视觉噪声**：`WidescreenPresentation.potx` 的 title slide 带主题背景/装饰，native 截图里出现深色背景、超大标题、红蓝色带，模型花了很多步确认“这是不是我的幻灯片”。
 2. **PowerPoint 的格式面板/颜色对话框是独立窗口**：UIA 字段不可写，foreground 恢复会抢焦点；模型只能“activate 对话框 → 点字段 → 键盘输入”。
@@ -282,19 +289,21 @@
 - 23 次 observe、21 次 changed observe；模型不是盲目重试，每一步都在确认文件列表/文件夹切换。没有 zoom、没有 drag、没有错误恢复，是五条里最接近“题面即策略”的一条。
 - capture-only 复跑（52 步 fail）：模型没有使用 Ctrl+click，先用 `screen_zoom` 裁 550px（>500 被拒），随后只选中一个文件反复 F2/右键，最终没有完成 docs/images/archive 移动；错误为 zoom 过宽、snapshot 过期、`screen_observe(pid)` 未知参数。文件操作未发生，不是 capture/token 兼容错误；t15 的方差来自文件列表选择策略。
 
-**t11（77 步 / 5 次 activate / 5 次 drag）**
+**t11（77 步 pre-capture；capture-only 76 步）**
 
 - 模型在每次 drag 前都先 `computer_activate`，再点一次画布 `(959,690)` 取得焦点；5 次 drag 对应三色图形，其中红/蓝各重画一次。`activateBeforeDrag=true`、`focusClickAtDragStart=true`，说明它已经学会“画布 drag 需要前台+焦点”，但每个图形都重复一次，成本高。
 - 46 次 observe 中有 12 次 native、4 次 query；模型频繁用截图/过滤树确认颜色、线宽和图形是否出现。`computer_drag` 平均 7.8s，是工具耗时最高的项。
 - 3 个快照类错误都恢复了：无快照点击、矩形工具的 `stale_element_token`、`snapshot_mismatch`；最后的 `screen_observe(window="s4-t11-canvas")` 失败是因为保存后窗口标题变成 `replica.png`，不是图形失败。
 - 结论：t11 的主要成本不是“不会画”，而是**焦点纪律 + 每步视觉确认**；forced drag 前置单次已经避免了双画，但模型仍会主动重复 activate/focus。
+- capture-only 复跑 76 步 / 1224s / 3 tool errors / 24 unverified（另有 2 次 `screen_observe` 窗口标识失败）：38 observe、16 click、6 drag、5 activate、3 zoom；activate → 画布焦点 click → drag 的纪律不变，红/蓝各重画一次，oracle 22/22 全 true。错误为 snapshot_missing/mismatch 与 `screen_observe(window="17306228"/"s4-t11-canvas")`（数字/标题当窗口标识），按拒绝文本恢复；无 capture/token 兼容错误。
 
-**t12（112 步 / 1581s / 41 unverified）**
+**t12（112 步 / 1581s / 41 unverified；capture-only 98 步）**
 
 - 58 次 observe、26 次 native、15 次 query；模型用原生截图和 query 反复检查幻灯片对象/文本框，而不是只靠 AX 树。28 次 click、8 次 key、4 次 type、2 次 double-click、1 次 set_value；没有 drag。
 - 41 次 unverified 全部来自 PowerPoint 的前台文本/形状/格式动作；0 delivery failure，说明动作都送达，只是应用不提供可验证回执。oracle 通过，模型用 native/query 自行确认。
 - 与 DeepSeek 的 t12（152 步/1069s；39 click/29 key/12 zoom/5 set_value/77 unverified）相比：opencode 少 40 步、少 11 次 click、少 21 次 key、少 10 次 zoom，但多 9 次 native、15 次 query，墙钟反而多 512s。**步数更省，单步更贵**。
 - 两个 `snapshot_missing` 都是“先点后观察”的顺序错误，模型立即补 observe；没有 stale/mismatch。
+- capture-only 复跑 98 步 / 1378s / 6 tool errors / 44 unverified：41 observe、24 click、11 key、7 type、5 right-click、3 double-click、1 set_value；错误为 snapshot_expired/mismatch、`foreground_unavailable`、`window_target_not_found`，另有 1 次 key `delivery_failed` 与 1 次 `screen_observe` 失败，均恢复；oracle 13/13 全 true。比 112 步少 14 步，仍没有 drag，格式面板/前台锁成本结构未变。
 
 **t14（60 → 59 步）**
 
@@ -336,13 +345,13 @@
 
 | 任务 | DeepSeek 官方 | opencode-go | 观察 |
 |---|---|---|---|
-| t11 | 58 / 94 步 | 77 步 | opencode 高于最好、低于最差；t11 方差主要来自 activate/focus 重复 |
-| t12 | 152 步 / 1069s | 112 步 / 1581s | opencode 少 40 步，但 native/query 更多、墙钟更慢 |
+| t11 | 58 / 94 步 | 77 步 / capture-only 76 步 | capture-only 与 77 步同量级；方差主要来自 activate/focus 重复 |
+| t12 | 152 步 / 1069s | 112 步 / 1581s；capture-only 98 步 / 1378s | capture-only 比 DeepSeek 少 54 步，但 native/query 更多、单步更贵 |
 | t14 | 53 / 51 pass，64 fail | 60 / 59 / 76 pass，64 fail | 两边都有失败样本；t14 是高方差任务，capture-only 不改变粘贴目标选择 |
 | t15 | 85 / 67 步 | 55 pass / 52 fail | 最好样本更省 click/key；capture-only 复跑未用 Ctrl+click，失败是文件选择策略 |
 | t17 | 37 / 75 步 | 40 步（pre-fix）/ 86（post-fix） | 最好样本同量级；post-fix 走手动输入路径，真实性优先 |
 
-结论：**没有“opencode 一定更快”**。opencode 在 t12/t15 更省步数，t11/t14/t17 与 DeepSeek 同量级或略慢；t12 的 1581s 说明少步数不等于低墙钟（native/query 单次 4–5s）。驱动兼容层对两个 provider 的行为一致，差异主要来自模型策略。
+结论：**没有“opencode 一定更快”**。opencode 在 t12/t15 更省步数，t11/t14/t17 与 DeepSeek 同量级或略慢；capture-only 后 t12 98 步 / 1378s，仍说明少步数不等于低墙钟（native/query 单次 4–5s）。驱动兼容层对两个 provider 的行为一致，差异主要来自模型策略。
 
 ### 10.6 剩余摩擦与建议
 

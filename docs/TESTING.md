@@ -267,6 +267,7 @@ node evals/headless-run.mjs --tasks t17 --repeats 3 --timeout-min 20 --patch eva
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12）；S4 smoke 两轮 7/8（Round 2 4/4）；2026-11-15 t01 原地保存变体曾 **3/3 pass**（37/18/19 步）；观察真值轮 t01 **3/3 pass**（99/9/10 步）；2026-11-16 t01 新题面 **5/5 pass**（17/32/8/19/11 步；中间题面版本 4/5）；t05 **3/3 pass**（26/28/19 步，dirty=false、tabstate restored） |
 | dirty 真机（首轮） | t13 论文下载 **pass 19 步**；t15 Explorer **pass 112 步**；t16 表单 **pass 17 步**；t11 Paint **fail 107 步**、t12 PPT **fail 126 步**（均未保存输出）；t14/t17 仅 setup/cleanup 验证；cleanup clean、TabState skipped |
 | dirty 修复轮（2026-11-16） | t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用、12 drag）；t15 新题面 **3/3 pass**（177/146/89 步，仍高于旧 112）；t12 16:9 seed/占位柱可打开/保存，25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过，仍高风险 |
+| 0.52.13 capture-only 回归（2026-11-18） | t11 **76 步 pass**（oracle 22/22、3 tool errors、24 unverified、1224s）；t12 **98 步 pass**（oracle 13/13、6 tool errors、44 unverified、1378s）；均无 `screenshot_context_missing`/`stale_element_token`；同轮 t17 29 步 pass、t14 76 pass/64 fail、t15 55 pass/52 fail |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | `verify-oracles` 2026-11-12 基线 10/10；2026-11-15 18:40 复跑 **10/10**（t03 Explorer 慢关闭重试生效）；dirty 组 t11/t15/t16 PASS（AC2 full）、t12/t13/t14/t17 SKIP；任务集 17 条 |
 | 打包 | `npm pack --dry-run` 47 文件 |
