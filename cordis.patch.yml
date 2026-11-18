@@ -6,7 +6,7 @@
     - id: dsh-win-computer-use
       name: dsh-win-computer-use
       config:
-        # 工具面模式：dispatcher（默认，2 个常驻 + 20 个隐藏路由）| hybrid（2 + 5 个热工具）
+        # 工具面模式：dispatcher（默认，2 个常驻 + 21 个隐藏路由）| hybrid（7 个常驻 + 16 个隐藏路由）
         surfaceMode: dispatcher
         # 观察快照有效期（毫秒）：长会话减少重复观察
         ttlMs: 60000

@@ -14,16 +14,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      - name: JS syntax check (node --check)
-        run: |
-          for f in index.js lib/*.js; do node --check "$f"; done
-
-      - name: Shell syntax check (bash -n)
-        run: |
-          bash -n install.sh
-          bash -n uninstall.sh
+      - name: Syntax + docs consistency
+        run: npm run check
 
       - name: Theme generator sanity (make_theme.py)
         run: |

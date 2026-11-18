@@ -52,9 +52,9 @@ check('dsh 兼容基线（0.2.2-rc.1 ~ 0.3.0）', () => {
   assert.equal(pkg.dsh?.compatibility?.dsh, '>=0.2.2-rc.1 <0.3.0')
 })
 
-check('发布文件清单包含运行必需项', () => {
+check('发布文件清单包含运行必需项与文档入口', () => {
   const files = pkg.files || []
-  for (const want of ['index.js', 'lib/', 'tools/', 'cordis.patch.yml', 'docs/']) {
+  for (const want of ['index.js', 'lib/', 'tools/', 'cordis.patch.yml', 'README.md', 'VERIFICATION.md', 'PERMISSIONS.md', 'docs/']) {
     assert.ok(files.includes(want), `缺少 ${want}: ${files.join(', ')}`)
   }
 })

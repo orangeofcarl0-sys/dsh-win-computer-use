@@ -1,14 +1,14 @@
 # ROADMAP — dsh-win-computer-use
 
-> 状态基线：`v0.5.6` 已发布（2026-09-17）；`main` 为 `0.5.7-dev`（未发布，含更名、dispatcher 默认、P0/P1 边界修复）。
+> 状态基线：`v0.5.6` 已发布（2026-09-17）；`main` 为 `0.5.7-dev`（未发布，含更名、dispatcher 默认、P0/P1 边界、dsh 0.2.2 兼容、驱动兼容层）。
 > 这是个人项目路线图，不是承诺清单。**触发条件**决定何时解冻；没有触发条件的事项不排期。
-> 历史细节见 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md)；验证证据见 [VERIFICATION](VERIFICATION.md)。
+> 历史细节见 [CHANGELOG](CHANGELOG.md)；逐轮证据见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
 ## 1. 已交付（摘要）
 
 | 版本 | 主题 | 关键结果 |
 |---|---|---|
-| 0.5.7-dev | 工具面收敛 + 安全边界 + 更名 | `dispatcher` 默认（2 可见/20 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；窗口未匹配 fail-closed；Windows-first 更名 |
+| 0.5.7-dev | 工具面收敛 + 安全边界 + 更名 + dsh 0.2.2 + 驱动兼容 | `dispatcher` 默认（2 可见/21 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；`computer_activate`；`startActivation`；`lib/driver/`；click modifier；私有拖拽；观察回执修复 |
 | 0.5.6 | 委派降级阶梯 | `toolFilter` 被拒时只丢该约束，保住结构化输出；回执写明权限后果 |
 | 0.5.5 | 动态工具面（已废弃） | 折叠 2 / 展开 21；工具面 −81%；因 cache 实测被 0.5.7 删除 |
 | 0.5.4 | dsh 0.1.5 适配 + 坐标契约 + 上下文预算 | 点击坐标空间根治；观察降噪；紧凑回执；`computer_task`；S4 评测系统；结构治理 |
@@ -22,29 +22,27 @@
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C1 | 文档体系重写 | ✅ 2026-11-10 | README/ARCHITECTURE/WINDOWS/TESTING/VERIFICATION/PERMISSIONS/ROADMAP/PUBLISH/MAINTAINING |
-| C2 | install.sh 配置同步 | ✅ 2026-11-10 | 生成 `surfaceMode: dispatcher / ttlMs: 60000 / maxElements: 120` |
-| C3 | `computer_task` 描述默认值 | ✅ 2026-11-10 | 描述改为“默认取 taskTimeoutMin（默认 5）” |
-| C4 | 旧 host `toolFilter` 白名单 | ⛔ 已删除 | 0.2.2 基线没有 `toolFilter`/`GUI_ONLY_TOOLS`；子 agent 工具集由 Agent Preset/宿主决定 |
-| C5 | `scroll`/`drag` 的 `snapshot_id` 校验 | ✅ 2026-11-14 | 两个动作均 `validateSnapshotId`；`action-bounds` G1 覆盖 |
-| C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3 |
-| C7 | 真机 headless 加载 | ✅ 2026-11-12 | dsh 0.2.2-rc.1 headless + 启用 credentials 的隔离 patch；5 步完成 status/observe/catalog/隐藏 computer_wait |
-| C8 | `screen_zoom` 的 `coordinateSpace` 语义 | ✅ 2026-11-14 | `coordinateSpace` 改为 `window-screenshot-px`；`screenOrigin` 仅用于屏幕绝对坐标 |
-| C9 | S4 Web runner 的 dsh 0.2.2 UI 兼容 | ⛔ 已退役 | `run.mjs` 默认拒绝运行并指向 `headless-run.mjs`；`--allow-legacy-web` 仅旧 UI 调试，`--dry-setup` 保留 |
-| C10 | `wa2` 失败归因 | ✅ 2026-11-14 | 时间预算敏感：8min fail / 10min pass（72 次调用）；根因含旧 snapshot_id、Explorer 前台确认、menu path 非 JSON。已补 `computer_menu` path 示例；10min 为基线 |
-| C11 | dsh 0.2.2 全面兼容性升级 | ✅ 2026-11-12 | 0.2.2 基线：`computer_task` 只用 `startActivation`；vision 默认 `deepseek-flash`；附件 dimension/pixels；PTC `run_code` + native + `computer_task` 真机通过；兼容基线 `>=0.2.2-rc.1 <0.3.0`。报告 `docs/COMPATIBILITY-0.2.2.md` |
+| C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3。见 [PUBLISH](PUBLISH.md) |
+| C12 | S4 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
+| C13 | daemon 高完整性/清理 | 待评估 | #3607；先试非提权重启 daemon，避免 `app_launch` 子进程 High IL |
+| C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |
+| C15 | macOS 回归 | 待环境 | 近期证据都在 Windows；macOS 仍是历史验证 |
+| C16 | 驱动库存候补 | 待评估 | `browser_*`、`set_window_frame`、trajectory 录制/重放等 |
+
+> 0.5.7 的 C1–C5、C7–C11 已完成（文档体系、install 配置、task 描述、toolFilter 删除、scroll/drag snapshot_id、headless 加载、zoom 坐标语义、Web runner 退役、wa2 归因、dsh 0.2.2 升级）；细节见 CHANGELOG 与 EVIDENCE。
 
 ## 3. 事实澄清 / 实验（冻结，按触发条件解冻）
 
 | # | 事项 | 状态/结论 | 触发条件 |
 |---|---|---|---|
-| A1 | dsv4fv 真实通道 native/vision | ✅ 2026-09-06：ax ✓、native ✓（attachments 端到端，首 token 0.9s/116 tok/s/缓存 74%）、vision 观察者半通（只出思考）；GLM 无 key 优雅降级 | — |
+| A1 | dsv4fv 真实通道 native/vision | ✅ 2026-09-06：ax ✓、native ✓、vision 观察者半通；GLM 无 key 优雅降级 | — |
 | A2 | GLM agent 跨 run 漂移 + SoM 标号绑定 | 未闭环；SoM 方案已因数据否决暂缓 | 像素路径要升级为常规路径时 |
 | A3 | qwen3-vl 坐标帧错位根因 | 未闭环（代理缩图 vs 模型不确定） | 本地代理账号池稳定时 |
-| A4 | 运行时验证（用户层覆盖退役/driverAccess/L3 恢复/crop 换算） | ✅ 2026-09-06：dump-config + E2E | — |
-| A5 | dsv4fv OCR 数字噪声 | ✅ 可读 PNG 上 93 位零错误；zoom JPEG 对 ~13px 小字不可读；模型 2/2 诚实拒答 | S3b 设计输入 |
-| A6 | Windows 密码框投影探针 | ✅ 9/9（结构标记/硬拒/零误拒/时延/crop）；发现并修复标记坐标错误 | — |
-| A7 | 坐标语义落点实验 | ✅ 六轮完成；驱动 0.23.2 混合 DPI 下三种语义假设均有反例 → 像素路径 best-effort；element 路径可靠 | 上游修复或换驱动版本时重测 |
+| A4 | 运行时验证（用户层覆盖退役/driverAccess/L3 恢复/crop 换算） | ✅ 2026-09-06 | — |
+| A5 | dsv4fv OCR 数字噪声 | ✅ 可读 PNG 上 93 位零错误；zoom JPEG 小字不可读；模型 2/2 诚实拒答 | S3b 设计输入 |
+| A6 | Windows 密码框投影探针 | ✅ 9/9（结构标记/硬拒/零误拒/时延/crop） | — |
+| A7 | 坐标语义落点实验 | ✅ 六轮完成；0.23.2 混合 DPI 三假设均有反例 → 像素 best-effort；element 可靠 | 上游修复或换驱动版本时重测 |
+| A10 | native freshness | ✅ 探针未复现“AX 已变而 PNG 不变” | 在 Paint/Office 复现时 |
 | S3b | 独立观察者裁决 / screen_assert | 未做；S3a 协议已注入描述 | ZHIPU_API_KEY 或 dsv4fv 观察者文本输出修复 |
 
 ## 4. 驱动与上游
@@ -53,16 +51,17 @@
 |---|---|---|
 | [#3576](https://github.com/trycua/cua/issues/3576) 元素投影 `is_password` | 已提 | 插件用 sidecar 结构位兜底；上游落地后可简化 |
 | [#3586](https://github.com/trycua/cua/issues/3586) 树 revision + 条件请求 | 已提 | 落地后快照 TTL 可退役为上限保险，`supersession` 可升 enforce |
-| [#3587](https://github.com/trycua/cua/issues/3587) 结构化干预信号 | 已提 | 落地后可疑状态由真实干预驱动，而非时间/回执推断 |
-| [#3607](https://github.com/trycua/cua/issues/3607) 驱动高完整性/清理 | 已提 | daemon 提权导致 `app_launch` 窗口非提权侧清不掉；先试非提权重启 daemon |
+| [#3587](https://github.com/trycua/cua/issues/3587) 结构化干预信号 | 已提 | 落地后可疑状态由真实干预驱动 |
+| [#3607](https://github.com/trycua/cua/issues/3607) 驱动高完整性/清理 | 已提 | daemon 提权导致 `app_launch` 窗口非提权侧清不掉 |
 | [#3908](https://github.com/trycua/cua/issues/3908) WinUI3 hotkey 超时 | 已提 | 插件翻译为“改点控件”；观察实战影响面 |
 | 像素点击落点（A7） | 素材已备，未单独提 | 文档定性 best-effort；等上游或换版本重测 |
+| 0.53 `screenshot_frame` | 预期 | 有 0.53 时跑 `probe-driver-shape`；未真机前不写成已支持 |
 
 ## 5. 驱动库存候补（未暴露）
 
-已确认 cua-driver 0.23.2 存在，插件未包装；按价值排序：
+已确认 cua-driver 存在、插件未包装；按价值排序：
 
-- `browser_*` 全家桶（navigate/click/type/hover/set_input_files/dialog/download，CDP）——浏览器域动作面；与 ZCode/Browser Use 的边界需要先想清楚。
+- `browser_*` 全家桶（navigate/click/type/hover/set_input_files/dialog/download，CDP）——浏览器域动作面；与 ZCode/Browser Use 的边界先想清楚。
 - `set_window_frame`——窗口移动/缩放 + 读回验证。
 - `get_accessibility_tree`——桌面级轻量快照（进程+窗口+bounds）。
 - `start/stop/replay_trajectory`——轨迹录制/重放；与快照语义的交互需设计。
@@ -75,8 +74,8 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| S4 任务集 10 条 | ✅ 已落地 | 冒烟 4 + 核心 6（含 x1 委派通道）；oracle 双向 10/10；2026-11-12 headless smoke 3/4（wa2 fail） |
-| 任务级复跑 | 待排期 | harness UI 空闲、daemon 纯净时跑 `--tier smoke --max-steps 40 --timeout-min 8` |
+| S4 任务集 17 条 | ✅ 已落地 | 冒烟 4 + 核心 6 + dirty 7（含 x1 委派通道）；oracle 双向验证见 [TESTING](docs/TESTING.md) |
+| 任务级复跑 | 待排期 | 桌面空闲、daemon 纯净时跑 `--tier smoke --max-steps 40 --timeout-min 8` |
 | AC6（A–F 的 per-task token/步数对比） | 未做 | 降噪/预算的收益需要任务级数据 |
 | observe:action 比例 | 已知瓶颈 | S4 基线约 2–3:1，单回合输入曾达 8.5M tok |
 | 降噪收益 | ✅ 离线 | summary 958→187 字符（80%）、brief 958→81（92%） |
@@ -96,7 +95,7 @@
 | 动态工具面（enter/exit） | 已删除 | tools 变化使 cache 首击 0–18%；稳定 dispatcher 85–99% |
 | 审批网关 / 危险词确认 | 已删除（0.4.0） | 与“无感自治”冲突；归因靠注记 + 日志 |
 | observe delta / 批量动作 | 暂缓 | 动作消费快照后必全量；驱动索引是位置编号，结构变化时复用旧索引不安全 |
-| 兼容层 / 双实现 | 禁止重复语义；版本差异单点收口 | 不允许为同一动作写两套业务实现；驱动版本差异集中在 `lib/driver/`（请求映射+响应归一化），私有 drag 仅作为 0.23.2/`dwell_ms` 的已知缺口回退 |
+| 兼容层 / 双实现 | 禁止重复语义；版本差异单点收口 | 不允许为同一动作写两套业务实现；驱动版本差异集中在 `lib/driver/` |
 | 按进程名清理测试窗口 | 禁止 | Win11 记事本单进程多标签，会误杀用户文档 |
 | 跨平台行为对齐 | 不作为目标 | Windows 是深度实测目标；macOS 基础可用，Linux 未验证 |
 | 把 22 工具收成一个元工具 | 不做 | 细粒度工具是模型选择能力的基础；dispatcher 已解决可见面问题 |
@@ -105,22 +104,23 @@
 
 | 日期 | 决策 | 依据 |
 |---|---|---|
-| 2026-09-16 | 坐标统一为窗口截图物理像素；observe 输出时换算 | 探针残差 ≤0.55px；元素 frame 与 click 空间差窗口原点 |
-| 2026-09-16 | 观察降噪默认 `summary`；`force=true` 全量 | 真实树 1586→250 字符（84%）；避免重复观察撑爆上下文 |
+| 2026-09-16 | 坐标统一为窗口截图物理像素；observe 输出时换算 | 探针残差 ≤0.55px |
+| 2026-09-16 | 观察降噪默认 `summary`；`force=true` 全量 | 真实树 1586→250 字符（84%） |
 | 2026-09-16 | 默认 `maxElements` 500→120 | 常见任务 30–70 个元素 |
-| 2026-09-17 | 上下文预算 A–F；新增 `computer_task` | 单回合输入曾达 8.5M tok；委派买的是主上下文隔离 |
+| 2026-09-17 | 上下文预算 A–F；新增 `computer_task` | 单回合输入曾达 8.5M tok |
 | 2026-09-17 | `toolFilter` 降级阶梯 | 宿主能力独立；不能一次全丢 |
 | 2026-11-09 | P0 边界修复（快照/窗口绑定/`suspected_noop`/fail-closed） | 五条风险可串成“观察错窗口→输入错窗口→假成功” |
 | 2026-11-10 | `dispatcher` 默认；`dynamic` 删除 | 真实渠道 cache 99.5% vs 0–18% |
 | 2026-11-10 | 更名 `dsh-win-computer-use` | 与同名插件区分；Windows-first 定位 |
-| 2026-11-10 | 文档体系重写 | 版本/平台/审批/网络等旧表述与实现不一致 |
-| 2026-11-17 | modifier/dwell drag 走私有 SendInput helper | driver 0.23.2 schema 声明 modifier 但不读取；原生命中 drop 前释放 |
-| 2026-11-18 | 驱动 I/O 收口到 `lib/driver/`，消费者不改 | 0.52 默认 markdown、session 快照、像素截图上下文三处破坏；45 个调用点重写风险高于单点归一化 |
+| 2026-11-17 | modifier/dwell drag 走私有 SendInput helper | 0.23.2 schema 声明 modifier 但不读取 |
+| 2026-11-18 | 驱动 I/O 收口到 `lib/driver/` | 0.52 默认 markdown、session 快照、像素截图上下文三处破坏 |
+| 2026-11-18 | 文档改为读者/任务导向 + 证据拆分 + docs:check | 20/21、629/634、17/18、32/47 等漂移反复出现 |
 
 ## 10. 触发条件速查
 
 - **像素路径要常规化** → 先解 A2/A3/A7；否则保持 element 优先。
 - **上游 #3586/#3587 落地** → 重评快照 TTL/supersession/suspect。
 - **要严格限制子 agent** → 先确认宿主 `tools.restrict()` 是否接受作用域工具名；否则用宿主自己的子 agent 配置。
-- **要发布 npm** → 先完成 §2 的 C5（`scroll`/`drag` 的 `snapshot_id` 校验），跑 PUBLISH 全量检查，并取得用户“发布”授权。
+- **要发布 npm** → 跑 PUBLISH 全量检查（含 `docs:check`），并取得用户“发布”授权。
 - **要扩到 macOS/Linux** → 先补目标平台的真机验证与承诺矩阵，不要直接改 README 状态。
+- **要新增驱动工具** → 先过 [DRIVER-SDK](docs/DRIVER-SDK.md) §6 的分层/归一化/错误码/测试步骤。

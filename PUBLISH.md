@@ -1,7 +1,8 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 当前状态（2026-11-10）：`v0.5.6` 已发布（tag 指向 `68770fd`）；`main` 含 `0.5.7-dev` 未发布变更（文档提交以 `git log -1` 为准）；npm 未发布；web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3。
+> 状态（2026-11-18）：`v0.5.6` 已发布（tag 指向 `68770fd`）；`main` 为 `0.5.7-dev` 未发布；npm 未发布；web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3。
+> 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
 
@@ -10,7 +11,7 @@
 | 仓库 | `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
 | 默认分支 | `main`（单分支；旧 `v0.3` 已合并/删除） |
 | 最新发布 tag | `v0.5.6` → `68770fd`（注解 tag） |
-| `main` HEAD | `c29e019` + 本次文档提交（以 `git log -1` 为准） |
+| `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
 | `package.json` version | `0.5.6`（发布 0.5.7 时才 bump） |
 | npm | 未发布；名称 `dsh-win-computer-use` 可用 |
 | 部署 | web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3 拷贝；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
@@ -33,34 +34,30 @@
 # 0. 工作树必须干净（发布物 = 提交，不是工作区）
 git status --short
 
-# 1. 语法 + 安装脚本
+# 1. 语法 + 安装脚本 + 文档一致性
 npm run check; echo "check=$?"
 
-# 2. 离线测试（22 套 / 555 项检查；&& 串联，必须看 $?）
+# 2. 离线测试（26 套 / 634 项；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
-# 3. 真驱动运行时（只读观察；17/17）
+# 3. 真驱动运行时（只读观察；18/18）
 node verify-runtime.mjs
 
 # 4. 真桌面动作闭环（23/23；会打开临时记事本，残留标签人工关闭）
 node tests/live-action.e2e.mjs 3
 
-# 5. S4 oracle 双向验证（17 条任务；app/网络依赖可 SKIP/ENV）
+# 5. S4 oracle 双向验证（clean 组 10/10；dirty 组 SKIP 不是 PASS）
 node evals/verify-oracles.mjs
 
-# 6. 打包面（32 文件；确认没有 node_modules/.dsh-test/tests）
-npm pack --dry-run
+# 6. 打包面（以实际输出为准；确认没有 node_modules/.dsh-test/tests/evals）
+npm pack --dry-run --json
+```
 
-# 7. 真机加载（必做；唯一能发现“整棵插件树加载失败”的检查）
-#    headless 默认禁用 credentials；用探针 patch 显式启用 + insert 插件。
-#    2026-11-12 实测：默认 DeepSeek 通道，1 轮 5 步，2 可见/21 隐藏。
-dsh --profile headless --patch "<工作区>/_probe-win-cu-deepseek.yml" \
-  --permission-mode read-only --approval-policy never \
-  "调用 computer_do(action='status')，把返回原文贴出来"
+文档/计数一致性：
 
-# 8. 文档一致性（版本/工具数/配置键三处对齐）
-grep -n '"version"' package.json package-lock.json
-grep -rn "555\|23 个工具\|21 个隐藏\|surfaceMode" README.md docs/TESTING.md VERIFICATION.md
+```bash
+npm run docs:check; echo "docs=$?"
+node -e "const f=require('./tests/docs.facts.json'); console.log(f)"
 ```
 
 历史上真正抓出过问题的检查：
@@ -68,7 +65,8 @@ grep -rn "555\|23 个工具\|21 个隐藏\|surfaceMode" README.md docs/TESTING.m
 - **schema 严格校验**：抓过输出 schema 缺口、结构化拒绝误报成功；
 - **真机 live e2e**：抓过 Windows 前台锁与 XAML 输入通道；
 - **真机 headless 探针**：抓过 `defineTool` 投影丢失导致整棵树加载失败；
-- **退出码**：只 grep 输出会把“某套中途崩溃、前面全绿”误判为通过（实际踩过）。
+- **退出码**：只 grep 输出会把“某套中途崩溃、前面全绿”误判为通过（实际踩过）；
+- **docs:check**：抓过工具/配置/错误码/链接/计数漂移。
 
 ## 4. 发布步骤
 
@@ -83,7 +81,7 @@ git commit -m "0.5.7 文档体系重写 + P0/P1 边界 + dispatcher 默认 + Win
 # 3. 注解 tag（标题即发布说明首行）
 git tag -a v0.5.7 -m "0.5.7：Windows-first 更名 + dispatcher 默认 + P0/P1 安全边界 + 文档体系重写"
 
-# 4. 推送 main 与 tag
+# 4. 推送 main 与 tag（需用户明确“发布”授权）
 git push origin main
 git push origin v0.5.7
 
@@ -114,8 +112,8 @@ git log --oneline -1
 
 ```bash
 # 1. 备份当前目录（不要直接覆盖旧版；保留回滚能力）
-#    当前旧名：~/.dsh/profiles/web/node_modules/dsh-computer-use
-#    新名：    ~/.dsh/profiles/web/node_modules/dsh-win-computer-use
+#    旧名：~/.dsh/profiles/web/node_modules/dsh-computer-use
+#    新名：~/.dsh/profiles/web/node_modules/dsh-win-computer-use
 
 # 2. 用新名安装（推荐 install.sh；Windows/Linux 先设 DSH_HOME）
 DSH_HOME=/path/to/dsh-home ./install.sh
@@ -124,7 +122,7 @@ DSH_HOME=/path/to/dsh-home ./install.sh
 dsh --profile web --dump-config | grep dsh-win-computer-use
 
 # 4. 重启 harness（token 会轮换）
-~/.dsh/restart-dsh-capture.ps1
+#    本机脚本不入库；执行你的 restart 脚本
 
 # 5. 会话内冒烟
 #    computer_do(action="status") -> dispatcher / 2 可见 / 21 隐藏
@@ -143,9 +141,9 @@ dsh --profile web --dump-config | grep dsh-win-computer-use
 > dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。当前**未发布**。
 
 ```bash
-npm pack --dry-run              # 先看 32 文件清单
-npm login                       # 已登录账号 jerryweizhihao（按实际）
-npm publish --access public     # 需要 2FA/token
+npm pack --dry-run --json        # 先看实际文件清单（以输出为准）
+npm login                        # 按实际账号登录
+npm publish --access public      # 需要 2FA/token
 npm view dsh-win-computer-use version
 ```
 
@@ -155,7 +153,7 @@ npm view dsh-win-computer-use version
 dsh plugin --profile web add dsh-win-computer-use
 ```
 
-`package.json` 已声明 `files`（index.js / lib / tools / cordis.patch.yml / README / VERIFICATION / PERMISSIONS / docs / assets / verify-runtime.mjs）；不要加入 tests、node_modules、`.dsh-test`。
+`package.json` 已声明 `files`（index.js / lib / tools / cordis.patch.yml / README / VERIFICATION / PERMISSIONS / docs / assets / verify-runtime.mjs）；不要加入 tests、evals、node_modules、`.dsh-test`。
 
 ## 8. awesome-dsh-plugin 收录（待做）
 
@@ -170,10 +168,10 @@ dsh plugin --profile web add dsh-win-computer-use
 
 ## 9. 回滚
 
-- **代码**：切回上一个 tag（`git checkout v0.5.6 -- .` 不推荐；用干净 clone 或 `git revert`），重新打 tag 需用户授权。
+- **代码**：切回上一个 tag（用干净 clone 或 `git revert`；`git checkout v0.5.6 -- .` 不推荐），重新打 tag 需用户授权。
 - **部署**：把 profile 的 `node_modules/dsh-win-computer-use` 指回备份目录，重启 harness。
 - **npm**：`npm unpublish` 有 72 小时/依赖限制；优先发 patch 版本，不要删版本。
-- **数据**：插件不写用户文件、不建数据库，回滚无需数据迁移。
+- **数据**：插件默认不写用户文件、不建数据库；开启 trajectory 时只写指定 JSONL，回滚无需数据迁移。
 
 ## 10. 发布记录
 
