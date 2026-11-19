@@ -30,7 +30,7 @@
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
-> 2026-11-19 复跑 `verify-runtime` 为 **17/18**：自动选中的 `Microsoft.CmdPal.UI.exe` 窗口 AX 文本没有 `@(x,y)` 行，导致“文本坐标 == 结构化元素”一项失败；其余 17 项通过。该失败是窗口选择/环境态，不是插件回归；历史普通窗口基线为 18/18。
+> 2026-11-19 复跑 `verify-runtime` 为 **18/18**。此前一次 17/18 是自动选中 `Microsoft.CmdPal.UI.exe`（AX 0 元素）；现已改为探测候选窗口，要求至少一个带可定位 frame 的元素，并排除 CmdPal/TextInputHost/PowerToys 等 shell 表面。
 
 ### 1.1 安全承诺矩阵
 

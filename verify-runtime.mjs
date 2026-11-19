@@ -19,19 +19,49 @@ const { cuaCall } = await import(pathToFileURL(join(__dirname, 'lib/cua.js')).hr
 const plugin = (await import(pathToFileURL(join(__dirname, 'index.js')).href)).default
 
 // 不使用过期的硬编码 PID/window_id：每次运行从 cua-driver 发现一个真实可见窗口。
+// 不能只取“第一个可见窗口”：Win11 Command Palette / 输入法 / 桌面 shell 可能是
+// 自绘/非 UIA 表面，AX 树为 0 元素（2026-11-19 CmdPal：1s 0 节点，5s ax_tree_empty）。
+// 这类窗口用于 native/vision 可以，但不能验证“AX 文本 @ 坐标 == 结构化 elements”。
+const SHELL_SURFACES = /^(Microsoft\.CmdPal\.UI(?:\.exe)?|TextInputHost(?:\.exe)?|PowerToys\.QuickAccess(?:\.exe)?|StartMenuExperienceHost(?:\.exe)?|SearchHost(?:\.exe)?|ShellExperienceHost(?:\.exe)?|ApplicationFrameHost(?:\.exe)?|CursorUIViewService|Windows Shell Experience Host)$/i
 const liveWindowList = await cuaCall('list_windows', { on_screen_only: true })
-const testWindow = (liveWindowList.windows || []).find((w) =>
+const candidates = (liveWindowList.windows || []).filter((w) =>
   // 排除驱动自身与系统 shell 窗口：cua-driver 会拒绝观察自己的窗口
   // （原正则只匹 "cua-driver"，实际进程名是 "cua-driver.exe" → 选中后必降级，造成假失败）
   // 同时跳过 0×0 的 shell 弹窗：实测 explorer 的"主机弹出窗口"会被列出但截图 0B，造成图像断言假失败。
   w.window_id && w.pid && w.app_name
   && Number(w.bounds?.width) > 0 && Number(w.bounds?.height) > 0
   && !/cua[-_ ]?driver/i.test(w.app_name)
-  && !/^(CursorUIViewService|ApplicationFrameHost|Windows Shell Experience Host)$/i.test(w.app_name)
+  && !SHELL_SURFACES.test(w.app_name)
 )
-if (!testWindow) throw new Error('verify-runtime: 当前没有可用于真实观察的可见窗口')
-const testWindowRef = String(testWindow.pid)
+
+/** 探测一个窗口是否有可定位的 AX 元素；只读，不建立插件快照。 */
+async function probeAxWindow(w) {
+  try {
+    const st = await cuaCall('get_window_state', {
+      pid: w.pid, window_id: w.window_id,
+      tree_format: 'elements', max_elements: 50, timeout_ms: 2000,
+    })
+    const elements = Array.isArray(st.elements) ? st.elements : []
+    const hasFrame = elements.some((e) => e.frame || e.bounds || Number.isFinite(e.x) || Number.isFinite(e.y))
+    return { ok: elements.length > 0 && hasFrame, count: elements.length, hasFrame, reason: st.degraded_reason || '' }
+  } catch (err) {
+    return { ok: false, count: 0, hasFrame: false, reason: String(err.message || err) }
+  }
+}
+
+let testWindow = null
+for (const w of candidates.slice(0, 8)) {
+  const p = await probeAxWindow(w)
+  console.log(`候选窗口: ${w.app_name} pid=${w.pid} window_id=${w.window_id} elements=${p.count} frame=${p.hasFrame}${p.reason ? ' reason=' + String(p.reason).slice(0, 90) : ''}`)
+  if (p.ok) { testWindow = w; break }
+}
+if (!testWindow) {
+  console.error('verify-runtime: 没有带可定位 AX 元素的可见窗口；请打开一个普通应用窗口后重试（ENV）')
+  process.exit(2)
+}
 const testWindowArgs = { pid: testWindow.pid, window_id: testWindow.window_id }
+// screen_observe 只接受 window/window_id；pid 独立参数会被参数守卫拒绝。
+const observeArgs = { window: String(testWindow.pid), window_id: testWindow.window_id }
 console.log(`测试窗口: ${testWindow.app_name} pid=${testWindow.pid} window_id=${testWindow.window_id}`)
 
 const results = []
@@ -175,24 +205,27 @@ async function runTool(name, args, agent) {
 // 1) ax 观察（真实引擎）
 {
   services.llm = services.llmText
-  const r = await runTool('screen_observe', { window: testWindowRef }, agentWith('deepseek-official', 'deepseek-v4-flash'))
+  const r = await runTool('screen_observe', { ...observeArgs }, agentWith('deepseek-official', 'deepseek-v4-flash'))
   if (r.error) { check('screen_observe(ax) 真实引擎', false, r.error); }
   else {
     const ok = r.value?.ok === true && typeof r.value?.result === 'string' && r.value.result.length > 20
     check('screen_observe(ax) 真实引擎', ok, (r.value?.result ?? '').split('\n')[0]?.slice(0, 110))
     // 文本行 @ 坐标必须与结构化 elements 同空间（2026-11-14 t01 打偏的根因回归）
+    const elements = r.value?.elements || []
     const m = String(r.value?.result ?? '').match(/\[(\d+)\][^\n]*@\((-?\d+),(-?\d+)\)/)
-    const el = m ? (r.value?.elements || []).find((e) => e.index === Number(m[1])) : null
+    const el = m ? elements.find((e) => e.index === Number(m[1])) : null
     check('观察文本 @ 坐标 == 结构化 elements 坐标',
-      Boolean(m && el && el.x === Number(m[2]) && el.y === Number(m[3])),
-      m ? `text=(${m[2]},${m[3]}) element=(${el?.x},${el?.y})` : 'no @(x,y) in result')
+      elements.length > 0 && Boolean(m && el && el.x === Number(m[2]) && el.y === Number(m[3])),
+      elements.length === 0
+        ? 'ENV: selected window returned no AX elements'
+        : (m ? `text=(${m[2]},${m[3]}) element=(${el?.x},${el?.y})` : 'no @(x,y) in result'))
   }
 }
 
 // 2) native 拒绝：text-only route
 {
   services.llm = services.llmText
-  const r = await runTool('screen_observe', { mode: 'native', window: testWindowRef }, agentWith('deepseek-official', 'deepseek-v4-flash'))
+  const r = await runTool('screen_observe', { mode: 'native', ...observeArgs }, agentWith('deepseek-official', 'deepseek-v4-flash'))
   const msg = r.value?.result ?? r.error ?? ''
   check('native 模式：text-only route 优雅拒绝', r.value?.ok === false && /image|视觉|vision/i.test(msg), msg.slice(0, 140))
 }
@@ -200,7 +233,7 @@ async function runTool(name, args, agent) {
 // 3) native 直读：image-capable route（真实截图 + attachments 落盘 + render 图片块）
 {
   services.llm = services.llmImage
-  const r = await runTool('screen_observe', { mode: 'native', window: testWindowRef }, agentWith('deepseek-official', 'deepseek-v4-flash-vision-exp'))
+  const r = await runTool('screen_observe', { mode: 'native', ...observeArgs }, agentWith('deepseek-official', 'deepseek-v4-flash-vision-exp'))
   const v = r.value
   const ok = v?.ok === true && v?.image && v.image.mediaType === 'image/png' && v.image.bytes > 0
   check('native 直读：图片块 + attachments 落盘', ok, `mode=${v?.mode} ${v?.image?.mediaType} ${v?.image?.bytes}B saved=${savedImages.length}`)
@@ -227,7 +260,7 @@ async function runTool(name, args, agent) {
 // 5) vision 降级链（观察者/MISSING key → GLM 无 key → 错误文本优雅返回）
 {
   services.llm = services.llmImage
-  const r = await runTool('screen_observe', { mode: 'vision', window: testWindowRef }, agentWith('deepseek-official', 'deepseek-v4-flash'))
+  const r = await runTool('screen_observe', { mode: 'vision', ...observeArgs }, agentWith('deepseek-official', 'deepseek-v4-flash'))
   const v = r.value
   const visionPart = (v?.result ?? '').split('── 视觉理解 ──')[1] ?? ''
   check('vision 模式：无 key 不崩溃、观察者降级提示', v?.ok === true && visionPart.length > 0, visionPart.trim().slice(0, 150))
@@ -237,7 +270,7 @@ async function runTool(name, args, agent) {
 {
   services.llm = services.llmImage
   // force=true：同窗口同模式此前已观察过（降噪会回极简 stub），这里要的是完整回执
-  const r = await runTool('screen_observe', { mode: 'native', window: testWindowRef, force: true }, agentWith('deepseek-official', 'deepseek-v4-flash-vision-exp'))
+  const r = await runTool('screen_observe', { mode: 'native', ...observeArgs, force: true }, agentWith('deepseek-official', 'deepseek-v4-flash-vision-exp'))
   const res = r.value?.result ?? ''
   check('坐标语义标注 = 窗口截图原图像素', /窗口截图原图像素/.test(res), res.split('\n')[1]?.slice(0, 70))
   check('coordinateSpace 字段 = window-screenshot-px', r.value?.coordinateSpace === 'window-screenshot-px', String(r.value?.coordinateSpace))

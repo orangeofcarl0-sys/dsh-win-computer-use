@@ -55,6 +55,7 @@
 ### Verification
 
 - 离线 **26 套 / 634 项检查**；语法 **29/29**；`verify-runtime` **18/18**（0.23.2 + 0.52.13）；`tests/tasks.check.mjs` **245 项**（S1-S4 阶段/脚本/计数/P0 绑定）。
+- `verify-runtime` 选窗改为探测候选窗口（要求有可定位 AX 元素），排除 CmdPal/输入法等 0 元素 shell 表面；避免把“无 AX 树”误报为坐标不一致。
 - 0.52.13 canary：`live-action` 33/33；driver-shape/modifier/combo/private-drag/from-zoom/native-freshness 全通过；t17 capture-only **29 步 pass**。
 - 观察回执修复后：t11 **70 步 pass**（oracle 22/22，`snapshot_mismatch` 0）、t12 **100 步 pass**（oracle 13/13，`snapshot_mismatch` 0）。
 - 逐轮详情、失败样本与原始 run id 见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。

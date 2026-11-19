@@ -274,7 +274,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 真机 native 整次失败 | 宿主严格输出校验 + 降级字段漏声明 | 跑 `schema.conformance` 的降级场景 |
 | live e2e 选错窗口 | 桌面有同名/残留记事本 | 用唯一命名临时文件；按标题精确匹配，不按进程名 |
 | 截图断言 0B | 选中 `0×0` shell 弹窗 | 选择窗口要求 `bounds > 0` |
-| `verify-runtime` 失败 | 驱动自身/空窗口被选中 | 排除 `cua-driver` 进程名与 `0×0` 窗口 |
+| `verify-runtime` 失败 | 驱动自身/0 元素 shell 表面被选中 | 排除 `cua-driver`、CmdPal/输入法等 shell 表面与 `0×0` 窗口；优先选有可定位 AX 元素的窗口 |
 | evals 某个任务超时 | 残留窗口/驱动 daemon 挂死 | 先 `maintain.mjs`/`stop-stale.mjs`；清理残留后复跑 |
 | Windows 动态 import 报绝对路径 | ESM 需要 URL | 用 `pathToFileURL()` |
 | `docs:check` 报链接/数字不一致 | 文档漂移 | 按 file:line 修；数字以 `tests/docs.facts.json` 为准 |
