@@ -92,7 +92,7 @@ function main() {
       unverified: s.unverified,
       errors: s.errors,
       dirty: Boolean(run.dirty),
-      timedOut: Boolean(run.timedOut),
+      timedOut: Boolean(run.timedOut || run.budgetExhausted),
       markers: {
         typeCalls: s.typeCalls,
         retypeSame: s.retypeSame,

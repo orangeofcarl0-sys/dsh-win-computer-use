@@ -21,10 +21,10 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { runProcess } from './lib/run.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.dirname(ROOT)
@@ -56,7 +56,7 @@ const reportPath = path.resolve(REPO, val('report', path.join('evals', 'report-l
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const logDir = path.join(ROOT, 'headless-runs', stamp)
 
-const COMMON = '【重要约束】本任务必须只通过图形界面完成（在屏幕上点击、拖拽、键盘输入），禁止使用命令行、终端、文件写入工具或任何绕过屏幕的方式。不要向用户提问；自主完成任务后直接结束回合。若某条操作路径不可用（工具会说明原因），请改用界面上等效的控件或通道完成同一操作，不要反复重试同一条失败路径。\n\n'
+const COMMON = '【重要约束】本任务必须只通过图形界面完成（在屏幕上点击、拖拽、键盘输入），禁止使用命令行、终端、文件写入工具或任何绕过屏幕的方式。不要向用户提问；自主完成任务后直接结束回合。若某条操作路径不可用（工具会说明原因），请改用界面上等效的控件或通道完成同一操作，不要反复重试同一条失败路径。观察时显式指定任务相关窗口（标题子串/pid/window_id）；不要依赖无目标的“最前窗口”，也不要跟随无关的前台窗口。\n\n'
 
 function readJsonSafe(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch { return null }
@@ -118,36 +118,9 @@ function discover() {
   return out
 }
 
-function run(cmd, cmdArgs, { timeoutMs = 120000, cwd = REPO, env = ENV } = {}) {
-  return new Promise((resolve) => {
-    const p = spawn(cmd, cmdArgs, { cwd, env, windowsHide: true })
-    let stdout = ''
-    let stderr = ''
-    let done = false
-    const finish = (r) => { if (done) return; done = true; clearTimeout(timer); resolve(r) }
-    const timer = setTimeout(async () => {
-      try { p.kill() } catch {}
-      // dsh 可能还有子进程；Windows 上用 taskkill /T 收尾，并等待它完成，
-      // 否则 oracle 会在旧进程树还在操作桌面时运行。
-      if (process.platform === 'win32' && p.pid) {
-        await new Promise((res) => {
-          let settled = false
-          const done = () => { if (!settled) { settled = true; res() } }
-          try {
-            const k = spawn('taskkill', ['/PID', String(p.pid), '/T', '/F'], { windowsHide: true })
-            k.on('close', done)
-            k.on('error', done)
-          } catch { done() }
-          setTimeout(done, 5000)
-        })
-      }
-      finish({ code: 'TIMEOUT', stdout, stderr, timedOut: true })
-    }, timeoutMs)
-    p.stdout.on('data', (d) => { stdout += d })
-    p.stderr.on('data', (d) => { stderr += d })
-    p.on('error', (e) => finish({ code: 'SPAWN_ERR', stdout, stderr: String(e) }))
-    p.on('close', (code) => finish({ code, stdout, stderr }))
-  })
+/** 统一注入 eval 的 cwd/env；超时与 720s 边界语义在 lib/run.mjs。 */
+function run(cmd, cmdArgs, opts = {}) {
+  return runProcess(cmd, cmdArgs, { cwd: REPO, env: ENV, ...opts })
 }
 
 async function ps(kind, id) {
@@ -209,6 +182,7 @@ function analyze(events) {
     tokens,
     turn: end?.reason?.kind || null,
     final: final?.text || '',
+    noFinal: !final,
     calls: toolCalls.map((c) => `${c.tool}${c.input?.tool ? ':' + c.input.tool : ''}`),
   }
 }
@@ -219,7 +193,8 @@ async function runOne(task) {
     stages: task.stages, isolation: task.isolation, ac2: task.ac2,
     requireTool: task.requireTool || null, requireToolUsed: null,
     verdict: 'error', steps: 0, innerSteps: 0, toolErrors: 0, unverified: 0,
-    tokens: null, timedOut: false, wallMs: 0, turn: null, final: '', oracle: null,
+    tokens: null, timedOut: false, budgetExhausted: false, noFinal: false,
+    wallMs: 0, turn: null, final: '', oracle: null,
     setup: null, cleanup: null, dirty: false, notes: [],
   }
   const cl0 = await ps('cleanup', task.id)
@@ -270,6 +245,9 @@ async function runOne(task) {
   rec.unverified = a.unverified
   rec.tokens = a.tokens
   rec.timedOut = Boolean(dr.timedOut)
+  rec.noFinal = a.noFinal
+  rec.budgetExhausted = Boolean(dr.timedOut
+    || (rec.wallMs >= timeoutMin * 60000 - 2000 && a.noFinal))
   rec.turn = a.turn
   rec.final = a.final.slice(0, 400)
   rec.calls = a.calls
@@ -278,13 +256,22 @@ async function runOne(task) {
     rec.requireToolUsed = a.calls.some((c) => c === task.requireTool || c.endsWith(':' + task.requireTool))
     if (!rec.requireToolUsed) rec.notes.push(`required tool not called: ${task.requireTool}`)
   }
-  if (dr.code === 'SPAWN_ERR') rec.notes.push('dsh spawn: ' + dr.stderr.slice(0, 300))
-  if (dr.timedOut) {
-    rec.notes.push(`timeout ${timeoutMin}min; oracle skipped`)
+  if (dr.code === 'SPAWN_ERR') {
+    rec.notes.push('dsh spawn: ' + dr.stderr.slice(0, 300))
     const cl = await ps('cleanup', task.id)
     rec.cleanup = cl.json || { code: cl.code }
-    if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after timeout') }
+    if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after spawn failure') }
     rec.verdict = 'error'
+    return rec
+  }
+  if (rec.budgetExhausted) {
+    rec.notes.push(dr.timedOut
+      ? `timeout ${timeoutMin}min; oracle skipped`
+      : `wall clock reached ${Math.round(rec.wallMs / 1000)}s with no final; treated as budget exhausted; oracle skipped`)
+    const cl = await ps('cleanup', task.id)
+    rec.cleanup = cl.json || { code: cl.code }
+    if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after budget exhaustion') }
+    rec.verdict = 'timeout'
     return rec
   }
 
@@ -402,9 +389,9 @@ const pass = scored.filter((r) => r.verdict === 'pass').length
 const fail = scored.filter((r) => r.verdict === 'fail').length
 const errors = runs.filter((r) => r.verdict === 'error').length
 const envs = runs.filter((r) => r.verdict === 'env').length
-const timeouts = runs.filter((r) => r.timedOut).length
+const timeouts = runs.filter((r) => r.verdict === 'timeout' || r.budgetExhausted).length
 const dirty = runs.filter((r) => r.dirty).length
 const restoreOk = Boolean(tr.json?.ok)
-console.log(`\nheadless eval: pass=${pass} fail=${fail} env=${envs} error=${errors} dirty=${dirty} total=${runs.length} timeout=${timeouts} tabstate=${restoreOk ? (tr.json?.skipped ? 'skipped' : 'restored') : 'RESTORE_FAILED'}`)
+console.log(`\nheadless eval: pass=${pass} fail=${fail} env=${envs} error=${errors} timeout=${timeouts} dirty=${dirty} total=${runs.length} tabstate=${restoreOk ? (tr.json?.skipped ? 'skipped' : 'restored') : 'RESTORE_FAILED'}`)
 console.log(`report -> ${reportPath}`)
-process.exit(errors || dirty || !restoreOk ? 1 : 0)
+process.exit(errors || timeouts || dirty || !restoreOk ? 1 : 0)

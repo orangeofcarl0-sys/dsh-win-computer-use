@@ -20,6 +20,7 @@ const extraFiles = [
   'evals/headless-run.mjs',
   'evals/verify-oracles.mjs',
   'evals/lib/form-server.mjs',
+  'evals/lib/run.mjs',
   'evals/probe-safety-runtime.mjs',
   'evals/probe-scroll.mjs',
   'evals/probe-ops.mjs',
