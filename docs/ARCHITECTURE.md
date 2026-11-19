@@ -2,7 +2,7 @@
 
 > 目的：模块边界、工具面、请求/观察管线、快照、投递、委派、不变量与扩展方式。
 > 读者：要改代码或排查行为的人。
-> 状态：当前实现（最后核对 2026-11-18；代码快照 `main` @ 0.5.7-dev）。
+> 状态：当前实现（最后核对 2026-11-19；代码快照 `main` @ 0.5.7，npm 已发布）。
 > 相关：[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [docs/README](README.md)。
 
 ## 1. 目标与非目标
@@ -431,7 +431,7 @@ stateDiagram-v2
 | A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11/t15/t14/t17 回归 |
 | A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；Explorer/Excel/PPT drop 待下一轮 |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
-| G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 未发布 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+| G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 已发布 0.5.7 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 ## 14. 测试与证据
 

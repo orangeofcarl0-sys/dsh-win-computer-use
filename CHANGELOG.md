@@ -1,9 +1,9 @@
 # Changelog
 
-> **版本状态（2026-11-19）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-19）**：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7，dsh 兼容基线为 **0.2.2-rc.1**。web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
-## 0.5.7 (未发布)
+## 0.5.7 (2026-11-19)
 
 **主题**：Windows-first 更名、dispatcher 默认、P0/P1 安全边界、dsh 0.2.2 兼容、驱动兼容层、手势与输入真实性、观察回执状态、文档体系重写。
 
@@ -30,7 +30,7 @@
 - **视觉默认**：`visionModel` 改为 `deepseek-flash`（0.2.2 目录）；删除 legacy 模型分支。
 - **回执语义**：结构化拒绝/投递失败/`suspected_noop` 一律 `ok:false`；`unverifiable` 保持“已送达但未验证”；`unknown` 永不算成功；`background_delivery_failed` 是升级建议而非硬失败。
 - **坐标/缩放**：`screen_observe` 文本、结构化 elements、快照条目、点击输入统一 window-screenshot-px；`screen_zoom` 输出 `zoom-image-px` + `fromZoom`，不再手算 `crop.scale`；`nativeImage: compact` 明确失败。
-- **更名**：包名/仓库名 `dsh-computer-use` → `dsh-win-computer-use`；旧 GitHub URL redirect；npm 尚未发布。
+- **更名**：包名/仓库名 `dsh-computer-use` → `dsh-win-computer-use`；旧 GitHub URL redirect；npm 已发布 `dsh-win-computer-use@0.5.7`。
 - **测试阶段 S1-S4**：S1 基础功能、S2 像素定位、S3 覆盖面任务集、S4 Dirty 能力任务集；任务用 `stages` 多标签（t11=S2+S4，t12-t18=S3+S4）。runner 新增 `--stage`；`--tasks`/`--tier` 保持兼容。旧系统级 `S4` 全局改称 `eval`；`S3a/S3b` 改为视觉断言协议/独立观察者。
 - **P0 判定绑定**：t04/t07 按 setup 记录的 HWND 判定；t05 payload 加非 ASCII `é`；t03 加 `keep.txt` 与无多余文件检查；x1 改为必须 `computer_task` 并由 runner 校验调用。
 - **测试补全**：新增 p01-p03（无坐标像素/OCR/zoom）、t18（本地下载 AC2）、t19（地址栏导航）、t20（对话框链）；t12/t14/t17 补 fixture simulate；t11-t18 全部加 sentinel；新增 `probe-safety-runtime`（13 项）与 `probe-scroll`（3 项）。

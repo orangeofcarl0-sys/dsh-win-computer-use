@@ -1,7 +1,7 @@
 # VERIFICATION — 当前验证矩阵
 
 > 目的：把“声称支持”变成可复现的当前证据；逐轮历史见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
-> 代码快照：`main` @ 2026-11-19（`0.5.7-dev`）。
+> 代码快照：`main` @ 2026-11-19（`0.5.7`，npm 已发布）。
 > 环境：Windows 11 x64 · DPI 150% · cua-driver **0.23.2 基线 + 0.52.13 canary** · dsh 0.2.2-rc.1/rc.2 · Node 22。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；驱动层见 [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md)。
 
@@ -32,7 +32,7 @@
 | 阶段过滤 | **S1 9 / S2 4 / S3 10 / S4 8**（成员 31，唯一 23）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
-| npm / 部署 | **未发布 / web profile 仍旧版** | — | [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+| npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.5.7`；web profile 仍旧版** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 > 2026-11-19 复跑 `verify-runtime` 为 **18/18**。此前一次 17/18 是自动选中 `Microsoft.CmdPal.UI.exe`（AX 0 元素）；现已改为探测候选窗口，要求至少一个带可定位 frame 的元素，并排除 CmdPal/TextInputHost/PowerToys 等 shell 表面。
 

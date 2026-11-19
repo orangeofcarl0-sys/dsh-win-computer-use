@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-18）：`v0.5.6` 已发布（tag 指向 `68770fd`）；`main` 为 `0.5.7-dev` 未发布；npm 未发布；web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3。
+> 状态（2026-11-19）：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7；web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -10,10 +10,10 @@
 |---|---|
 | 仓库 | `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
 | 默认分支 | `main`（单分支；旧 `v0.3` 已合并/删除） |
-| 最新发布 tag | `v0.5.6` → `68770fd`（注解 tag） |
+| 最新发布 tag | `v0.5.7`（注解 tag） |
 | `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
-| `package.json` version | `0.5.6`（发布 0.5.7 时才 bump） |
-| npm | 未发布；名称 `dsh-win-computer-use` 可用 |
+| `package.json` version | `0.5.7` |
+| npm | 已发布 `dsh-win-computer-use@0.5.7`；`npm view dsh-win-computer-use version` 复核 |
 | 部署 | web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3 拷贝；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
 | 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
 
@@ -136,9 +136,9 @@ dsh --profile web --dump-config | grep dsh-win-computer-use
 - 旧版 `dsh-computer-use` 与新版可并存于 node_modules，但 profile 配置只能启用一个 id。
 - 部署后若工具未出现：先查 `--dump-config` 与宿主日志；不要先怀疑模型。
 
-## 7. npm 发布（待做）
+## 7. npm 发布（2026-11-19 已发布 0.5.7）
 
-> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。当前**未发布**。
+> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。`dsh-win-computer-use@0.5.7` 已发布。
 
 ```bash
 npm pack --dry-run --json        # 先看实际文件清单（以输出为准）
@@ -177,6 +177,7 @@ dsh plugin --profile web add dsh-win-computer-use
 
 | 版本 | 日期 | 提交 | 主题 |
 |---|---|---|---|
+| v0.5.7 | 2026-11-19 | — | S1-S4 测试体系、S4 哨兵、AC2 夹具、p01-p03/t18/t19/t20、npm 首发 |
 | v0.5.6 | 2026-09-17 | `68770fd` | 委派能力降级修复（toolFilter/scoped restrict/三级阶梯）+ 文档修正 |
 | v0.5.5 | 2026-09-17 | — | 动态工具面（已废弃） |
 | v0.5.4 | 2026-09-17 | — | dsh 0.1.5 适配、坐标契约、观察降噪、上下文预算、eval（原 S4） |

@@ -3,14 +3,15 @@
 > **Windows-first Computer Use for DeepSeek Harness。**
 > 深度 Win32 / WinUI / UIA 工程 · 零审批三级投递 · 23 个工具，默认 2 个稳定入口。
 
-[![Release](https://img.shields.io/badge/release-0.5.6-blue)]()
-[![main](https://img.shields.io/badge/main-0.5.7--dev-orange)]()
+[![Release](https://img.shields.io/badge/release-0.5.7-blue)]()
+[![npm](https://img.shields.io/badge/npm-dsh--win--computer--use-CB3837)](https://www.npmjs.com/package/dsh-win-computer-use)
+[![main](https://img.shields.io/badge/main-0.5.7-blue)]()
 [![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.2--rc.1-green)]()
 [![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)]()
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-19）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认、P0/P1 安全边界、dsh 0.2.2 兼容升级与观察回执修复。npm 尚未发布；部署侧可能仍是旧版——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-19）**：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。部署侧 web profile 可能仍是旧版——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 
@@ -59,7 +60,7 @@
 
 ### 2. 安装插件
 
-当前 npm 未发布；可用 `install.sh`（bash，已有 `profiles/web`）或手动 junction + `cordis.patch.yml`。完整步骤、`DSH_HOME` 规则、headless/隔离 profile 与卸载见 [INSTALL](docs/INSTALL.md)。
+npm 已发布 `dsh-win-computer-use@0.5.7`：可 `npm install dsh-win-computer-use` 或 `dsh plugin add dsh-win-computer-use`；也可继续用 `install.sh`（bash，已有 `profiles/web`）或手动 junction + `cordis.patch.yml`。完整步骤、`DSH_HOME` 规则、headless/隔离 profile 与卸载见 [INSTALL](docs/INSTALL.md)。
 
 ### 3. 第一次观察
 
@@ -168,7 +169,7 @@ Windows-first Computer Use plugin for the DeepSeek Harness: 23 tools (22 desktop
 - **Cache-friendly surface**: `surfaceMode` is either `dispatcher` (default, 2 visible / 21 hidden) or `hybrid` (7 visible / 16 hidden). The old dynamic enter/exit surface was removed.
 - **Honest boundaries**: Windows is the deep-tested target; macOS is basic; Linux is unverified. Delegation tool restriction is not available on dsh 0.2.2 (`startActivation` has no `toolFilter`), so the sub-agent may have parent-level capabilities; the receipt says so.
 
-**Install**: install cua-driver (0.23.2 baseline; 0.52.13 canary tested; 0.53 expected), then see [docs/INSTALL.md](docs/INSTALL.md). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full reference in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+**Install**: install cua-driver (0.23.2 baseline; 0.52.13 canary tested; 0.53 expected), then `npm install dsh-win-computer-use` (or `dsh plugin add dsh-win-computer-use`); see [docs/INSTALL.md](docs/INSTALL.md). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full reference in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Derived from [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) (MIT); see [Acknowledgements](#出处与致谢).
 

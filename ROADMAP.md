@@ -1,6 +1,6 @@
 # ROADMAP — dsh-win-computer-use
 
-> 状态基线：`v0.5.6` 已发布（2026-09-17）；`main` 为 `0.5.7-dev`（未发布，含更名、dispatcher 默认、P0/P1 边界、dsh 0.2.2 兼容、驱动兼容层）。
+> 状态基线：`v0.5.7` 已发布（2026-11-19，npm 首发）；`main` 为 0.5.7。
 > 这是个人项目路线图，不是承诺清单。**触发条件**决定何时解冻；没有触发条件的事项不排期。
 > 历史细节见 [CHANGELOG](CHANGELOG.md)；逐轮证据见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
@@ -8,7 +8,7 @@
 
 | 版本 | 主题 | 关键结果 |
 |---|---|---|
-| 0.5.7-dev | 工具面收敛 + 安全边界 + 更名 + dsh 0.2.2 + 驱动兼容 | `dispatcher` 默认（2 可见/21 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；`computer_activate`；`startActivation`；`lib/driver/`；click modifier；私有拖拽；观察回执修复 |
+| 0.5.7 | 工具面收敛 + 安全边界 + 更名 + dsh 0.2.2 + 驱动兼容 | `dispatcher` 默认（2 可见/21 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；`computer_activate`；`startActivation`；`lib/driver/`；click modifier；私有拖拽；观察回执修复 |
 | 0.5.6 | 委派降级阶梯 | `toolFilter` 被拒时只丢该约束，保住结构化输出；回执写明权限后果 |
 | 0.5.5 | 动态工具面（已废弃） | 折叠 2 / 展开 21；工具面 −81%；因 cache 实测被 0.5.7 删除 |
 | 0.5.4 | dsh 0.1.5 适配 + 坐标契约 + 上下文预算 | 点击坐标空间根治；观察降噪；紧凑回执；`computer_task`；eval 评测系统（原 S4）；结构治理 |
@@ -22,7 +22,7 @@
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3。见 [PUBLISH](PUBLISH.md) |
+| C6 | web profile 部署 | 待授权 | npm 已发布 0.5.7；web profile 仍旧名 v0.5.3。见 [PUBLISH](PUBLISH.md) |
 | C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
 | C13 | daemon 高完整性/清理 | 待评估 | #3607；先试非提权重启 daemon，避免 `app_launch` 子进程 High IL |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |
