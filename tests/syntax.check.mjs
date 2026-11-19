@@ -22,6 +22,11 @@ const extraFiles = [
   'evals/lib/form-server.mjs',
   'evals/probe-safety-runtime.mjs',
   'evals/probe-scroll.mjs',
+  'evals/probe-ops.mjs',
+  'evals/probe-launch.mjs',
+  'evals/probe-modifier-drop.mjs',
+  'evals/oracle-mutation.mjs',
+  'evals/ac6-summary.mjs',
   'tests/tasks.check.mjs',
 ]
 const jsFiles = ['index.js', ...libFiles, ...extraFiles]

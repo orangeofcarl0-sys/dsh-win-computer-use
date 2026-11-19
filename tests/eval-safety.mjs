@@ -222,5 +222,18 @@ check('ES38: t19 使用 Open/Close-TestExplorer', /Open-TestExplorer/.test(taskS
 check('ES39: t20 使用 Open/Close-TestAppWindow', /Open-TestAppWindow/.test(taskSrc('t20', 'setup'))
   && /Close-TestAppWindow/.test(taskSrc('t20', 'cleanup')))
 
+// 2026-11-20: mutation 与新增探针的静态安全边界。
+const mutateSrc = readFileSync(join(evals, 'mutate', 'apply.ps1'), 'utf8')
+const mutationRunner = readFileSync(join(evals, 'oracle-mutation.mjs'), 'utf8')
+const newProbeSrc = ['probe-ops.mjs', 'probe-launch.mjs', 'probe-modifier-drop.mjs']
+  .map((n) => readFileSync(join(evals, n), 'utf8')).join('\n')
+check('ES40: t18 mutation 只按 hash 匹配清理 Downloads', /Remove-S4MatchedDownloads/.test(mutateSrc)
+  && !/Downloads[^\n]*\*\.pdf/i.test(mutateSrc))
+check('ES41: mutation 不按进程名/镜像杀窗口', !/Stop-Process\s+-Name|taskkill\s+\/IM|Close-TaskWindows\s+@\(/i.test(mutateSrc + '\n' + mutationRunner))
+check('ES42: mutation 不递归删除用户目录', !/Remove-Item[^\n]*-Recurse/i.test(mutateSrc))
+check('ES43: 新探针不按进程名/镜像杀窗口', !/Stop-Process\s+-Name|taskkill\s+\/IM/i.test(newProbeSrc))
+check('ES44: t19/t20 清理模型自开的测试 Notepad', /Close-OrphanTestNotepads/.test(taskSrc('t19', 'cleanup'))
+  && /Close-OrphanTestNotepads/.test(taskSrc('t20', 'cleanup')))
+
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

@@ -3,21 +3,22 @@
  * Creates a self-owned WinForms AutoScroll panel, scrolls by element, and reads
  * the panel's VerticalScroll.Value from a result file. Closes only its own PID.
  */
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { writeFileSync, readFileSync, existsSync, rmSync, mkdtempSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { cuaCall } from '../lib/cua.js'
 
-const root = 'F:/Codex_Work_Space/DSH plugin/dsh-computer-use'
+const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const mod = await import(pathToFileURL(join(root, 'index.js')).href)
 const plugin = mod.default
 const TITLE = 'S4-SCROLL-PROBE'
 const work = mkdtempSync(join(tmpdir(), 's4-scroll-'))
 const appPath = join(work, 'scroll-app.ps1')
 const resultPath = join(work, 'scroll.txt')
+const closePath = join(work, 'close.ps1')
 const app = `param([string]$ResultFile)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -39,9 +40,23 @@ $label.Top = 20
 $panel.Controls.Add($label)
 $panel.Add_Scroll({ [IO.File]::WriteAllText($ResultFile, [string]$panel.VerticalScroll.Value) })
 $form.Controls.Add($panel)
+$auto = New-Object System.Windows.Forms.Timer
+$auto.Interval = 120000
+$auto.Add_Tick({ $auto.Stop(); $form.Close() })
+$auto.Start()
 [System.Windows.Forms.Application]::Run($form)
 `
 writeFileSync(appPath, app, 'utf8')
+
+const closeScript = `param([int]$Hwnd)
+. '${join(root, 'evals', 'lib', 'common.ps1').replace(/'/g, "''")}'
+$r = $false
+try { $r = Close-WindowUia $Hwnd } catch { $r = $false }
+if (-not $r) {
+  try { [void][S4W32]::PostMessage([IntPtr]$Hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) } catch {}
+}
+`
+writeFileSync(closePath, closeScript, 'utf8')
 
 const services = {
   attachments: { imageLimits: { maxImageBytes: 5e6, maxImagePixels: 4e7, maxImagesPerMessage: 20, maxMessageImageBytes: 1e8, mediaTypes: ['image/png'] }, async saveImage(i) { return { attachmentId: 'x', mediaType: i.mediaType, bytes: i.data.byteLength, width: 1, height: 1, name: i.name } }, async validateImage() {}, async readImage() { return { data: new Uint8Array([1]) } } },
@@ -62,9 +77,30 @@ async function call(name, args = {}) {
 const checks = []
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`) }
 
+let child = null
+let hwnd = 0
 let pid = 0
+let childStart = ''
+function psOne(command) {
+  try {
+    return execFileSync('powershell.exe', ['-NoProfile', '-Command', command], { encoding: 'utf8', timeout: 15000, windowsHide: true }).trim()
+  } catch { return '' }
+}
+function closeWindow() {
+  if (hwnd) {
+    try { execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', closePath, String(hwnd)], { timeout: 15000, windowsHide: true }) } catch {}
+  }
+  if (child?.pid) {
+    const name = psOne(`(Get-Process -Id ${child.pid} -ErrorAction SilentlyContinue).ProcessName`)
+    const start = psOne(`try { (Get-Process -Id ${child.pid} -ErrorAction Stop).StartTime.ToString('o') } catch { '' }`)
+    if (name === 'powershell' && (!childStart || start === childStart)) {
+      try { child.kill() } catch {}
+    }
+  }
+}
 try {
-  const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', appPath, '-ResultFile', resultPath])
+  child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', appPath, '-ResultFile', resultPath])
+  childStart = psOne(`try { (Get-Process -Id ${child.pid} -ErrorAction Stop).StartTime.ToString('o') } catch { '' }`)
   const deadline = Date.now() + 30000
   let win = null
   while (Date.now() < deadline) {
@@ -75,7 +111,8 @@ try {
   }
   if (!win) throw new Error('scroll window not found')
   pid = win.pid
-  const wid = win.window_id
+  hwnd = win.window_id
+  const wid = hwnd
   const obs = await call('screen_observe', { window_id: wid, mode: 'ax' })
   const elements = obs?.elements || []
   console.log('elements:', JSON.stringify(elements.map((e) => ({ index: e.index, role: e.role, label: e.label })).slice(0, 20)))
@@ -93,9 +130,7 @@ try {
 } catch (err) {
   check('probe completed', false, String(err.message || err))
 } finally {
-  if (pid) {
-    try { spawn('powershell.exe', ['-NoProfile', '-Command', `$p=Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if($p -and $p.ProcessName -eq 'powershell'){Stop-Process -Id ${pid} -Force}`], { windowsHide: true }) } catch {}
-  }
+  closeWindow()
   await delay(800)
   try { rmSync(work, { recursive: true, force: true }) } catch {}
 }

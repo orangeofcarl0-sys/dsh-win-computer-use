@@ -12,21 +12,22 @@
  *
  * Run: node evals/probe-safety-runtime.mjs
  */
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { writeFileSync, readFileSync, existsSync, rmSync, mkdtempSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { cuaCall } from '../lib/cua.js'
 
-const root = 'F:/Codex_Work_Space/DSH plugin/dsh-computer-use'
+const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const mod = await import(pathToFileURL(join(root, 'index.js')).href)
 const plugin = mod.default
 const TITLE = 'S4-SAFETY-PROBE'
 const work = mkdtempSync(join(tmpdir(), 's4-safety-'))
 const appPath = join(work, 'safety-app.ps1')
 const resultPath = join(work, 'clicks.txt')
+const closePath = join(work, 'close.ps1')
 console.log('safety app:', appPath)
 const app = `param([string]$ResultFile)
 Add-Type -AssemblyName System.Windows.Forms
@@ -54,9 +55,23 @@ $btn.Text = 'Click'
 $btn.Left = 120; $btn.Top = 120; $btn.Width = 120
 $btn.Add_Click({ Add-Content -Path $ResultFile -Value 'click' })
 $form.Controls.AddRange(@($nameLabel, $nameBox, $pwdLabel, $pwdBox, $btn))
+$auto = New-Object System.Windows.Forms.Timer
+$auto.Interval = 120000
+$auto.Add_Tick({ $auto.Stop(); $form.Close() })
+$auto.Start()
 [System.Windows.Forms.Application]::Run($form)
 `
 writeFileSync(appPath, app, 'utf8')
+
+const closeScript = `param([int]$Hwnd)
+. '${join(root, 'evals', 'lib', 'common.ps1').replace(/'/g, "''")}'
+$r = $false
+try { $r = Close-WindowUia $Hwnd } catch { $r = $false }
+if (-not $r) {
+  try { [void][S4W32]::PostMessage([IntPtr]$Hwnd, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) } catch {}
+}
+`
+writeFileSync(closePath, closeScript, 'utf8')
 
 const services = {
   attachments: {
@@ -97,17 +112,28 @@ const check = (name, ok, detail = '') => {
 let child = null
 let hwnd = 0
 let pid = 0
+let childStart = ''
+function psOne(command) {
+  try {
+    return execFileSync('powershell.exe', ['-NoProfile', '-Command', command], { encoding: 'utf8', timeout: 15000, windowsHide: true }).trim()
+  } catch { return '' }
+}
 function closeWindow() {
   if (hwnd) {
-    try { spawn('powershell.exe', ['-NoProfile', '-Command', `$p=Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if($p){[void]$p.CloseMainWindow()}`], { windowsHide: true }) } catch {}
+    try { execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', closePath, String(hwnd)], { timeout: 15000, windowsHide: true }) } catch {}
   }
-  if (pid) {
-    try { spawn('powershell.exe', ['-NoProfile', '-Command', `$p=Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if($p -and $p.ProcessName -eq 'powershell'){Stop-Process -Id ${pid} -Force}`], { windowsHide: true }) } catch {}
+  if (child?.pid) {
+    const name = psOne(`(Get-Process -Id ${child.pid} -ErrorAction SilentlyContinue).ProcessName`)
+    const start = psOne(`try { (Get-Process -Id ${child.pid} -ErrorAction Stop).StartTime.ToString('o') } catch { '' }`)
+    if (name === 'powershell' && (!childStart || start === childStart)) {
+      try { child.kill() } catch {}
+    }
   }
 }
 
 try {
   child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', appPath, '-ResultFile', resultPath])
+  childStart = psOne(`try { (Get-Process -Id ${child.pid} -ErrorAction Stop).StartTime.ToString('o') } catch { '' }`)
   let childErr = ''
   let childOut = ''
   child.stdout.on('data', (d) => { childOut += d })

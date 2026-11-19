@@ -571,8 +571,10 @@ function Close-OrphanTestNotepads {
   # seed; user tabs are left alone and reported. Returns {closed,leftover,details}.
   # -ProtectHwnd: windows opened earlier in the CURRENT setup (t10 a.txt) must not
   # be closed by the next Open-TestNotepad call.
-  param([int[]]$ProtectHwnd = @())
+  param([int[]]$ProtectHwnd = @(), [string[]]$ExtraAllowedTabs = @(), [string[]]$ExtraSeeds = @())
   if (-not $script:TestNotepadProtected) { $script:TestNotepadProtected = @{} }
+  $allowedLabels = @($script:TestNotepadLabels) + @($ExtraAllowedTabs | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+  $seeds = @($script:TestNotepadSeeds) + @($ExtraSeeds | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
   $protected = @{}
   foreach ($h in @($ProtectHwnd)) { $protected[[int]$h] = $true }
   foreach ($h in @($script:TestNotepadProtected.Keys)) { $protected[[int]$h] = $true }
@@ -618,11 +620,11 @@ function Close-OrphanTestNotepads {
     $unknown = @($tabs | Where-Object { -not $_.known })
     $allowed = $true
     foreach ($l in $labels) {
-      if ($script:TestNotepadLabels -notcontains $l) { $allowed = $false; break }
+      if ($allowedLabels -notcontains $l) { $allowed = $false; break }
     }
     $hasSeed = $false
     foreach ($l in $labels) {
-      if ($script:TestNotepadSeeds -contains $l) { $hasSeed = $true; break }
+      if ($seeds -contains $l) { $hasSeed = $true; break }
     }
 
     # Safety: evalOwned alone is NOT enough for tabbed windows with generic names

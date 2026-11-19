@@ -11,6 +11,10 @@ try {
     [void](Save-LeftoverState -TaskId $TaskId -StateFile $stateFile -Result ([ordered]@{ reason = $e.reason; leftover = $e.title }))
     $dirty = $true
   }
+  $orphan = Close-OrphanTestNotepads -ExtraAllowedTabs @('target.txt', 'NAV-OK') -ExtraSeeds @('target.txt')
+  $left = @($orphan.leftover)
+  $checks += (Add-Check 'orphan test notepad cleaned' ($left.Count -eq 0) ("closed=$($orphan.closed) leftover=$($left -join ' | ')"))
+  if ($left.Count -gt 0) { $dirty = $true }
   Remove-TaskDir
   Out-Finish -Ok $true -Checks $checks -Kind 'cleanup' -Dirty $dirty
 } catch {
