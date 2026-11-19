@@ -382,8 +382,9 @@ check('E27: 无 element + 快照有 Document → 文档提示', typeFocus.ok ===
 
 ;({ call, obs } = await fresh())
 const svNote = await call('computer_do', { action: 'call', tool: 'computer_set_value', args: { element: 5, value: 'abc' } })
-check('E28: set_value 成功 → 不置脏语义', svNote.ok === true
-  && /设值说明/.test(raw(svNote)) && /不要据此判断失败/.test(raw(svNote)), raw(svNote))
+check('E28: set_value 成功 → 不置脏语义 + 新值回显', svNote.ok === true
+  && /设值说明/.test(raw(svNote)) && /不要据此判断失败/.test(raw(svNote))
+  && /新值="abc"/.test(raw(svNote)), raw(svNote))
 
 // 15. 无 Document 的聚焦输入：保留窗口快照，连续按键可继续（t14 逐格输入 churn）
 process.env.CUA_NO_DOC = '1'

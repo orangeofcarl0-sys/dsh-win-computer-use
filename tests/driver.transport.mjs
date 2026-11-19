@@ -122,6 +122,21 @@ const main = async () => {
     assert.equal(child.killed, true)
   })
 
+  await check('T6b per-call timeout 覆盖默认超时', async () => {
+    let child
+    const t = createTransport({
+      spawnImpl: () => { child = fakeChild({ close: false }); return child },
+      timeoutMs: 5000,
+      log: noLog,
+    })
+    await assert.rejects(t.rawCall('move_cursor', {}, { timeoutMs: 20 }), (e) => {
+      assert.equal(e.kind, 'timeout')
+      assert.match(e.message, /timeout after 20ms/)
+      return true
+    })
+    assert.equal(child.killed, true)
+  })
+
   await check('T7 contract mismatch → kind=contract_mismatch + 同步升级指引', async () => {
     const t = createTransport({
       spawnImpl: () => fakeChild({

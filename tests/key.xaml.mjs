@@ -332,6 +332,14 @@ r = await call('computer_key', { key: 'return' })
 check('K35: 普通按键仍按配置后台', stub.deliveries.at(-1)?.tool === 'press_key'
   && stub.deliveries.at(-1)?.forceForeground === false, JSON.stringify(stub.deliveries.at(-1)))
 
+// 16. win 组合键 fail-closed：不再静默只发 win
+reset('ok')
+call = await fresh({ xamlKeyFallback: 'off' })
+r = await call('computer_key', { key: 'win+r' })
+check('K36: win+r fail-closed + 指向 app_launch', r.ok === false
+  && /win\/super\/meta/.test(r.result || '') && /app_launch/.test(r.result || '')
+  && stub.presses.length === 0 && stub.deliveries.length === 0, r.result)
+
 delete process.env.CUA_KEY_MODE
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

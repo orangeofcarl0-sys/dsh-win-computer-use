@@ -56,7 +56,7 @@ const defineTool = (options) => {
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { resetCursorMotion } from './lib/human.js'
 import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
-import { getSnapshot, markSuspect, resetInputGuard } from './lib/snapshot.js'
+import { getSnapshot, markConsumed, markSuspect, resetInputGuard } from './lib/snapshot.js'
 import { timeoutReceipt } from './lib/receipt.js'
 import { resetWindowMap } from './lib/windowMap.js'
 import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
@@ -508,6 +508,7 @@ function observeToolDefs(ctx, cfg, wrap) {
       '区域截图直读：把窗口某块区域（宽 ≤500px）裁成 JPEG 交给模型看图（~200 tok，远低于整窗 PNG）。' +
       '用法：①放大细看（小字/图标/图表）；②定位：图内坐标直接作为 computer_click(x=,y=, from_zoom=true)，由驱动换算回窗口截图坐标。' +
       '驱动会自动加约 20% padding 并可能缩放，所以不要用 crop 自己算比例；screenOrigin 只用于屏幕绝对坐标，点击时不要再加。' +
+      '若目标不在前台/可能被遮挡，zoom 图可能混入其他窗口像素；先 computer_activate 或改用 native observe。' +
       '实证：整窗裸定位误差 median>300px 不可依赖，目标主导的小裁剪误差 13-80px——务必让目标占画面主导。' +
       '视觉断言通道提示：本工具是有损 JPEG，小字号数字常不可读（不可读即如实报 unknown）；读文字请用 screen_observe native（无损 PNG）。'
       + '只接受 x1/y1/x2/y2（示例：{window_id,x1:0,y1:0,x2:400,y2:300}）；x2-x1 ≤500。'
@@ -586,7 +587,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_set_value',
-    description: '直接设值（UIA ValuePattern）：适用于可设置控件（文本框/滑块/下拉）。预填字段（如“另存为”文件名）优先用它覆盖；回读按完全相等校验，不是追加。Web/自绘控件可能忽略；失败改用 computer_type 或点击后输入。调用前必须先 screen_observe。',
+    description: '直接设值（UIA ValuePattern）：适用于可设置控件（文本框/滑块/下拉）。预填字段（如“另存为”文件名）优先用它覆盖；驱动确认写入，失败/未验证时才按完全相等回读，不是追加。Web/自绘控件可能忽略；失败改用 computer_type 或点击后输入。调用前必须先 screen_observe。',
     parameters: {
       element: { ...TARGET_PARAMS.element, required: true, description: '观察编号（必须来自最新 screen_observe）。' },
       value: { type: 'string', required: true, description: '新值。' },
@@ -603,6 +604,8 @@ function actionToolDefs(ctx, cfg, wrap) {
       + '带修饰键的组合键需要 OS 级修饰键状态：插件会自动前台投递并恢复原前台（即使配置为 background），避免后台只落末键。'
       + 'XAML/WinUI 目标（Win11 记事本等）的组合键常因命令在关闭菜单里而失败；失败回执会给“点菜单栏项→点菜单项”的指引。'
       + 'ctrl+a 在 WinUI 对话框/无菜单栏窗口可能不可用；替换预填字段优先 computer_set_value，而不是 ctrl+a 后 type。'
+      + 'Ctrl+L 后直接 computer_type 完整路径再 Enter；不要先按 Enter 接受地址栏建议列表。'
+      + 'win/super/meta 组合键暂不支持（会静默只发 win，打开开始菜单）；启动应用用 app_launch，不要用 Win+R。'
       + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。',
     parameters: {
       key: { type: 'string', required: true, description: '按键名或组合（示例: return / cmd+c / shift+tab / cmd+shift+p）。' },
@@ -834,7 +837,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
     name: 'computer_hover',
     description:
       '悬停（实验性）：移动虚拟光标到窗口本地截图像素 (x,y)。默认仅移动 agent 覆盖层；' +
-      'real=true 移动真实 OS 指针（此时 x/y 为屏幕坐标）。能否触发目标应用的真实 hover 效果（工具提示/悬停菜单）取决于应用，未验证。',
+      'real=true 移动真实 OS 指针（此时 x/y 为屏幕坐标）。WinForms 按钮 MouseEnter 已在 probe-ops 窄验证；工具提示/悬停菜单是否触发仍取决于应用，未验证。',
     parameters: {
       pid: { type: 'integer', description: '目标进程 pid（默认覆盖层模式需要）。' },
       window_id: { type: 'integer', description: '目标窗口 id（默认覆盖层模式需要）。' },
@@ -934,8 +937,9 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
           : '桌面工具入口（dispatcher）：tools 列表稳定；所有桌面动作通过 action="call" + tool + args 路由到隐藏实现。')
         + ' action="catalog" 列出隐藏工具签名；action="status" 查看模式。'
         + ' 常用参数：screen_zoom(window_id,x1,y1,x2,y2;宽≤500) · computer_activate(window_id,pid) · computer_key(key,snapshot_id?,foreground?) · computer_drag(from_x,from_y,to_x,to_y,modifier?,steps?,from_zoom?)。'
+        + ' 高频签名：screen_observe(window|window_id) · computer_click(element|x,y) · computer_type(text,element?) · computer_set_value(element,value) · computer_key(key) · app_list() · app_launch(name) · computer_menu(window_id,path)。'
         + '通用前置：坐标/element 动作前先全量 screen_observe（query 只读且会清除旧快照）；任意新观察（含其它窗口）会替换 snapshot_id。'
-        + '复杂参数（如 verify 的 expect JSON）先 catalog 取签名；不要把本工具当桌面动作直接执行。',
+        + '复杂参数（如 verify 的 expect JSON）先 catalog 取签名；首次 catalog 不要带 query（一次列全 21 个）。不要把本工具当桌面动作直接执行。',
       parameters: {
         action: { type: 'string', enum: ['call', 'catalog', 'status'], required: true, description: 'call = 路由隐藏工具；catalog = 列出隐藏工具签名；status = 查看模式。' },
         tool: { type: 'string', description: 'action=call 时的隐藏工具名（如 computer_click / computer_menu）。' },
@@ -1090,6 +1094,29 @@ export function apply(ctx, config) {
     meta: { plugin: name, pid: process.pid, surfaceMode: cfg.surfaceMode },
   })
 
+  /**
+   * 超时后的廉价上下文：等 500ms 让“延迟生效”的模态有机会关闭，再用 2s 上限
+   * list_windows 判断目标是否已消失、同 pid 是否出现新对话框。
+   * 驱动整体挂死时 list_windows 也会失败；失败就退回通用文案，不阻塞回执。
+   */
+  async function timeoutContextFor() {
+    const snap = getSnapshot()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const list = await cuaCall('list_windows', {}, { timeoutMs: 2000 }).catch(() => null)
+    const wins = Array.isArray(list?.windows) ? list.windows : []
+    const targetGone = Boolean(snap && wins.length > 0
+      && !wins.some((w) => Number(w.window_id) === Number(snap.windowId)))
+    const candidates = snap && !targetGone ? wins
+      .filter((w) => Number(w.pid) === Number(snap.pid)
+        && Number(w.window_id) !== Number(snap.windowId)
+        && String(w.title || '').trim()
+        && w.is_on_screen !== false)
+      .sort((a, b) => (Number(b.z_index) || 0) - (Number(a.z_index) || 0))
+      .slice(0, 3)
+      .map((w) => ({ window_id: w.window_id, title: w.title })) : []
+    return { targetGone, candidates }
+  }
+
   /** 统一包装：锁存闸门 → 守卫（注记不阻断）→ 执行实现（exec 透传给需要 route 的实现）。 */
   const wrap = (toolName, impl) => async (args, exec) => {
     return runTrajectoryTool(toolName, args, async () => {
@@ -1124,9 +1151,12 @@ export function apply(ctx, config) {
         return g.note && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${g.note}` } : v
       } catch (err) {
         if (err?.kind === 'timeout') {
-          // 超时 = 结果未知：标记快照可疑，并给“先看新对话框/不要重试像素”的下一步。
+          // 超时 = 结果未知：标记快照已消费 + 可疑；等 500ms 后廉价查窗口，
+          // 区分“目标已消失(很可能已成功)”与“出现新对话框”。
           markSuspect(toolName)
-          return { ok: false, result: timeoutReceipt(toolName, err) }
+          markConsumed(toolName)
+          const ctx = await timeoutContextFor()
+          return { ok: false, result: timeoutReceipt(toolName, err, ctx) }
         }
         return { ok: false, result: `✗ ${err.message}` }
       }

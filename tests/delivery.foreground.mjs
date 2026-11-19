@@ -243,4 +243,58 @@ function makeCall({ retry = 'ok' } = {}) {
     && calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify(calls))
 }
 
+// 17. preflight bring 超时：不再继续 click，原样抛 timeout
+{
+  resetWindowMap()
+  const calls = []
+  const call = async (tool, args) => {
+    calls.push({ tool, args })
+    if (tool === 'bring_to_front') {
+      const e = new Error('cua-driver bring_to_front timeout after 30000ms')
+      e.kind = 'timeout'
+      e.tool = 'bring_to_front'
+      throw e
+    }
+    return { ok: true, effect: 'confirmed' }
+  }
+  let err = null
+  try {
+    await cuaDeliver('click', { session: 's', pid: 42, window_id: 7, x: 1, y: 2 }, 'auto', {
+      forceForeground: true, call,
+    })
+  } catch (e) { err = e }
+  check('F17: preflight bring 超时 → 抛 timeout 且不发送 click',
+    err?.kind === 'timeout' && calls.length === 1 && calls[0].tool === 'bring_to_front', JSON.stringify({ err: err?.message, calls }))
+}
+
+// 18. preflight click 超时：先恢复原前台，再原样抛 timeout
+{
+  resetWindowMap()
+  const calls = []
+  const call = async (tool, args) => {
+    calls.push({ tool, args })
+    if (tool === 'bring_to_front') {
+      if (Number(args.window_id) === 99) return { ok: true, effect: 'confirmed' }
+      return { previous_fg_hwnd: 99 }
+    }
+    if (tool === 'list_windows') return { windows: [{ window_id: 99, pid: 7 }] }
+    if (tool === 'click') {
+      const e = new Error('cua-driver click timeout after 30000ms')
+      e.kind = 'timeout'
+      e.tool = 'click'
+      throw e
+    }
+    return { ok: true }
+  }
+  let err = null
+  try {
+    await cuaDeliver('click', { session: 's', pid: 42, window_id: 7, x: 1, y: 2 }, 'auto', {
+      forceForeground: true, call,
+    })
+  } catch (e) { err = e }
+  check('F18: preflight click 超时 → 恢复原前台并抛 timeout',
+    err?.kind === 'timeout'
+      && calls.some((c) => c.tool === 'bring_to_front' && c.args?.window_id === 99), JSON.stringify({ err: err?.message, calls }))
+}
+
 process.exit(checkState.failures > 0 ? 1 : 0)

@@ -30,6 +30,8 @@ export const ws = {
   password: 'hunter2',
   extra: false,
   shell: false,
+  saveAs: false,
+  suggestions: false,
   doc: 'SECRET-DOC-BODY',
   popup: false,
 }
@@ -73,6 +75,12 @@ export async function cuaCall(tool, args = {}) {
           { element_index: 9, element_token: 'p-save', role: 'MenuItem', label: '保存', frame: { x: 110, y: 130, w: 80, h: 20 } },
           { element_index: 10, element_token: 'p-saveas', role: 'MenuItem', label: '另存为', frame: { x: 110, y: 150, w: 80, h: 20 } },
           { element_index: 11, element_token: 'p-close', role: 'MenuItem', label: '退出', frame: { x: 110, y: 170, w: 80, h: 20 } },
+        ] : []),
+        ...(ws.saveAs ? [
+          { element_index: 12, element_token: 'saveas-type', role: 'ComboBox', label: '保存类型:', value: '文本文档 (*.txt)', frame: { x: 600, y: 620, w: 300, h: 30 }, enabled: true },
+        ] : []),
+        ...(ws.suggestions ? [
+          { element_index: 13, element_token: 'suggestions', role: 'List', label: 'SuggestionsList', frame: { x: 600, y: 180, w: 300, h: 160 } },
         ] : []),
       ]
       const els = args.query
@@ -179,7 +187,19 @@ check('T24: query 不污染差分，全量观察重建快照', fullAgain.ok === 
 const afterFull = await call('computer_click', { element: 0 })
 check('T25: 全量观察后动作恢复', afterFull.ok === true, raw(afterFull))
 
-// 9. 无目标观察跳过 shell 表面（CmdPal 等高 z 序窗口）
+// 9. 另存为/地址栏建议提示（静态回执，不增加驱动调用）
+stub.ws.saveAs = true
+const saveObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+check('T1c: 另存为提示要求确认目录/绝对路径',
+  /另存为提示/.test(raw(saveObs)) && /完整绝对路径/.test(raw(saveObs)), raw(saveObs).slice(0, 500))
+stub.ws.saveAs = false
+stub.ws.suggestions = true
+const sugObs = await call('screen_observe', { window_id: 7, mode: 'ax', force: true })
+check('T1d: 地址栏建议提示不要先按 Enter',
+  /地址栏提示/.test(raw(sugObs)) && /不要先按 Enter/.test(raw(sugObs)), raw(sugObs).slice(0, 500))
+stub.ws.suggestions = false
+
+// 10. 无目标观察跳过 shell 表面（CmdPal 等高 z 序窗口）
 stub.ws.shell = true
 const shellObs = await call('screen_observe', { mode: 'ax' })
 check('T26: 无目标观察跳过 shell 表面',

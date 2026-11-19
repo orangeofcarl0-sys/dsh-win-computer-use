@@ -45,7 +45,15 @@ export async function cuaDeliver() {
 export async function cuaCall(tool, args = {}) {
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
-    case 'list_windows': return { windows: [WINDOW] }
+    case 'list_windows': {
+      if (process.env.CUA_TIMEOUT_GONE === '1') {
+        return { windows: [{ ...WINDOW, window_id: 8, title: 'Other', z_index: 9 }] }
+      }
+      if (process.env.CUA_TIMEOUT_CANDIDATE === '1') {
+        return { windows: [WINDOW, { ...WINDOW, window_id: 101, title: 'Confirm', z_index: 9 }] }
+      }
+      return { windows: [WINDOW] }
+    }
     case 'get_window_state': {
       const els = [{ element_index: 0, element_token: 'tok0', role: 'Button', label: 'Save', frame: { x: 140, y: 160, w: 60, h: 24 }, enabled: true }]
       return { window: WINDOW, elements: els, element_count: 1, screenshot_width: 800, screenshot_height: 600, snapshot_id: 's00000001' }
@@ -60,11 +68,12 @@ export async function cuaCall(tool, args = {}) {
 const plugin = await loadPlugin(work)
 const { check, state: checkState } = makeChecks()
 
-async function fresh() {
+async function fresh(cfgExtra = {}) {
   const { reg, ctx, exec } = makeCtx()
   plugin.apply(ctx, {
     ttlMs: 60000, maxElements: 120, observeDedup: 'off', passwordScan: 'off',
     surfaceMode: 'hybrid', deliveryMode: 'auto', cursorMotion: 'off',
+    ...cfgExtra,
   })
   const call = (name, args = {}) => reg.get(name).execute(args, exec)
   const o = await call('screen_observe', { window_id: 7, mode: 'ax' })
@@ -116,6 +125,30 @@ process.env.CUA_DELIVERY_MODE = 'timeout'
   const r = await call('computer_key', { key: 'escape', snapshot_id: obs.snapshotId })
   check('D-timeout-key: 按键结果未知 + 不要重复按',
     r.ok === false && /按键结果未知/.test(r.result || '') && /不要重复按/.test(r.result || ''), r.result)
+}
+{
+  const { call, obs } = await fresh()
+  process.env.CUA_TIMEOUT_CANDIDATE = '1'
+  const r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+  delete process.env.CUA_TIMEOUT_CANDIDATE
+  check('D-timeout-candidate: 回执带新对话框 window_id',
+    r.ok === false && /window_id=101/.test(r.result || '') && /Confirm/.test(r.result || ''), r.result)
+}
+{
+  const { call, obs } = await fresh()
+  process.env.CUA_TIMEOUT_GONE = '1'
+  const r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+  delete process.env.CUA_TIMEOUT_GONE
+  check('D-timeout-gone: 目标已消失 → 不要重试',
+    r.ok === false && /目标窗口已从窗口列表消失/.test(r.result || '') && /不要重试/.test(r.result || ''), r.result)
+}
+{
+  const { call, obs } = await fresh({ supersession: 'enforce' })
+  const first = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+  const second = await call('computer_scroll', { direction: 'down', snapshot_id: obs.snapshotId })
+  check('D-timeout-consumed: enforce 下同快照动作被拒',
+    first.ok === false && /超时/.test(first.result || '')
+      && second.ok === false && /snapshot_consumed/.test(second.result || ''), second.result)
 }
 
 process.env.CUA_DELIVERY_MODE = 'unverified'
