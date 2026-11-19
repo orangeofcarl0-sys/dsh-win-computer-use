@@ -1,5 +1,5 @@
 /**
- * S4 轨迹离线分析：从 ~/.dsh/sessions 的 zstd 会话文件提取每条任务的执行画像。
+ * eval 轨迹离线分析：从 ~/.dsh/sessions 的 zstd 会话文件提取每条任务的执行画像。
  * 只读。用法：node evals/analyze-sessions.mjs [markerRegex...]
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'

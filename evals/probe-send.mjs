@@ -1,5 +1,5 @@
 /**
- * S4 发送链路调试探针：新建会话 → 输入 → 发送 → 轮询状态全量 dump。
+ * eval 发送链路调试探针：新建会话 → 输入 → 发送 → 轮询状态全量 dump。
  * 用法：node evals/probe-send.mjs "<tokened URL>"
  */
 import { launchChrome } from './lib/cdp.mjs'
@@ -35,7 +35,7 @@ try {
     if (!composer) return 'no-composer';
     composer.focus();
     document.execCommand('selectAll', false, null);
-    document.execCommand('insertText', false, 'S4 调试探针：请回复“收到”两个字，不要做任何其他操作。');
+    document.execCommand('insertText', false, 'eval 调试探针：请回复“收到”两个字，不要做任何其他操作。');
     return 'typed:' + composer.textContent.length;
   })()`)
   console.log('typed:', typed)

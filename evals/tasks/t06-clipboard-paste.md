@@ -1,6 +1,6 @@
 # t06 · clipboard-paste
 
-- group: authored
+- **stages: S1**
 - **tier: core**（核心组：剪贴板是插件级能力，值得独立覆盖）
 - tools: computer_clipboard 或 ctrl+v / computer_key / computer_type
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t06\`

@@ -1,5 +1,5 @@
 /**
- * form-server.mjs -- local-only HTTP fixture for S4 browser-form tasks.
+ * form-server.mjs -- local-only HTTP fixture for eval browser-form tasks.
  *
  * Usage:
  *   node evals/lib/form-server.mjs --root <dir> --result <json> --state <json> [--port 0]
@@ -123,7 +123,7 @@ server.listen(port, '127.0.0.1', () => {
     root,
     result: resultPath,
   }, null, 2))
-  console.log(`S4 form server listening on http://127.0.0.1:${actual}/form.html`)
+  console.log(`eval form server listening on http://127.0.0.1:${actual}/form.html`)
 })
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

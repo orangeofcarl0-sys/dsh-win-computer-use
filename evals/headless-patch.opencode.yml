@@ -1,4 +1,4 @@
-# headless S4 探针叠加层（opencode-go 通道）：启用 credentials，插入本插件。
+# headless eval 探针叠加层（opencode-go 通道）：启用 credentials，插入本插件。
 # 与 headless-patch.yml 相同，只把 agent 模型换成 opencode-go/deepseek-v4.1-flash，
 # 用于 DeepSeek 官方额度不足或需要对照通道时。用法：
 #   node evals/headless-run.mjs --tasks t11 --repeats 1 --timeout-min 20 \
@@ -19,7 +19,7 @@
       config:
         providers:
           opencode-go:
-            displayName: OpenCode Go (S4)
+            displayName: OpenCode Go (eval)
             apiKeyEnv: OPENCODE_GO_API_KEY
             api: openai-completions
             baseURL: https://opencode.ai/zen/go/v1

@@ -1,5 +1,5 @@
 /**
- * S4 评测运行器：逐任务 setup → harness 真实会话执行 → oracle → cleanup → 报告。
+ * eval 评测运行器：逐任务 setup → harness 真实会话执行 → oracle → cleanup → 报告。
  * spec: 工作区 PLAN-s4-eval-regression.md（E2=harness 真实会话唯一通道，E3=基线 1 次/任务）。
  *
  * 用法：
@@ -53,7 +53,7 @@ if (!allowLegacyWeb && !drySetup) {
 
 // GUI-only constraint PREPENDED to every task prompt (single enforcement point).
 // Rationale: dsv4fv routes file tasks straight to the file-write tool, then burns
-// the turn in sandbox-escalation approval loops (S4 first live finding, 2026-09-07).
+// the turn in sandbox-escalation approval loops (eval first live finding, 2026-09-07).
 // Prepend (not append): models weight the top of the prompt; the constraint must
 // be read before the task. Sandbox dir is intentionally OUTSIDE the session
 // workspace so direct writes get denied -> denial feedback pushes back to GUI.
@@ -481,7 +481,7 @@ function dshVersion() {
 // ---------- main ----------
 const tasks = discoverTasks()
 if (!tasks.length) { console.error('no tasks matched'); process.exit(1) }
-console.log(`S4 run: ${tasks.length} tasks, group=${groupArg}, model=${modelLabel}`)
+console.log(`eval run: ${tasks.length} tasks, group=${groupArg}, model=${modelLabel}`)
 
 const report = {
   date: new Date().toISOString(),

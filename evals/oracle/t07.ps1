@@ -2,13 +2,20 @@ param([string]$TaskId = '')
 . (Join-Path $PSScriptRoot '..\lib\common.ps1')
 $checks = @()
 try {
-  $win = @(Find-WindowsByTitle 'workfile.txt')
-  if ($win.Count -eq 0) {
-    $checks += (Add-Check 'window exists' $false 'no workfile.txt notepad window')
+  $state = Read-TestState (Join-Path (Get-TaskDir) 'test-notepad.json')
+  if (-not $state -or -not $state.hwnd) {
+    $checks += (Add-Check 'task-owned window state' $false 'test-notepad.json missing or has no hwnd')
     Out-Finish -Ok $false -Checks $checks
   }
-  $checks += (Add-Check 'window exists' $true (($win | ForEach-Object { $_.title }) -join ' | '))
-  $p = Get-Placement $win[0].hwnd
+  $hwnd = [int]$state.hwnd
+  $alive = Test-WindowAlive $hwnd
+  $checks += (Add-Check 'task-owned window exists' $alive ("hwnd=$hwnd"))
+  if (-not $alive) {
+    Out-Finish -Ok $false -Checks $checks
+  }
+  $w = Find-WindowByHwnd $hwnd
+  $checks += (Add-Check 'window title' ([bool]$w) $(if ($w) { [string]$w.title } else { '' }))
+  $p = Get-Placement $hwnd
   $maxed = ($p.showCmd -eq 3)
   $checks += (Add-Check 'placement == SW_SHOWMAXIMIZED' $maxed ('showCmd=' + $p.showCmd))
   Out-Finish -Ok $maxed -Checks $checks

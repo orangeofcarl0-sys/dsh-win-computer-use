@@ -1,6 +1,6 @@
 # t17 / pdf-excerpt
 
-- group: authored
+- **stages: S3, S4**
 - **tier: core**
 - **isolation: dirty**
 - **ac2: none**

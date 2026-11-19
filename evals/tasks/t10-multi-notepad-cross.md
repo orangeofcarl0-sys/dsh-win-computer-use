@@ -1,6 +1,6 @@
 # t10 · multi-notepad-cross
 
-- group: authored
+- **stages: S1**
 - **tier: core**（核心组：多文档协调——基线暴露的最大能力缺口，最该留的回归项）
 - tools: 多窗口 screen_observe / computer_clipboard / computer_type / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t10\`

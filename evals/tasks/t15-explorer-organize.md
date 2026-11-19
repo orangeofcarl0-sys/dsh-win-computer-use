@@ -1,6 +1,6 @@
 # t15 / explorer-organize
 
-- group: authored
+- **stages: S3, S4**
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**

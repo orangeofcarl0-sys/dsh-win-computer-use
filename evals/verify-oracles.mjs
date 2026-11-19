@@ -25,17 +25,39 @@ const tasksArg = (() => {
   const i = args.indexOf('--tasks')
   return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : ''
 })()
+const stageArg = (() => {
+  const i = args.indexOf('--stage')
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : ''
+})()
+const stageFilter = stageArg && stageArg !== 'all'
+  ? stageArg.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+  : []
+
+/** 读取任务 md 的 `- **name: value**` 或 `- name: value` 字段。 */
+function field(md, name) {
+  const re = new RegExp(`^\\s*-\\s*\\*\\*${name}:\\s*([^*\\n]+?)\\s*\\*\\*`, 'm')
+  const plain = new RegExp(`^\\s*-\\s*${name}:\\s*([^\\n]+)`, 'm')
+  const m = md.match(re) || md.match(plain)
+  return m ? m[1].trim() : ''
+}
+
 const taskFiles = readdirSync(join(root, 'tasks')).filter((f) => f.endsWith('.md'))
 const taskMeta = new Map(taskFiles.map((f) => {
   const id = f.replace(/\.md$/, '').split('-')[0]
   const md = readFileSync(join(root, 'tasks', f), 'utf8').replace(/\r\n/g, '\n')
-  const isolation = (md.match(/\*\*isolation:\s*(\w+)\*\*/) || md.match(/^- isolation:\s*(\w+)/m) || [])[1] || 'notepad'
-  const ac2 = (md.match(/\*\*ac2:\s*(\w+)\*\*/) || md.match(/^- ac2:\s*(\w+)/m) || [])[1] || 'full'
-  return [id, { id, isolation, ac2 }]
+  const isolation = field(md, 'isolation') || 'notepad'
+  const ac2 = field(md, 'ac2') || 'full'
+  const stages = (field(md, 'stages') || field(md, 'stage')).split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+  return [id, { id, isolation, ac2, stages }]
 }))
 const ORACLE_IDS = [...taskMeta.keys()]
   .filter((id) => !tasksArg || tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase()))
+  .filter((id) => !stageFilter.length || taskMeta.get(id).stages.some((s) => stageFilter.includes(s)))
   .sort()
+if (!ORACLE_IDS.length) {
+  console.error(`verify-oracles: no tasks matched (stage=${stageArg || 'all'}, tasks=${tasksArg || 'all'})`)
+  process.exit(2)
+}
 const needsTabState = ORACLE_IDS.some((id) => taskMeta.get(id)?.isolation !== 'dirty')
 const POWERSHELL = process.env.S4_POWERSHELL || 'powershell.exe'
 const STAMP = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -121,7 +143,7 @@ let envs = 0
 for (const id of ORACLE_IDS) {
   const s = (k) => join(root, k, `${id}.ps1`)
   const rec = {
-    id, setupOk: false, emptyFail: false, simPass: false, simRepeat: false,
+    id, stages: taskMeta.get(id)?.stages || [], setupOk: false, emptyFail: false, simPass: false, simRepeat: false,
     cleanupOk: true, cleanupDirty: false, envError: null, envBlocked: false, ac2Skip: taskMeta.get(id)?.ac2 === 'none', notes: [],
   }
   const st = existsSync(s('setup'))
@@ -204,11 +226,11 @@ if (needsTabState) {
 }
 try {
   writeFileSync(join(LOG_DIR, 'summary.json'), JSON.stringify({
-    startedAt: STAMP, tabState: { backup: tbJson, restore: trJson }, results,
+    startedAt: STAMP, stage: stageArg || null, stageFilter, tabState: { backup: tbJson, restore: trJson }, results,
   }, null, 2))
 } catch { /* 忽略 */ }
 
 const pass = results.filter((r) => r.status === 'PASS').length
-console.log(`\nverify-oracles: ${pass}/${ORACLE_IDS.length} PASS${envs ? ` + ${envs} ENV` : ''}${failed ? ` (${failed} FAIL)` : ''}`)
+console.log(`\nverify-oracles: ${pass}/${ORACLE_IDS.length} PASS${envs ? ` + ${envs} ENV` : ''}${failed ? ` (${failed} FAIL)` : ''} stage=${stageArg || 'all'}`)
 console.log(`logs -> ${LOG_DIR}`)
 process.exit(failed ? 1 : 0)

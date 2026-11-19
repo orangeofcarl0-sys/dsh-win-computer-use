@@ -24,7 +24,15 @@ try {
   [void](Write-TestState $stateFile $state)
   $checks += (Add-Check 'calculator opened' ($null -ne $pid2) ('pid=' + $pid2))
   $checks += (Add-Check 'calculator window identity recorded' ([bool]$after) ("hwnd=$($state.hwnd) owned=$owned"))
-  Out-Finish -Ok ($null -ne $pid2) -Checks $checks -Kind 'setup'
+  if ($null -eq $pid2) {
+    Out-Finish -Ok $false -Checks $checks -EnvError 'calculator launch failed' -Kind 'setup'
+  }
+  if (-not $owned) {
+    # A user calculator was already open. Never bind the oracle to it: that
+    # would let an empty run pass on the user's pre-existing display value.
+    Out-Finish -Ok $false -Checks $checks -EnvError 'calculator window already existed; close it and rerun to create an owned test window' -Kind 'setup'
+  }
+  Out-Finish -Ok $true -Checks $checks -Kind 'setup'
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError $_.Exception.Message -Kind 'setup'
 }

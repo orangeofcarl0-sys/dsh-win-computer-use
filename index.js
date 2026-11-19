@@ -320,7 +320,7 @@ const DESKTOP_FALLBACK_FIELDS = {
 }
 
 /**
- * S3a 视觉断言协议（模型侧验证器，PLAN-s3-model-verifier §4）。
+ * 视觉断言协议（原 S3a；模型侧验证器，PLAN-s3-model-verifier §4）。
  * 依据（A5 实证，2026-09-06）：可读 PNG 证据上数字转述噪声≈0（93 位零错误）；
  * zoom JPEG 对 ~13px 小字不可读（模型 2/2 诚实拒答）；同会话历史回声风险真实。
  */
@@ -450,8 +450,8 @@ function observeToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'screen_observe',
-    // 精简版（PLAN-meta-tool 拍板：折叠态常驻工具必须轻）——prose 190 字符 + S3a 协议（协议内容归全局常量）。
-    // 成本阶梯等细节靠 mode 参数说明与 S3a 协议承载；输出 schema 不动（dsh 严格校验要求返回字段必须声明）。
+    // 精简版（PLAN-meta-tool 拍板：折叠态常驻工具必须轻）——prose 190 字符 + 视觉断言协议（协议内容归全局常量）。
+    // 成本阶梯等细节靠 mode 参数说明与视觉断言协议承载；输出 schema 不动（dsh 严格校验要求返回字段必须声明）。
     description:
       '观察屏幕：目标窗口的"编号 + 控件 + 坐标"界面树（AX，零视觉成本），文本里的 @(x,y) 与 computer_click 同空间可直接传。' +
       '动作前必须先观察取快照（60s 过期）；同一快照可连续动作，界面没变不必反复观察。' +

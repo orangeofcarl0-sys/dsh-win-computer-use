@@ -1,6 +1,6 @@
 # t01 · notepad-save
 
-- group: authored
+- **stages: S1**
 - **tier: smoke**（冒烟组：日常回归必跑）
 - tools: screen_observe / computer_type / computer_key / computer_verify
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t01\`

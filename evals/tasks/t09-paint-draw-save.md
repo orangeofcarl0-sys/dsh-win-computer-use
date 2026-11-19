@@ -1,6 +1,6 @@
 # t09 · paint-draw-save
 
-- group: authored
+- **stages: S1**
 - **tier: core**（核心组：图形应用表面，多步 canvas 操作）
 - tools: screen_observe / computer_click / 画布尺寸对话框 / 填充工具 / 另存为
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t09\`

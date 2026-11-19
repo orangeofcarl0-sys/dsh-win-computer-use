@@ -7,15 +7,20 @@
   "configKeys": 24,
   "offlineSuites": 26,
   "offlineChecks": 634,
-  "syntaxFiles": 26,
+  "syntaxFiles": 29,
   "runtimeChecks": 18,
   "packFiles": 56,
   "evalTasks": 17,
+  "stageS1": 9,
+  "stageS2": 1,
+  "stageS3": 7,
+  "stageS4": 7,
+  "stageMemberships": 24,
   "dshBaseline": "0.2.2-rc.1",
   "dshToolsBaseline": "0.2.2-rc.1",
   "schemasteryBaseline": "3.19.0",
   "nodeMin": "22.18.0",
   "driverBaseline": "0.23.2",
   "driverCanary": "0.52.13",
-  "lastVerified": "2026-11-18"
+  "lastVerified": "2026-11-19"
 }

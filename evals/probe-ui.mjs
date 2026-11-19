@@ -1,5 +1,5 @@
 /**
- * S4 UI 探针：headless Chrome 打开 harness web，验证可驱动面。
+ * eval UI 探针：headless Chrome 打开 harness web，验证可驱动面。
  * 用法：node evals/probe-ui.mjs "<tokened URL>"
  */
 import { launchChrome } from './lib/cdp.mjs'

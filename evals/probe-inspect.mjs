@@ -1,4 +1,4 @@
-/** 体检：列出侧栏最近会话 + 打开最近一个 S4 会话看流状态。 */
+/** 体检：列出侧栏最近会话 + 打开最近一个 eval 会话看流状态。 */
 import { launchChrome } from './lib/cdp.mjs'
 import { setTimeout as delay } from 'node:timers/promises'
 

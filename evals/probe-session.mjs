@@ -1,4 +1,4 @@
-/** 打开最近 S4 会话 dump 尾部（通用：按 prompt 头或会话标题匹配）。 */
+/** 打开最近 eval 会话 dump 尾部（通用：按 prompt 头或会话标题匹配）。 */
 import { launchChrome } from './lib/cdp.mjs'
 import { setTimeout as delay } from 'node:timers/promises'
 

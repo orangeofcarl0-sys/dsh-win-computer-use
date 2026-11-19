@@ -1,5 +1,5 @@
 /**
- * S4 回合周期观察探针：发送后 90s 内轮询全量信号（轮次文本、停止按钮、transcript 增长）。
+ * eval 回合周期观察探针：发送后 90s 内轮询全量信号（轮次文本、停止按钮、transcript 增长）。
  * 用法：node evals/probe-turn.mjs "<tokened URL>"
  */
 import { launchChrome } from './lib/cdp.mjs'
@@ -17,7 +17,7 @@ try {
   await page.evaluate(`(() => {
     const c = document.querySelector('[contenteditable="true"]');
     if (!c) return 'no-composer';
-    c.focus(); document.execCommand('insertText', false, 'S4 回合周期探针：请只回复“收到”，不要调用任何工具。');
+    c.focus(); document.execCommand('insertText', false, 'eval 回合周期探针：请只回复“收到”，不要调用任何工具。');
   })()`)
   await delay(500)
   const sent = await page.evaluate(`(() => { const b = document.querySelector('button[aria-label="发送消息"]'); if (!b || b.disabled) return 'no'; b.click(); return 'sent'; })()`)

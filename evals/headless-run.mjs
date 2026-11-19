@@ -1,10 +1,10 @@
 /**
- * evals/headless-run.mjs — S4 的 headless 直跑器（dsh 0.2.2+ 的可用通道）。
+ * evals/headless-run.mjs — eval（S1-S4）的 headless 直跑器（dsh 0.2.2+ 的可用通道）。
  *
  * 为什么不复用 run.mjs：run.mjs 驱动 Web UI（CDP），其选择器/发送路径基于 dsh 0.1.5；
  * dsh 0.2.2 上会创建空会话并把旧会话步数误读成 steps（2026-11-12 实测）。
  * 本 runner 直接走 `dsh --profile headless`：仍然经过真实 dsh agent + 当前插件，
- * 但不依赖浏览器 DOM；setup/oracle/cleanup 与 S4 任务集完全复用。
+ * 但不依赖浏览器 DOM；setup/oracle/cleanup 与 eval 任务集完全复用。
  *
  * 用法：
  *   node evals/headless-run.mjs --tier smoke --timeout-min 10
@@ -41,7 +41,11 @@ const val = (name, dflt) => {
   return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : dflt
 }
 const tasksArg = val('tasks', '')
-const tierArg = val('tier', tasksArg ? 'all' : 'smoke')
+const stagesArg = val('stage', '')
+const stageFilter = stagesArg && stagesArg !== 'all'
+  ? stagesArg.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+  : []
+const tierArg = val('tier', (tasksArg || stagesArg) ? 'all' : 'smoke')
 const timeoutMin = Math.max(1, Number(val('timeout-min', '10')) || 10)
 const repeats = Math.max(1, Number(val('repeats', '1')) || 1)
 const patch = path.resolve(REPO, val('patch', path.join('evals', 'headless-patch.yml')))
@@ -58,6 +62,18 @@ function readJsonSafe(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch { return null }
 }
 
+/** 读取任务 md 的 `- **name: value**` 或 `- name: value` 字段。 */
+function field(md, name) {
+  const re = new RegExp(`^\\s*-\\s*\\*\\*${name}:\\s*([^*\\n]+?)\\s*\\*\\*`, 'm')
+  const plain = new RegExp(`^\\s*-\\s*${name}:\\s*([^\\n]+)`, 'm')
+  const m = md.match(re) || md.match(plain)
+  return m ? m[1].trim() : ''
+}
+
+function parseStages(value) {
+  return value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+}
+
 function discover() {
   const out = []
   for (const f of fs.readdirSync(path.join(ROOT, 'tasks')).filter((x) => x.endsWith('.md')).sort()) {
@@ -65,15 +81,19 @@ function discover() {
     if (tasksArg && !tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase())) continue
     const md = fs.readFileSync(path.join(ROOT, 'tasks', f), 'utf8').replace(/\r\n/g, '\n')
     const group = /^wa/.test(id) ? 'waa' : 'authored'
-    const tier = (md.match(/\*\*tier:\s*(\w+)\*\*/) || md.match(/^- tier:\s*(\w+)/m) || [])[1] || 'core'
+    const tier = field(md, 'tier') || 'core'
     // isolation: dirty = 真实脏桌面任务，不要求/不触碰 Notepad TabState；
     // 缺省按 notepad 处理，保持现有 clean/fail-closed 任务不变。
-    const isolation = (md.match(/\*\*isolation:\s*(\w+)\*\*/) || md.match(/^- isolation:\s*(\w+)/m) || [])[1] || 'notepad'
+    const isolation = field(md, 'isolation') || 'notepad'
+    const stages = parseStages(field(md, 'stages') || field(md, 'stage'))
+    const ac2 = field(md, 'ac2') || 'full'
+    const requireTool = field(md, 'require_tool')
+    if (stageFilter.length && !stages.some((s) => stageFilter.includes(s))) continue
     if (tierArg !== 'all' && tier !== tierArg) continue
     const m = md.match(/<<<PROMPT\n([\s\S]*?)\nPROMPT>>>/)
     if (!m) throw new Error(`task ${id}: no <<<PROMPT block`)
     const taskDir = path.join(homedir(), '.dsh', 's4-evals', id)
-    out.push({ id, group, tier, isolation, prompt: m[1].replaceAll('{task_dir}', taskDir), taskDir })
+    out.push({ id, group, tier, isolation, stages, ac2, requireTool, prompt: m[1].replaceAll('{task_dir}', taskDir), taskDir })
   }
   return out
 }
@@ -165,6 +185,8 @@ function analyze(events) {
 async function runOne(task) {
   const rec = {
     id: task.id, group: task.group, tier: task.tier,
+    stages: task.stages, isolation: task.isolation, ac2: task.ac2,
+    requireTool: task.requireTool || null, requireToolUsed: null,
     verdict: 'error', steps: 0, innerSteps: 0, toolErrors: 0, unverified: 0,
     timedOut: false, wallMs: 0, turn: null, final: '', oracle: null,
     setup: null, cleanup: null, dirty: false, notes: [],
@@ -219,6 +241,11 @@ async function runOne(task) {
   rec.turn = a.turn
   rec.final = a.final.slice(0, 400)
   rec.calls = a.calls
+  if (task.requireTool) {
+    // dispatcher 模式下隐藏工具记为 `computer_do:computer_task`；直接调用记为原名。
+    rec.requireToolUsed = a.calls.some((c) => c === task.requireTool || c.endsWith(':' + task.requireTool))
+    if (!rec.requireToolUsed) rec.notes.push(`required tool not called: ${task.requireTool}`)
+  }
   if (dr.code === 'SPAWN_ERR') rec.notes.push('dsh spawn: ' + dr.stderr.slice(0, 300))
   if (dr.timedOut) {
     rec.notes.push(`timeout ${timeoutMin}min; oracle skipped`)
@@ -236,6 +263,10 @@ async function runOne(task) {
     rec.verdict = 'env'
   } else {
     rec.verdict = orc.code === 0 ? 'pass' : orc.code === 1 ? 'fail' : 'error'
+  }
+  if (rec.verdict === 'pass' && task.requireTool && rec.requireToolUsed === false) {
+    rec.verdict = 'fail'
+    rec.notes.push(`oracle passed but required tool was not called: ${task.requireTool}`)
   }
   const cl1 = await ps('cleanup', task.id)
   rec.cleanup = cl1.json || { code: cl1.code }
@@ -257,7 +288,7 @@ runOne.round = 1
 
 const tasks = discover()
 if (!tasks.length) {
-  console.error('no tasks matched')
+  console.error(`no tasks matched (stage=${stagesArg || 'all'}, tier=${tierArg}, tasks=${tasksArg || 'all'})`)
   process.exit(1)
 }
 if (!fs.existsSync(DSH_ENTRY)) {
@@ -269,7 +300,7 @@ if (!fs.existsSync(patch)) {
   process.exit(1)
 }
 
-console.log(`headless S4: ${tasks.length} tasks, tier=${tierArg}, repeats=${repeats}, timeout=${timeoutMin}min`)
+console.log(`headless eval: ${tasks.length} tasks, stage=${stagesArg || 'all'}, tier=${tierArg}, repeats=${repeats}, timeout=${timeoutMin}min`)
 console.log(`dsh=${DSH_ENTRY}`)
 console.log(`logs=${logDir}`)
 
@@ -320,6 +351,8 @@ const summary = {
   startedAt: stamp,
   dshVersion: readJsonSafe(path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@deepseek-ai', 'dsh', 'package.json'))?.version || 'unknown',
   pluginVersion: readJsonSafe(path.join(REPO, 'package.json'))?.version || 'unknown',
+  stage: stagesArg || null,
+  stageFilter,
   tier: tierArg,
   timeoutMin,
   repeats,
@@ -339,6 +372,6 @@ const envs = runs.filter((r) => r.verdict === 'env').length
 const timeouts = runs.filter((r) => r.timedOut).length
 const dirty = runs.filter((r) => r.dirty).length
 const restoreOk = Boolean(tr.json?.ok)
-console.log(`\nheadless S4: pass=${pass} fail=${fail} env=${envs} error=${errors} dirty=${dirty} total=${runs.length} timeout=${timeouts} tabstate=${restoreOk ? (tr.json?.skipped ? 'skipped' : 'restored') : 'RESTORE_FAILED'}`)
+console.log(`\nheadless eval: pass=${pass} fail=${fail} env=${envs} error=${errors} dirty=${dirty} total=${runs.length} timeout=${timeouts} tabstate=${restoreOk ? (tr.json?.skipped ? 'skipped' : 'restored') : 'RESTORE_FAILED'}`)
 console.log(`report -> ${reportPath}`)
 process.exit(errors || dirty || !restoreOk ? 1 : 0)

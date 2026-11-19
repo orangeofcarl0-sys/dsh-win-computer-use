@@ -15,7 +15,13 @@ let failed = 0
 const libFiles = readdirSync(join(root, 'lib'), { recursive: true })
   .filter((f) => String(f).endsWith('.js'))
   .map((f) => join('lib', String(f)))
-const jsFiles = ['index.js', ...libFiles]
+// 评测 runner 与任务校验器不在 lib/ 下，但属于每次发布前必须能解析的入口。
+const extraFiles = [
+  'evals/headless-run.mjs',
+  'evals/verify-oracles.mjs',
+  'tests/tasks.check.mjs',
+]
+const jsFiles = ['index.js', ...libFiles, ...extraFiles]
 for (const rel of jsFiles) {
   const abs = join(root, rel)
   if (!existsSync(abs)) { console.log(`❌ missing: ${rel}`); failed++; continue }

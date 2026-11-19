@@ -1,6 +1,6 @@
 # t11 / paint-replica
 
-- group: authored
+- **stages: S2, S4**
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
