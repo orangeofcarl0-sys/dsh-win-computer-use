@@ -53,6 +53,10 @@ try {
   $checks += (Add-Check 'chart title S4 Sales' $titleOk '')
   $checks += (Add-Check 'Sales series values' $seriesOk '')
   $checks += (Add-Check 'Month categories' $axisOk $catDetail)
+  $sent = Test-TestSentinel -StateFile (Join-Path (Get-TaskDir) 'sentinel.json')
+  $checks += (Add-Check 'sentinel window alive' ([bool]$sent.alive) ('hwnd=' + $sent.hwnd))
+  $checks += (Add-Check 'sentinel identity' ([bool]$sent.identity) $sent.reason)
+  $checks += (Add-Check 'sentinel file unchanged' ([bool]$sent.hashOk) $sent.file)
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

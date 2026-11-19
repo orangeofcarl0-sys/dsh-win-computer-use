@@ -1347,9 +1347,10 @@ function Close-TestBrowserWindow {
   return Close-TestAppWindow -StateFile $StateFile
 }
 
-# Image/office helpers are optional but small; dot-source after core definitions.
+# Image/office/sentinel helpers are optional but small; dot-source after core definitions.
 try { . (Join-Path $PSScriptRoot 'image.ps1') } catch { }
 try { . (Join-Path $PSScriptRoot 'office.ps1') } catch { }
+try { . (Join-Path $PSScriptRoot 'sentinel.ps1') } catch { }
 
 function Get-S4Sha256([string]$Path) {
   if (-not (Test-Path $Path)) { return '' }
@@ -1463,7 +1464,7 @@ function Remove-S4MatchedDownloads([string]$Dir, [datetime]$StartedAt, [string]$
 }
 
 function Start-TestFormServer {
-  param([string]$Root, [string]$ResultFile, [string]$StateFile)
+  param([string]$Root, [string]$ResultFile, [string]$StateFile, [string]$Mode = 'form', [string]$Fixture = '')
   $node = 'node.exe'
   $c = Get-Command node -ErrorAction SilentlyContinue
   if ($c) { $node = $c.Source }
@@ -1475,7 +1476,9 @@ function Start-TestFormServer {
   $proc = $null
   try {
     $q = { param($v) if (($v + '') -match 's') { return ('"' + $v + '"') } return ($v + '') }
-    $proc = Start-Process -FilePath $node -ArgumentList @((& $q $script), '--root', (& $q $Root), '--result', (& $q $ResultFile), '--state', (& $q $StateFile)) -PassThru -WindowStyle Hidden
+    $argList = @((& $q $script), '--root', (& $q $Root), '--result', (& $q $ResultFile), '--state', (& $q $StateFile), '--mode', (& $q $Mode))
+    if ($Fixture) { $argList += @('--fixture', (& $q $Fixture)) }
+    $proc = Start-Process -FilePath $node -ArgumentList $argList -PassThru -WindowStyle Hidden
   } catch {
     return [ordered]@{ ok = $false; reason = $_.Exception.Message }
   }
@@ -1496,6 +1499,7 @@ function Start-TestFormServer {
   try { $start = (Get-Process -Id $proc.Id -ErrorAction Stop).StartTime.ToString('o') } catch {}
   $state = [ordered]@{
     ok = $true; pid = [int]$proc.Id; processStart = $start; port = [int]$json.port
+    mode = $Mode; fixture = $Fixture
     root = $Root; result = $ResultFile; at = (Get-Date).ToString('o')
   }
   [void](Write-TestState $StateFile $state)

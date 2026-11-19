@@ -19,6 +19,9 @@ const libFiles = readdirSync(join(root, 'lib'), { recursive: true })
 const extraFiles = [
   'evals/headless-run.mjs',
   'evals/verify-oracles.mjs',
+  'evals/lib/form-server.mjs',
+  'evals/probe-safety-runtime.mjs',
+  'evals/probe-scroll.mjs',
   'tests/tasks.check.mjs',
 ]
 const jsFiles = ['index.js', ...libFiles, ...extraFiles]

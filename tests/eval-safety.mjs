@@ -196,10 +196,31 @@ check('ES29: 新 app/browser helper 记录并复核 pid/start', /processStart/.t
 check('ES30: t13 不宽删 Downloads', !/Remove-Item[^\n]*Downloads/i.test(taskSrc('t13', 'cleanup'))
   && !/Get-ChildItem[^\n]*Downloads[^\n]*Remove-Item/i.test(taskSrc('t13', 'cleanup')))
 
-for (const id of ['t11', 't12', 't13', 't14', 't15', 't16', 't17']) {
-  const md = readFileSync(join(evals, 'tasks', `${id}-${({ t11: 'paint-replica', t12: 'ppt-replica', t13: 'paper-download', t14: 'excel-chart', t15: 'explorer-organize', t16: 'browser-form', t17: 'pdf-excerpt' })[id]}.md`), 'utf8')
+for (const id of ['t11', 't12', 't13', 't14', 't15', 't16', 't17', 't18']) {
+  const md = readFileSync(join(evals, 'tasks', `${id}-${({ t11: 'paint-replica', t12: 'ppt-replica', t13: 'paper-download', t14: 'excel-chart', t15: 'explorer-organize', t16: 'browser-form', t17: 'pdf-excerpt', t18: 'local-download' })[id]}.md`), 'utf8')
   check(`ES31: ${id} 标记 dirty isolation`, /\*\*isolation:\s*dirty\*\*/.test(md))
 }
+
+const dirtyIds = ['t11', 't12', 't13', 't14', 't15', 't16', 't17', 't18']
+check('ES32: dirty setup 使用 Open-TestSentinel', dirtyIds.every((id) => /Open-TestSentinel/.test(taskSrc(id, 'setup'))))
+check('ES33: dirty oracle 使用 Test-TestSentinel', dirtyIds.every((id) => /Test-TestSentinel/.test(taskSrc(id, 'oracle'))))
+check('ES34: dirty cleanup 使用 Close-TestSentinel', dirtyIds.every((id) => /Close-TestSentinel/.test(taskSrc(id, 'cleanup'))))
+
+for (const id of ['p01', 'p02', 'p03']) {
+  const setup = taskSrc(id, 'setup')
+  const cleanup = taskSrc(id, 'cleanup')
+  check(`ES35: ${id} 使用 pixel server + browser state`, /Start-TestFormServer\s+.*-Mode\s+'pixel/.test(setup)
+    && /Open-TestBrowserWindow/.test(setup))
+  check(`ES36: ${id} cleanup 关浏览器并停 server`, /Close-TestBrowserWindow/.test(cleanup)
+    && /Stop-TestFormServer/.test(cleanup))
+}
+
+check('ES37: t18 本地下载 + hash 清理', /-Mode\s+'download'/.test(taskSrc('t18', 'setup'))
+  && /Remove-S4MatchedDownloads/.test(taskSrc('t18', 'cleanup')))
+check('ES38: t19 使用 Open/Close-TestExplorer', /Open-TestExplorer/.test(taskSrc('t19', 'setup'))
+  && /Close-TestExplorer/.test(taskSrc('t19', 'cleanup')))
+check('ES39: t20 使用 Open/Close-TestAppWindow', /Open-TestAppWindow/.test(taskSrc('t20', 'setup'))
+  && /Close-TestAppWindow/.test(taskSrc('t20', 'cleanup')))
 
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

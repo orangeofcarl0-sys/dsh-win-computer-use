@@ -11,18 +11,19 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 26 套 / 634；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
-| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11（1） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派覆盖 | — | t12/t13/t14/t15/t16/t17/x1（7） |
-| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点与清理 | `probe-combo-foreground` | t11-t17（7） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 26 套 / 646；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / p01 / p02 / p03（4） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
+| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
 
-**阶段是成员标签，可重叠**：`S1 9 / S2 1 / S3 7 / S4 7`，成员合计 **24**，唯一任务 **17**。t11 = S2+S4；t12-t17 = S3+S4；x1 = S3。
+**阶段是成员标签，可重叠**：`S1 9 / S2 4 / S3 10 / S4 8`，成员合计 **31**，唯一任务 **23**。t11 = S2+S4；t12-t18 = S3+S4（t18 也含 S3）；x1 = S3。
 
 边界必须明确：
 
-- **S2 目前只有 t11**，题面给出了画布原点/坐标/颜色；它测“带脚手架的像素复刻”，不是无坐标视觉定位。无坐标点击/OCR/zoom 任务仍是缺口。
-- **S4 目前只有 dirty isolation**：现有 oracle 只看目标产物，不证明用户窗口未被关闭/修改。显式用户状态断言仍是缺口。
-- S3 的 t12-t17 同时是 dirty 任务；S3 测覆盖面，S4 测脏桌面执行，两者是不同维度。
+- **S2 的 p01-p03 需要 image 能力**（native/zoom/vision）；text-only 路由会失败，不写 ENV。
+- **S4 已给 t11-t18 加 sentinel**：setup 打开测试自建的最小化窗口 + sentinel 文件，oracle 断言窗口/身份/文件未变；cleanup 只关测试自建对象。
+- **t13 仍是真实网络下载，`ac2:none`**；t18 是本地 HTTP 下载，`ac2:full`，覆盖下载链路的正向验证。
+- S3 的 t12-t18 同时是 dirty 任务；S3 测覆盖面，S4 测脏桌面执行，两者是不同维度。
 
 ## 2. 任务表
 
@@ -37,12 +38,18 @@
 | t09 | Paint 填充纯红并保存 | S1 | core | notepad | full | 不杀 mspaint |
 | t10 | 两 Notepad 文档内容互换 | S1 | core | notepad | full | 双文件 state |
 | t11 | Paint 鼠绘复刻 | S2, S4 | core | dirty | full | PNG ROI mask |
-| t12 | PPT 16:9 布局复刻 | S3, S4 | core | dirty | none | PPTX XML，无 COM |
-| t13 | 论文下载 + SHA-256 | S3, S4 | core | dirty | none | 只删新增匹配 PDF |
-| t14 | Excel 表格 + 原生柱状图 | S3, S4 | core | dirty | none | XLSX XML + chart |
+| t12 | PPT 16:9 布局复刻 | S3, S4 | core | dirty | full | PPTX fixture simulate |
+| t13 | 论文下载 + SHA-256 | S3, S4 | core | dirty | none | 真实网络；只删新增匹配 PDF |
+| t14 | Excel 表格 + 原生柱状图 | S3, S4 | core | dirty | full | XLSX fixture simulate |
 | t15 | Explorer 8 文件整理 | S3, S4 | core | dirty | full | 文件系统终态 |
 | t16 | 本地浏览器表单 | S3, S4 | core | dirty | full | result.json |
-| t17 | PDF 句子摘录到 Excel | S3, S4 | core | dirty | none | A1 精确文本 |
+| t17 | PDF 句子摘录到 Excel | S3, S4 | core | dirty | full | A1 精确文本；fixture simulate |
+| t18 | 本地 PDF 下载 | S3, S4 | core | dirty | full | 本地 HTTP + hash-pinned fixture |
+| t19 | Explorer 地址栏导航 | S3 | core | notepad | full | 从用户目录导航到沙箱 |
+| t20 | 对话框取消/确认链 | S3 | core | notepad | full | WinForms confirm/cancel |
+| p01 | 无坐标 canvas 目标点击 | S2 | core | notepad | full | 红圆/格子 C2 |
+| p02 | 像素 token 读取输入 | S2 | core | notepad | full | canvas code P02-7K9 |
+| p03 | screen_zoom 小目标点击 | S2 | core | notepad | full | D3 / from_zoom |
 | wa2 | 设文件隐藏（WAA 本地化） | S1 | smoke | notepad | full | 时间预算敏感 |
 | x1 | 委派通道集成验证 | S3 | core | notepad | full | 必须 `computer_task` |
 
@@ -50,12 +57,13 @@
 
 ```text
 evals/
-  tasks/            17 个任务 md（id = 文件名前缀）
-  setup/            17 个 setup.ps1
-  oracle/           17 个 oracle.ps1
-  cleanup/          17 个 cleanup.ps1
-  simulate/         13 个 simulate.ps1（ac2:none 的任务缺省）
-  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / form-server.mjs / cdp.mjs
+  tasks/            23 个任务 md（id = 文件名前缀）
+  setup/            23 个 setup.ps1
+  oracle/           23 个 oracle.ps1
+  cleanup/          23 个 cleanup.ps1
+  simulate/         22 个 simulate.ps1（t13 仍 ac2:none）
+  fixtures/         t12/t14/t17/t18 成功态夹具（测试输入，不是测量产物）
+  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / form-server.mjs / cdp.mjs
   headless-run.mjs  当前 runner（--stage / --tasks / --tier）
   verify-oracles.mjs  AC2 双向验证
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs

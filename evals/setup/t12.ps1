@@ -2,6 +2,12 @@ param([string]$TaskId = '')
 . (Join-Path $PSScriptRoot '..\lib\common.ps1')
 $checks = @()
 try {
+  $sentinelState = Join-Path (Get-TaskDir) 'sentinel.json'
+  $sent = Open-TestSentinel -TaskId $TaskId -StateFile $sentinelState
+  $checks += (Add-Check 'sentinel opened' ([bool]$sent.ok) ("hwnd=$($sent.hwnd) pid=$($sent.pid) reason=$($sent.reason)"))
+  if (-not $sent.ok) {
+    Out-Finish -Ok $false -Checks $checks -EnvError ('sentinel unavailable: ' + $sent.reason) -Kind 'setup'
+  }
   $base = Get-TaskDir
   $outDir = New-TaskDir 'out'
   $refPath = Join-Path $base 's4-t12-ref.png'

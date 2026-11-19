@@ -3,7 +3,7 @@
 - **stages: S3, S4**
 - **tier: core**
 - **isolation: dirty**
-- **ac2: none**
+- **ac2: full**
 - tools: screen_observe / screen_zoom / computer_click / computer_type / computer_key / computer_activate
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t12\`
 - oracle: PPTX XML (slide count/size, text, shape colors/positions); no Office/COM

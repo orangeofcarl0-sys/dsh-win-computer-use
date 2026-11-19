@@ -73,23 +73,23 @@ const unique = tasks.length
 const counts = Object.fromEntries(STAGES.map((s) => [s, tasks.filter((t) => t.stages.includes(s)).length]))
 const memberships = tasks.reduce((n, t) => n + t.stages.length, 0)
 
-check('任务总数 == 17', unique === 17, String(unique))
+check('任务总数 == 23', unique === 23, String(unique))
 check('S1 成员 == 9', counts.S1 === 9, String(counts.S1))
-check('S2 成员 == 1', counts.S2 === 1, String(counts.S2))
-check('S3 成员 == 7', counts.S3 === 7, String(counts.S3))
-check('S4 成员 == 7', counts.S4 === 7, String(counts.S4))
-check('阶段成员合计 == 24', memberships === 24, String(memberships))
+check('S2 成员 == 4', counts.S2 === 4, String(counts.S2))
+check('S3 成员 == 10', counts.S3 === 10, String(counts.S3))
+check('S4 成员 == 8', counts.S4 === 8, String(counts.S4))
+check('阶段成员合计 == 31', memberships === 31, String(memberships))
 
 let facts = null
 try { facts = JSON.parse(readFileSync(factsPath, 'utf8')) } catch { facts = null }
 check('docs.facts.json 可读', Boolean(facts))
 if (facts) {
-  check('facts.evalTasks == 17', facts.evalTasks === unique, `facts=${facts.evalTasks} actual=${unique}`)
+  check('facts.evalTasks == 23', facts.evalTasks === unique, `facts=${facts.evalTasks} actual=${unique}`)
   for (const s of STAGES) {
     const key = `stage${s}`
     check(`facts.${key} == ${counts[s]}`, facts[key] === counts[s], `facts=${facts[key]} actual=${counts[s]}`)
   }
-  check('facts.stageMemberships == 24', facts.stageMemberships === memberships, `facts=${facts.stageMemberships} actual=${memberships}`)
+  check('facts.stageMemberships == 31', facts.stageMemberships === memberships, `facts=${facts.stageMemberships} actual=${memberships}`)
 }
 
 // P0 判定绑定：这些检查保证修复不会被后续编辑悄悄回退。
