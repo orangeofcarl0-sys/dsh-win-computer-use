@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-19：`npm test` 26 套 / **634 项检查**；`npm run check` 语法 29/29 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-19：`npm test` 26 套 / **646 项检查**；`npm run check` 语法 32/32 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -18,33 +18,35 @@
 
 | 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|---|
-| 语法/安装脚本 | S1 | `npm run check` | 29 JS（含 lib/driver、eval runner、tasks.check）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
-| 离线单元/契约 | S1 | `npm test` | 26 套 / 634 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化 |
+| 语法/安装脚本 | S1 | `npm run check` | 32 JS（含 lib/driver、eval runner、tasks.check）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
+| 离线单元/契约 | S1 | `npm test` | 26 套 / 646 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化 |
 | 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
 | from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
 | modifier 手势 | S2 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达；0.23.2 driver drag modifier 不进入目标；0.52.13 原生 delivered |
 | 组合键前台 | S4 | `node evals/probe-combo-foreground.mjs` | 1 项 | blocker 前台时插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms |
+| 安全运行时 | S1/S4 | `node evals/probe-safety-runtime.mjs` | 13 项 | 密码拒绝、TTL 过期、stop/resume 锁存、驱动错误恢复 |
+| 滚动 | S1 | `node evals/probe-scroll.mjs` | 3 项 | WinForms AutoScroll：向下/向上滚动与位置回读 |
 | 私有拖拽 | S2 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
 | native freshness | S2 | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
 | dsh 真机加载 | S1 | `dsh --profile headless --patch ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | S1 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
-| 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 17 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
+| 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 23 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
 | oracle 验证 | S1-S4 | `node evals/verify-oracles.mjs --stage S4` | 17 项（可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
 
 ### 2.1 S1-S4 阶段
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 26/634、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
-| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11（1） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派覆盖 | — | t12/t13/t14/t15/t16/t17/x1（7） |
-| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点与清理 | `probe-combo-foreground` | t11-t17（7） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 26/646、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / p01 / p02 / p03（4） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
+| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
 
-阶段是**成员标签，可重叠**：S1 9 / S2 1 / S3 7 / S4 7，成员合计 24，唯一任务 17。t11=S2+S4；t12-t17=S3+S4；x1=S3。
+阶段是**成员标签，可重叠**：S1 9 / S2 4 / S3 10 / S4 8，成员合计 31，唯一任务 23。t11=S2+S4；t12-t18=S3+S4；x1=S3。
 
-边界：S2 目前只有 t11（带坐标脚手架的像素复刻）；S4 目前只有 dirty isolation，现有 oracle 不证明用户窗口未被关闭/修改。两者缺口见 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md)。
+边界：S2 的 p01-p03 需要 image 能力；S4 已给 t11-t18 加 sentinel（窗口/身份/文件），sentinel 失败即 fail。t13 仍是真实网络 `ac2:none`；t18 本地下载补 AC2。
 
 ## 3. 离线套件（`npm test`）
 
@@ -65,7 +67,7 @@
 | `delivery.foreground.mjs` | 21 | 真实 `cuaDeliver`：force + foreground_unavailable → 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 升级；非 foreground 异常保持抛出；force + unverified 指针前置单次；type 不前置 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
 | `trajectory.test.mjs` | 18 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报、modifier 独立签名、driver 手势参数保留 |
-| `eval-safety.mjs` | 65 | 禁止按进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态归属；dirty helper/Downloads hash 清理 |
+| `eval-safety.mjs` | 77 | 禁止按进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态归属；dirty helper/Downloads hash 清理 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
 | `config.plumbing.mjs` | 32 | 24 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵；数字 window/window_id 提示归属 |
@@ -77,7 +79,7 @@
 | `driver.compat.mjs` | 6 | 真实 observe/refresh + 注入 transport 的端到端兼容 |
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 
-合计 **634** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
+合计 **646** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
 
 ### 3.1 共享脚手架
 
@@ -169,7 +171,7 @@ node evals/headless-run.mjs --tier smoke --timeout-min 10   # 旧调度标签
 node evals/verify-oracles.mjs --stage S4
 ```
 
-- 任务集 17 条：S1 9（t01/t03/t04/t05/t06/t07/t09/t10/wa2）+ S2 1（t11）+ S3 7（t12/t13/t14/t15/t16/t17/x1）+ S4 7（t11-t17）；成员合计 24，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
+- 任务集 23 条：S1 9（t01/t03/t04/t05/t06/t07/t09/t10/wa2）+ S2 4（t11/p01/p02/p03）+ S3 10（t12-t17/x1/t18/t19/t20）+ S4 8（t11-t18）；成员合计 31，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
 - `--tasks` > `--stage` > `--tier`；`--stage` 无匹配时退出非 0；无参数仍按旧 smoke 运行。退役任务见 [evals/README](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/README.md)。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
 - `verify-oracles` 判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；**2026-11-12 复跑 10/10**（含 `x1`）；2026-11-15 18:40 复跑 **10/10**。若 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp`。
@@ -193,29 +195,52 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 - 决策规则：pass 不下降；median steps/duration 不恶化超过约 15%；p90 不恶化超过约 25%（n<8 标 `p90Unstable`）；没有新增 dirty/timeout；strategy 分布不更偏 exploratory。否则保持 `off`。
 - 2026-11-16 首轮 **10/10 pass**；auto 中位略优但有 533s 尾部、每轮多 2–12 次复核，默认保持 `off`。详见 [EVIDENCE](EVIDENCE.md) §5.3。
 
-### 6.2 S4 脏桌面套件（t11-t17）
+### 6.2 S4 脏桌面套件（t11-t18）
 
 这组任务不建干净 VM/专用 Windows 用户，直接使用当前桌面和用户已打开的应用；通过 task md 的 `- **isolation: dirty**` 跳过 Notepad TabState backup。用户已有 Notepad/Paint/Office/浏览器窗口不关；只关闭 setup 记录的“测试新建 HWND/文档”，证明不了就 `leftover + dirty`。
 
 | id | 任务 | 依赖 | oracle |
 |---|---|---|---|
 | t11 | Paint 鼠绘复刻 | Paint + 浏览器参考窗 | PNG 800x600 + 三色 ROI mask/bbox/覆盖率容差 |
-| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 单页 16:9 seed + 预填 title/subtitle + 3 个灰色占位柱 + `seedHash` 变化 + PPTX XML 文本/颜色/位置（无 COM） |
-| t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 中新增 PDF 的 SHA-256 |
-| t14 | Excel 数据+柱状图 | Excel | XLSX XML 单元格 + chart part；seedHash 未变 |
+| t12 | PPT 布局复刻 | PowerPoint + 浏览器参考窗 | 单页 16:9 + 标题/副标题 + 三色 bar/Q1-Q3；fixture simulate 后 oracle 通过 |
+| t13 | 论文下载 | 用户浏览器 + 网络 | 用户 Downloads 中新增 PDF 的 SHA-256；真实网络，`ac2:none` |
+| t14 | Excel 数据+柱状图 | Excel | XLSX XML 24 单元格 + chart part；fixture simulate |
 | t15 | Explorer 多文件整理 | Explorer | 精确文件系统终态（8 文件，先重命名再移动） |
 | t16 | 本地浏览器表单 | 用户浏览器 + 本地 server | result.json 精确字段 |
-| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本（不 Trim）+ seedHash 未变；setup UIA page-3 readiness |
+| t17 | PDF 定位+摘录 | 浏览器 PDF + Excel | XLSX A1 精确文本（不 Trim）；fixture simulate |
+| t18 | 本地 PDF 下载 | 用户浏览器 + 本地 server | 新增 PDF 的 SHA-256 == fixture hash；AC2 full |
 
 ```bash
-node evals/verify-oracles.mjs --tasks t11,t12,t13,t14,t15,t16,t17
+node evals/verify-oracles.mjs --tasks t11,t12,t13,t14,t15,t16,t17,t18
 node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch evals/headless-patch.yml
 ```
 
-- `ac2: none`（t12/t13/t14/t17）在 verify-oracles 中显示 **SKIP**，表示 setup/oracle-empty/cleanup 已验，但无 simulate；不是假 PASS。
+- `ac2: none` 只剩 t13（真实网络）在 verify-oracles 中显示 **SKIP**，表示 setup/oracle-empty/cleanup 已验，但无 simulate；不是假 PASS。t12/t14/t17/t18 均有 simulate。
 - setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）在 headless-run 记 `verdict=env`，不混入 pass/fail。
 - t13 复用用户浏览器：下载目录是真实 Downloads；oracle/cleanup 只考虑任务开始后新增且哈希匹配的 PDF，绝不删除用户已有文件。
 - 逐轮步数与失败样本见 [EVIDENCE](EVIDENCE.md) §2–§5；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
+
+### 6.3 S2 像素/OCR/zoom 任务
+
+| id | 任务 | 依赖 | oracle |
+|---|---|---|---|
+| p01 | 无坐标 canvas 红圆点击 | 浏览器 + 本地 pixel server | 点击 cell == C2 |
+| p02 | 像素 token 读取输入 | 浏览器 + canvas + 输入框 | server token == P02-7K9 |
+| p03 | screen_zoom 小目标点击 | 浏览器 + 密集 canvas | 点击 cell == D3 |
+
+- 三条任务都要求 image 能力（native/zoom/vision）；text-only 路由失败，不记 ENV。
+- p01/p02/p03 的 oracle 只读 server 写入的 `out/result.json`，不依赖模型自评。
+- `node evals/verify-oracles.mjs --tasks p01,p02,p03` 必须三项 PASS。
+
+### 6.4 S3 导航/对话框
+
+| id | 任务 | 依赖 | oracle |
+|---|---|---|---|
+| t19 | Explorer 地址栏导航 | Explorer | 从用户目录导航到 `{task_dir}\nav` 并写 `NAV-OK` |
+| t20 | 确认/取消对话框链 | 本地 WinForms app | result.json 有 cancelled=1、confirmed=1、deleted=true |
+
+- t19 的 setup 不预置到目标目录；地址栏/Ctrl+L 是任务本身。
+- t20 第一次 Delete 必须选 No/否，第二次选 Yes/是；只读 result.json 判定。
 
 ## 7. 回归守门（代表性缺陷）
 
@@ -283,13 +308,13 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 26 套 / 634 ✅ / 0 ❌ |
-| 语法 | 29/29 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 离线 | 26 套 / 646 ✅ / 0 ❌ |
+| 语法 | 32/32 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
-| 评测 | 17 条任务：S1 9 / S2 1 / S3 7 / S4 7（成员 24）；`verify-oracles` 2026-11-15 18:40 复跑 10/10；AC2 `ac2:none` 的 SKIP 不是 PASS |
+| 评测 | 23 条任务：S1 9 / S2 4 / S3 10 / S4 8（成员 31）；t12/t14/t17/t18/p01-p03/t19/t20 均有 simulate；仅 t13 仍 `ac2:none`，其 SKIP 不是 PASS |
 | P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 

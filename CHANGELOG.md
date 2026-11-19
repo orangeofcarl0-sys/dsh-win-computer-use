@@ -31,8 +31,9 @@
 - **回执语义**：结构化拒绝/投递失败/`suspected_noop` 一律 `ok:false`；`unverifiable` 保持“已送达但未验证”；`unknown` 永不算成功；`background_delivery_failed` 是升级建议而非硬失败。
 - **坐标/缩放**：`screen_observe` 文本、结构化 elements、快照条目、点击输入统一 window-screenshot-px；`screen_zoom` 输出 `zoom-image-px` + `fromZoom`，不再手算 `crop.scale`；`nativeImage: compact` 明确失败。
 - **更名**：包名/仓库名 `dsh-computer-use` → `dsh-win-computer-use`；旧 GitHub URL redirect；npm 尚未发布。
-- **测试阶段 S1-S4**：S1 基础功能、S2 像素定位、S3 覆盖面任务集、S4 Dirty 能力任务集；任务用 `stages` 多标签（t11=S2+S4，t12-t17=S3+S4）。runner 新增 `--stage`；`--tasks`/`--tier` 保持兼容。旧系统级 `S4` 全局改称 `eval`；`S3a/S3b` 改为视觉断言协议/独立观察者。
+- **测试阶段 S1-S4**：S1 基础功能、S2 像素定位、S3 覆盖面任务集、S4 Dirty 能力任务集；任务用 `stages` 多标签（t11=S2+S4，t12-t18=S3+S4）。runner 新增 `--stage`；`--tasks`/`--tier` 保持兼容。旧系统级 `S4` 全局改称 `eval`；`S3a/S3b` 改为视觉断言协议/独立观察者。
 - **P0 判定绑定**：t04/t07 按 setup 记录的 HWND 判定；t05 payload 加非 ASCII `é`；t03 加 `keep.txt` 与无多余文件检查；x1 改为必须 `computer_task` 并由 runner 校验调用。
+- **测试补全**：新增 p01-p03（无坐标像素/OCR/zoom）、t18（本地下载 AC2）、t19（地址栏导航）、t20（对话框链）；t12/t14/t17 补 fixture simulate；t11-t18 全部加 sentinel；新增 `probe-safety-runtime`（13 项）与 `probe-scroll`（3 项）。
 
 ### Fixed
 
@@ -54,7 +55,7 @@
 
 ### Verification
 
-- 离线 **26 套 / 634 项检查**；语法 **29/29**；`verify-runtime` **18/18**（0.23.2 + 0.52.13）；`tests/tasks.check.mjs` **245 项**（S1-S4 阶段/脚本/计数/P0 绑定）。
+- 离线 **26 套 / 646 项检查**；语法 **32/32**；`verify-runtime` **18/18**（0.23.2 + 0.52.13）；`tests/tasks.check.mjs` **323 项**（S1-S4 阶段/脚本/计数/P0 绑定）。
 - `verify-runtime` 选窗改为探测候选窗口（要求有可定位 AX 元素），排除 CmdPal/输入法等 0 元素 shell 表面；避免把“无 AX 树”误报为坐标不一致。
 - 0.52.13 canary：`live-action` 33/33；driver-shape/modifier/combo/private-drag/from-zoom/native-freshness 全通过；t17 capture-only **29 步 pass**。
 - 观察回执修复后：t11 **70 步 pass**（oracle 22/22，`snapshot_mismatch` 0）、t12 **100 步 pass**（oracle 13/13，`snapshot_mismatch` 0）。

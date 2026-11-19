@@ -9,8 +9,8 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **26 套 / 634 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **29/29 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **26 套 / 646 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **32/32 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -20,12 +20,16 @@
 | native freshness | WinForms 文本变化窗口未复现“AX 已变而 PNG 不变” | Windows 11 | `probe-native-freshness.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后）；0.52.13 canary **33/33** | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | eval oracle 双向验证（S1 + x1 clean 组） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；2026-11-15 18:40 复跑） | Windows 11 | `node evals/verify-oracles.mjs` |
-| eval oracle（S4 dirty 组） | 2026-11-17 运行 `t11,t12,t15,t14,t17`：**t11/t15 PASS**（AC2 full）；**t12/t14/t17 SKIP**（`ac2:none`，setup/empty-fail/cleanup 通过） | Windows 11 | `node evals/verify-oracles.mjs --tasks t11,t12,t15,t14,t17` |
+| eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
+| S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
+| S3 导航/对话框 | 2026-11-19：t19 **PASS**；t20 **PASS**（对话框链） | Windows 11 | `node evals/verify-oracles.mjs --tasks t19,t20` |
+| 安全运行时探针 | 2026-11-19：**13/13 PASS**（密码拒绝、TTL 过期、stop/resume、驱动错误恢复） | Windows 11 | `node evals/probe-safety-runtime.mjs` |
+| 滚动探针 | 2026-11-19：**3/3 PASS**（WinForms AutoScroll 向下/向上与位置回读） | Windows 11 | `node evals/probe-scroll.mjs` |
 | S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §3.1 |
 | S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §5.3 |
 | P0 判定绑定 | 2026-11-19 `t03/t04/t05/t07/x1` oracle **5/5 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t03,t04,t05,t07,x1` |
 | headless eval smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.3 |
-| 阶段过滤 | **S1 9 / S2 1 / S3 7 / S4 7**（成员 24，唯一 17）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
+| 阶段过滤 | **S1 9 / S2 4 / S3 10 / S4 8**（成员 31，唯一 23）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
 | npm / 部署 | **未发布 / web profile 仍旧版** | — | [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
@@ -103,12 +107,12 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 
 判据：
 
-- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **634**。
-- `npm run check` 退出码 0：语法 **29/29** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **646**。
+- `npm run check` 退出码 0：语法 **32/32** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。
-- 阶段成员：S1 9 / S2 1 / S3 7 / S4 7（成员 24，唯一 17）；`node tests/tasks.check.mjs` 必须通过。
+- 阶段成员：S1 9 / S2 4 / S3 10 / S4 8（成员 31，唯一 23）；`node tests/tasks.check.mjs` 必须通过。
 - `npm pack --dry-run --json` 的文件数与 `tests/docs.facts.json` / `docs/store-evidence.md` 一致。
 - headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 21 隐藏。
 - 若 `verify-oracles` 的 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp`。

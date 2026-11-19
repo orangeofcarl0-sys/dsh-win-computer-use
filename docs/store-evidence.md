@@ -37,9 +37,9 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **29/29** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
+| 语法 + 安装脚本 | `npm run check` | **32/32** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **26 套 / 634 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **26 套 / 646 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <overlay> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
