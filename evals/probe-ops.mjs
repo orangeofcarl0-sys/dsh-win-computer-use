@@ -505,4 +505,5 @@ const blocks = checks.filter((c) => c.status === 'BLOCKED').length
 const fails = checks.filter((c) => c.status === 'FAIL').length
 console.log(`\n结果：PASS ${passes}/${checks.length}，BLOCKED ${blocks}，FAIL ${fails}`)
 if (blocks) console.log('BLOCKED: ' + checks.filter((c) => c.status === 'BLOCKED').map((c) => c.name).join('; '))
-process.exit(fails ? 1 : 0)
+const strictBlocked = process.argv.includes('--strict-blocked')
+process.exit(fails ? 1 : (strictBlocked && blocks ? 2 : 0))

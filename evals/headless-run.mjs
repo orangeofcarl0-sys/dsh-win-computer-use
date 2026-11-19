@@ -133,6 +133,25 @@ async function ps(kind, id) {
   return { code: r.code, json, stderr: r.stderr }
 }
 
+/**
+ * 每个 run 前清掉上一轮 eval 写入的 Notepad TabState bins。
+ * 只有 marker 存在（用户 TabState 已备份）时才删；否则绝不碰用户会话。
+ * 用 JS 实现而不是新增 tabstate.ps1 动作，避免 PowerShell 解析/作用域坑。
+ */
+function clearEvalTabState() {
+  const marker = path.join(homedir(), '.dsh', 's4-evals', '_tabstate-active.json')
+  if (!fs.existsSync(marker)) return { ok: true, skipped: true, removed: 0 }
+  const stateDir = path.join(process.env.LOCALAPPDATA || '',
+    'Packages', 'Microsoft.WindowsNotepad_8wekyb3d8bbwe', 'LocalState', 'TabState')
+  if (!fs.existsSync(stateDir)) return { ok: true, removed: 0 }
+  let removed = 0
+  for (const f of fs.readdirSync(stateDir)) {
+    if (!f.endsWith('.bin')) continue
+    try { fs.rmSync(path.join(stateDir, f)); removed++ } catch { /* 单个 bin 失败不阻断 */ }
+  }
+  return { ok: true, removed }
+}
+
 /** Notepad TabState 隔离：备份用户会话，每个任务前清 eval bin，跑完恢复。 */
 async function tabState(action) {
   const r = await run(PS, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', TABSTATE, action], { timeoutMs: 60000 })
@@ -205,6 +224,10 @@ async function runOne(task) {
     rec.dirty = true
     rec.notes.push('initial cleanup dirty: ' + JSON.stringify(cl0.json?.checks || []).slice(0, 200))
   }
+  // 上一轮 eval 的 TabState bins 会让下一轮 Notepad 恢复旧标签（t19 r2 实证）。
+  // marker 存在时只清 eval 写入的 bins；用户备份不受影响。
+  const tclear = clearEvalTabState()
+  if (tclear.removed > 0) rec.notes.push(`tabstate clear-eval removed=${tclear.removed}`)
   const su = await ps('setup', task.id)
   rec.setup = su.json || { code: su.code }
   if (su.code !== 0) {

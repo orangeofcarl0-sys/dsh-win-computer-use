@@ -51,6 +51,8 @@ for (const f of files) {
   check(`${id}: prompt 块存在`, /<<<PROMPT\n[\s\S]*?\nPROMPT>>>/.test(md))
   if (id === 't19') {
     check('t19: prompt 明确允许 Notepad 另存为', /Save As|Notepad/i.test(prompt), prompt.slice(0, 120))
+    check('t19: prompt 禁止 Win+R 并指向 app_launch/开始菜单',
+      /Do not use Win\+R/i.test(prompt) && /app_launch|Start menu/i.test(prompt), prompt.slice(0, 200))
   }
   if (id === 't20') {
     check('t20: prompt 允许键盘选择对话框按钮', /Tab|Enter|Escape/i.test(prompt)
@@ -120,6 +122,7 @@ const t05Oracle = src('oracle', 't05')
 const t05Sim = src('simulate', 't05')
 check('P0 t05: payload 含非 ASCII', /0x00E9/.test(t05Setup) && /0x00E9/.test(t05Oracle) && /0x00E9/.test(t05Sim))
 check('P0 t05: oracle 用 Encoding.Default', /Encoding\]::Default/.test(t05Oracle))
+check('P0 t05: oracle 检查 src 无 out-ansi.txt 残留', /src\\out-ansi\.txt/.test(t05Oracle))
 
 const t07Oracle = src('oracle', 't07')
 check('P0 t07: oracle 按 state HWND 读取', /test-notepad\.json/.test(t07Oracle) && /Get-Placement/.test(t07Oracle))
