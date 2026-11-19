@@ -2,7 +2,7 @@
 
 > 目的：定义 S1-S4 测试阶段、任务成员、oracle 契约、runner、verdict 语义与 dirty 规则；逐轮运行结果见 [docs/EVIDENCE.md](../docs/EVIDENCE.md)。
 > 读者：维护者/评测者。`evals/` **不进入 npm 发布包**。
-> 状态：内部开发手册（最后核对 2026-11-19）。
+> 状态：内部开发手册（最后核对 2026-11-20）。
 > 相关：[TESTING](../docs/TESTING.md) · [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md) · [WINDOWS](../docs/WINDOWS.md)。
 
 > **命名说明（2026-11-19）**：本文的 S1-S4 是**测试阶段**，S4 只表示 Dirty 阶段。旧文档里的 `S4` 指 0.5.4 的整套评测系统，已全局改称 `eval`；旧 `S2` 是像素定位修订，`S3a`/`S3b` 是视觉断言/观察者工作流，均改为描述性名称。`S4_*` 环境变量、`~/.dsh/s4-evals/` 与 `S4 Bar` 等 fixture 字符串是冻结兼容名，不代表新阶段。
@@ -11,7 +11,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 27 套 / 665；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 27 套 / 674；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / p01 / p02 / p03（4） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
@@ -64,7 +64,7 @@ evals/
   simulate/         22 个 simulate.ps1（t13 仍 ac2:none）
   fixtures/         t12/t14/t17/t18 成功态夹具（测试输入，不是测量产物）
   mutate/           release.ps1 + apply.ps1（oracle 变异，不是任务）
-  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / form-server.mjs / cdp.mjs
+  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / form-server.mjs / cdp.mjs / run.mjs
   headless-run.mjs  当前 runner（--stage / --tasks / --tier）
   verify-oracles.mjs  AC2 双向验证
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
@@ -161,6 +161,9 @@ node evals/oracle-mutation.mjs --tasks t01,t16,t20
 node evals/probe-ops.mjs
 node evals/probe-launch.mjs
 node evals/probe-modifier-drop.mjs
+# 默认允许已知 BLOCKED（WinForms menu / Excel stub），必须读输出；严格验收：
+node evals/probe-ops.mjs --strict-blocked          # 有 BLOCKED 时 exit 2
+node evals/probe-modifier-drop.mjs --excel --strict-blocked
 
 # AC6 成本：先跑任务，再汇总 usage
 node evals/headless-run.mjs --tasks t01,t05,t11,t14,t15 --repeats 5 --timeout-min 12 --report evals/headless-runs/ac6/report.json
@@ -205,7 +208,7 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 ## 11. 基线政策
 
-- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差。2026-11-20 题面/回执修复后 opencode 复跑：t19 **2/2 pass**（40/56 步，387/595s）、t20 **2/2 pass**（27/25 步，595/618s）、t05 **2/2 pass**（21/13 步，185/121s）；0 timeout/dirty。t20 两轮均出现 click 30s 超时后按新回执改用键盘。修复前同日样本为 t19/t20 各 1 pass / 1 预算耗尽（旧 runner 记 `fail/timedOut=false`，现记 `verdict=timeout + budgetExhausted=true`）；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
+- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差。2026-11-20 最新 P0/P1 复跑：t19 **2/2 pass**（inner 70/48，652/454s；`win+r` 归零，但 r1 从 40→70 inner 回归）、t20 **2/2 pass**（inner 27/25，626/601s；30s 超时仍多，候选 window_id 已出现）、t05 **2/2 pass**（inner 10/15，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty。上一轮样本为 t19 40/56、t20 27/25、t05 21/13；再往前修复前 t19/t20 各 1 pass / 1 预算耗尽（旧 runner 记 `fail/timedOut=false`，现记 `verdict=timeout + budgetExhausted=true`）；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
 - **预算耗尽不是任务失败率**：`wallMs` 达到 `--timeout-min` 且没有 `final` 的样本单独计数，不与普通 fail 混比；报告里同时保留 `timedOut/noFinal` 便于区分“驱动超时”和“模型没跑完”。
 - p01-p03 需要 image 路由；opencode 通道已验证，text-only 路由失败不算 ENV。
 - 基线比较必须同 overlay、同模型、同预算、同桌面状态；跨 provider 不是受控 A/B。

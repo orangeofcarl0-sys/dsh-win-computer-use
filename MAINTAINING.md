@@ -10,10 +10,10 @@
 - **名称**：`dsh-win-computer-use`（原名 `dsh-computer-use`，2026-11-10 更名）。
 - **定位**：Windows-first Computer Use 插件，DeepSeek Harness（dsh）的桌面操作层；个人项目，MIT。
 - **仓库**：`github.com/orangeofcarl0-sys/dsh-win-computer-use`，默认分支 `main`。
-- **版本**：`v0.5.7` 已发布（2026-11-19；npm `dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7。
+- **版本**：`v0.5.7` 已发布（2026-11-19；npm `dsh-win-computer-use@0.5.7`）；`package.json` 为 0.5.7，本地 `main` 含 0.5.8 未发布提交（未推送）。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 27 套 / **665** 项；`npm run check` 语法 **39/39** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
+- **测试基线**：`npm test` 27 套 / **674** 项；`npm run check` 语法 **39/39** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 环境
 
@@ -150,7 +150,7 @@ cua-driver autostart kick
 ## 5. 部署现实
 
 - **web profile 是拷贝，不是链接**：发布 tag 不会自动进入用户 harness；必须重新安装/链接并重启。
-- 当前：`~/.dsh/profiles/web/node_modules/dsh-computer-use` = **v0.5.3**（旧名）；`dsh-computer-use.0.5.5-kept` = 0.5.5 副本；新包名 = `dsh-win-computer-use`。
+- 当前：`~/.dsh/profiles/web/node_modules/dsh-computer-use` = **0.5.6**（旧名；2026-11-20 实测，非当前 0.5.7）；`dsh-computer-use.0.5.5-kept` = 0.5.5 副本；新包名 = `dsh-win-computer-use`。
 - 切换版本：用新名重装/改目录名 → 重启 harness → 会话内 `computer_do(status)` 冒烟。
 - **headless 探针通道**（不影响 web 客户端）：
   - `~/.dsh/profiles/headless/node_modules/dsh-win-computer-use` 建 junction → 本仓库。
@@ -159,7 +159,7 @@ cua-driver autostart kick
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 已发布 `dsh-win-computer-use@0.5.7`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
-- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。
+- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。**该 workflow 目前只在本地提交，尚未推送 `origin/main`、从未运行**；需要 self-hosted runner + 人工 `workflow_dispatch`。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
 ## 6. 已知缺口

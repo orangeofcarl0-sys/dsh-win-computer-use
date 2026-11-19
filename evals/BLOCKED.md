@@ -23,6 +23,7 @@
 - **ENV**：应用缺失、TabState 无法备份、网络不可达、模型凭据 401/402 一律记 ENV，不混入通过率。
 - **AC6**：n<8 时 p90 不稳定；`totalTokens` 含 cacheRead，成本对比需同时看 `billable`。
 - **`app_launch` 残留**：即使本次 alt+F4 成功，仍保留“驱动侧关闭失败→LEFT_OVER + 精确 HWND/PID”策略；不按进程名杀。
+- **`win`/`super`/`meta` 组合键**：本机旧实现会把 `win+r` 降级成单键 `win`（打开 Start/SearchHost），不可靠。2026-11-20 起 fail-closed，回执明确“不支持，用 app_launch/开始菜单”；不做原生 win 发送的承诺。
 
 ## 3. 规则
 

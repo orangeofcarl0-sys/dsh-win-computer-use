@@ -293,7 +293,7 @@
 | `window_id` | integer | 否 | — | 默认覆盖层模式需要 |
 | `real` | boolean | 否 | `false` | `true` 移动真实 OS 指针 |
 
-实验性：默认只移动虚拟覆盖层；能否触发目标应用真实 hover 取决于应用。
+实验性：默认只移动虚拟覆盖层；WinForms 按钮 MouseEnter 已在 probe-ops 窄验证，工具提示/悬停菜单是否触发仍取决于应用。
 
 ### 5.6 `computer_stop`
 

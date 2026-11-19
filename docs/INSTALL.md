@@ -160,7 +160,7 @@ node verify-runtime.mjs
 ```
 
 - 升级驱动时 CLI 与 daemon 一起升级；升级后按 [DRIVER-SDK](DRIVER-SDK.md) §7 的顺序跑探针。
-- 插件版本以 `package.json` 与 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 为准；当前 `v0.5.7` 已发布（npm `dsh-win-computer-use@0.5.7`），`main` 为 0.5.7。
+- 插件版本以 `package.json` 与 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 为准；当前 `v0.5.7` 已发布（npm `dsh-win-computer-use@0.5.7`），本地 `main` 含 0.5.8 未发布提交（未推送）。
 - 升级后若工具消失：先看 `--dump-config` 和宿主日志，不要先怀疑模型。
 
 ## 7. 回退

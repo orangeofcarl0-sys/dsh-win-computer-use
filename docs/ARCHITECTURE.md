@@ -434,11 +434,11 @@ stateDiagram-v2
 | A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；`probe-modifier-drop` 已回归 Explorer Ctrl+drag 复制与普通 drag 移动；Excel/PPT 仍 BLOCKED |
 | A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；2026-11-20 实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
-| G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 已发布 0.5.7 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+| G7 | 部署 | web profile 仍是旧名 `dsh-computer-use`（实测 0.5.6，非当前 0.5.7）；npm 已发布 0.5.7 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 ## 14. 测试与证据
 
-- 离线：27 套、665 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：27 套、674 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 23 条任务，S1 9 / S2 4 / S3 10 / S4 8（成员 31，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
 - 反向证据：`evals/oracle-mutation.mjs` 对 19 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。

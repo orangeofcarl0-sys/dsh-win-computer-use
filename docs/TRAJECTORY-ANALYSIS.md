@@ -268,16 +268,16 @@
 
 | 运行 | 结果 | inner | wall | total tokens | 行为变化 |
 |---|---|---:|---:|---:|---|
-| t20 r1 | pass | 27 | 595s | 536,684 | 4×click/2×bring_to_front/1×move_cursor/2×press_key 超时；按回执 observe 新对话框并用 Escape/Tab/Enter 完成 |
-| t20 r2 | pass | 25 | 618s | 425,642 | 6×click/3×bring_to_front/1×move_cursor/6×press_key 超时；仍用 Escape/Tab/Enter/Space 完成 |
+| t20 r1 | pass | 27 | 595s | 536,684 | 2×click/1×bring_to_front/1×move_cursor/1×press_key 超时（5 次/150s）；按回执 observe 新对话框并用 Escape/Tab/Enter 完成 |
+| t20 r2 | pass | 25 | 618s | 425,642 | 3×click/2×bring_to_front/1×move_cursor/3×press_key 超时（9 次/270s）；仍用 Escape/Tab/Enter/Space 完成 |
 | t19 r1 | pass | 40 | 387s | 1,221,447 | `set_value` 完整路径；地址栏导航正常 |
-| t19 r2 | pass | 56 | 595s | 2,424,636 | 仍有 `win+r`/CmdPal 尝试，但最终 Notepad 另存为成功；56 inner 不再撞预算 |
+| t19 r2 | pass | 56 | 595s | 2,424,636 | `win+r` 被降级为单 `win`，打开 Start/SearchHost（CmdPal 未选中），12 步绕路；最终 Notepad 另存为成功 |
 | t05 r1 | pass | 21 | 185s | 385,860 | 仅 `set_value` 写文件名（len=12），零 `type` |
 | t05 r2 | pass | 13 | 121s | 234,925 | 同上；13 inner 为当前最低 |
 
 - 对照修复前：t19/t20 各 1 pass / 1 预算耗尽（无 final）；t05 r4 43 inner/431s/1.25M。修复后 6/6 pass、0 timeout/dirty。
 - t20 的改善不是“超时消失”，而是“超时后不再死循环”：两轮仍出现多次 30s 超时，单轮仍接近 10 分钟；根因在驱动/UIA 等待模态，已记入 [VERIFICATION](../VERIFICATION.md) §2。
-- t19 r2 仍是高方差样本（56 inner/2.4M total）；题面允许等价 GUI 路径降低了预算耗尽概率，但没有降低探索成本。r2 仍出现 `win+r`，说明 CmdPal 陷阱未被 COMMON 完全消除。
+- t19 r2 仍是高方差样本（56 inner/2.4M total）；题面允许等价 GUI 路径降低了预算耗尽概率，但没有降低探索成本。r2 的 `win+r` 被降级为单键 `win`，打开 Start/SearchHost（CmdPal 未选中），说明 `win` 组合键解析缺陷未被 COMMON 消除；本轮改为 fail-closed。
 - t05 的直接收益最清晰：`set_value` 覆盖替代 `type` 追加后，步数 43→21/13，total 1.25M→0.39M/0.23M。
 
 #### 11.8.3 P0/P1/P2 状态
@@ -294,5 +294,39 @@
 | P2 drag 标题栏 | **已闭合** | E34/E35 通过 |
 | P2 AC6 t11/t14/t15 5 轮 | **未做** | 本轮只复跑 t20/t19/t05；长任务成本仍未测，不伪造中位数 |
 
-静态基线：`npm test` **27 套 / 665 项**，语法 **39/39**，`npm pack` **57 文件**；t20/t19 AC2 2/2 PASS。所有复跑数据见 [EVIDENCE](EVIDENCE.md) §1.2。
+静态基线：`npm test` **27 套 / 674 项**，语法 **39/39**，`npm pack` **57 文件**；t20/t19 AC2 2/2 PASS。所有复跑数据见 [EVIDENCE](EVIDENCE.md) §1.2。
+
+### 11.9 第二轮修复验证（2026-11-20，P0/P1 后）
+
+#### 11.9.1 复跑结果
+
+| 运行 | 结果 | steps / inner | wall | total tokens | 关键行为 |
+|---|---|---:|---:|---:|---|
+| t20 r1 | pass | 30 / 27 | 626s | 521,250 | 2×bring/4×click/4×press 30s + 1×move 3s；候选提示 8 次、前置超时 1 次 |
+| t20 r2 | pass | 27 / 25 | 601s | 440,640 | 4×bring/6×click/2×press 30s + 1×move 3s；候选提示 9 次、前置超时 1 次 |
+| t19 r1 | pass | 71 / 70 | 652s | 2,951,817 | `win+r` 0；22 click/26 key/10 type/58 observe；未用 set_value |
+| t19 r2 | pass | 49 / 48 | 454s | 1,703,198 | `win+r` 0；地址栏提示 3 次；set_value 2 次；clear-eval removed=3 |
+| t05 r1 | pass | 10 / 10 | 86s | 129,803 | 零 type；set_value 2 次；另存为提示 2 次；无 src 残留 |
+| t05 r2 | pass | 16 / 15 | 106s | 227,850 | 零 type；set_value 2 次；另存为提示 3 次；无 src 残留 |
+
+#### 11.9.2 结果解读
+
+- **超时语义变诚实，但 t20 没有变快**：wall 595/618s → 626/601s，total tokens 基本持平。`move_cursor` 已从 30s 降到 3s，`preflight bring` 超时后不再发送 click（回执明确“本次点击未发送”）；但 click/press_key 在模态上的 30s 超时仍多次发生，驱动根因未消除。
+- **候选窗口提示真实生效**：t20 两轮分别出现 8/9 次“同 pid 的更高层窗口”候选；模型仍会先尝试后台点击，但不再需要自己从 `foregroundHint` 猜 window_id。
+- **t05 是最大收益**：10/15 inner、86/106s，零 `type` 改文件名，`set_value` 新值回执与“另存为默认目录/绝对路径”提示直接消除了修复前的重存循环；oracle 的 `no stray out-ansi.txt in src` 也通过。
+- **t19 是混合结果**：`win+r` 从每轮多次降为 **0**，说明 fail-closed 生效；r2 从 56→48 inner 改善，但 r1 从 40→**70** inner 回归。r1 的 22 次 click/26 次 key 主要花在 Explorer 新建/重命名探索，未使用 `set_value`；题面禁止 Win+R 后，模型把绕路转移到了 Explorer 工具栏/右键。不能写“t19 已优化”，只能写“Start 绕路消除、Explorer 新建方差仍在”。
+- **TabState 隔离生效**：t19 r2 与 t05 r2 的 `clear-eval removed=3` 说明上一轮 eval bins 被清掉；本轮未再出现“恢复上一轮 target.txt 标签”的错误对话框。
+
+#### 11.9.3 剩余边界与下一步
+
+| 项 | 状态 | 建议 |
+|---|---|---|
+| t20 模态 30s 超时 | **未闭合（驱动根因）** | 保持“超时=结果未知”的回执；下一步做 `get_window_state timeout_ms:5000` 探针，只有探针 PASS 才改 observe 重试；不盲改默认 |
+| t19 r1 Explorer 新建探索 | **新发现的高方差** | 题面加一句“If Explorer New is not directly available, switch to Notepad Save As instead of probing toolbar coordinates”；改后需复跑 2 轮，不能沿用本轮数据 |
+| t19 r1 未用 set_value | 模型策略 | 题面已允许 Save As；可在 t19 Notes 明确“优先 app_launch Notepad + set_value 完整路径”，但会降低 Explorer 新建覆盖，需选一个目标 |
+| t20 候选提示仍会后台点击 | 模型策略 | 回执已说“不要后台坐标点击”；若仍反复，可评估在对话框窗口上直接拒绝 background 点击（需要更细的模态识别） |
+| AC6 t11/t14/t15 5 轮 | **未做** | 不伪造中位数；等空闲桌面/额度 |
+| WinForms menu、Excel/PPT、A11、多屏、macOS/Linux、t13 | **外部阻塞** | 保持 `eval/BLOCKED.md`；不计 pass |
+
+本轮结论：**P0 超时透传/候选回执、win fail-closed、t05 另存为修复均已落地并有真实轨迹支撑；t20 驱动根因和 t19 Explorer 新建方差仍未闭合**。
 

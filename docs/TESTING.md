@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-20：`npm test` 27 套 / **665 项检查**；`npm run check` 语法 39/39 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-20：`npm test` 27 套 / **674 项检查**；`npm run check` 语法 39/39 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -19,7 +19,7 @@
 | 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|---|
 | 语法/安装脚本 | S1 | `npm run check` | 39 JS（含 lib/driver、eval runner、tasks.check）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
-| 离线单元/契约 | S1 | `npm test` | 27 套 / 665 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化 |
+| 离线单元/契约 | S1 | `npm test` | 27 套 / 674 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化 |
 | 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
 | from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -28,9 +28,9 @@
 | 安全运行时 | S1/S4 | `node evals/probe-safety-runtime.mjs` | 13 项 | 密码拒绝、TTL 过期、stop/resume 锁存、驱动错误恢复 |
 | 滚动 | S1 | `node evals/probe-scroll.mjs` | 3 项 | WinForms AutoScroll：向下/向上滚动与位置回读 |
 | 私有拖拽 | S2 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
-| 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 11 PASS / 1 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`computer_menu` 在 WinForms 上 BLOCKED（见 [BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)） |
+| 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 11 PASS / 1 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`computer_menu` 在 WinForms 上 BLOCKED（见 [BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked`（有 BLOCKED 时 exit 2） |
 | app 启动/收尾 | S1/S4 | `node evals/probe-launch.mjs` | 7 项 | app_launch pid/window、子进程 IL 实测、驱动侧 alt+F4/关闭按钮、基线窗口保留 |
-| modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs` | 5 项 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支 opt-in/BLOCKED |
+| modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs` | 5 项 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支 opt-in/BLOCKED。`--strict-blocked` 时 BLOCKED 为 exit 2 |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 19 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13 按原因 SKIP |
 | AC6 成本 | S1-S4 | `node evals/ac6-summary.mjs --reports <report>` | per-task token/步数 | 读 `status/step_end.usage`，输出中位数/p90 与 billable |
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
@@ -44,7 +44,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 27/665、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 27/674、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / p01 / p02 / p03（4） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
@@ -62,14 +62,14 @@
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
 | `schema.conformance.mjs` | 47 | 23 个工具 / 47 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活/modifier click 形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
-| `observe.truth.mjs` | 27 | 输入值外显/预填字段优先 set_value、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、中英别名、Document 正文不泄露、顶层菜单栏、文档不置脏、query 只读/旧快照已清除、无目标跳过 shell 表面 |
+| `observe.truth.mjs` | 29 | 输入值外显/预填字段优先 set_value、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、中英别名、Document 正文不泄露、顶层菜单栏、文档不置脏、query 只读/旧快照已清除、无目标跳过 shell 表面、另存为默认目录提示、地址栏建议提示 |
 | `observe.coords.mjs` | 20 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；window_id 精确匹配；同 pid 多窗口 z 序；缺 bounds 降级；overlay 过滤；z 序提示；源图尺寸提示；native 快照 id + 全局单例；跨窗口旧 id 拒绝 |
-| `key.xaml.mjs` | 38 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击；歧义/缺失/非白名单不回退；投递失败不 ok:true；对话框 press_key 回退并指向 set_value 覆盖；alt+f/ctrl+a 的 xamlPressFallback；组合键默认前台 |
+| `key.xaml.mjs` | 39 | XAML 无 AcceleratorKey 指引；auto 两次 token 点击；歧义/缺失/非白名单不回退；投递失败不 ok:true；对话框 press_key 回退并指向 set_value 覆盖；alt+f/ctrl+a 的 xamlPressFallback；组合键默认前台；win+r fail-closed |
 | `menu.receipt.mjs` | 8 | `effect:unverifiable`/effect 缺失必须 ok:false + 先观察；confirmed 成功；数组 path 可用 |
 | `human.click.mjs` | 23 | 元素点击 TTL、background 不滑行、auto 单次/human 5 段/off 零移动、同目标跳过、tokenless 回退、from_zoom 映射/缺失/跨窗口拒绝、modifier 规范化/自动前台/非法值 |
 | `action.echo.mjs` | 41 | 坐标/元素回显、密码值隐藏、重复点击抑制、观察变化放行、actionGuard=off、double_click 不拦、modifier 签名区分、app_launch 语义、activate、stale 清快照、verifyAfterAction、输入回读/保存门禁、set_value、Document 不泄露、菜单注记、无 Document type 保留快照、标题栏拖动注记/清快照 |
-| `delivery.failures.mjs` | 30 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true；`background_delivery_failed` 是升级建议；click/key/type 驱动超时回执分别指向对话框/不重复按键/部分写入 |
-| `delivery.foreground.mjs` | 21 | 真实 `cuaDeliver`：force + foreground_unavailable → 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 升级；非 foreground 异常保持抛出；force + unverified 指针前置单次；type 不前置 |
+| `delivery.failures.mjs` | 33 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true；`background_delivery_failed` 是升级建议；click/key/type 驱动超时回执分别指向对话框/不重复按键/部分写入；候选 window_id、目标已消失、enforce 消费 |
+| `delivery.foreground.mjs` | 23 | 真实 `cuaDeliver`：force + foreground_unavailable → 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 升级；非 foreground 异常保持抛出；force + unverified 指针前置单次；type 不前置；preflight bring/click 超时透传 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
 | `trajectory.test.mjs` | 18 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报、modifier 独立签名、driver 手势参数保留 |
 | `eval-safety.mjs` | 83 | 禁止按进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态归属；dirty helper/Downloads hash 清理 |
@@ -80,12 +80,12 @@
 | `dispatcher.test.mjs` | 36 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 字段、工具面稳定、宿主 schema、click modifier/drag from_zoom+steps、通用快照前置描述 |
 | `driver.normalize.mjs` | 23 | 0.23.2 与 0.53 fixtures 归一化一致；未知字段保留；坐标空间校准 |
 | `driver.capabilities.mjs` | 20 | 版本/能力/请求映射/自适应学习 |
-| `driver.transport.mjs` | 12 | fake spawn：超时/非 JSON/contract/session/结构化退出 |
+| `driver.transport.mjs` | 13 | fake spawn：超时/非 JSON/contract/session/结构化退出；per-call 超时覆盖 |
 | `driver.compat.mjs` | 6 | 真实 observe/refresh + 注入 transport 的端到端兼容 |
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 | `proc-run.test.mjs` | 3 | 子进程超时（close 抢跑不丢 `timedOut`）、正常退出、spawn 失败不误报超时 |
 
-合计 **665** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
+合计 **674** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
 
 ### 3.1 共享脚手架
 
@@ -248,8 +248,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 - t19 的 setup 不预置到目标目录；地址栏/Ctrl+L 是任务本身。
 - t20 第一次 Delete 必须选 No/否，第二次选 Yes/是；只读 result.json 判定。
-- 2026-11-20 题面修改后 opencode 复跑：t19 **2/2 pass**（40/56 步，387/595s）、t20 **2/2 pass**（27/25 步，595/618s；两轮均出现 click 30s 超时后按回执改用键盘）、t05 **2/2 pass**（21/13 步）。t19 允许 Notepad 另存为；t20 允许 Tab/Enter/Escape 选择按钮。
-- 修复前样本（同日更早）：t19 1 pass/1 预算耗尽（35/56 步），t20 1 pass/1 预算耗尽（17/33 步）；保留为历史，不与修复后混比。
+- 2026-11-20 最新 P0/P1 复跑：t19 **2/2 pass**（inner 70/48，steps 71/49，652/454s；`win+r` 归零，但 r1 从 40→70 inner 回归）、t20 **2/2 pass**（inner 27/25，steps 30/27，626/601s；30s 超时仍多，候选 window_id 已出现）、t05 **2/2 pass**（inner 10/15，steps 10/16，86/106s；零 `type` 改文件名、无 `src` 残留）。
+- 上一轮题面修复后（同日更早）：t19 inner 40/56（387/595s）、t20 27/25（595/618s）、t05 21/13（185/121s）；再往前 t19/t20 各 1 pass/1 预算耗尽。保留为历史，不与最新结果混比。
 - t19/t20 cleanup 会关闭模型自开的测试 Notepad；t20 先关 owned Confirm 模态，close 仍失败时按 pid+start 证明后结束测试进程。
 
 ## 7. 回归守门（代表性缺陷）
@@ -318,7 +318,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 27 套 / 665 ✅ / 0 ❌ |
+| 离线 | 27 套 / 674 ✅ / 0 ❌ |
 | 语法 | 39/39 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
@@ -328,9 +328,9 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | AC2 全量 | 2026-11-20：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty） |
 | oracle 变异 | 2026-11-20：**19/19**（t04/t07 live GUI、t13 ac2:none 按原因 SKIP）；错误但像成功的产物全部 exit 1 |
 | 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3** |
-| 模型真跑（修复后） | 2026-11-20：opencode t19 **2/2 pass**（40/56 步）、t20 **2/2 pass**（27/25 步）、t05 **2/2 pass**（21/13 步）；0 timeout/dirty；t20 两轮均出现 click 30s 超时后改用键盘完成；见 EVIDENCE §1.2 |
-| 模型真跑（修复前） | 2026-11-20：默认 DeepSeek `QUOTA` 402（ENV）；opencode t19 1 pass/1 预算耗尽（35/56 步）、t20 1 pass/1 预算耗尽（17/33 步）、p01/p02/p03 均 pass（6/11/8 步）；保留为历史 |
-| AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15、billable 10,731；t05 steps 24 / p90 47、billable 24,993；t11/t14/t15 未跑 |
+| 模型真跑（最新） | 2026-11-20：opencode t19 **2/2 pass**（inner 70/48）、t20 **2/2 pass**（inner 27/25）、t05 **2/2 pass**（inner 10/15）；0 timeout/dirty；t20 30s 超时仍多但候选 window_id 已出现；t19 `win+r` 归零、r1 回归；t05 无 `type`/无 src 残留；见 EVIDENCE §1.3 |
+| 模型真跑（上一轮/修复前） | 上一轮 t19 40/56、t20 27/25、t05 21/13；修复前 t19/t20 各 1 pass/1 预算耗尽（35/56、17/33），p01/p02/p03 6/11/8；保留为历史 |
+| AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24 / p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 |
 | P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 

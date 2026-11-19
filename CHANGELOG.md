@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-19）**：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7，dsh 兼容基线为 **0.2.2-rc.1**。web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-19）**：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7，dsh 兼容基线为 **0.2.2-rc.1**。web profile 仍部署旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.7）。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
 ## 0.5.8 (未发布，2026-11-20)
@@ -10,7 +10,12 @@
 ### Changed
 
 - **预填字段优先 `computer_set_value`**：`computer_type`/`computer_set_value`/`computer_key` 描述、观察输入框提示、`keyFallback` 的 ctrl+a 失败/无菜单栏指引统一改为“先 set_value 覆盖；type 是追加”。修复 t05 r4 因路径追加导致 12→43 步、1.25M total 的根因。
-- **click 驱动超时回执**：`wrap` 捕获 `DriverCallError.kind=timeout`，`markSuspect` 并返回工具特定指引（click→先看新模态对话框、不要重试像素/zoom/drag；type→可能已部分写入）。
+- **click 驱动超时回执**：`wrap` 捕获 `DriverCallError.kind=timeout`，`markSuspect`+`markConsumed`，等 500ms 后用 2s `list_windows` 判断“目标已消失/出现新对话框”，回执带候选 `window_id` 与键盘优先指引。
+- **超时不再被吞**：`preflightForegroundAction`/`escalateViaBringToFront`/`activate` 保留 `timeout`，bring 超时不再继续 click；`move_cursor` 使用 3s per-call 超时；`restoreForeground` 3s 上限。
+- **win 组合键 fail-closed**：`win+r` 不再静默降级为单 `win`（打开开始菜单）；明确报“不支持，用 app_launch/开始菜单”。
+- **另存为正确性**：`computer_set_value` 回执显示“旧值→新值”；observe 检测 `保存类型` 给出“默认源目录/绝对路径”提示；检测 `SuggestionsList` 给出“Ctrl+L 后直接 type、不要先 Enter”；`ctrl+shift+s` 指引补完整路径。
+- **t05 oracle 副作用检查**：`src\out-ansi.txt` 不得残留，防止“先保存错目录再重存”被当干净 pass。
+- **评测隔离**：`headless-run` 每个 run 前在 TabState marker 存在时清理 eval bins，避免 t19 第二轮恢复上一轮 Notepad 标签。
 - **`computer_menu` 路径归一化**：新增 `lib/menuPath.js`，支持 `/`、`›`、`>`、`->`、`→`；`guard` 共用同一解析器识别保存意图。
 - **无目标观察跳过 shell 表面**：`screen_observe` 自动选窗跳过 CmdPal/TextInputHost/PowerToys/StartMenu/Search/ShellExperienceHost，并提示显式传 `window`/`window_id`；显式目标不受限。
 - **标题栏拖拽语义**：观察时缓存 `titleBarRect`；`computer_drag` 起点命中标题栏时回执明确“移动窗口、不是点击/落点证据”并清空快照；描述同步。
@@ -20,9 +25,10 @@
 
 ### Tests / Docs
 
-- 新增 `tests/proc-run.test.mjs`（3 项）；`npm test` **27 套 / 665 项**，语法 **39/39**，`npm pack` **57 文件**。
-- `tests/tasks.check.mjs` 增加 t19/t20 题面守卫（330 项）。
+- 新增 `tests/proc-run.test.mjs`（3 项）；`npm test` **27 套 / 674 项**，语法 **39/39**，`npm pack` **57 文件**。
+- `tests/tasks.check.mjs` 增加 t19/t20 题面守卫与 t05 副作用守卫（332 项）。
 - 文档同步：TOOLS/ERRORS/WINDOWS/TROUBLESHOOTING/ARCHITECTURE/TESTING/VERIFICATION/evals README。
+- 2026-11-20 复跑：t20 **2/2 pass**（inner 27/25，626/601s；30s 超时仍多、候选 window_id 出现）、t19 **2/2 pass**（inner 70/48；`win+r` 归零，但 r1 从 40→70 回归）、t05 **2/2 pass**（inner 10/15；零 `type` 改文件名、无 `src` 残留）。
 
 ## 0.5.7 (2026-11-19)
 

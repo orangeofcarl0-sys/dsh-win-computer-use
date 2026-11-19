@@ -39,7 +39,7 @@ rm -rf "$DSH_HOME"
 |---|---|---|
 | 语法 + 安装脚本 | `npm run check` | **39/39** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **27 套 / 665 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **27 套 / 674 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <overlay> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
@@ -142,5 +142,5 @@ node verify-runtime.mjs
 
 - headless profile 默认禁用 `credentials`；探针 patch 启用后，2026-11-12 已在 dsh 0.2.2-rc.1 上完成真机加载与 5 步只读调用（2 可见/20 隐藏，当时）。默认配置下 `MISSING_CREDENTIAL` 不是插件加载错误。
 - npm 已发布 `dsh-win-computer-use@0.5.7`；dsh-market 的 npm tarball 安装路径可用（需宿主支持）。
-- web profile 当前仍是旧名 `dsh-computer-use` v0.5.3；更名后需重新安装为 `dsh-win-computer-use`。
+- web profile 当前仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.7）；更名后需重新安装为 `dsh-win-computer-use`。
 - Linux 未验证；macOS 近期未回归。不要把“安装成功”当成“平台已验收”。

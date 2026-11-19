@@ -27,10 +27,10 @@
 - **S2 图像真跑**：p01 **pass 6 步**、p02 **pass 11 步**、p03 **pass 8 步**（opencode text+image；oracle 分别命中 C2 / P02-7K9 / D3）。
 - **轨迹细节**：逐轮 observe/action、错误、重复调用与模型行为见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §11；本节只保留结果摘要。
 - **TabState 事件**：首轮 opencode t19/t20 结束时，模型自开的测试 Notepad（`target.txt`，modified）阻止 restore；按精确 HWND/pid/start + 允许标签 `target.txt` 关闭并丢弃，`tabstate.ps1 restore` 恢复 28 个用户 bin。t19/t20 cleanup 已加 `Close-OrphanTestNotepads` 防复发。
-- **CI**：ubuntu 加 `npm ci` + `npm test`；新增手动 Windows self-hosted workflow（`verify-runtime` exit 2 视为 ENV；可选 probes）。
+- **CI**：ubuntu 加 `npm ci` + `npm test`；新增手动 Windows self-hosted workflow（`verify-runtime` exit 2 视为 ENV；可选 probes）。**本地已提交，未推送/未运行**；在 runner 就绪前不能称 Windows CI 已覆盖。
 - **AC6**：`headless-run` 落 `tokens`/`modelRoute`；`ac6-summary` 汇总 t01/t05 各 5 轮（opencode-go/deepseek-v4.1-flash）：
-  - t01：5/5 pass；steps 中位 12 / p90 15；wall 114s；input 8,906 / output 2,119 / cacheRead 126,976 / total 145,003 / billable 10,731。
-  - t05：5/5 pass；steps 中位 24 / p90 47；wall 224s；input 21,811 / output 3,182 / cacheRead 405,888 / total 430,881 / billable 24,993。
+  - t01：5/5 pass；steps 中位 12 / p90 15（p90Unstable，n=5<8）；wall 114s；input 8,906 / output 2,119 / cacheRead 126,976 / total 145,003 / billable 10,731。
+  - t05：5/5 pass；steps 中位 24 / p90 47（p90Unstable）；wall 224s；input 21,811 / output 3,182 / cacheRead 405,888 / total 430,881 / billable 24,993。
   - t11/t14/t15 的 5 轮未跑（成本/桌面时间），不把 t01/t05 的数字外推到长任务。
 
 ## 1.2 2026-11-20 — 轨迹修复复跑（t20/t19/t05）
@@ -53,22 +53,22 @@
 
 ### 1.2.2 t20：超时仍在，但模型能按新回执改走键盘
 
-- r1：4 次 `cua-driver click timeout after 30000ms`、2 次 `bring_to_front timeout`、1 次 `move_cursor timeout`、2 次 `press_key timeout`；模型在 click 超时回执后 `screen_observe` 新顶层对话框，并用 `Escape`/`Tab`/`Enter` 完成两次选择，最终 pass。
-- r2：6 次 click、3 次 bring_to_front、1 次 move_cursor、6 次 press_key 超时；同样通过 `Escape`/`Tab`/`Enter`/`Space` 完成，最终 pass。
+- r1：2 次 `cua-driver click timeout after 30000ms`、1 次 `bring_to_front timeout`、1 次 `move_cursor timeout`、1 次 `press_key timeout`（合计 5 次 / 150.1s，占 549s 的 27.3%）；模型在 click 超时回执后 `screen_observe` 新顶层对话框，并用 `Escape`/`Tab`/`Enter` 完成两次选择，最终 pass。
+- r2：3 次 click、2 次 bring_to_front、1 次 move_cursor、3 次 press_key 超时（合计 9 次 / 270.2s，占 610s 的 44.3%）；同样通过 `Escape`/`Tab`/`Enter`/`Space` 完成，最终 pass。
 - 对照：修复前同任务第二轮 33 步、709s、无 final，按预算耗尽记 fail；本轮两轮均 25–27 inner、595/618s、有 final。超时次数并未消失（驱动/UIA 等待模态的根因仍在），但模型不再进入“像素/zoom/drag 10+ 步”死循环。
 - 题面改动：允许 Tab/Enter/Escape 选择按钮；强调始终回到 `S4-T20-DIALOG`。
 
 ### 1.2.3 t19：两轮均 pass，r2 的 56 inner 不再撞预算
 
-- r1：41 步 / 387s，0 工具错误；`set_value` 2 次（含完整路径），`computer_key` 的 `ctrl+l`/`enter` 正常。
-- r2：60 步 / 595s，2 工具错误；仍出现 `win+r`（本机 CmdPal 风险），但最终用 Notepad 另存为写入 `target.txt`，oracle 精确内容通过。
+- r1：41 steps / 40 inner / 387s，0 工具错误；`set_value` 2 次（含完整路径），`computer_key` 的 `ctrl+l`/`enter` 正常。
+- r2：60 steps / 56 inner / 595s，2 工具错误；仍出现 `win+r`：当前实现把它降级为单键 `win`，打开 Start/SearchHost（不是 CmdPal；CmdPal 只在候选列表中标记 `[shell]`，未被选中），随后 12 步绕路；最终用 Notepad 另存为写入 `target.txt`，oracle 精确内容通过。
 - 对照：修复前 r2 为 56 inner、708s、无 final（预算耗尽）；本轮同为 56 inner 但 595s 完成，说明题面明确允许 Notepad 另存为后，模型不再在“Explorer 新建”上耗到预算边界。
 - 注意：t19 的 pass 不证明 Explorer 新建路径；oracle 只验文件，provenance 仍在 Notes 中明确为 out of scope。
 
 ### 1.2.4 t05：`set_value` 覆盖生效，步数从 43 降到 21/13
 
 - r1/r2 都只调用 `computer_set_value` 写文件名（len=12，`out-ansi.txt`），**零 `computer_type`**；oracle 的 ANSI/BOM/内容检查全部通过。
-- 对照：修复前 r4 用 `computer_type` 追加路径，43 inner、431s、1.25M total；本轮 21/13 inner、185/121s、0.39M/0.23M total。`set_value` 的“覆盖”语义与回读完全相等校验是直接原因。
+- 对照：修复前 r4 用 `computer_type` 追加路径，43 inner、431s、1.25M total；本轮 21/13 inner、185/121s、0.39M/0.23M total。直接原因是 `set_value` 的 ValuePattern 覆盖写入；当时回执仍显示旧值，模型多 observe 一次（本轮修复已改为“旧值→新值”回显，未复跑验证）。
 
 ### 1.2.5 结论
 
@@ -77,6 +77,51 @@
   - t19 2/2 pass（修复前 1/2，且失败为预算耗尽）；
   - t05 2/2 pass，步数显著下降。
 - 未消除的边界：t20 的 30s 驱动超时仍会发生，单轮仍接近 10 分钟；t19 r2 仍有 56 inner / 2.4M total 的高方差。它们是驱动/任务复杂度问题，不是本轮回执/题面回归。
+
+## 1.3 2026-11-20 — P0/P1 复跑（t20/t19/t05）
+
+环境：Windows 11 x64，DPI 150%，cua-driver 0.52.13，dsh 0.2.2-rc.1；opencode-go/deepseek-v4.1-flash；12min 预算。
+
+### 1.3.1 汇总
+
+| 运行 | verdict | steps / inner | wall | errors / unverified | input | output | cacheRead | total |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| t20 r1 | **pass** | 30 / 27 | 626s | 9 / 1 | 28,234 | 8,920 | 484,096 | 521,250 |
+| t20 r2 | **pass** | 27 / 25 | 601s | 10 / 0 | 19,358 | 8,738 | 412,544 | 440,640 |
+| t19 r1 | **pass** | 71 / 70 | 652s | 0 / 25 | 65,571 | 12,646 | 2,873,600 | 2,951,817 |
+| t19 r2 | **pass** | 49 / 48 | 454s | 2 / 13 | 54,567 | 9,591 | 1,639,040 | 1,703,198 |
+| t05 r1 | **pass** | 10 / 10 | 86s | 0 / 3 | 11,012 | 1,671 | 117,120 | 129,803 |
+| t05 r2 | **pass** | 16 / 15 | 106s | 0 / 5 | 14,027 | 1,983 | 211,840 | 227,850 |
+
+全部 `timeout=false`、`budgetExhausted=false`、`dirty=false`。
+
+### 1.3.2 t20：超时仍多，但不再隐藏；候选/键盘回执真实生效
+
+- r1：`bring_to_front` 2 次、`click` 4 次、`press_key` 4 次 30s 超时；`move_cursor` 为 **3000ms** 超时（per-call 生效）。回执出现 **8 次**“同 pid 的更高层窗口”候选，**1 次**“前置激活超时，本次点击未发送”。最终 pass。
+- r2：`bring_to_front` 4 次、`click` 6 次、`press_key` 2 次 30s 超时；`move_cursor` 3s；候选 9 次、前置超时 1 次。最终 pass。
+- 对比上一轮：wall 595/618s → **626/601s**，基本持平；total tokens 536k/426k → 521k/441k。改善是“超时/前置失败被如实暴露”，不是消除驱动根因；`targetGone` 未触发（对话框在 500ms 检查时仍在列表）。
+- 关键：`move_cursor timeout after 3000ms` 证明 per-call 超时已生效，单次动作不再因装饰性移动白等 30s。
+
+### 1.3.3 t19：`win+r` 归零，但 r1 明显回归
+
+- r1：71 steps / 70 inner / 652s / 2.95M total；`computer_click` 22、`computer_key` 26、`computer_type` 10、`screen_observe` 58；**零 `win+r`**，地址栏提示命中 7 次；没有 `computer_set_value`，最终仍 pass。
+- r2：49 / 48 / 454s / 1.70M；`activate` 10、`click` 6、`key` 16、`type` 8、`set_value` 2；地址栏提示 3 次；`win+r` 零；`tabstate clear-eval removed=3`。
+- 对比上一轮：r1 40→**70** inner（回归），r2 56→**48**（改善）；两轮仍 pass。`win` fail-closed 消除了 Start/Search 12 步绕路，但 r1 把探索成本转移到 Explorer 新建/重命名路径上；不能写“t19 已优化”。
+- 题面/回执：t19 prompt 明确禁止 Win+R；地址栏 `SuggestionsList` 提示被模型读取（7/3 次）。
+
+### 1.3.4 t05：`set_value` 新值回执 + 目录提示显著降本
+
+- r1：10 inner / 86s / 129,803 total；`set_value` 2 次，**零 `computer_type`**；`另存为提示` 命中 2 次、`新值=` 1 次；oracle 含 `no stray out-ansi.txt in src=true`，没有先写错目录。
+- r2：15 inner / 106s / 227,850；`set_value` 2 次、`type` 0；`另存为提示` 3 次、`新值=` 1 次；同样无 stray。
+- 对比上一轮：21/13 inner、185/121s、0.39M/0.23M → **10/15 inner、86/106s、0.13M/0.23M**。r1 达到计划目标（10–12）；r2 略高于上一轮但仍远低于修复前 43。
+- 关键：模型在 `set_value` 回执看到新值后不再回读；`另存为提示` 让 r1 直接填完整路径/确认目录，没有产生 `src\out-ansi.txt`。
+
+### 1.3.5 结论
+
+- P0 超时语义：**行为正确性提升**（嵌套超时/前置失败不再被吞，候选窗口与键盘回执可见），但 t20 驱动根因未消除，wall 基本持平。
+- P0 win fail-closed：`win+r` 从每轮多次降为 **0**；t19 总成本未稳定下降（r1 回归、r2 改善），需继续观察。
+- P0 另存为：t05 **10/15 inner、86/106s**，零 `type` 追加、零 `src` 残留；这是本轮最确定的收益。
+- P1 地址栏提示/新值回执/clear-eval 均有轨迹命中；t19 r1 的 70 inner 是新的高方差样本，不作为“稳定通过”。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

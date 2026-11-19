@@ -9,7 +9,7 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **27 套 / 665 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 离线测试 | **27 套 / 674 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
 | 语法/安装脚本 | **39/39 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
@@ -30,10 +30,10 @@
 | app 启动/收尾探针 | 2026-11-20：**7/7**；daemon High、`powershell.exe` 子进程 Medium；alt+F4 关闭、无残留、基线窗口保留 | Windows 11 / 0.52.13 | `node evals/probe-launch.mjs` |
 | modifier-drop 探针 | 2026-11-20：**5/5**；Explorer Ctrl+drag 复制、普通 drag 移动、无卡键 | Windows 11 | `node evals/probe-modifier-drop.mjs` |
 | oracle 反向敏感性 | 2026-11-20：**19/19** 变异被 exit 1 拒绝；t04/t07 live GUI、t13 ac2:none SKIP | Windows 11 | `node evals/oracle-mutation.mjs` |
-| 轨迹行为修复（P0/P1） | 2026-11-20：预填字段优先 `set_value`、click 超时回执、menu `->`/`→`、无目标跳过 shell 表面、drag 标题栏注记、runner `budgetExhausted`/`timeout` | Windows（离线 + 单测） | `npm test` 27/665；`node tests/proc-run.test.mjs` |
-| 模型真跑样本（修复后） | 2026-11-20：opencode t20 **2/2 pass**（27/25 inner，595/618s）、t19 **2/2 pass**（40/56 inner，387/595s）、t05 **2/2 pass**（21/13 inner，185/121s）；t20 两轮均在 click 30s 超时后按新回执改用键盘完成；t05 全部用 `set_value` 写文件名（无 `type` 追加）；0 timeout/dirty | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,t05 --repeats 2 --patch evals/headless-patch.opencode.yml`；见 EVIDENCE §1.2 |
-| 模型真跑样本（修复前） | 2026-11-20：t19 pass 35 / fail 56（预算耗尽）、t20 pass 17 / fail 33（预算耗尽）、p01/p02/p03 pass 6/11/8；默认 DeepSeek `QUOTA` 402（ENV） | Windows 11 / opencode-go | 见 EVIDENCE §1.1 与 [TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) §11 |
-| AC6 成本工具 | 2026-11-20：t01/t05 各 5 轮全 pass；t01 steps 中位 12/p90 15、billable 10,731；t05 steps 24/p90 47、billable 24,993；t11/t14/t15 未跑 | Windows 11 / opencode-go | `node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json` |
+| 轨迹行为修复（P0/P1） | 2026-11-20：预填字段优先 `set_value`、超时不再被 preflight/activate/move_cursor 吞掉、超时候选/延迟成功、win 组合键 fail-closed、另存为目录提示/新值回执、menu `->`/`→`、无目标跳过 shell、TabState 隔离、runner `budgetExhausted`/`timeout` | Windows（离线 + 单测） | `npm test` 27/674；`node tests/proc-run.test.mjs` |
+| 模型真跑样本（最新，P0/P1 后） | 2026-11-20：t20 **2/2 pass**（27/25 inner，626/601s；超时仍多，候选 window_id 已出现）、t19 **2/2 pass**（70/48 inner，652/454s；`win+r` 归零，但 r1 比上一轮更慢）、t05 **2/2 pass**（10/15 inner，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,t05 --repeats 2 --patch evals/headless-patch.opencode.yml`；见 EVIDENCE §1.3 |
+| 模型真跑样本（上一轮/修复前） | 上一轮：t20 27/25 inner（595/618s）、t19 40/56（387/595s）、t05 21/13（185/121s）；修复前：t19/t20 各 1 pass / 1 预算耗尽、t05 r4 43 inner/1.25M | Windows 11 / opencode-go | 见 EVIDENCE §1.1/§1.2 与 [TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) §11 |
+| AC6 成本工具 | 2026-11-20：t01/t05 各 5 轮全 pass；t01 steps 中位 12/p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24/p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 | Windows 11 / opencode-go | `node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json` |
 | S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §3.1 |
 | S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §5.3 |
 | P0 判定绑定 | 2026-11-19 `t03/t04/t05/t07/x1` oracle **5/5 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t03,t04,t05,t07,x1` |
@@ -86,7 +86,7 @@
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
 | npm 发布 | **已发布** | `dsh-win-computer-use@0.5.7`（2026-11-19）；临时 `0.0.0-stage` 已 deprecate | 无（后续版本需重新授权） |
-| web profile 部署 | 旧版 | 仍是旧名 `dsh-computer-use` v0.5.3 | 按 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
+| web profile 部署 | 旧版 | 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.7） | 按 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) 重新安装并重启 |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
 | Linux | 未验证 | 桌面/accessibility 栈差异大 | 不在当前承诺范围 |
 | cua-driver 0.53 | 预期 | 只按发布说明预留 `screenshot_frame`；未真机 | 有 0.53 时跑 `probe-driver-shape` + 全量探针 |
@@ -96,7 +96,7 @@
 | 委派工具约束 | 宿主相关 | 0.2.2 `startActivation` 没有 `toolFilter` | 插件如实说明；严格限制用宿主 Agent Preset |
 | A11 手势原语 | 未做 | 无 `selectText`/key hold/mouse down-up；drag 无元素源 | 评估；见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 |
 | A17 私有拖拽 drop 真机 | 部分 | WinForms 探针 + Explorer Ctrl+drag 已回归；Excel/PPT 的 modifier drop 仍 BLOCKED | 下一轮真机项 |
-| 模态 click/press_key 30s 超时 | 仍会发生 | t20 2/2 pass，但两轮均出现多次 30s 超时、总时长 595/618s；驱动/UIA 等待模态是根因。新回执已把模型引向键盘/新对话框，不能消除超时本身 | 上游驱动修复；插件侧可评估模态专用快速路径 |
+| 模态 click/press_key 30s 超时 | 仍会发生 | t20 2/2 pass，但两轮仍多次 30s 超时、总时长 626/601s；驱动/UIA 等待模态是根因。新回执已把模型引向键盘/新对话框，不能消除超时本身 | 上游驱动修复；插件侧可评估模态专用快速路径 |
 
 ## 3. 复现方式
 
@@ -117,7 +117,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 
 判据：
 
-- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **665**。
+- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **674**。
 - `npm run check` 退出码 0：语法 **39/39** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。

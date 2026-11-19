@@ -2,7 +2,7 @@
 
 > 目的：Windows 10/11 上的完整性级别、前台锁、输入通道、坐标/DPI、私有拖拽、密码扫描与清理规则。
 > 读者：Windows 用户、排障者、维护者。
-> 状态：当前实现（最后核对 2026-11-18；真机环境 Windows 11 x64 · DPI 150% · cua-driver 0.23.2 基线 + 0.52.13 canary · dsh 0.2.2-rc.1）。
+> 状态：当前实现（最后核对 2026-11-20；真机环境 Windows 11 x64 · DPI 150% · cua-driver 0.23.2 基线 + 0.52.13 canary · dsh 0.2.2-rc.1）。
 > 相关：[TROUBLESHOOTING](TROUBLESHOOTING.md) · [COMPATIBILITY](COMPATIBILITY.md) · [DRIVER-SDK](DRIVER-SDK.md) · [EVIDENCE](EVIDENCE.md)。
 
 ## 1. 前置与完整性级别
@@ -53,6 +53,8 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 **预填字段**：另存为文件名等已有值的输入框优先 `computer_set_value(element=..., value=完整内容)` 覆盖；`computer_type` 是追加语义，`ctrl+a` 在 WinUI 对话框/无菜单栏窗口可能不可用。2026-11-20 t05 r4 实测：`type` 把路径追加到旧文件名后，模型用 `ctrl+a`/退格/拖动都救不回来，12→43 步、1.25M total。
 
+**另存为默认目录**：对话框通常打开源文件所在目录；只改文件名会保存回源目录（t05 r1 先写 `src\out-ansi.txt` 再整轮重做）。先看面包屑/当前目录，或直接在“文件名”框 `computer_set_value` 完整绝对路径。
+
 **WinUI3 组合键实测结论**（2026-11-16，详见 [EVIDENCE](EVIDENCE.md) §5.4）：
 
 - Ctrl+A 的可靠回退是“点编辑菜单 → 全选”，不是前台裸 `press_key`；后者 background 变体会把裸 `a` 插入正文。
@@ -61,6 +63,8 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须 observe/verify。
 
 **Win+R 不保证 Run**：本机 Win+R 打开的是 Command Palette（`Microsoft.CmdPal.UI`），其 AX 树为空且拒绝前台激活/文本投递；需要启动应用时用 `app_launch` 或开始菜单，不要在 CmdPal 上耗步骤。无目标 `screen_observe` 现在会跳过 CmdPal/TextInputHost/PowerToys 等 shell 表面；显式传 `window`/`window_id` 仍可观察它们。
+
+**win 组合键 fail-closed**：驱动路径不能可靠发送 `win` 修饰键；旧实现把 `win+r` 解析成单键 `win`，打开 Start/SearchHost。当前明确返回“不支持，用 app_launch/开始菜单”，不再静默降级。
 
 **显式窗口激活**：`computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；不要求快照，但激活后操作内容仍需 `screen_observe`。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。
 

@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-19）：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7；web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3。
+> 状态（2026-11-19）：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6）。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -14,7 +14,7 @@
 | `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
 | `package.json` version | `0.5.7` |
 | npm | 已发布 `dsh-win-computer-use@0.5.7`；`npm view dsh-win-computer-use version` 复核 |
-| 部署 | web profile 仍是旧名 `dsh-computer-use` 的 v0.5.3 拷贝；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
+| 部署 | web profile 仍是旧名 `dsh-computer-use` 的 0.5.6 拷贝（2026-11-20 实测）；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
 | 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
 
 ## 2. 版本口径
@@ -22,7 +22,7 @@
 | 项 | 约定 |
 |---|---|
 | 版本号 | `package.json` / `package-lock.json` 的 `version` = tag 名去掉 `v` |
-| CHANGELOG | 顶部为当前版本一节；未发布时写“0.5.7 (未发布)” |
+| CHANGELOG | 顶部为当前版本一节；未发布时写“0.5.8 (未发布)” |
 | tag | **注解 tag**：`git tag -a v0.5.7 -m "..."` |
 | 分支 | 只推 `main`；不再维护发布分支 |
 | 发布物 | 提交 + 注解 tag；不是工作区 |
@@ -37,7 +37,7 @@ git status --short
 # 1. 语法 + 安装脚本 + 文档/任务一致性
 npm run check; echo "check=$?"
 
-# 2. 离线测试（27 套 / 665 项；&& 串联，必须看 $?）
+# 2. 离线测试（27 套 / 674 项；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
 # 3. 真驱动运行时（只读观察；18/18）
