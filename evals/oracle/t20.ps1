@@ -15,7 +15,7 @@ try {
   $confirmed = [int]$r.confirmed
   $checks += (Add-Check 'cancel recorded' ($cancelled -ge 1) ("cancelled=$cancelled"))
   $checks += (Add-Check 'confirm recorded' ($confirmed -ge 1) ("confirmed=$confirmed"))
-  $checks += (Add-Check 'delete only after confirm' ([bool]$r.deleted) ("deleted=$($r.deleted)"))
+  $checks += (Add-Check 'delete only after confirm' (($r.deleted) -eq $true) ("deleted=$($r.deleted)"))
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

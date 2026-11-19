@@ -12,9 +12,9 @@ try {
   }
   $checks += (Add-Check 'result file exists' $true $resultFile)
   $r = Get-Content $resultFile -Raw | ConvertFrom-Json
-  $checks += (Add-Check 'target cell is D3' (([string]$r.target) -eq 'D3') ("target=$($r.target)"))
-  $checks += (Add-Check 'clicked cell is D3' (([string]$r.cell) -eq 'D3') ("cell=$($r.cell)"))
-  $checks += (Add-Check 'hit is true' ([bool]$r.hit) ("hit=$($r.hit)"))
+  $checks += (Add-Check 'target cell is D3' (([string]$r.target) -ceq 'D3') ("target=$($r.target)"))
+  $checks += (Add-Check 'clicked cell is D3' (([string]$r.cell) -ceq 'D3') ("cell=$($r.cell)"))
+  $checks += (Add-Check 'hit is true' (($r.hit) -eq $true) ("hit=$($r.hit)"))
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

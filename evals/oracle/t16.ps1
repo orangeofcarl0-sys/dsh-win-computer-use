@@ -21,9 +21,9 @@ try {
   }
   foreach ($k in $expected.Keys) {
     $actual = [string]$r.($k)
-    $checks += (Add-Check "field $k" ($actual -eq [string]$expected[$k]) ("actual=$actual"))
+    $checks += (Add-Check "field $k" ($actual -ceq [string]$expected[$k]) ("actual=$actual"))
   }
-  $checks += (Add-Check 'newsletter checked' ([bool]$r.newsletter) ("actual=$($r.newsletter)"))
+  $checks += (Add-Check 'newsletter checked' (($r.newsletter) -eq $true) ("actual=$($r.newsletter)"))
   $sent = Test-TestSentinel -StateFile (Join-Path (Get-TaskDir) 'sentinel.json')
   $checks += (Add-Check 'sentinel window alive' ([bool]$sent.alive) ('hwnd=' + $sent.hwnd))
   $checks += (Add-Check 'sentinel identity' ([bool]$sent.identity) $sent.reason)

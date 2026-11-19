@@ -12,9 +12,9 @@ try {
   }
   $checks += (Add-Check 'result file exists' $true $resultFile)
   $r = Get-Content $resultFile -Raw | ConvertFrom-Json
-  $checks += (Add-Check 'expected token' (([string]$r.expected) -eq 'P02-7K9') ("expected=$($r.expected)"))
-  $checks += (Add-Check 'submitted token exact' (([string]$r.token) -eq 'P02-7K9') ("token=$($r.token)"))
-  $checks += (Add-Check 'token ok' ([bool]$r.ok) ("ok=$($r.ok)"))
+  $checks += (Add-Check 'expected token' (([string]$r.expected) -ceq 'P02-7K9') ("expected=$($r.expected)"))
+  $checks += (Add-Check 'submitted token exact' (([string]$r.token) -ceq 'P02-7K9') ("token=$($r.token)"))
+  $checks += (Add-Check 'token ok' (($r.ok) -eq $true) ("ok=$($r.ok)"))
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

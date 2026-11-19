@@ -10,7 +10,7 @@ try {
   }
   $checks += (Add-Check 'file exists' $true $f)
   $norm = ([IO.File]::ReadAllText($f)) -replace "`r`n", "`n"
-  $match = ($norm.Trim() -eq $expected)
+  $match = ($norm.Trim() -ceq $expected)
   $checks += (Add-Check 'content == clipboard payload' $match ('read=' + $norm.Trim()))
   Out-Finish -Ok $match -Checks $checks
 } catch {

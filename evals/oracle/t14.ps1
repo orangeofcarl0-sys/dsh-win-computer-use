@@ -29,7 +29,7 @@ try {
   foreach ($k in $expected.Keys) {
     $actual = ''
     if ($m.cells.Contains($k)) { $actual = [string]$m.cells[$k] }
-    $checks += (Add-Check "cell $k" ($actual -eq [string]$expected[$k]) ("actual=$actual"))
+    $checks += (Add-Check "cell $k" ($actual -ceq [string]$expected[$k]) ("actual=$actual"))
   }
   $bar = @($m.charts | Where-Object { $_.kind -eq 'barChart' })
   $checks += (Add-Check 'native bar chart part' ($bar.Count -ge 1) ("charts=$($m.charts.Count)"))
@@ -45,7 +45,7 @@ try {
       if (([string]$s.valFormula).IndexOf('B2', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $seriesOk = $true }
       if (([string]$s.catFormula).IndexOf('A2', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $axisOk = $true }
       $labels = @($s.cats)
-      $hasMonths = ($months | Where-Object { $labels -notcontains $_ }).Count -eq 0
+      $hasMonths = ($months | Where-Object { $labels -cnotcontains $_ }).Count -eq 0
       if ($hasMonths) { $axisOk = $true }
       $catDetail = "cat=$($s.catFormula) labels=$($labels -join ',')"
     }

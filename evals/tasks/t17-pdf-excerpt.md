@@ -32,4 +32,4 @@ PROMPT>>>
 - This task is intentionally high-risk because browser PDF text selection/clipboard behavior varies; run it 3 times before promoting it to smoke.
 - 2026-11-17 prompt: triple-click the sentence (count=3) and Ctrl+C, with drag fallback; Ctrl+A is forbidden. Excel saves As `out\excerpt.xlsx` before pasting, then Ctrl+S. The sentence is one line on page 3, so triple-click/paragraph selection captures it without the rest of the PDF.
 - 2026-11-17 live: **2/2 pass, 89/63 steps**; A1 exact both times. The model copied from a test PDF tab it opened in the user's Firefox (Chrome setup window also present); cleanup closed the Chrome viewer. After the run, the test Firefox tab was closed with Ctrl+W **only while it was the selected tab**, leaving the user's other 7 tabs intact. Do not close the Firefox window/process.
-- AC2 simulate is not available for this app-dependent task; verify-oracles reports AC2 SKIP.
+- AC2 simulate is provided by `evals/simulate/t17.ps1`: it copies `evals/fixtures/t17-excerpt.xlsx` to `out\excerpt.xlsx` and preserves `seed.xlsx`/`state.json`; verify-oracles requires the oracle to pass twice after simulate.

@@ -20,7 +20,7 @@ try {
   $actual = ''
   if ($m.cells.Contains('A1')) { $actual = [string]$m.cells['A1'] }
   $expected = [string]$state.sentence
-  $checks += (Add-Check 'A1 excerpt exact' ($actual -eq $expected) ("actual=[$actual] len=$($actual.Length) expectedLen=$($expected.Length)"))
+  $checks += (Add-Check 'A1 excerpt exact' ($actual -ceq $expected) ("actual=[$actual] len=$($actual.Length) expectedLen=$($expected.Length)"))
   $sent = Test-TestSentinel -StateFile (Join-Path (Get-TaskDir) 'sentinel.json')
   $checks += (Add-Check 'sentinel window alive' ([bool]$sent.alive) ('hwnd=' + $sent.hwnd))
   $checks += (Add-Check 'sentinel identity' ([bool]$sent.identity) $sent.reason)

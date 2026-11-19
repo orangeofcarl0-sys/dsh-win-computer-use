@@ -26,7 +26,7 @@ try {
     $checks += (Add-Check "exists $rel" $exists $p)
     if ($exists -and $expected[$rel] -ne '') {
       $actual = [IO.File]::ReadAllText($p).Trim()
-      $checks += (Add-Check "content $rel" ($actual -eq [string]$expected[$rel]) ("actual=$actual"))
+      $checks += (Add-Check "content $rel" ($actual -ceq [string]$expected[$rel]) ("actual=$actual"))
     }
   }
   foreach ($rel in @('alpha.txt', 'beta.txt', 'report-draft.txt', 'notes.md', 'chart.png', 'photo.jpg', 'old.pdf', 'temp.tmp')) {

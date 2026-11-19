@@ -8,7 +8,7 @@ try {
   $checks += (Add-Check 'target file exists' $exists $target)
   if ($exists) {
     $text = ([IO.File]::ReadAllText($target)) -replace "`r`n", "`n"
-    $checks += (Add-Check 'content exact' ($text.Trim() -eq 'NAV-OK') ('read=' + $text.Trim()))
+    $checks += (Add-Check 'content exact' ($text.Trim() -ceq 'NAV-OK') ('read=' + $text.Trim()))
   }
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks

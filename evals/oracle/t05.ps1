@@ -17,7 +17,7 @@ try {
   $checks += (Add-Check 'non-ASCII byte present' ($nonAscii.Count -gt 0) ('count=' + $nonAscii.Count))
   $text = [Text.Encoding]::Default.GetString($bytes)
   $norm = $text -replace "`r`n", "`n"
-  $c2 = ($norm.Trim() -eq $expected)
+  $c2 = ($norm.Trim() -ceq $expected)
   $checks += (Add-Check 'content match' $c2 ('read=' + $norm.Trim()))
   Out-Finish -Ok ($c1 -and $c2 -and ($nonAscii.Count -gt 0)) -Checks $checks
 } catch {

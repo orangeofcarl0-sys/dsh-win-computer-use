@@ -11,7 +11,7 @@ try {
   $checks += (Add-Check 'file exists' $true $target)
   $raw = [IO.File]::ReadAllText($target)
   $norm = $raw -replace "`r`n", "`n"
-  $match = ($norm -eq $expected)
+  $match = ($norm -ceq $expected)
   $checks += (Add-Check 'content exact match' $match ('len=' + $norm.Length + ' head=' + $norm.Substring(0, [Math]::Min(60, $norm.Length))))
   Out-Finish -Ok $match -Checks $checks
 } catch {

@@ -3,7 +3,7 @@
  * spec: 工作区 PLAN-s4-eval-regression.md（E2=harness 真实会话唯一通道，E3=基线 1 次/任务）。
  *
  * 用法：
- *   node evals/run.mjs --tasks t01,t02
+ *   node evals/run.mjs --tasks t01,t03
  *   node evals/run.mjs --group authored|waa|all
  *   node evals/run.mjs --tasks t01 --dsh-url "<tokened URL>" --model-label dsv4fv
  *   node evals/run.mjs --tasks t01 --dry-setup   # 只跑 setup/oracle 链，不发会话（调试）

@@ -12,11 +12,11 @@ try {
   }
   $checks += (Add-Check 'result file exists' $true $resultFile)
   $r = Get-Content $resultFile -Raw | ConvertFrom-Json
-  $hit = [bool]$r.hit
+  $hit = ($r.hit -eq $true)
   $cell = [string]$r.cell
   $target = [string]$r.target
-  $checks += (Add-Check 'target cell is C2' ($target -eq 'C2') ("target=$target"))
-  $checks += (Add-Check 'clicked cell is C2' ($cell -eq 'C2') ("cell=$cell"))
+  $checks += (Add-Check 'target cell is C2' ($target -ceq 'C2') ("target=$target"))
+  $checks += (Add-Check 'clicked cell is C2' ($cell -ceq 'C2') ("cell=$cell"))
   $checks += (Add-Check 'hit is true' $hit ("hit=$hit"))
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
