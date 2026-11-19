@@ -33,7 +33,15 @@ function failure() {
   if (mode === 'unverified') return { effect: 'unverifiable', delivery: { mode: 'background' } }
   return { ok: true, effect: 'confirmed', delivery: { mode: 'background' } }
 }
-export async function cuaDeliver() { return { value: failure(), note: '' } }
+export async function cuaDeliver() {
+  if (process.env.CUA_DELIVERY_MODE === 'timeout') {
+    const err = new Error('cua-driver click timeout after 30000ms')
+    err.kind = 'timeout'
+    err.timeoutMs = 30000
+    throw err
+  }
+  return { value: failure(), note: '' }
+}
 export async function cuaCall(tool, args = {}) {
   switch (tool) {
     case 'check_permissions': return { elevated: false, integrity_level: 'Medium', uia: true, postmessage: true }
@@ -87,6 +95,27 @@ process.env.CUA_DELIVERY_MODE = 'foreground'
   const r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
   check('D-foreground-hint: 前台锁提示包含 observe/activate 指引',
     r.ok === false && /被其他窗口\/对话框覆盖/.test(r.result || ''), r.result)
+}
+
+process.env.CUA_DELIVERY_MODE = 'timeout'
+{
+  const { call, obs } = await fresh()
+  const r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
+  check('D-timeout-click: ok:false + 模态/观察指引',
+    r.ok === false && /超时/.test(r.result || '') && /对话框/.test(r.result || '')
+      && /screen_observe/.test(r.result || '') && /不要重复点击/.test(r.result || ''), r.result)
+}
+{
+  const { call, obs } = await fresh()
+  const r = await call('computer_type', { text: 'x', snapshot_id: obs.snapshotId })
+  check('D-timeout-type: 部分写入警告 + 不要重复输入',
+    r.ok === false && /可能已部分写入/.test(r.result || '') && /不要重复输入/.test(r.result || ''), r.result)
+}
+{
+  const { call, obs } = await fresh()
+  const r = await call('computer_key', { key: 'escape', snapshot_id: obs.snapshotId })
+  check('D-timeout-key: 按键结果未知 + 不要重复按',
+    r.ok === false && /按键结果未知/.test(r.result || '') && /不要重复按/.test(r.result || ''), r.result)
 }
 
 process.env.CUA_DELIVERY_MODE = 'unverified'

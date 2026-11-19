@@ -56,7 +56,8 @@ const defineTool = (options) => {
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { resetCursorMotion } from './lib/human.js'
 import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
-import { getSnapshot, resetInputGuard } from './lib/snapshot.js'
+import { getSnapshot, markSuspect, resetInputGuard } from './lib/snapshot.js'
+import { timeoutReceipt } from './lib/receipt.js'
 import { resetWindowMap } from './lib/windowMap.js'
 import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
@@ -572,7 +573,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_type',
-    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败，也不要用 SPACE/BACKSPACE/重复输入强制置脏。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
+    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。预填字段（如“另存为”文件名）优先 computer_set_value(element=编号, value=完整内容) 覆盖；computer_type 是追加输入，可能把新文本接在旧值后面。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败，也不要用 SPACE/BACKSPACE/重复输入强制置脏。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
     parameters: {
       text: { type: 'string', required: true, description: '要输入的文本。' },
       element: TARGET_PARAMS.element,
@@ -585,7 +586,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_set_value',
-    description: '直接设值（UIA ValuePattern）：适用于可设置控件（文本框/滑块/下拉）。Web/自绘控件可能忽略；失败改用 computer_type 或点击后输入。调用前必须先 screen_observe。',
+    description: '直接设值（UIA ValuePattern）：适用于可设置控件（文本框/滑块/下拉）。预填字段（如“另存为”文件名）优先用它覆盖；回读按完全相等校验，不是追加。Web/自绘控件可能忽略；失败改用 computer_type 或点击后输入。调用前必须先 screen_observe。',
     parameters: {
       element: { ...TARGET_PARAMS.element, required: true, description: '观察编号（必须来自最新 screen_observe）。' },
       value: { type: 'string', required: true, description: '新值。' },
@@ -601,6 +602,7 @@ function actionToolDefs(ctx, cfg, wrap) {
       + '只接受 key/snapshot_id/foreground；pid/window_id 由当前快照绑定，不要传。'
       + '带修饰键的组合键需要 OS 级修饰键状态：插件会自动前台投递并恢复原前台（即使配置为 background），避免后台只落末键。'
       + 'XAML/WinUI 目标（Win11 记事本等）的组合键常因命令在关闭菜单里而失败；失败回执会给“点菜单栏项→点菜单项”的指引。'
+      + 'ctrl+a 在 WinUI 对话框/无菜单栏窗口可能不可用；替换预填字段优先 computer_set_value，而不是 ctrl+a 后 type。'
       + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。',
     parameters: {
       key: { type: 'string', required: true, description: '按键名或组合（示例: return / cmd+c / shift+tab / cmd+shift+p）。' },
@@ -627,7 +629,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_drag',
-    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。modifier 非空时走私有 SendInput 前台拖拽：原子手势、修饰键持有到 drop、失败路径释放；私有路径不支持 from_zoom（明确报错），无 modifier 仍走 driver。button 支持 left/right/middle；dwell_ms 用于 Explorer 弹簧文件夹/拖放悬停。',
+    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。modifier 非空时走私有 SendInput 前台拖拽：原子手势、修饰键持有到 drop、失败路径释放；私有路径不支持 from_zoom（明确报错），无 modifier 仍走 driver。button 支持 left/right/middle；dwell_ms 用于 Explorer 弹簧文件夹/拖放悬停。从标题栏拖动会移动窗口（改变 window origin），不是点击/落点证明；需要点击效果时不要用 drag 代替 click。',
     parameters: {
       from_x: { type: 'integer', required: true, description: '起点 x（截图像素；from_zoom=true 时为 zoom 图坐标）。' },
       from_y: { type: 'integer', required: true, description: '起点 y。' },
@@ -821,7 +823,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
           { type: 'array', items: { type: 'string' } },
         ],
         required: true,
-        description: '菜单路径：JSON 字符串数组（逐级、精确、区分大小写）、字符串数组，或 "文件/保存" 这种 /、› 分隔的字符串，如 ["文件","另存为"]。',
+        description: '菜单路径：JSON 字符串数组（逐级、精确、区分大小写）、字符串数组，或 "文件/保存"、"文件->保存"、"文件→保存" 这种分隔字符串（/、›、>、->、→），如 ["文件","另存为"]。',
       },
     },
     output: OUT(),
@@ -1121,6 +1123,11 @@ export function apply(ctx, config) {
         }
         return g.note && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${g.note}` } : v
       } catch (err) {
+        if (err?.kind === 'timeout') {
+          // 超时 = 结果未知：标记快照可疑，并给“先看新对话框/不要重试像素”的下一步。
+          markSuspect(toolName)
+          return { ok: false, result: timeoutReceipt(toolName, err) }
+        }
         return { ok: false, result: `✗ ${err.message}` }
       }
     })

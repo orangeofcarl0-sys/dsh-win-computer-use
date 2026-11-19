@@ -29,6 +29,7 @@ export const ws = {
   status: '0 个字符',
   password: 'hunter2',
   extra: false,
+  shell: false,
   doc: 'SECRET-DOC-BODY',
   popup: false,
 }
@@ -49,6 +50,12 @@ export async function cuaCall(tool, args = {}) {
     case 'list_windows': {
       const wins = [WINDOW()]
       if (ws.extra) wins.push({ ...WINDOW(), window_id: 8, z_index: 4, title: ws.title })
+      if (ws.shell) {
+        wins.push({
+          pid: 99, window_id: 99, app_name: 'Microsoft.CmdPal.UI', title: 'Command Palette',
+          bounds: { x: 0, y: 0, width: 800, height: 600 }, z_index: 99, is_on_screen: true,
+        })
+      }
       return { windows: wins }
     }
     case 'get_window_state': {
@@ -97,6 +104,9 @@ const call = (name, args = {}) => reg.get(name).execute(args, exec)
 // 1. 输入值外显 + 首次观察无差分
 const o1 = await call('screen_observe', { window_id: 7, mode: 'ax' })
 check('T1: 文本显示输入框当前值', /值="s4-t01-seed\.txt"/.test(raw(o1)), raw(o1).split('\n').slice(0, 8).join(' | '))
+check('T1b: 输入框提示优先 computer_set_value 覆盖',
+  /computer_set_value/.test(raw(o1)) && /覆盖/.test(raw(o1)) && /追加/.test(raw(o1)),
+  raw(o1).split('\n').slice(0, 10).join(' | '))
 check('T2: 结构化 elements 带 value', o1.elements?.[1]?.value === 's4-t01-seed.txt', JSON.stringify(o1.elements?.[1]))
 check('T3: 首次观察 changedSinceLast=null', o1.changedSinceLast === null, String(o1.changedSinceLast))
 check('T4: 密码值不外显', !raw(o1).includes('hunter2') && o1.elements?.[3]?.value === '', raw(o1).includes('hunter2') ? 'LEAK' : 'ok')
@@ -168,6 +178,15 @@ check('T24: query 不污染差分，全量观察重建快照', fullAgain.ok === 
   JSON.stringify({ snapshotId: fullAgain.snapshotId, changes: fullAgain.changes, elements: fullAgain.elements?.length }))
 const afterFull = await call('computer_click', { element: 0 })
 check('T25: 全量观察后动作恢复', afterFull.ok === true, raw(afterFull))
+
+// 9. 无目标观察跳过 shell 表面（CmdPal 等高 z 序窗口）
+stub.ws.shell = true
+const shellObs = await call('screen_observe', { mode: 'ax' })
+check('T26: 无目标观察跳过 shell 表面',
+  shellObs.ok === true && shellObs.window?.windowId === 7
+    && /已跳过 1 个 shell 表面窗口/.test(raw(shellObs)),
+  raw(shellObs).split('\n').slice(0, 8).join(' | '))
+stub.ws.shell = false
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

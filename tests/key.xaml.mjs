@@ -238,6 +238,8 @@ check('K22: press_key 失败 → 明确失败、不再建议 foreground=true', r
   && /前台 press_key 也未能发送/.test(r.result || '')
   && !/foreground=true/.test(r.result || '')
   && stub.presses.length === 1, r.result)
+check('K22b: press_key 失败指向 computer_set_value 覆盖',
+  /computer_set_value/.test(r.result || '') && /覆盖/.test(r.result || ''), r.result)
 
 // 14. xamlPressFallback：alt+f 默认 off 只给指引
 reset('xaml-throw')

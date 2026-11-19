@@ -84,6 +84,7 @@ export async function cuaCall(tool, args = {}) {
         { element_index: 5, element_token: 'doc', role: 'Document', label: '文本编辑器', value: es.body, frame: { x: 100, y: 100, w: 600, h: 400 } },
         { element_index: 6, element_token: 'file-menu', role: 'MenuItem', label: '文件', frame: { x: 100, y: 100, w: 60, h: 20 }, enabled: true },
         { element_index: 20, element_token: 'pw', role: 'Edit', label: '密码:', value: 'hunter2', is_password: true, frame: { x: 800, y: 400, w: 200, h: 30 }, enabled: true },
+        { element_index: 21, element_token: 'titlebar', role: 'TitleBar', label: '', frame: { x: 0, y: 0, w: 800, h: 30 }, enabled: true },
         ...(process.env.CUA_MENU_POPUP === '1'
           ? [
               { element_index: 7, element_token: 'm-new', role: 'MenuItem', label: '新建', frame: { x: 110, y: 130, w: 60, h: 20 }, enabled: true },
@@ -403,6 +404,19 @@ const typedDocStill = await call('computer_type', { text: 'x' })
 delete process.env.CUA_UNVERIFIED
 check('E30: 有 Document 仍走输入回读', typedDocStill.ok === true
   && /输入回读/.test(raw(typedDocStill)) && !/未刷新快照/.test(raw(typedDocStill)), raw(typedDocStill).slice(0, 220))
+
+// 17. 标题栏拖动：回执明确“移动窗口”，并清掉已失效的窗口原点快照
+;({ call, obs } = await fresh({ actionGuard: 'off' }))
+const dragBar = await call('computer_do', {
+  action: 'call',
+  tool: 'computer_drag',
+  args: { from_x: 100, from_y: 10, to_x: 120, to_y: 20, snapshot_id: obs.snapshotId },
+})
+check('E34: 标题栏拖动回执提示移动窗口', dragBar.ok === true
+  && /标题栏/.test(raw(dragBar)) && /不是点击/.test(raw(dragBar)), raw(dragBar))
+const afterBar = await call('computer_click', { element: 0 })
+check('E35: 标题栏拖动后快照已清', afterBar.ok === false
+  && /snapshot_missing/.test(raw(afterBar)), raw(afterBar))
 
 cleanupWork(work)
 process.exit(checkState.failures > 0 ? 1 : 0)

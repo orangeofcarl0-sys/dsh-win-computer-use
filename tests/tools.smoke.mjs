@@ -158,6 +158,16 @@ r = await menu({ window_id: 2, path: '文件/保存' })
 const inv = history.find((h) => h.tool === 'invoke_menu')
 check('G2d: menu 字符串 / 分隔可解析', r.ok === true && Array.isArray(inv?.args?.path)
   && inv.args.path.join('>') === '文件>保存', JSON.stringify(inv?.args?.path || null))
+history.length = 0
+r = await menu({ window_id: 2, path: '文件->保存' })
+const invArrow = history.find((h) => h.tool === 'invoke_menu')
+check('G2d2: menu -> 分隔可解析', r.ok === true && Array.isArray(invArrow?.args?.path)
+  && invArrow.args.path.join('>') === '文件>保存', JSON.stringify(invArrow?.args?.path || null))
+history.length = 0
+r = await menu({ window_id: 2, path: '文件→保存' })
+const invUnicodeArrow = history.find((h) => h.tool === 'invoke_menu')
+check('G2d3: menu → 分隔可解析', r.ok === true && Array.isArray(invUnicodeArrow?.args?.path)
+  && invUnicodeArrow.args.path.join('>') === '文件>保存', JSON.stringify(invUnicodeArrow?.args?.path || null))
 const snapMod = await import(libUrl('snapshot.js'))
 snapMod.setSnapshot({
   at: Date.now(), ttlMs: 60000, pid: 1, windowId: 2, appName: 'A', snapshotId: 's1',
