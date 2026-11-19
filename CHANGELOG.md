@@ -3,6 +3,27 @@
 > **版本状态（2026-11-19）**：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7，dsh 兼容基线为 **0.2.2-rc.1**。web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
+## 0.5.8 (未发布，2026-11-20)
+
+**主题**：基于 17 条真实 trajectory 的 P0/P1/P2 行为修复；不改安全边界，不 bump 版本。
+
+### Changed
+
+- **预填字段优先 `computer_set_value`**：`computer_type`/`computer_set_value`/`computer_key` 描述、观察输入框提示、`keyFallback` 的 ctrl+a 失败/无菜单栏指引统一改为“先 set_value 覆盖；type 是追加”。修复 t05 r4 因路径追加导致 12→43 步、1.25M total 的根因。
+- **click 驱动超时回执**：`wrap` 捕获 `DriverCallError.kind=timeout`，`markSuspect` 并返回工具特定指引（click→先看新模态对话框、不要重试像素/zoom/drag；type→可能已部分写入）。
+- **`computer_menu` 路径归一化**：新增 `lib/menuPath.js`，支持 `/`、`›`、`>`、`->`、`→`；`guard` 共用同一解析器识别保存意图。
+- **无目标观察跳过 shell 表面**：`screen_observe` 自动选窗跳过 CmdPal/TextInputHost/PowerToys/StartMenu/Search/ShellExperienceHost，并提示显式传 `window`/`window_id`；显式目标不受限。
+- **标题栏拖拽语义**：观察时缓存 `titleBarRect`；`computer_drag` 起点命中标题栏时回执明确“移动窗口、不是点击/落点证据”并清空快照；描述同步。
+- **eval 预算语义**：`evals/lib/run.mjs` 修 `timedOut` 与 `close` 竞争；`headless-run` 增加 `budgetExhausted`/`noFinal`，预算耗尽记 `verdict=timeout`；`ac6-summary`/`ab-summary` 同步。
+- **题面**：t20 允许 Tab/Enter/Escape 选择对话框按钮并强调始终回到 `S4-T20-DIALOG`；t19 明确允许 Notepad 另存为。
+- **COMMON**：真实模型运行统一要求显式指定任务窗口，不依赖无目标“最前窗口”，不跟随无关前台窗口。
+
+### Tests / Docs
+
+- 新增 `tests/proc-run.test.mjs`（3 项）；`npm test` **27 套 / 665 项**，语法 **39/39**，`npm pack` **57 文件**。
+- `tests/tasks.check.mjs` 增加 t19/t20 题面守卫（330 项）。
+- 文档同步：TOOLS/ERRORS/WINDOWS/TROUBLESHOOTING/ARCHITECTURE/TESTING/VERIFICATION/evals README。
+
 ## 0.5.7 (2026-11-19)
 
 **主题**：Windows-first 更名、dispatcher 默认、P0/P1 安全边界、dsh 0.2.2 兼容、驱动兼容层、手势与输入真实性、观察回执状态、文档体系重写。

@@ -47,7 +47,15 @@ for (const f of files) {
   check(`${id}: tier 合法`, ['smoke', 'core'].includes(tier), tier)
   check(`${id}: isolation 合法`, ['notepad', 'dirty'].includes(isolation), isolation)
   check(`${id}: ac2 合法`, ['full', 'none'].includes(ac2), ac2)
+  const prompt = (md.match(/<<<PROMPT\n([\s\S]*?)\nPROMPT>>>/) || [null, ''])[1]
   check(`${id}: prompt 块存在`, /<<<PROMPT\n[\s\S]*?\nPROMPT>>>/.test(md))
+  if (id === 't19') {
+    check('t19: prompt 明确允许 Notepad 另存为', /Save As|Notepad/i.test(prompt), prompt.slice(0, 120))
+  }
+  if (id === 't20') {
+    check('t20: prompt 允许键盘选择对话框按钮', /Tab|Enter|Escape/i.test(prompt)
+      && !/Do not use keyboard shortcuts/i.test(prompt), prompt.slice(0, 160))
+  }
   check(`${id}: ID 唯一`, !ids.has(id), id)
   ids.add(id)
 

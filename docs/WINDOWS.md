@@ -51,6 +51,8 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 `computer_type` 在未指定 element 时输入到**快照窗口当前焦点**，不是“当前前台窗口”；这是 P0 修复后的行为，避免盲发到别的窗口。
 
+**预填字段**：另存为文件名等已有值的输入框优先 `computer_set_value(element=..., value=完整内容)` 覆盖；`computer_type` 是追加语义，`ctrl+a` 在 WinUI 对话框/无菜单栏窗口可能不可用。2026-11-20 t05 r4 实测：`type` 把路径追加到旧文件名后，模型用 `ctrl+a`/退格/拖动都救不回来，12→43 步、1.25M total。
+
 **WinUI3 组合键实测结论**（2026-11-16，详见 [EVIDENCE](EVIDENCE.md) §5.4）：
 
 - Ctrl+A 的可靠回退是“点编辑菜单 → 全选”，不是前台裸 `press_key`；后者 background 变体会把裸 `a` 插入正文。
@@ -58,7 +60,11 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - Alt+Tab 只在 foreground `press_key` 下生效（真实切走）；任务里优先用 `app_list`/`computer_activate`/`app_launch`。
 - 所有成功的 WinUI 键鼠动作仍可能返回 `effect:unverifiable`；必须 observe/verify。
 
+**Win+R 不保证 Run**：本机 Win+R 打开的是 Command Palette（`Microsoft.CmdPal.UI`），其 AX 树为空且拒绝前台激活/文本投递；需要启动应用时用 `app_launch` 或开始菜单，不要在 CmdPal 上耗步骤。无目标 `screen_observe` 现在会跳过 CmdPal/TextInputHost/PowerToys 等 shell 表面；显式传 `window`/`window_id` 仍可观察它们。
+
 **显式窗口激活**：`computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；不要求快照，但激活后操作内容仍需 `screen_observe`。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。
+
+**模态点击 30s 超时**：对刚弹出的模态对话框点击可能触发驱动超时，回执报“点击结果未知”。这时不要重试像素/zoom/drag；先 `screen_observe` 看是否出现新的顶层对话框，用它的 `window_id` 重新观察，再点其按钮。原生 WinForms MessageBox 可用 `Escape`=No、`Enter`=默认按钮（本机 t20 是 Yes）。
 
 ## 4. 私有拖拽（modifier / dwell_ms）
 
@@ -80,6 +86,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - 不自动重试：drag 非幂等；只有前台校验失败（未发送输入）才可让模型 activate 后重试一次。
 - 已验证：WinForms 探针 `probe-private-drag` **3/3** 在 down/move/up 三个点读到 `Shift, Control`，drop 后 `stuckModifiers` 为空。Explorer Ctrl+drag 复制、Excel 工作表标签 Ctrl+drag、PPT Shift 约束尚未纳入自动回归，作为下一轮真机项。
 - 0.39+ 驱动支持原生 modifier drag；`dragEngine: auto` 优先原生，`private` 强制 helper；`dwell_ms` 始终私有。原生失败不自动重拖。
+- **从标题栏拖动=移动窗口**：会改变 `windowOrigin`，不是点击/落点证明；回执会提示“起点在标题栏”并清空快照。2026-11-20 t20 二轮实测：模型把 `screenOrigin` 变化误当成坐标生效，继续点 No 仍未关对话框。
 
 ## 5. 坐标与 DPI
 

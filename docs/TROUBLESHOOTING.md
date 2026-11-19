@@ -94,6 +94,8 @@
 | 输入后界面没变 | 通道不对/焦点不对/输入被忽略 | 指定 element 走 ValuePattern；或点控件后输入 |
 | 输入回读不一致 | 部分写入/错字/焦点丢失 | 回执只报长度；修正后 `inputUnconfirmed` 解除；保存意图被拦 |
 | 保存对话框反复出现 | 文件名框旧值被隐藏/点错按钮 | 观察输入框 `值="..."`；点“保存”前确认路径 |
+| 另存为文件名变成旧值+新值 | `computer_type` 是追加输入，不是覆盖 | 预填字段优先 `computer_set_value`；`ctrl+a` 在 WinUI 对话框可能不可用 |
+| 点击后 30s 超时、对话框卡住 | 模态对话框让驱动/UIA 等待 | 回执是“结果未知”：先 observe 新顶层对话框，用其 window_id 重新观察；不要重试像素/zoom/drag；原生 MessageBox 可用 Escape/Enter |
 | 菜单 `effect:unverifiable` | 菜单可能已开/未开 | 不要重复点同一项；先 observe 看弹出菜单 |
 | `app_launch` 后关不掉 | 子进程可能为 High IL + UIPI；0.52.13 的 PowerShell 实测为 Medium，不能一律假定 | 先读子进程 IL；高完整性窗口提示用户手动关闭，不要按进程名杀 |
 
@@ -105,7 +107,10 @@
 | 点错按钮 | 坐标取最近元素/预览缩放 | 回执会回显目标；用 element 或 zoom |
 | WinUI 组合键 4s 超时/找不到 AcceleratorKey | 命令在关闭菜单里（#3908） | 点菜单栏项 → 观察 → 点菜单项；`xamlKeyFallback: auto` 实验性 |
 | `menu_path_unavailable` | XAML 菜单驱动走不到 | 改点控件；不要回退像素 |
+| `computer_menu` 路径含 `->`/`→` 失败 | 旧版本只认 `/`、`›`、`>` | 已归一化 `->`/`→`；仍失败就用数组或点菜单栏 |
+| Win+R 打开 Command Palette 而不是 Run | 本机策略把 Win+R 映射到 CmdPal；其 AX 为空、不能前台激活 | 用 `app_launch`/开始菜单启动应用；不要在 CmdPal 上反复输入 |
 | 拖动没反应 | 目标不接受后台 drag/坐标偏移 | 先激活/聚焦；必要时 `foreground=true`；modifier 在 0.39+ 走原生，否则走私有 helper |
+| 拖动后窗口位置变了 | 起点落在标题栏，drag 移动了窗口 | 回执会提示“起点在标题栏”；重新 observe，不要把它当点击/落点证据 |
 | 私有拖拽报 `[private_drag_zoom_unsupported]` | 私有路径不复刻 zoom | 用窗口截图坐标重发 |
 | 私有拖拽报 `[private_drag_no_frame]` | 快照缺 screenOrigin/截图尺寸 | 全量 observe（不要 query）再拖 |
 

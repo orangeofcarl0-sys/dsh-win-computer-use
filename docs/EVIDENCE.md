@@ -33,6 +33,51 @@
   - t05：5/5 pass；steps 中位 24 / p90 47；wall 224s；input 21,811 / output 3,182 / cacheRead 405,888 / total 430,881 / billable 24,993。
   - t11/t14/t15 的 5 轮未跑（成本/桌面时间），不把 t01/t05 的数字外推到长任务。
 
+## 1.2 2026-11-20 — 轨迹修复复跑（t20/t19/t05）
+
+环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；opencode-go/deepseek-v4.1-flash；交互式桌面，TabState backup/restore 成功（31 bins）。
+
+### 1.2.1 汇总
+
+| 运行 | verdict | steps / inner | wall | errors / unverified | input | output | cacheRead | total | timeout/budget |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| t20 r1 | **pass** | 30 / 27 | 595s | 5 / 6 | 27,501 | 9,471 | 499,712 | 536,684 | false / false |
+| t20 r2 | **pass** | 28 / 25 | 618s | 7 / 2 | 17,164 | 6,302 | 402,176 | 425,642 | false / false |
+| t19 r1 | **pass** | 41 / 40 | 387s | 0 / 11 | 47,350 | 7,121 | 1,166,976 | 1,221,447 | false / false |
+| t19 r2 | **pass** | 60 / 56 | 595s | 2 / 15 | 65,036 | 12,592 | 2,336,896 | 2,424,636 | false / false |
+| t05 r1 | **pass** | 22 / 21 | 185s | 0 / 7 | 21,348 | 4,320 | 346,624 | 385,860 | false / false |
+| t05 r2 | **pass** | 17 / 13 | 121s | 0 / 4 | 14,606 | 2,079 | 218,240 | 234,925 | false / false |
+
+- 全部 `dirty=false`、`noFinal=false`；t20/t19/t05 的 oracle 均通过（t20 `cancelled=1 confirmed=1 deleted=true`；t19 `target.txt` 内容精确 `NAV-OK`；t05 ANSI 无 BOM、含非 ASCII、内容匹配）。
+- 命令：`node evals/headless-run.mjs --tasks t20|t19|t05 --repeats 2 --timeout-min 12 --patch evals/headless-patch.opencode.yml --report evals/headless-runs/fix-<task>.json`。
+
+### 1.2.2 t20：超时仍在，但模型能按新回执改走键盘
+
+- r1：4 次 `cua-driver click timeout after 30000ms`、2 次 `bring_to_front timeout`、1 次 `move_cursor timeout`、2 次 `press_key timeout`；模型在 click 超时回执后 `screen_observe` 新顶层对话框，并用 `Escape`/`Tab`/`Enter` 完成两次选择，最终 pass。
+- r2：6 次 click、3 次 bring_to_front、1 次 move_cursor、6 次 press_key 超时；同样通过 `Escape`/`Tab`/`Enter`/`Space` 完成，最终 pass。
+- 对照：修复前同任务第二轮 33 步、709s、无 final，按预算耗尽记 fail；本轮两轮均 25–27 inner、595/618s、有 final。超时次数并未消失（驱动/UIA 等待模态的根因仍在），但模型不再进入“像素/zoom/drag 10+ 步”死循环。
+- 题面改动：允许 Tab/Enter/Escape 选择按钮；强调始终回到 `S4-T20-DIALOG`。
+
+### 1.2.3 t19：两轮均 pass，r2 的 56 inner 不再撞预算
+
+- r1：41 步 / 387s，0 工具错误；`set_value` 2 次（含完整路径），`computer_key` 的 `ctrl+l`/`enter` 正常。
+- r2：60 步 / 595s，2 工具错误；仍出现 `win+r`（本机 CmdPal 风险），但最终用 Notepad 另存为写入 `target.txt`，oracle 精确内容通过。
+- 对照：修复前 r2 为 56 inner、708s、无 final（预算耗尽）；本轮同为 56 inner 但 595s 完成，说明题面明确允许 Notepad 另存为后，模型不再在“Explorer 新建”上耗到预算边界。
+- 注意：t19 的 pass 不证明 Explorer 新建路径；oracle 只验文件，provenance 仍在 Notes 中明确为 out of scope。
+
+### 1.2.4 t05：`set_value` 覆盖生效，步数从 43 降到 21/13
+
+- r1/r2 都只调用 `computer_set_value` 写文件名（len=12，`out-ansi.txt`），**零 `computer_type`**；oracle 的 ANSI/BOM/内容检查全部通过。
+- 对照：修复前 r4 用 `computer_type` 追加路径，43 inner、431s、1.25M total；本轮 21/13 inner、185/121s、0.39M/0.23M total。`set_value` 的“覆盖”语义与回读完全相等校验是直接原因。
+
+### 1.2.5 结论
+
+- P0（t20 题面、预填字段 set_value）与 P1（click/key 超时回执、menu 归一化、shell 过滤、runner 预算语义）在本轮真实模型样本中均有可观察收益：
+  - t20 2/2 pass（修复前 1/2，且失败为预算耗尽）；
+  - t19 2/2 pass（修复前 1/2，且失败为预算耗尽）；
+  - t05 2/2 pass，步数显著下降。
+- 未消除的边界：t20 的 30s 驱动超时仍会发生，单轮仍接近 10 分钟；t19 r2 仍有 56 inner / 2.4M total 的高方差。它们是驱动/任务复杂度问题，不是本轮回执/题面回归。
+
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
 环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。

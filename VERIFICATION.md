@@ -9,8 +9,8 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **26 套 / 652 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **37/37 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **27 套 / 665 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **39/39 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -23,14 +23,16 @@
 | eval oracle（S1 + x1 clean 组） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；2026-11-15 18:40 复跑） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
 | S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
-| S3 导航/对话框 | 2026-11-19：t19 **PASS**；t20 **PASS**（对话框链） | Windows 11 | `node evals/verify-oracles.mjs --tasks t19,t20` |
+| S3 导航/对话框 | 2026-11-20 题面修改后：t19/t20 AC2 **2/2 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t19,t20` |
 | 安全运行时探针 | 2026-11-20：**13/13 PASS**（密码拒绝、TTL 过期、stop/resume、驱动错误恢复；root 由 import.meta.url 推导） | Windows 11 | `node evals/probe-safety-runtime.mjs` |
 | 滚动探针 | 2026-11-20：**3/3 PASS**（WinForms AutoScroll 向下/向上与位置回读；120s 自关 Timer） | Windows 11 | `node evals/probe-scroll.mjs` |
 | 原语矩阵探针 | 2026-11-20：**11 PASS + 1 BLOCKED**；double/right/key/hover/verify/wait_for/activate/app_list 均有 marker/回读；WinForms menu BLOCKED | Windows 11 | `node evals/probe-ops.mjs` |
 | app 启动/收尾探针 | 2026-11-20：**7/7**；daemon High、`powershell.exe` 子进程 Medium；alt+F4 关闭、无残留、基线窗口保留 | Windows 11 / 0.52.13 | `node evals/probe-launch.mjs` |
 | modifier-drop 探针 | 2026-11-20：**5/5**；Explorer Ctrl+drag 复制、普通 drag 移动、无卡键 | Windows 11 | `node evals/probe-modifier-drop.mjs` |
 | oracle 反向敏感性 | 2026-11-20：**19/19** 变异被 exit 1 拒绝；t04/t07 live GUI、t13 ac2:none SKIP | Windows 11 | `node evals/oracle-mutation.mjs` |
-| 模型真跑样本 | 2026-11-20：opencode t19 **pass 35 步 / fail 56 步**；t20 **pass 17 步 / fail 33 步**；两轮 fail 均撞 12min 预算（无 final）；p01/p02/p03 **pass 6/11/8 步**；默认 DeepSeek `QUOTA` 402（ENV） | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,p01,p02,p03 --patch evals/headless-patch.opencode.yml` |
+| 轨迹行为修复（P0/P1） | 2026-11-20：预填字段优先 `set_value`、click 超时回执、menu `->`/`→`、无目标跳过 shell 表面、drag 标题栏注记、runner `budgetExhausted`/`timeout` | Windows（离线 + 单测） | `npm test` 27/665；`node tests/proc-run.test.mjs` |
+| 模型真跑样本（修复后） | 2026-11-20：opencode t20 **2/2 pass**（27/25 inner，595/618s）、t19 **2/2 pass**（40/56 inner，387/595s）、t05 **2/2 pass**（21/13 inner，185/121s）；t20 两轮均在 click 30s 超时后按新回执改用键盘完成；t05 全部用 `set_value` 写文件名（无 `type` 追加）；0 timeout/dirty | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,t05 --repeats 2 --patch evals/headless-patch.opencode.yml`；见 EVIDENCE §1.2 |
+| 模型真跑样本（修复前） | 2026-11-20：t19 pass 35 / fail 56（预算耗尽）、t20 pass 17 / fail 33（预算耗尽）、p01/p02/p03 pass 6/11/8；默认 DeepSeek `QUOTA` 402（ENV） | Windows 11 / opencode-go | 见 EVIDENCE §1.1 与 [TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) §11 |
 | AC6 成本工具 | 2026-11-20：t01/t05 各 5 轮全 pass；t01 steps 中位 12/p90 15、billable 10,731；t05 steps 24/p90 47、billable 24,993；t11/t14/t15 未跑 | Windows 11 / opencode-go | `node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json` |
 | S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §3.1 |
 | S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §5.3 |
@@ -93,7 +95,8 @@
 | `app_launch` 清理 | 路径相关 | 0.52.13 实测 daemon High 但 PowerShell 子进程 Medium；alt+F4 可关闭，无残留。旧版本/其他路径仍可能 High | 按实际子进程 IL 决定清理；高完整性残留写 leftover，不按进程名杀 |
 | 委派工具约束 | 宿主相关 | 0.2.2 `startActivation` 没有 `toolFilter` | 插件如实说明；严格限制用宿主 Agent Preset |
 | A11 手势原语 | 未做 | 无 `selectText`/key hold/mouse down-up；drag 无元素源 | 评估；见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 |
-| A17 私有拖拽 drop 真机 | 部分 | WinForms 探针通过；Explorer/Excel/PPT 的 modifier drop 未纳入自动回归 | 下一轮真机项 |
+| A17 私有拖拽 drop 真机 | 部分 | WinForms 探针 + Explorer Ctrl+drag 已回归；Excel/PPT 的 modifier drop 仍 BLOCKED | 下一轮真机项 |
+| 模态 click/press_key 30s 超时 | 仍会发生 | t20 2/2 pass，但两轮均出现多次 30s 超时、总时长 595/618s；驱动/UIA 等待模态是根因。新回执已把模型引向键盘/新对话框，不能消除超时本身 | 上游驱动修复；插件侧可评估模态专用快速路径 |
 
 ## 3. 复现方式
 
@@ -114,8 +117,8 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 
 判据：
 
-- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **652**。
-- `npm run check` 退出码 0：语法 **37/37** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **665**。
+- `npm run check` 退出码 0：语法 **39/39** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。

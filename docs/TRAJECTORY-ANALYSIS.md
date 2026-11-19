@@ -248,3 +248,51 @@
 | P2 | `computer_drag` 描述提示标题栏拖动=移动窗口 | 防止模型把 origin 变化当成点击生效 |
 | P2 | AC6 继续跑 t11/t14/t15 5 轮；报告同时给 total 与 billable | 当前只有 t01/t05；长任务尾部成本未知 |
 
+### 11.8 修复验证（2026-11-20）
+
+#### 11.8.1 已落地改动
+
+| 优先级 | 改动 | 文件 | 守门 |
+|---|---|---|---|
+| P0 | t20 允许 Tab/Enter/Escape 选择按钮；强调始终回到 `S4-T20-DIALOG` | `evals/tasks/t20-dialog-chain.md` | `tests/tasks.check.mjs` t20 prompt 守卫 |
+| P0 | 预填字段优先 `computer_set_value`；`computer_type` 明确为追加 | `index.js`、`lib/observe.js`、`lib/keyFallback.js` | `observe.truth` T1b；`key.xaml` K22b |
+| P1 | click/key 驱动超时回执 + `markSuspect` | `lib/receipt.js`、`index.js` | `delivery.failures` D-timeout-click/type/key |
+| P1 | `computer_menu` 归一化 `/`、`›`、`>`、`->`、`→` | `lib/menuPath.js`、`lib/ops.js`、`lib/guard.js` | `tools.smoke` G2d2/G2d3 |
+| P1 | 无目标观察跳过 CmdPal/TextInputHost 等 shell 表面 | `lib/observe.js` | `observe.truth` T26 |
+| P1 | `budgetExhausted`/`noFinal`；边界样本记 `verdict=timeout` | `evals/lib/run.mjs`、`evals/headless-run.mjs`、`ac6-summary`、`ab-summary` | `tests/proc-run.test.mjs` |
+| P1 | COMMON 要求显式指定任务窗口、不跟随前台 | `evals/headless-run.mjs` | 真实模型复跑 |
+| P2 | t19 明确允许 Notepad 另存为（不证明 Explorer 新建） | `evals/tasks/t19-explorer-navigation.md` | `tests/tasks.check.mjs` t19 prompt 守卫 |
+| P2 | drag 标题栏检测/注记/清快照 | `lib/observe.js`、`lib/actions.js`、`index.js` | `action.echo` E34/E35 |
+
+#### 11.8.2 真跑复跑（opencode-go/deepseek-v4.1-flash，12min 预算）
+
+| 运行 | 结果 | inner | wall | total tokens | 行为变化 |
+|---|---|---:|---:|---:|---|
+| t20 r1 | pass | 27 | 595s | 536,684 | 4×click/2×bring_to_front/1×move_cursor/2×press_key 超时；按回执 observe 新对话框并用 Escape/Tab/Enter 完成 |
+| t20 r2 | pass | 25 | 618s | 425,642 | 6×click/3×bring_to_front/1×move_cursor/6×press_key 超时；仍用 Escape/Tab/Enter/Space 完成 |
+| t19 r1 | pass | 40 | 387s | 1,221,447 | `set_value` 完整路径；地址栏导航正常 |
+| t19 r2 | pass | 56 | 595s | 2,424,636 | 仍有 `win+r`/CmdPal 尝试，但最终 Notepad 另存为成功；56 inner 不再撞预算 |
+| t05 r1 | pass | 21 | 185s | 385,860 | 仅 `set_value` 写文件名（len=12），零 `type` |
+| t05 r2 | pass | 13 | 121s | 234,925 | 同上；13 inner 为当前最低 |
+
+- 对照修复前：t19/t20 各 1 pass / 1 预算耗尽（无 final）；t05 r4 43 inner/431s/1.25M。修复后 6/6 pass、0 timeout/dirty。
+- t20 的改善不是“超时消失”，而是“超时后不再死循环”：两轮仍出现多次 30s 超时，单轮仍接近 10 分钟；根因在驱动/UIA 等待模态，已记入 [VERIFICATION](../VERIFICATION.md) §2。
+- t19 r2 仍是高方差样本（56 inner/2.4M total）；题面允许等价 GUI 路径降低了预算耗尽概率，但没有降低探索成本。r2 仍出现 `win+r`，说明 CmdPal 陷阱未被 COMMON 完全消除。
+- t05 的直接收益最清晰：`set_value` 覆盖替代 `type` 追加后，步数 43→21/13，total 1.25M→0.39M/0.23M。
+
+#### 11.8.3 P0/P1/P2 状态
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| P0 t20 题面 | **已闭合** | 2/2 pass；键盘回退可用 |
+| P0 预填字段 | **已闭合** | t05 2/2 pass，零 type 追加 |
+| P1 click/key 超时回执 | **已闭合（行为）** | 超时仍在，但模型能恢复；驱动根因未闭合 |
+| P1 menu 归一化 | **已闭合** | G2d2/G2d3 通过 |
+| P1 shell 表面过滤 | **已闭合** | T26 通过；显式目标仍可观察 |
+| P1 runner 预算语义 | **已闭合** | proc-run 3/3；报告字段可用 |
+| P2 t19 provenance | **按“明确允许”闭合** | 文档明确不证明 Explorer 新建 |
+| P2 drag 标题栏 | **已闭合** | E34/E35 通过 |
+| P2 AC6 t11/t14/t15 5 轮 | **未做** | 本轮只复跑 t20/t19/t05；长任务成本仍未测，不伪造中位数 |
+
+静态基线：`npm test` **27 套 / 665 项**，语法 **39/39**，`npm pack` **57 文件**；t20/t19 AC2 2/2 PASS。所有复跑数据见 [EVIDENCE](EVIDENCE.md) §1.2。
+

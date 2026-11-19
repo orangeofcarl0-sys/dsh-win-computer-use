@@ -11,7 +11,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 26 套 / 646；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 27 套 / 665；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / p01 / p02 / p03（4） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
@@ -45,8 +45,8 @@
 | t16 | 本地浏览器表单 | S3, S4 | core | dirty | full | result.json |
 | t17 | PDF 句子摘录到 Excel | S3, S4 | core | dirty | full | A1 精确文本；fixture simulate |
 | t18 | 本地 PDF 下载 | S3, S4 | core | dirty | full | 本地 HTTP + hash-pinned fixture |
-| t19 | Explorer 地址栏导航 | S3 | core | notepad | full | 从用户目录导航到沙箱 |
-| t20 | 对话框取消/确认链 | S3 | core | notepad | full | WinForms confirm/cancel |
+| t19 | Explorer 地址栏导航 | S3 | core | notepad | full | 从用户目录导航到沙箱；允许 Notepad 另存为（不证明 Explorer 新建） |
+| t20 | 对话框取消/确认链 | S3 | core | notepad | full | WinForms confirm/cancel；允许 Tab/Enter/Escape 选择按钮 |
 | p01 | 无坐标 canvas 目标点击 | S2 | core | notepad | full | 红圆/格子 C2 |
 | p02 | 像素 token 读取输入 | S2 | core | notepad | full | canvas code P02-7K9 |
 | p03 | screen_zoom 小目标点击 | S2 | core | notepad | full | D3 / from_zoom |
@@ -180,9 +180,10 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 | 字段 | 含义 |
 |---|---|
-| `id` / `repeat` / `verdict` | 任务、轮次、pass/fail/timeout/error/env/dirty |
+| `id` / `repeat` / `verdict` | 任务、轮次、pass/fail/**timeout**/error/env/dirty |
 | `stages` / `isolation` / `ac2` | 阶段成员、隔离方式、AC2 状态 |
 | `innerSteps` / `wallMs` | dsh 内部步数、墙钟 |
+| `timedOut` / `budgetExhausted` / `noFinal` | 是否撞驱动超时、是否时间预算耗尽、是否没有 `final` 事件 |
 | `toolCalls` / `toolErrors` / `unverified` | 工具调用、错误、未验证 |
 | `requireTool` / `requireToolUsed` | 任务要求的工具及是否实际调用（x1） |
 | `tokens` | `input/output/cacheRead/cacheWrite/total/steps`（来自 `status/step_end.usage`；total 含 cacheRead） |
@@ -204,7 +205,8 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 ## 11. 基线政策
 
-- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差；2026-11-20 opencode 两次样本：t19 1 pass / 1 fail，t20 1 pass / 1 fail；两次 fail 都跑满 12min 预算（无 final），按预算耗尽样本记录；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
+- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差。2026-11-20 题面/回执修复后 opencode 复跑：t19 **2/2 pass**（40/56 步，387/595s）、t20 **2/2 pass**（27/25 步，595/618s）、t05 **2/2 pass**（21/13 步，185/121s）；0 timeout/dirty。t20 两轮均出现 click 30s 超时后按新回执改用键盘。修复前同日样本为 t19/t20 各 1 pass / 1 预算耗尽（旧 runner 记 `fail/timedOut=false`，现记 `verdict=timeout + budgetExhausted=true`）；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
+- **预算耗尽不是任务失败率**：`wallMs` 达到 `--timeout-min` 且没有 `final` 的样本单独计数，不与普通 fail 混比；报告里同时保留 `timedOut/noFinal` 便于区分“驱动超时”和“模型没跑完”。
 - p01-p03 需要 image 路由；opencode 通道已验证，text-only 路由失败不算 ENV。
 - 基线比较必须同 overlay、同模型、同预算、同桌面状态；跨 provider 不是受控 A/B。
 - 失败样本保留：环境态、模型策略、插件缺陷分开归因；修复后保留根因与守门测试。

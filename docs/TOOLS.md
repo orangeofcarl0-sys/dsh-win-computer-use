@@ -122,6 +122,7 @@
 - **Explorer 文件项单选请用 `foreground=true`**：后台坐标点击可能走 UIA Invoke 直接打开文件。
 - `double_click` 不参与重复点击抑制；`click`/`right_click` 参与。
 - 回执：`ok:false` 表示拒绝/未送达；`ok:true` 仍可能 `effect:unverifiable`，需 observe/verify 复核。
+- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先 `screen_observe` 看是否出现新顶层对话框，用它的 `window_id` 重新观察；不要重试像素/zoom/drag，也不要重复同一坐标。原生对话框可用 Escape/Enter 选按钮。
 
 ### 4.2 `computer_type`
 
@@ -133,6 +134,7 @@
 | `foreground` | boolean | 否 | `false` | 前台全局输入；WinUI 可能丢字/错字 |
 
 - 不指定 `element` 时输入到**快照窗口当前焦点**，不是当前前台窗口。
+- **预填字段（如“另存为”文件名）优先 `computer_set_value` 覆盖**；`computer_type` 是追加输入，可能把新文本接在旧值后面。`ctrl+a` 在 WinUI 对话框/无菜单栏窗口可能不可用。
 - **不要在密码框使用**；`computer_type` 命中密码框会被硬拒。
 - 失败/未验证时对 Document/TextArea/Edit 做逐字回读（只报一致/不一致/无法回读与长度，不打印正文）；不一致或无法回读会设置 `inputUnconfirmed`，保存意图被拦。
 - 没有可回读控件的聚焦输入（Excel 网格、PPT 画布）不会刷新/清空快照，避免连续 Tab/Enter 得到 `[snapshot_missing]`。
@@ -146,7 +148,7 @@
 | `value` | string | **是** | — | 新值 |
 | `snapshot_id` | string | 否 | — | 证据基线 |
 
-只走 UIA `ValuePattern`；Web/自绘控件可能忽略。失败时改用 `computer_type` 或点击后输入。密码框硬拒。
+只走 UIA `ValuePattern`；**预填字段优先用它覆盖**，回读按完全相等校验，不是追加。Web/自绘控件可能忽略；失败时改用 `computer_type` 或点击后输入。密码框硬拒。
 
 ### 4.4 `computer_key`
 
@@ -159,6 +161,7 @@
 - 普通按键默认后台 PostMessage；带修饰键的组合键**一律自动前台注入并恢复原前台**（后台 synthetic 不更新 OS 修饰键状态，`Ctrl+V` 可能只落 `v`）。
 - 绑定快照窗口；不要传 `pid`/`window_id`。
 - XAML/WinUI 组合键可能因 UIA 加速器超时或 `could not find a UIA AcceleratorKey` 失败；回执给“点菜单栏项 → 点菜单项”的指引。`xamlKeyFallback: auto` 可实验性自动完成，默认 `off`。
+- `ctrl+a` 在 WinUI 对话框/无菜单栏窗口可能不可用；替换预填字段优先 `computer_set_value`，而不是 `ctrl+a` 后 `type`。
 
 ### 4.5 `computer_scroll`
 
@@ -190,6 +193,7 @@
 - 私有路径**不支持 `from_zoom`**（`[private_drag_zoom_unsupported]`），且需要快照的 `screenOrigin`/截图尺寸（缺失报 `[private_drag_no_frame]`）。
 - `duration_ms=0` 是合法值，不会被 truthiness 丢弃；`steps`/`dwell_ms` 越界会被拒绝。
 - 拖拽非幂等：不自动重试；只有前台校验失败（未发送输入）才可 activate 后重试一次。
+- **从标题栏拖动会移动窗口**（改变 `window origin`），不是点击/落点证明；回执会提示，且快照会被清空要求重新观察。需要点击效果时不要用 drag 代替 click。
 
 ### 4.7 `computer_wait`
 
@@ -273,7 +277,7 @@
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `window_id` | integer | **是** | — | 目标窗口 |
-| `path` | string \| string[] | **是** | — | 逐级菜单路径，如 `["文件","另存为"]` 或 `"文件/保存"` |
+| `path` | string \| string[] | **是** | — | 逐级菜单路径，如 `["文件","另存为"]` 或 `"文件/保存"`、`"文件->保存"`、`"文件→保存"` |
 | `pid` | integer | 否 | 解析 | 目标 pid |
 
 - 只对已打开/可实时解析的菜单有效；关闭的菜单先点菜单栏项，再观察弹出菜单。

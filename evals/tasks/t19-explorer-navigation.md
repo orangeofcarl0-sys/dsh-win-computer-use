@@ -15,11 +15,12 @@ An Explorer window is open at your user profile. Navigate to `{task_dir}\nav` us
 
 NAV-OK
 
-Do not close other user windows. Do not use command-line or file-write tools.
+Creating the file through Notepad's Save As is acceptable. Do not close other user windows. Do not use command-line or file-write tools.
 PROMPT>>>
 
 ## Notes
 
 - Setup opens Explorer at `%USERPROFILE%`; if no new Explorer HWND can be proven, setup is ENV.
 - The task measures address-bar navigation + file creation; cleanup closes only the recorded Explorer HWND.
+- File creation may use Explorer's New command or Notepad's Save As. The oracle checks the file, so a pass does not prove Explorer's New path specifically; that provenance is intentionally out of scope here.
 - Simulate writes the target file for AC2.
