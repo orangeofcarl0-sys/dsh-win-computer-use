@@ -13,7 +13,7 @@
 - **版本**：`v0.5.6` 已发布（tag → `68770fd`）；`main` 为 `0.5.7-dev`（未发布：更名、dispatcher 默认、P0/P1 边界、dsh 0.2.2 兼容、驱动兼容层）。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 26 套 / **634** 项；`npm run check` 语法 **26/26** + 文档一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
+- **测试基线**：`npm test` 26 套 / **634** 项；`npm run check` 语法 **29/29** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 环境
 
@@ -26,7 +26,7 @@
 | URL/token | `~/.dsh/web-latest.log` 最后一条 |
 | 模型通道 | `~/.dsh/settings.yaml`：`agent-default-model` 可指向 `opencode-go / deepseek-v4.1-flash / high`；`llm-pi-ai.providers.opencode-go` 需 `baseURL=https://opencode.ai/zen/go/v1` + 请求头 `x-opencode-session` |
 | 凭据 | `~/.dsh/.credentials.yaml`（`OPENCODE_GO_API_KEY` 可能过期 401；默认 DeepSeek 通道可用或余额耗尽）；GLM 兜底需 `ZHIPU_API_KEY`（当前未配） |
-| S4 沙箱 | `%USERPROFILE%\.dsh\s4-evals\<taskId>\` |
+| eval 沙箱 | `%USERPROFILE%\.dsh\s4-evals\<taskId>\`（历史命名，冻结） |
 | 一次性探针 | 工作区 `_probe-*.yml`、`_parity-*.mjs`、`_tool-surface.mjs`（不入库） |
 
 **不要**把 key、token、实验产物写进仓库。模型通道的 key 只从本地配置读取，测试脚本不打印。
@@ -157,7 +157,7 @@ cua-driver autostart kick
   - overlay：仓库内 `evals/headless-patch.yml`（推荐；启用 `credentials` + insert 本插件）或工作区 `_probe-win-cu-deepseek.yml`；模型走 dsh 默认 `deepseek-official/deepseek-flash`。
   - **headless 默认禁用 `credentials`**；不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
-  - S4 headless 直跑：`node evals/headless-run.mjs --tier smoke --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）。
+  - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 未发布；dsh-market 安装途径暂不可用。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
@@ -180,12 +180,12 @@ cua-driver autostart kick
 | 优先级 | 事项 |
 |---|---|
 | P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
-| P2 | S4 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
+| P2 | eval 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
 | P2 | daemon 提权/清理问题（#3607）；先试非提权重启 daemon |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |
 | P3 | macOS 回归；Linux 不在承诺范围 |
 | P3 | 驱动库存候补（browser_*、set_window_frame、trajectory…） |
-| P3 | S3b 独立观察者裁决（需 ZHIPU key 或 dsv4fv 文本修复） |
+| P3 | 独立观察者裁决（原 S3b；需 ZHIPU key 或 dsv4fv 文本修复） |
 
 ## 8. 文档维护规则
 
@@ -199,6 +199,7 @@ cua-driver autostart kick
 | 权限面（spawn/网络/env/文件） | `PERMISSIONS.md`、`package.json dsh.permissions`、`docs/SECURITY.md` |
 | 发布文件/版本/依赖 | `docs/store-evidence.md`、`tests/docs.facts.json`、`docs/COMPATIBILITY.md` |
 | 测试数/runtime 数/pack 数 | `tests/docs.facts.json`、`VERIFICATION.md`、`docs/TESTING.md`、`docs/store-evidence.md` |
+| 评测任务/阶段 | `evals/tasks/*.md` 的 `stages`、`tests/tasks.check.mjs`、`evals/README.md`、`docs/TESTING.md`、`ROADMAP.md` |
 | 历史运行/探针结果 | 只追加 `docs/EVIDENCE.md`；当前参考文档不写日期化步数 |
 
 ## 9. 改代码前的检查清单
@@ -212,4 +213,4 @@ cua-driver autostart kick
 - [ ] `npm test; echo $?`、`npm run check`、`verify-runtime` 是否全绿？
 - [ ] 测试窗口是否按标题/HWND 清理、没有按进程名杀？
 - [ ] 真值/实验产物是否仍在工作区，没有进仓库？
-- [ ] `npm run docs:check` 是否通过？
+- [ ] `npm run check` 是否通过（语法 + docs + tasks）？

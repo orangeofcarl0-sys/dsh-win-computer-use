@@ -64,7 +64,7 @@ spawn('powershell.exe', [
 - 仅在 `computer_drag` 带 `modifier` 或 `dwell_ms` 时惰性启动；持久进程，stdin/stdout JSON 行；父进程退出后 stdin EOF 自动退出；空闲 120s 退出。
 - 一次手势内完成：前台校验 → modifier down → mouse down → 插值 move → mouse up → modifier up → 恢复原前台；失败路径 `finally` 释放按钮/修饰键。
 - 坐标是屏幕物理像素（virtual desktop），由插件从 `screenOrigin + 截图尺寸` 映射；私有路径不支持 `from_zoom`（明确报错，不静默丢 modifier）。
-- 不写用户文件、不联网；`Add-Type` 使用调用方用户 TEMP（可用 `DSH_POWERSHELL`、`S4_TEMP`/`DSH_TEMP` 覆盖）。
+- 不写用户文件、不联网；`Add-Type` 使用调用方用户 TEMP（可用 `DSH_POWERSHELL`、`S4_TEMP`/`DSH_TEMP` 覆盖；`S4_TEMP` 是历史命名）。
 
 ### 2.4 非运行时脚本
 
@@ -93,7 +93,7 @@ spawn('powershell.exe', [
 | `CUA_SESSION` | 否 | 驱动会话 id，默认 `dsh-win-computer-use` |
 | `DSH_CU_TRAJECTORY_FILE` | 否 | 轨迹 JSONL 路径；优先于配置 `trajectoryFile` |
 | `DSH_POWERSHELL` | 否 | 指定 PowerShell 可执行文件 |
-| `S4_TEMP` / `DSH_TEMP` | 否 | 私有拖拽 `Add-Type` 编译临时目录 |
+| `S4_TEMP` / `DSH_TEMP` | 否 | 私有拖拽 `Add-Type` 编译临时目录；`S4_TEMP` 是历史命名，保留兼容 |
 | `PATH` | 否 | 查找 `cua-driver` / `powershell.exe` |
 | `ZHIPU_API_KEY` / `GLM_API_KEY` | 否 | GLM 视觉兜底；未配置则该路径停用 |
 | `GLM_API_BASE` | 否 | GLM 端点，默认智谱官方 API |

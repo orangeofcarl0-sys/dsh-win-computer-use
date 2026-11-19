@@ -1,8 +1,8 @@
 # RUNTIME-PIPELINE — 运行时与执行链路
 
-> 目的：把 dsh 宿主、插件工具面、cua-driver、会话日志与 S4 eval 串成一张可诊断的图。
+> 目的：把 dsh 宿主、插件工具面、cua-driver、会话日志与 eval（S1-S4）串成一张可诊断的图。
 > 读者：排障者、集成者、维护者。
-> 状态：当前实现（最后核对 2026-11-18；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
+> 状态：当前实现（最后核对 2026-11-19；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
 > 相关：[ARCHITECTURE](ARCHITECTURE.md) · [WINDOWS](WINDOWS.md) · [TESTING](TESTING.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 总览
@@ -24,8 +24,9 @@ dsh CLI
   -> tool/result 写入 session
   -> 下一 step
 
-S4 eval:
+eval（S1-S4）:
   cleanup -> setup（Notepad 标签集校验）-> dsh headless -> oracle -> cleanup（dirty/leftover）
+  --stage S1..S4 只过滤任务成员；--tier 是旧调度标签
 ```
 
 ## 2. 宿主启动与工具面

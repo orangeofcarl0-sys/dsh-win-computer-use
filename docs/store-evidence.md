@@ -37,7 +37,7 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **26/26** JS + `bash -n install.sh/uninstall.sh` + 文档一致性 |
+| 语法 + 安装脚本 | `npm run check` | **29/29** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
 | 离线测试 | `npm test; echo $?` | **26 套 / 634 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <overlay> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
@@ -45,7 +45,7 @@ rm -rf "$DSH_HOME"
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
 | 安全护栏 | `guard()` / `wrap()` | 凭据硬保护、无快照/过期拒绝、`allowedApps`、极危注记、stop/resume 锁存 |
 | 权限声明 | `PERMISSIONS.md` + `package.json dsh.permissions` | spawn 固定 argv；核心无网络；可选 GLM 外呼如实声明；无 lifecycle |
-| 文档一致性 | `npm run docs:check` | 工具/配置/错误码/链接/计数/标题结构校验 |
+| 文档/任务一致性 | `npm run check` | 工具/配置/错误码/链接/计数/标题结构 + S1-S4 阶段/脚本/AC2 |
 | 打包面 | `npm pack --dry-run --json` | 以实际输出为准（见 §4） |
 
 ## 3. STORE 五信号
@@ -58,7 +58,7 @@ rm -rf "$DSH_HOME"
 | 文件权限 | 有 `spawn`（cua-driver；Windows 按需 powershell.exe 跑 UIA 密码扫描/私有拖拽）——插件核心能力；默认无用户文件读写；轨迹开启时写指定 JSONL；仅 `existsSync` 探测驱动 |
 | 命令权限 | 固定 argv、`shell:false`：`cua-driver call …`；Windows `powershell.exe -File tools/uia-password-scan.ps1`（只读）、`tools/private-drag.ps1`（私有 SendInput 拖拽，按需） |
 | 网络权限 | 核心无网络；可选 GLM 视觉兜底在配置 `ZHIPU_API_KEY`/`GLM_API_KEY` 后向 `GLM_API_BASE` 外呼（含截图）；`native`/DeepSeek 观察者经宿主模型通道 |
-| 凭据权限 | 仅环境变量：`CUA_DRIVER_BIN`、`CUA_DRIVER_VERSION`、`CUA_DRIVER_PROFILE`、`CUA_CALL_TIMEOUT_MS`、`CUA_SESSION`、`DSH_CU_TRAJECTORY_FILE`、`DSH_POWERSHELL`、`S4_TEMP`/`DSH_TEMP`、`ZHIPU_API_KEY`/`GLM_API_KEY`、`GLM_API_BASE`、`GLM_VISION_MODEL`；不读密钥文件 |
+| 凭据权限 | 仅环境变量：`CUA_DRIVER_BIN`、`CUA_DRIVER_VERSION`、`CUA_DRIVER_PROFILE`、`CUA_CALL_TIMEOUT_MS`、`CUA_SESSION`、`DSH_CU_TRAJECTORY_FILE`、`DSH_POWERSHELL`、`S4_TEMP`/`DSH_TEMP`（`S4_TEMP` 为历史命名）、`ZHIPU_API_KEY`/`GLM_API_KEY`、`GLM_API_BASE`、`GLM_VISION_MODEL`；不读密钥文件 |
 | 生命周期脚本 | 无 install/postinstall/prepare |
 
 ## 4. 打包内容

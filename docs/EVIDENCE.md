@@ -11,6 +11,7 @@
 3. **环境态与插件缺陷分开**：setup ENV、应用缺失、网络不可达、临时 `TEMP` 问题不混入 pass/fail；AC2 `SKIP` ≠ PASS。
 4. **日期是运行日期**，不是文档修改日期；环境列写驱动/模型/宿主版本。
 5. **“当时”标注**：数字随版本变化（如隐藏工具数），历史记录保留当时值并标“当时”。
+6. **标签变更（2026-11-19）**：旧 `S4` 改称 `eval`；旧 `S2` 改称“像素定位修订”；`S3a`/`S3b` 改称“视觉断言协议”/“独立观察者”。只改标签，不改日期、命令、结果与 run id。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
@@ -226,12 +227,12 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 
 - headless 默认禁用 `credentials`；探针 patch 显式启用后可用。`OPENCODE_GO_API_KEY` 当时过期 401，使用默认 DeepSeek 通道。
 
-### 7.2 S4 oracle 双向验证
+### 7.2 eval oracle 双向验证
 
 - `TEMP=C:\Windows\TEMP` 时 `Add-Type` 报找不到 `*.cs`，首次 0/10；把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 后 **10/10 PASS**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1）。
 - 判据：setup ok → oracle 空跑 fail → simulate pass ×2 → cleanup ok。
 
-### 7.3 headless S4 smoke
+### 7.3 headless eval smoke
 
 | 轮次 | 上限 | 结果 | 备注 |
 |---|---:|---|---|
@@ -279,7 +280,7 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - 坐标标定：可控探针逐点最小二乘 **残差 ≤0.55px**；`computer_click(x,y)` = 窗口矩形相对物理像素；截图 == `list_windows.bounds` 1:1。
 - 输入通道：经典 Win32（regedit `ctrl+f`）**3/3**；WinUI3（记事本）`hotkey` **5/5 失败**（UIA 加速器 4s 超时，#3908）。
 - 驱动完整性：`cua-driver.exe` 清单 `requireAdministrator` → daemon 与 `app_launch` 子进程 High IL；非提权客户端清不掉（#3607）。
-- S4 9 任务 + AC2 **9/9**（连跑 3 次一致）；冒烟 t07 pass。
+- eval 9 任务 + AC2 **9/9**（连跑 3 次一致）；冒烟 t07 pass。
 - 客户端适配：严格输出校验、composer `Input.insertText`、页脚格式、新会话视图钉住。
 
 ## 11. 2026-09-06/07

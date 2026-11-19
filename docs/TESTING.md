@@ -2,12 +2,12 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-18：`npm test` 26 套 / **634 项检查**；`npm run check` 语法 26/26 + 文档一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-19：`npm test` 26 套 / **634 项检查**；`npm run check` 语法 29/29 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
 
-1. **按层测试**：纯逻辑用离线桩；驱动契约用真实 `cuaDeliver` + 注入 `call`；GUI 行为用真机；任务级能力用 S4 oracle。
+1. **按层测试**：纯逻辑用离线桩；驱动契约用真实 `cuaDeliver` + 注入 `call`；GUI 行为用真机；任务级能力用 eval oracle（S1-S4）。
 2. **看退出码**：`npm test` 用 `&&` 串联，某一套中途抛异常时，前面几套的输出仍然全绿。判据一律是 `npm test; echo $?` 或 `set -e`，不能只 grep 输出。
 3. **拒绝“测复刻”**：投递链测试直接执行真实 `lib/cua.js`，通过 `opts.call` 注入假驱动；不复制一份实现来测。
 4. **schema 严格校验**：dsh 0.2.2 对工具输出做 `additionalProperties:false` 校验；离线用与宿主语义对齐的校验器覆盖每种返回形态。
@@ -16,22 +16,35 @@
 
 ## 2. 测试层
 
-| 层 | 命令 | 规模 | 能抓住什么 |
+| 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
+|---|---|---|---|---|
+| 语法/安装脚本 | S1 | `npm run check` | 29 JS（含 lib/driver、eval runner、tasks.check）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
+| 离线单元/契约 | S1 | `npm test` | 26 套 / 634 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化 |
+| 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
+| WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
+| from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
+| modifier 手势 | S2 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达；0.23.2 driver drag modifier 不进入目标；0.52.13 原生 delivered |
+| 组合键前台 | S4 | `node evals/probe-combo-foreground.mjs` | 1 项 | blocker 前台时插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms |
+| 私有拖拽 | S2 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
+| 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
+| native freshness | S2 | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
+| dsh 真机加载 | S1 | `dsh --profile headless --patch ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
+| 真桌面闭环 | S1 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
+| 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 17 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
+| oracle 验证 | S1-S4 | `node evals/verify-oracles.mjs --stage S4` | 17 项（可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
+
+### 2.1 S1-S4 阶段
+
+| 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| 语法/安装脚本 | `npm run check` | 26 JS（含 lib/driver）+ 2 bash + 文档检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档漂移 |
-| 离线单元/契约 | `npm test` | 26 套 / 634 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化 |
-| 运行时（真驱动） | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
-| WinUI 键鼠通道 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
-| from_zoom 映射 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
-| modifier 手势 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达；0.23.2 driver drag modifier 不进入目标；0.52.13 原生 delivered |
-| 组合键前台 | `node evals/probe-combo-foreground.mjs` | 1 项 | blocker 前台时插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms |
-| 私有拖拽 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
-| 驱动形态 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
-| native freshness | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
-| dsh 真机加载 | `dsh --profile headless --patch ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
-| 真桌面闭环 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
-| 任务级评测 | `node evals/headless-run.mjs --tier smoke` | 17 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
-| oracle 验证 | `node evals/verify-oracles.mjs` | 17 项（可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 26/634、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11（1） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派覆盖 | — | t12/t13/t14/t15/t16/t17/x1（7） |
+| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点与清理 | `probe-combo-foreground` | t11-t17（7） |
+
+阶段是**成员标签，可重叠**：S1 9 / S2 1 / S3 7 / S4 7，成员合计 24，唯一任务 17。t11=S2+S4；t12-t17=S3+S4；x1=S3。
+
+边界：S2 目前只有 t11（带坐标脚手架的像素复刻）；S4 目前只有 dirty isolation，现有 oracle 不证明用户窗口未被关闭/修改。两者缺口见 [ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md)。
 
 ## 3. 离线套件（`npm test`）
 
@@ -123,7 +136,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 - 2026-11-12 实测：dsh 0.2.2-rc.1 + 默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；当时 2 可见/20 隐藏；`cacheReadTokens` 6528→7296。
 - 证据见 [EVIDENCE](EVIDENCE.md) §7.1。
 
-### 4.2 headless S4 smoke
+### 4.2 headless eval smoke
 
 ```bash
 node evals/headless-run.mjs --tier smoke --timeout-min 10
@@ -146,16 +159,18 @@ node tests/live-action.e2e.mjs 3
 - 不杀进程：Win11 记事本可能同时持有用户未保存文档；脚本只报告残留标签，由人工关闭；
 - 最近一次：23/23（2026-09-17，重设计后）；0.52.13 canary 33/33（详见 [EVIDENCE](EVIDENCE.md) §3.2）。
 
-## 6. S4 任务级评测（`evals/`）
+## 6. 任务级评测（S1-S4，`evals/`）
 
 ```bash
-node evals/headless-run.mjs --tier smoke --timeout-min 10
+node evals/headless-run.mjs --stage S1 --timeout-min 10
+node evals/headless-run.mjs --stage S2,S4 --timeout-min 15
 node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10
-node evals/headless-run.mjs --tier all --timeout-min 10
-node evals/verify-oracles.mjs
+node evals/headless-run.mjs --tier smoke --timeout-min 10   # 旧调度标签
+node evals/verify-oracles.mjs --stage S4
 ```
 
-- 任务集 17 条：冒烟 4（t01/t04/t07/wa2）+ 核心 6（t03/t05/t06/t09/t10 + x1 委派通道）+ dirty 7（t11 Paint/t12 PPT/t13 论文/t14 Excel/t15 Explorer/t16 表单/t17 PDF 摘录）；退役任务见 [evals/README](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/README.md)。
+- 任务集 17 条：S1 9（t01/t03/t04/t05/t06/t07/t09/t10/wa2）+ S2 1（t11）+ S3 7（t12/t13/t14/t15/t16/t17/x1）+ S4 7（t11-t17）；成员合计 24，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
+- `--tasks` > `--stage` > `--tier`；`--stage` 无匹配时退出非 0；无参数仍按旧 smoke 运行。退役任务见 [evals/README](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/README.md)。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
 - `verify-oracles` 判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；**2026-11-12 复跑 10/10**（含 `x1`）；2026-11-15 18:40 复跑 **10/10**。若 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp`。
 - 报告（`evals/report-last*.json`）是**真值产物，不入库**；仓库只进 runner/任务/oracle。
@@ -178,7 +193,7 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 - 决策规则：pass 不下降；median steps/duration 不恶化超过约 15%；p90 不恶化超过约 25%（n<8 标 `p90Unstable`）；没有新增 dirty/timeout；strategy 分布不更偏 exploratory。否则保持 `off`。
 - 2026-11-16 首轮 **10/10 pass**；auto 中位略优但有 533s 尾部、每轮多 2–12 次复核，默认保持 `off`。详见 [EVIDENCE](EVIDENCE.md) §5.3。
 
-### 6.2 脏桌面套件（t11-t17）
+### 6.2 S4 脏桌面套件（t11-t17）
 
 这组任务不建干净 VM/专用 Windows 用户，直接使用当前桌面和用户已打开的应用；通过 task md 的 `- **isolation: dirty**` 跳过 Notepad TabState backup。用户已有 Notepad/Paint/Office/浏览器窗口不关；只关闭 setup 记录的“测试新建 HWND/文档”，证明不了就 `leftover + dirty`。
 
@@ -243,8 +258,9 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 3. `action-bounds`：无快照、窗口绑定、参数缺失/未知参数；
 4. `config.plumbing`：若新增配置键，补 schema↔cfg↔读取点与行为哨兵；
 5. `package-manifest`：若新增发布文件/依赖/权限，更新断言；
-6. `docs/TOOLS.md` / `docs/CONFIGURATION.md` / `docs/ERRORS.md`：同步契约；跑 `npm run docs:check`；
-7. 真机：`verify-runtime`（只读）与必要的 live e2e。
+6. `docs/TOOLS.md` / `docs/CONFIGURATION.md` / `docs/ERRORS.md`：同步契约；跑 `npm run check`；
+7. 新增/移动评测任务：更新 `stages` 元数据与 `tests/tasks.check.mjs`；跑 `node evals/verify-oracles.mjs --tasks <id>`；
+8. 真机：`verify-runtime`（只读）与必要的 live e2e。
 
 改工具描述/参数时，建议在**仓库外**跑一次性工具面 JSON dump（描述/参数/输出 schema/render/execute arity），改前存基线、改后 diff；工具面是模型看到的全部接口，漂移即回归。
 
@@ -268,12 +284,13 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 项 | 值 |
 |---|---|
 | 离线 | 26 套 / 634 ✅ / 0 ❌ |
-| 语法 | 26/26 JS + `bash -n` 两脚本 + 文档检查 |
+| 语法 | 29/29 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
-| dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；S4 smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
-| dirty 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
+| dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
+| S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
-| 评测 | `verify-oracles` 2026-11-15 18:40 复跑 10/10；17 条任务；AC2 `ac2:none` 的 SKIP 不是 PASS |
+| 评测 | 17 条任务：S1 9 / S2 1 / S3 7 / S4 7（成员 24）；`verify-oracles` 2026-11-15 18:40 复跑 10/10；AC2 `ac2:none` 的 SKIP 不是 PASS |
+| P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 
 > 逐轮时间线、工具计数、失败模式见 [EVIDENCE](EVIDENCE.md)；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；当前矩阵见 [VERIFICATION](../VERIFICATION.md)。

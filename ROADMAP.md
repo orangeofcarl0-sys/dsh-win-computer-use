@@ -11,8 +11,8 @@
 | 0.5.7-dev | 工具面收敛 + 安全边界 + 更名 + dsh 0.2.2 + 驱动兼容 | `dispatcher` 默认（2 可见/21 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；`computer_activate`；`startActivation`；`lib/driver/`；click modifier；私有拖拽；观察回执修复 |
 | 0.5.6 | 委派降级阶梯 | `toolFilter` 被拒时只丢该约束，保住结构化输出；回执写明权限后果 |
 | 0.5.5 | 动态工具面（已废弃） | 折叠 2 / 展开 21；工具面 −81%；因 cache 实测被 0.5.7 删除 |
-| 0.5.4 | dsh 0.1.5 适配 + 坐标契约 + 上下文预算 | 点击坐标空间根治；观察降噪；紧凑回执；`computer_task`；S4 评测系统；结构治理 |
-| 0.5.3 | 结构密码检测 | Windows UIA sidecar；结构位优先；快照新鲜度语义；S3a 视觉断言协议 |
+| 0.5.4 | dsh 0.1.5 适配 + 坐标契约 + 上下文预算 | 点击坐标空间根治；观察降噪；紧凑回执；`computer_task`；eval 评测系统（原 S4）；结构治理 |
+| 0.5.3 | 结构密码检测 | Windows UIA sidecar；结构位优先；快照新鲜度语义；视觉断言协议（原 S3a） |
 | 0.5.2 | Windows 凭据保护 | `roles.js` 跨平台三态；修复 Windows 静默失效 |
 | 0.5.1 | 结构重构 | `apply()` 384→44 行；图片持久化统一出口；移除家目录密钥扫描 |
 | 0.5.0 | 工具改进包 | verify / wait_for / clipboard / menu / hover / stop / resume；12→19 工具 |
@@ -23,7 +23,7 @@
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
 | C6 | npm 发布 / web profile 部署 | 待授权 | npm 未发布；web profile 仍旧名 v0.5.3。见 [PUBLISH](PUBLISH.md) |
-| C12 | S4 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
+| C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
 | C13 | daemon 高完整性/清理 | 待评估 | #3607；先试非提权重启 daemon，避免 `app_launch` 子进程 High IL |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |
 | C15 | macOS 回归 | 待环境 | 近期证据都在 Windows；macOS 仍是历史验证 |
@@ -39,11 +39,11 @@
 | A2 | GLM agent 跨 run 漂移 + SoM 标号绑定 | 未闭环；SoM 方案已因数据否决暂缓 | 像素路径要升级为常规路径时 |
 | A3 | qwen3-vl 坐标帧错位根因 | 未闭环（代理缩图 vs 模型不确定） | 本地代理账号池稳定时 |
 | A4 | 运行时验证（用户层覆盖退役/driverAccess/L3 恢复/crop 换算） | ✅ 2026-09-06 | — |
-| A5 | dsv4fv OCR 数字噪声 | ✅ 可读 PNG 上 93 位零错误；zoom JPEG 小字不可读；模型 2/2 诚实拒答 | S3b 设计输入 |
+| A5 | dsv4fv OCR 数字噪声 | ✅ 可读 PNG 上 93 位零错误；zoom JPEG 小字不可读；模型 2/2 诚实拒答 | 独立观察者设计输入（原 S3b） |
 | A6 | Windows 密码框投影探针 | ✅ 9/9（结构标记/硬拒/零误拒/时延/crop） | — |
 | A7 | 坐标语义落点实验 | ✅ 六轮完成；0.23.2 混合 DPI 三假设均有反例 → 像素 best-effort；element 可靠 | 上游修复或换驱动版本时重测 |
 | A10 | native freshness | ✅ 探针未复现“AX 已变而 PNG 不变” | 在 Paint/Office 复现时 |
-| S3b | 独立观察者裁决 / screen_assert | 未做；S3a 协议已注入描述 | ZHIPU_API_KEY 或 dsv4fv 观察者文本输出修复 |
+| 独立观察者 | 独立观察者裁决 / screen_assert（原 S3b） | 未做；视觉断言协议（原 S3a）已注入描述 | ZHIPU_API_KEY 或 dsv4fv 观察者文本输出修复 |
 
 ## 4. 驱动与上游
 
@@ -74,10 +74,12 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| S4 任务集 17 条 | ✅ 已落地 | 冒烟 4 + 核心 6 + dirty 7（含 x1 委派通道）；oracle 双向验证见 [TESTING](docs/TESTING.md) |
-| 任务级复跑 | 待排期 | 桌面空闲、daemon 纯净时跑 `--tier smoke --max-steps 40 --timeout-min 8` |
+| S1-S4 任务集 17 条 | ✅ 已落地 | S1 9 / S2 1 / S3 7 / S4 7（成员 24，可重叠）；含 x1 委派通道；oracle 见 [TESTING](docs/TESTING.md) |
+| S2 缺口 | 待补 | 当前只有 t11（带坐标脚手架）；无坐标点击/OCR/zoom 定位任务未做 |
+| S4 缺口 | 待补 | 当前只有 dirty isolation；用户窗口/文件保留的 sentinel 断言未任务化 |
+| 任务级复跑 | 待排期 | 桌面空闲、daemon 纯净时跑 `--stage S1 --max-steps 40 --timeout-min 8` |
 | AC6（A–F 的 per-task token/步数对比） | 未做 | 降噪/预算的收益需要任务级数据 |
-| observe:action 比例 | 已知瓶颈 | S4 基线约 2–3:1，单回合输入曾达 8.5M tok |
+| observe:action 比例 | 已知瓶颈 | eval 基线约 2–3:1，单回合输入曾达 8.5M tok |
 | 降噪收益 | ✅ 离线 | summary 958→187 字符（80%）、brief 958→81（92%） |
 
 ## 7. 平台

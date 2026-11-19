@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-18）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认、P0/P1 安全边界、dsh 0.2.2 兼容升级与观察回执修复。npm 尚未发布；部署侧可能仍是旧版——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-19）**：最新发布 tag 是 `v0.5.6`（旧名 `dsh-computer-use` 的最后一个发布）；`main` 为 `0.5.7-dev`，含更名、dispatcher 默认、P0/P1 安全边界、dsh 0.2.2 兼容升级与观察回执修复。npm 尚未发布；部署侧可能仍是旧版——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 

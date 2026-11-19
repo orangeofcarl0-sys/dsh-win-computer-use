@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-18）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
+> **版本状态（2026-11-19）**：最新发布 tag 为 `v0.5.6`；`main` 为 `0.5.7-dev`（未发布），dsh 兼容基线为 **0.2.2-rc.1**。`package.json` 版本仍在 0.5.6，发布时统一 bump。npm 未发布；web profile 仍部署旧名 `dsh-computer-use` v0.5.3。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
 ## 0.5.7 (未发布)
@@ -31,6 +31,8 @@
 - **回执语义**：结构化拒绝/投递失败/`suspected_noop` 一律 `ok:false`；`unverifiable` 保持“已送达但未验证”；`unknown` 永不算成功；`background_delivery_failed` 是升级建议而非硬失败。
 - **坐标/缩放**：`screen_observe` 文本、结构化 elements、快照条目、点击输入统一 window-screenshot-px；`screen_zoom` 输出 `zoom-image-px` + `fromZoom`，不再手算 `crop.scale`；`nativeImage: compact` 明确失败。
 - **更名**：包名/仓库名 `dsh-computer-use` → `dsh-win-computer-use`；旧 GitHub URL redirect；npm 尚未发布。
+- **测试阶段 S1-S4**：S1 基础功能、S2 像素定位、S3 覆盖面任务集、S4 Dirty 能力任务集；任务用 `stages` 多标签（t11=S2+S4，t12-t17=S3+S4）。runner 新增 `--stage`；`--tasks`/`--tier` 保持兼容。旧系统级 `S4` 全局改称 `eval`；`S3a/S3b` 改为视觉断言协议/独立观察者。
+- **P0 判定绑定**：t04/t07 按 setup 记录的 HWND 判定；t05 payload 加非 ASCII `é`；t03 加 `keep.txt` 与无多余文件检查；x1 改为必须 `computer_task` 并由 runner 校验调用。
 
 ### Fixed
 
@@ -52,7 +54,7 @@
 
 ### Verification
 
-- 离线 **26 套 / 634 项检查**；语法 **26/26**；`verify-runtime` **18/18**（0.23.2 + 0.52.13）。
+- 离线 **26 套 / 634 项检查**；语法 **29/29**；`verify-runtime` **18/18**（0.23.2 + 0.52.13）；`tests/tasks.check.mjs` **245 项**（S1-S4 阶段/脚本/计数/P0 绑定）。
 - 0.52.13 canary：`live-action` 33/33；driver-shape/modifier/combo/private-drag/from-zoom/native-freshness 全通过；t17 capture-only **29 步 pass**。
 - 观察回执修复后：t11 **70 步 pass**（oracle 22/22，`snapshot_mismatch` 0）、t12 **100 步 pass**（oracle 13/13，`snapshot_mismatch` 0）。
 - 逐轮详情、失败样本与原始 run id 见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
@@ -80,7 +82,7 @@
 
 ## 0.5.4 (2026-09-17)
 
-**主题**：dsh 0.1.5 大版本适配、点击坐标契约根治（所见即所点）、观察降噪与上下文预算 A–F、S4 评测回归系统、测试与代码结构治理。
+**主题**：dsh 0.1.5 大版本适配、点击坐标契约根治（所见即所点）、观察降噪与上下文预算 A–F、eval 评测回归系统（原 S4）、测试与代码结构治理。
 
 ### Added
 
@@ -89,7 +91,7 @@
 - **坐标换算基准元数据**：observe/zoom 输出 `screenOrigin`（= `list_windows` 的 bounds；实测截图与该 bounds 逐像素相同）+ `coordinateSpace`，使“图内像素 × crop.scale + crop 原点 + screenOrigin = 屏幕物理像素”可算（zoom 实测为恒定 1.2× 上采样，裁剪宽 ≤500px）。
 - **未知参数拒发**：宿主参数表编译后不含 additionalProperties，参数名写错会被静默忽略并可能回退“z 序最前窗口”（实测踩坑：给 screen_observe 传 `app=` 观察到了别的应用）→ `wrap()` 单点拒绝并列明可接受参数；observe 未指定 window 时结果显式注明“已取最前窗口”。
 - **测试面**：`tests/schema.conformance.mjs`（把实现可能返回的每种形态——正常/守卫拒绝/观测降级/驱动错误——对着声明 schema 严格校验；本版收尾时覆盖 20 个工具 / 42 个场景）、`tests/live-action.e2e.mjs`（真桌面动作闭环 + 稳定性循环）、`tests/syntax.check.mjs`（修 `npm run check` 的 Windows glob 失效）。
-- **S4 评测回归系统**（仓库 `evals/`）：9 条任务（冒烟 4 + 核心 5）、PS oracle 四件套（setup/oracle/cleanup/simulate）、AC2 双向独立验证、零依赖 CDP runner（`--tier/--max-steps/--pin-model/--pin-effort`）、maintain/stop-stale/hygiene 运维脚本；坐标标定与键盘通道诊断脚本一并入库。
+- **eval 评测回归系统（原 S4）**（仓库 `evals/`）：9 条任务（冒烟 4 + 核心 5）、PS oracle 四件套（setup/oracle/cleanup/simulate）、AC2 双向独立验证、零依赖 CDP runner（`--tier/--max-steps/--pin-model/--pin-effort`）、maintain/stop-stale/hygiene 运维脚本；坐标标定与键盘通道诊断脚本一并入库。
 
 ### Fixed
 
@@ -121,7 +123,7 @@
 ### Added
 
 - **快照新鲜度语义**（PLAN-snapshot-freshness Phase A；REVERSE 逆向三点合流）：失效原因三分类 `[snapshot_expired]`（带快照 id）/`[snapshot_mismatch]`/`[snapshot_consumed]`；`supersession` 配置 off/note/enforce（默认 note：同快照连击附一致性注记不阻断）；动作工具新增可选 `snapshot_id` 显式证据基线参数（7 个 mutate 工具 + observe 输出 schema 增 snapshotId）；unverifiable 动作触发状态可疑注记（干预 P0 降级版，只注记不阻断）。上游需求已提：trycua/cua #3586（树版本+条件请求）、#3587（干预信号）。
-- **S3a 视觉断言协议**（PLAN-s3-model-verifier）：A5 实证（可读 PNG 证据上 dsv4fv 数字转述噪声≈0、zoom JPEG 对小字号不可读、模型证据不足时 2/2 诚实拒答、同会话历史回声风险）落为工具描述协议——数字断言逐字双向校验不做编辑距离放宽、文字模糊子串+同义对照、只认本轮新鲜证据、不可读=unknown 不得编造；注入 `screen_observe`/`screen_zoom`/`computer_verify` 描述。零新工具零新权限；S3b（screen_assert 工具/独立观察者裁决）待观察者条件成熟。
+- **视觉断言协议（原 S3a）**（PLAN-s3-model-verifier）：A5 实证（可读 PNG 证据上 dsv4fv 数字转述噪声≈0、zoom JPEG 对小字号不可读、模型证据不足时 2/2 诚实拒答、同会话历史回声风险）落为工具描述协议——数字断言逐字双向校验不做编辑距离放宽、文字模糊子串+同义对照、只认本轮新鲜证据、不可读=unknown 不得编造；注入 `screen_observe`/`screen_zoom`/`computer_verify` 描述。零新工具零新权限；独立观察者（原 S3b；screen_assert 工具/裁决）待观察者条件成熟。
 - **UIA sidecar**（`tools/uia-password-scan.ps1` + `lib/passwordScan.js`）：`screen_observe` 时遍历目标窗口元素，密码 = `IsPassword`（现代框架 provider）∨ `ES_PASSWORD` 样式位（经典 Win32，`NativeWindowHandle` + `GetWindowLongW` 实测）→ 标记快照 entry → guard **结构位优先**硬拒。失败/超时（3s）自动降级启发式并在结果注记；误差方向安全（坐标错配只会漏标不会误标）。
 - `tools/password-probe.ps1` 自包含探针（A6）：WinForms 密码框 + UIA 自扫 + Win32 样式真值三重交叉验证；出货版 sidecar 已对活体探针窗口端到端命中（无标签空值密码框，count=1）。
 
@@ -176,7 +178,7 @@
 - **`computer_clipboard`**：剪贴板读写；`write` + `ctrl+v` 组成可靠“粘贴流”。
 - **`computer_menu`**：菜单路径直调（driver `invoke_menu`，fail-closed，绝不回退像素）。
 - **`computer_hover`**（实验性）：移动虚拟光标；`real=true` 移动真实 OS 指针（scope=desktop）。真实 hover 效果取决于应用，未验证。
-- **`computer_stop` / `computer_resume`**：强杀开关——stop 结束驱动会话 + 清观察快照 + **锁存全部桌面操作**（观察/动作/应用一律拒绝）；resume 唯一解锁路径并预热会话。S3 的确定性半边就此补齐。
+- **`computer_stop` / `computer_resume`**：强杀开关——stop 结束驱动会话 + 清观察快照 + **锁存全部桌面操作**（观察/动作/应用一律拒绝）；resume 唯一解锁路径并预热会话。验证工作流（原 S3）的确定性半边就此补齐。
 
 ### Security
 
@@ -184,7 +186,7 @@
 
 ## 0.4.1 (2026-09-05)
 
-依据 dsv4fv 像素定位实验（SURVEY 附录A：整窗裸定位 median>300px、先验驱动的布局重建、目标主导小裁剪 13-80px）落地 S2 修订。
+依据 dsv4fv 像素定位实验（SURVEY 附录A：整窗裸定位 median>300px、先验驱动的布局重建、目标主导小裁剪 13-80px）落地像素定位修订（原 S2）。
 
 ### Added
 

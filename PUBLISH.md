@@ -34,7 +34,7 @@
 # 0. 工作树必须干净（发布物 = 提交，不是工作区）
 git status --short
 
-# 1. 语法 + 安装脚本 + 文档一致性
+# 1. 语法 + 安装脚本 + 文档/任务一致性
 npm run check; echo "check=$?"
 
 # 2. 离线测试（26 套 / 634 项；&& 串联，必须看 $?）
@@ -46,8 +46,8 @@ node verify-runtime.mjs
 # 4. 真桌面动作闭环（23/23；会打开临时记事本，残留标签人工关闭）
 node tests/live-action.e2e.mjs 3
 
-# 5. S4 oracle 双向验证（clean 组 10/10；dirty 组 SKIP 不是 PASS）
-node evals/verify-oracles.mjs
+# 5. eval oracle 双向验证（S1 + x1 clean 组 10/10；S4 dirty 组 SKIP 不是 PASS）
+node evals/verify-oracles.mjs --stage S4
 
 # 6. 打包面（以实际输出为准；确认没有 node_modules/.dsh-test/tests/evals）
 npm pack --dry-run --json
@@ -56,7 +56,7 @@ npm pack --dry-run --json
 文档/计数一致性：
 
 ```bash
-npm run docs:check; echo "docs=$?"
+npm run check; echo "check=$?"
 node -e "const f=require('./tests/docs.facts.json'); console.log(f)"
 ```
 
@@ -179,8 +179,8 @@ dsh plugin --profile web add dsh-win-computer-use
 |---|---|---|---|
 | v0.5.6 | 2026-09-17 | `68770fd` | 委派能力降级修复（toolFilter/scoped restrict/三级阶梯）+ 文档修正 |
 | v0.5.5 | 2026-09-17 | — | 动态工具面（已废弃） |
-| v0.5.4 | 2026-09-17 | — | dsh 0.1.5 适配、坐标契约、观察降噪、上下文预算、S4 |
-| v0.5.3 | 2026-09-06 | — | 结构密码检测、快照新鲜度、S3a |
+| v0.5.4 | 2026-09-17 | — | dsh 0.1.5 适配、坐标契约、观察降噪、上下文预算、eval（原 S4） |
+| v0.5.3 | 2026-09-06 | — | 结构密码检测、快照新鲜度、视觉断言协议（原 S3a） |
 | v0.5.2 | 2026-09-06 | — | Windows 凭据保护 |
 | v0.5.1 | 2026-09-06 | — | 结构重构 |
 | v0.5.0 | 2026-09-06 | — | 工具改进包（12→19） |

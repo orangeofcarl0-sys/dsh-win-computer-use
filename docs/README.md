@@ -94,11 +94,24 @@
 5. **标题结构**：一篇一个 H1；H2 为 `## N. 标题`；H3 为 `### N.M 标题`；不重复编号，不用 `## 7.1`。
 6. **命令**：用 `<repo>`/`<path>` 占位符，标注 bash/PowerShell；不写本机绝对路径；破坏性步骤明确写“不要”。
 
+### 6.1 术语变更（2026-11-19）
+
+S1-S4 现在表示**测试阶段**：S1 基础功能、S2 像素定位、S3 覆盖面任务集、S4 Dirty 能力任务集。任务可同时属于多个阶段（t11=S2+S4，t12-t17=S3+S4）。
+
+| 旧标签 | 旧含义 | 现称呼 |
+|---|---|---|
+| S4 | 0.5.4 的整套评测系统 | **eval** |
+| S2 | 像素定位修订 | **像素定位修订（历史）** |
+| S3a | 视觉断言协议 | **视觉断言协议** |
+| S3b | 独立观察者裁决 | **独立观察者** |
+
+冻结标识：`S4_TEMP`/`S4_POWERSHELL` 等环境变量、`~/.dsh/s4-evals/`、fixture 字符串（`S4 Bar`、`S4-T01`、`S4 Sales`）是历史兼容名，不代表新 S4 阶段。历史文档（EVIDENCE/CHANGELOG）只改标签，不改日期、命令与结果。
+
 ## 7. 维护
 
 ```bash
 npm run docs:check    # 工具/配置/错误码覆盖、链接、过期数字、标题结构
-npm run check         # 语法 26/26 + 文档一致性
+npm run check         # 语法 29/29 + 文档/任务一致性
 ```
 
 改工具、配置键、错误码、权限面或发布文件时，按 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 的检查清单同步文档，并更新 `tests/docs.facts.json`。

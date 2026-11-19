@@ -80,7 +80,7 @@
 | `CUA_SESSION` | `dsh-win-computer-use` | 驱动会话 id；element_token/zoom 快照按 session 归属 | — |
 | `DSH_CU_TRAJECTORY_FILE` | — | 轨迹 JSONL 路径 | **高于**配置 `trajectoryFile` |
 | `DSH_POWERSHELL` | `powershell.exe` | 指定 PowerShell 可执行文件 | — |
-| `S4_TEMP` / `DSH_TEMP` | 用户 TEMP | 私有拖拽 `Add-Type` 编译临时目录 | — |
+| `S4_TEMP` / `DSH_TEMP` | 用户 TEMP | 私有拖拽 `Add-Type` 编译临时目录；`S4_TEMP` 是历史命名，保留兼容 | — |
 | `ZHIPU_API_KEY` / `GLM_API_KEY` | — | GLM 视觉兜底；未配置则该路径停用 | — |
 | `GLM_API_BASE` | 智谱官方端点 | GLM 端点 | — |
 | `GLM_VISION_MODEL` | `glm-4.6v-flash` | GLM 首选模型 | — |
