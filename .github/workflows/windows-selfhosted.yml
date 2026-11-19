@@ -1,0 +1,62 @@
+name: Windows self-hosted
+
+# Manual only: this job needs an interactive logged-in desktop, cua-driver with
+# a running daemon, and no user Notepad processes (TabState backup). It is not
+# part of pull-request gating.
+on:
+  workflow_dispatch:
+    inputs:
+      run_probes:
+        description: 'Run desktop probes (safety/scroll/ops/modifier-drop/launch)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: desktop-eval
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax + docs consistency
+        run: npm run check
+
+      - name: Offline tests
+        run: npm test
+
+      - name: Runtime smoke (read-only)
+        shell: powershell
+        run: |
+          node verify-runtime.mjs
+          if ($LASTEXITCODE -eq 2) {
+            Write-Host "::notice::verify-runtime ENV: no AX-capable visible window"
+            exit 0
+          }
+          exit $LASTEXITCODE
+
+      - name: Desktop probes
+        if: ${{ inputs.run_probes }}
+        shell: powershell
+        run: |
+          node evals/probe-safety-runtime.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node evals/probe-scroll.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node evals/probe-ops.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node evals/probe-modifier-drop.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node evals/probe-launch.mjs
+          exit $LASTEXITCODE

@@ -13,7 +13,7 @@
 | 排查具体失败 | [TROUBLESHOOTING](TROUBLESHOOTING.md) | [ERRORS](ERRORS.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md) |
 | 安全/权限审查 | [SECURITY](SECURITY.md) → [PERMISSIONS](../PERMISSIONS.md) | [store-evidence](store-evidence.md) · [VERIFICATION](../VERIFICATION.md) |
 | 维护/发布 | [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) | [ARCHITECTURE](ARCHITECTURE.md) · [TESTING](TESTING.md) · [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
-| 评测/基准 | [TESTING](TESTING.md) | [evals/README](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/README.md) · [EVIDENCE](EVIDENCE.md) · [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) |
+| 评测/基准 | [TESTING](TESTING.md) | [evals/README](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/README.md) · [RETIRED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/RETIRED.md) · [BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md) · [EVIDENCE](EVIDENCE.md) · [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) |
 | 研究/方案对比 | [CU-RESEARCH](CU-RESEARCH.md) | [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) · [ARCHITECTURE](ARCHITECTURE.md) |
 
 ## 2. 按任务选择
@@ -111,7 +111,7 @@ S1-S4 现在表示**测试阶段**：S1 基础功能、S2 像素定位、S3 覆�
 
 ```bash
 npm run docs:check    # 工具/配置/错误码覆盖、链接、过期数字、标题结构
-npm run check         # 语法 32/32 + 文档/任务一致性
+npm run check         # 语法 37/37 + 文档/任务一致性
 ```
 
 改工具、配置键、错误码、权限面或发布文件时，按 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 的检查清单同步文档，并更新 `tests/docs.facts.json`。

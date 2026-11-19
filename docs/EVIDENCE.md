@@ -1,7 +1,7 @@
 # EVIDENCE — 按日期归档的运行证据
 
 > 目的：保存逐轮步数、探针结果、一次性结论与失败样本；**不描述当前实现**。当前行为见 [README](../README.md) 与各参考文档。
-> 状态：历史证据（append-only；最后追加 2026-11-18）。
+> 状态：历史证据（append-only；最后追加 2026-11-20）。
 > 相关：[VERIFICATION](../VERIFICATION.md)（当前矩阵）· [TESTING](TESTING.md)（测试方法）· [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)（模型行为分析）。
 
 ## 1. 证据约定
@@ -12,6 +12,25 @@
 4. **日期是运行日期**，不是文档修改日期；环境列写驱动/模型/宿主版本。
 5. **“当时”标注**：数字随版本变化（如隐藏工具数），历史记录保留当时值并标“当时”。
 6. **标签变更（2026-11-19）**：旧 `S4` 改称 `eval`；旧 `S2` 改称“像素定位修订”；`S3a`/`S3b` 改称“视觉断言协议”/“独立观察者”。只改标签，不改日期、命令、结果与 run id。
+
+## 1.1 2026-11-20 — P1/P2 测试收口
+
+环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；opencode-go/deepseek-v4.1-flash；默认 deepseek-official/deepseek-flash（本次 `QUOTA` 402）。
+
+- **AC2 全量**：`node evals/verify-oracles.mjs` → **22/23 PASS + t13 SKIP**；0 FAIL/ENV/dirty（`evals/verify-runs/2026-11-19T17-19-58`）。
+- **oracle mutation**：三批 7+6+6 = **19/19**；t04/t07 live GUI、t13 ac2:none 按原因 SKIP。所有变异产物被 oracle exit 1 拒绝；t18 变异 PDF 按精确路径删除。
+- **probe-ops**：11 PASS + 1 BLOCKED。`computer_menu` 在自建 WinForms 原生 HMENU 上仍返回 `menu_path_unavailable` / `window_id ... invalid`，未伪造成 PASS。
+- **probe-launch**：7/7。daemon `S-1-16-12288`，但 `app_launch('powershell.exe')` 子进程为 `S-1-16-8192`；驱动侧 alt+F4 关闭，无残留；基线窗口未动。旧“app_launch 子进程一律 High IL”断言按实测改写。
+- **probe-modifier-drop**：5/5。Explorer Ctrl+drag 复制、普通 drag 移动、`GetAsyncKeyState` 与 private-drag 回执均无卡键。
+- **probe-safety-runtime 13/13；probe-scroll 3/3**（已改为 `import.meta.url` 推导根目录，加 120s 自关 Timer 与子进程身份清理）。
+- **真跑**：默认 overlay 在 t19/t20 第一步即 `QUOTA` 402（ENV，不是任务失败）；opencode overlay：t19 **pass 35 步**、t20 **pass 17 步**（首轮）；第二轮 t19 **fail 56 步**、t20 **fail 33 步**（方差样本）。t20 第二轮失败时 Confirm 模态未关，cleanup 曾记 dirty；已加“先关 owned 模态 + 精确 PID/start 兜底”，合成模态复测 cleanup dirty=false。
+- **S2 图像真跑**：p01 **pass 6 步**、p02 **pass 11 步**、p03 **pass 8 步**（opencode text+image；oracle 分别命中 C2 / P02-7K9 / D3）。
+- **TabState 事件**：首轮 opencode t19/t20 结束时，模型自开的测试 Notepad（`target.txt`，modified）阻止 restore；按精确 HWND/pid/start + 允许标签 `target.txt` 关闭并丢弃，`tabstate.ps1 restore` 恢复 28 个用户 bin。t19/t20 cleanup 已加 `Close-OrphanTestNotepads` 防复发。
+- **CI**：ubuntu 加 `npm ci` + `npm test`；新增手动 Windows self-hosted workflow（`verify-runtime` exit 2 视为 ENV；可选 probes）。
+- **AC6**：`headless-run` 落 `tokens`/`modelRoute`；`ac6-summary` 汇总 t01/t05 各 5 轮（opencode-go/deepseek-v4.1-flash）：
+  - t01：5/5 pass；steps 中位 12 / p90 15；wall 114s；input 8,906 / output 2,119 / cacheRead 126,976 / total 145,003 / billable 10,731。
+  - t05：5/5 pass；steps 中位 24 / p90 47；wall 224s；input 21,811 / output 3,182 / cacheRead 405,888 / total 430,881 / billable 24,993。
+  - t11/t14/t15 的 5 轮未跑（成本/桌面时间），不把 t01/t05 的数字外推到长任务。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

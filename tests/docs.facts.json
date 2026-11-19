@@ -6,8 +6,8 @@
   "hybridHidden": 16,
   "configKeys": 24,
   "offlineSuites": 26,
-  "offlineChecks": 646,
-  "syntaxFiles": 32,
+  "offlineChecks": 652,
+  "syntaxFiles": 37,
   "runtimeChecks": 18,
   "packFiles": 56,
   "evalTasks": 23,
@@ -22,5 +22,5 @@
   "nodeMin": "22.18.0",
   "driverBaseline": "0.23.2",
   "driverCanary": "0.52.13",
-  "lastVerified": "2026-11-19"
+  "lastVerified": "2026-11-20"
 }

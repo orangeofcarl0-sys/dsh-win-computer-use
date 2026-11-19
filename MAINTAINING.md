@@ -2,7 +2,7 @@
 
 > 目的：干净工作区重新开始时，这份文档 + 仓库内文档 = 足够的上下文。
 > 读者：本仓库维护者。
-> 状态：当前实现（最后核对 2026-11-19；`0.5.7` 已发布并推送 npm）。
+> 状态：当前实现（最后核对 2026-11-20；`0.5.7` 已发布并推送 npm）。
 > 唯一文档索引：[docs/README.md](docs/README.md)；版本历史：[CHANGELOG.md](CHANGELOG.md)；逐轮证据：[docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
 ## 1. 项目状态
@@ -13,7 +13,7 @@
 - **版本**：`v0.5.7` 已发布（2026-11-19；npm `dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 26 套 / **646** 项；`npm run check` 语法 **32/32** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
+- **测试基线**：`npm test` 26 套 / **652** 项；`npm run check` 语法 **37/37** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 环境
 
@@ -82,7 +82,7 @@ cua-driver autostart kick
 
 ### 3.4 完整性级别与清理
 
-- `cua-driver.exe` 清单 `requireAdministrator` → daemon High IL；`app_launch` 子进程继承 High IL（对照：同一 shell `Start-Process notepad` 为 Medium）。
+- `cua-driver.exe` 清单 `requireAdministrator` → daemon High IL；`app_launch` 子进程 IL 取决于驱动/启动路径（0.52.13 实测 PowerShell 为 Medium；对照：同一 shell `Start-Process notepad` 也为 Medium）。
 - 驱动**能**操作自己启动的 High IL 窗口（提权记事本 `computer_type` 成功且 confirmed）；非提权客户端**清不掉**（UIPI 拒绝 taskkill/Stop-Process/WM_CLOSE）。
 - WinUI 目标上 `alt+f4` 撞 #3908、`invoke_menu` 不可用 → 只能人工收尾。
 - 测试/评测优先操作已在运行的普通应用；`app_launch` 任务接受人工关闭成本。
@@ -159,6 +159,7 @@ cua-driver autostart kick
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 已发布 `dsh-win-computer-use@0.5.7`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
+- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
 ## 6. 已知缺口
@@ -171,7 +172,8 @@ cua-driver autostart kick
 | G7 | 部署 | web profile 仍旧版；npm 已发布 0.5.7 | 用户看到的可能不是 main | 按 PUBLISH 部署 |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 | A11 | 手势原语 | 无 selectText/key hold/mouse down-up；drag 无元素源 | 复杂文本选择/形状拖拽仍靠坐标 | 评估下一层原语 |
-| A17 | 私有拖拽 | Explorer/Excel/PPT 的 modifier drop 未自动回归 | 已知边界 | 下一轮真机项 |
+| A17 | 私有拖拽 | Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 未自动回归 | 已知边界 | Excel 需 UIA 网格 + 保存路径；PPT 仍 BLOCKED |
+| A18 | `app_launch` | 子进程 IL 依驱动/路径；0.52.13 daemon High 但 powershell Medium | 不能一律按 High 清理 | `probe-launch` 记录实际 IL；残留写 leftover |
 
 其余见 [ARCHITECTURE](docs/ARCHITECTURE.md) §13。
 
@@ -179,9 +181,9 @@ cua-driver autostart kick
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | npm 发布 + web profile 切新版（需用户“发布”授权） |
-| P2 | eval 任务级复跑 + AC6（降噪/预算的 per-task token/步数） |
-| P2 | daemon 提权/清理问题（#3607）；先试非提权重启 daemon |
+| P1 | web profile 切新版（npm 0.5.7 已发布，需用户明确部署授权） |
+| P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
+| P2 | daemon 提权/清理问题（#3607）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |
 | P3 | macOS 回归；Linux 不在承诺范围 |
 | P3 | 驱动库存候补（browser_*、set_window_frame、trajectory…） |

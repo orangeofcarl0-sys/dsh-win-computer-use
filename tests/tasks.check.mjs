@@ -122,6 +122,18 @@ check('P0 x1: prompt 不再允许自己操作', Boolean(x1) && !/你也可以自
 const runner = readFileSync(join(root, 'evals', 'headless-run.mjs'), 'utf8')
 check('P0 x1: runner 执行 require_tool', /requireToolUsed/.test(runner) && /required tool not called/.test(runner))
 
+// 文档/退役/阻塞清单一致性：这些是人工最容易漂移的入口。
+const evalsReadme = readFileSync(join(root, 'evals', 'README.md'), 'utf8')
+check('docs: evals/README 阶段计数', /S1 9 \/ S2 4 \/ S3 10 \/ S4 8/.test(evalsReadme)
+  && /成员合计 \*\*31\*\*/.test(evalsReadme) && /唯一任务 \*\*23\*\*/.test(evalsReadme))
+check('docs: evals/README simulate 22', /simulate\/\s+22 个/.test(evalsReadme))
+check('docs: RETIRED 记录 t02/t08', existsSync(join(root, 'evals', 'RETIRED.md'))
+  && /`t02`/.test(readFileSync(join(root, 'evals', 'RETIRED.md'), 'utf8'))
+  && /`t08`/.test(readFileSync(join(root, 'evals', 'RETIRED.md'), 'utf8')))
+check('docs: BLOCKED 清单存在', existsSync(join(root, 'evals', 'BLOCKED.md')))
+const taskNames = readdirSync(join(root, 'evals', 'tasks'))
+check('docs: 退役任务未回到 tasks/', !taskNames.some((f) => /^t0[28]-/.test(f)))
+
 const failed = checks.filter((c) => !c.ok)
 console.log(`\n结果：${failed.length === 0 ? '✅ 全部通过' : `❌ ${failed.length} 项失败`}（${checks.length} 项检查）`)
 process.exit(failed.length === 0 ? 0 : 1)

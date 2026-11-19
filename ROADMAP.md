@@ -75,12 +75,12 @@
 | 项 | 状态 | 说明 |
 |---|---|---|
 | S1-S4 任务集 23 条 | ✅ 已落地 | S1 9 / S2 4 / S3 10 / S4 8（成员 31，可重叠）；含 x1 委派通道；oracle 见 [TESTING](docs/TESTING.md) |
-| S2 像素任务 | ✅ 已补 | p01 无坐标点击、p02 像素 token、p03 screen_zoom；仍需 3 轮稳定性与 text-only ENV 策略 |
+| S2 像素任务 | ✅ 已补 | p01 无坐标点击、p02 像素 token、p03 screen_zoom；2026-11-20 opencode image 路由 3/3 pass（6/11/8 步）；text-only 路由未验证 |
 | S4 用户状态 | ✅ 已补 | t11-t18 全部加 sentinel 窗口/身份/文件校验；cleanup 只关测试自建对象 |
 | S4 真实用户窗口 | 未做 | sentinel 是测试自建 decoy；真实用户窗口/未保存文档的保留仍靠 cleanup 约束 |
-| 任务级复跑 | 待排期 | 桌面空闲、daemon 纯净时跑 `--stage S1 --max-steps 40 --timeout-min 8` |
-| AC6（A–F 的 per-task token/步数对比） | 未做 | 降噪/预算的收益需要任务级数据 |
-| observe:action 比例 | 已知瓶颈 | eval 基线约 2–3:1，单回合输入曾达 8.5M tok |
+| 任务级复跑 | 待排期 | 桌面空闲、daemon 纯净时跑 `--stage S1 --timeout-min 8` |
+| AC6（A–F 的 per-task token/步数对比） | 部分完成 | `headless-run` 采 `status/step_end.usage`，`ac6-summary` 出中位数/p90；2026-11-20 t01/t05 各 5 轮（全 pass）；t11/t14/t15 待空闲桌面 |
+| observe:action 比例 | 已知瓶颈 | eval 基线约 2–3:1，历史单回合输入曾达 8.5M tok（任务已退役） |
 | 降噪收益 | ✅ 离线 | summary 958→187 字符（80%）、brief 958→81（92%） |
 
 ## 7. 平台

@@ -74,6 +74,26 @@ function parseStages(value) {
   return value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
 }
 
+/** 从 overlay 读取 agent-default-model 的 provider/model（不读取任何密钥）。 */
+function readModelRoute(file) {
+  try {
+    const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/)
+    let inBlock = false
+    let provider = ''
+    let model = ''
+    for (const line of lines) {
+      if (/^\s*-\s*id:\s*agent-default-model\b/.test(line)) { inBlock = true; continue }
+      if (inBlock && /^\s*-\s*[A-Za-z]/.test(line) && !/^\s+/.test(line)) break
+      if (!inBlock) continue
+      const p = /^\s*provider:\s*(\S+)/.exec(line)
+      if (p) provider = p[1]
+      const m = /^\s*model:\s*(\S+)/.exec(line)
+      if (m) model = m[1]
+    }
+    return provider || model ? { provider: provider || null, model: model || null } : null
+  } catch { return null }
+}
+
 function discover() {
   const out = []
   for (const f of fs.readdirSync(path.join(ROOT, 'tasks')).filter((x) => x.endsWith('.md')).sort()) {
@@ -170,12 +190,23 @@ function analyze(events) {
     if ((r.status && r.status !== 'completed') || /✗|\[snapshot_missing\]|\[snapshot_expired\]|\[snapshot_mismatch\]|refused|suspected_noop/.test(s)) toolErrors++
     else if (/unverifiable/i.test(s)) unverified++
   }
+  const tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, steps: 0 }
+  for (const e of events) {
+    if (e.type !== 'status' || e.phase !== 'step_end' || !e.usage) continue
+    tokens.steps++
+    tokens.input += Number(e.usage.inputTokens) || 0
+    tokens.output += Number(e.usage.outputTokens) || 0
+    tokens.cacheRead += Number(e.usage.cacheReadTokens) || 0
+    tokens.cacheWrite += Number(e.usage.cacheWriteTokens) || 0
+    tokens.total += Number(e.usage.totalTokens) || 0
+  }
   const end = [...events].reverse().find((e) => e.type === 'turn_end')
   const final = [...events].reverse().find((e) => e.type === 'final')
   return {
     toolCalls: toolCalls.length,
     toolErrors,
     unverified,
+    tokens,
     turn: end?.reason?.kind || null,
     final: final?.text || '',
     calls: toolCalls.map((c) => `${c.tool}${c.input?.tool ? ':' + c.input.tool : ''}`),
@@ -188,7 +219,7 @@ async function runOne(task) {
     stages: task.stages, isolation: task.isolation, ac2: task.ac2,
     requireTool: task.requireTool || null, requireToolUsed: null,
     verdict: 'error', steps: 0, innerSteps: 0, toolErrors: 0, unverified: 0,
-    timedOut: false, wallMs: 0, turn: null, final: '', oracle: null,
+    tokens: null, timedOut: false, wallMs: 0, turn: null, final: '', oracle: null,
     setup: null, cleanup: null, dirty: false, notes: [],
   }
   const cl0 = await ps('cleanup', task.id)
@@ -237,6 +268,7 @@ async function runOne(task) {
   rec.innerSteps = a.calls.filter((c) => c !== 'computer_do').length
   rec.toolErrors = a.toolErrors
   rec.unverified = a.unverified
+  rec.tokens = a.tokens
   rec.timedOut = Boolean(dr.timedOut)
   rec.turn = a.turn
   rec.final = a.final.slice(0, 400)
@@ -358,6 +390,7 @@ const summary = {
   repeats,
   patchPath: patch,
   patchSha256,
+  modelRoute: readModelRoute(patch),
   tabState: { backup: tb.json, restore: tr.json },
   runs,
 }

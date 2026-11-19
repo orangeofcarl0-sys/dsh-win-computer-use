@@ -1,0 +1,31 @@
+# BLOCKED — 未覆盖 / 无法证明的能力
+
+> 目的：把“测不了”和“测了但失败”分开。这里列出的项**不计入 pass**，也不写成“已支持”。
+> 状态：2026-11-20。证据日期与命令内联；完整运行记录见 `docs/EVIDENCE.md`。
+
+## 1. 真实运行时阻塞
+
+| 项 | 证据 | 影响 | 解除条件 |
+|---|---|---|---|
+| `computer_menu` on WinForms/原生 HMENU | `evals/probe-ops.mjs`（2026-11-20）：自建窗口的 `Tools` 菜单项在 AX 树中可见，但 `invoke_menu` 返回 `menu_path_unavailable` / `window_id is closed, stale, or invalid`；未出现 `effect:confirmed` | menu 原语只在“驱动可解析的经典菜单”上有历史证据；WinForms 目标未证明 | 驱动修复 `invoke_menu` 的 WinForms 窗口寻址，或换一个可稳定解析的经典 Win32 目标 |
+| Excel modifier drop | `evals/probe-modifier-drop.mjs` 默认只覆盖 Explorer；Excel 分支未实现（需要 UIA 网格几何 + 保存/关闭路径） | Explorer Ctrl+drop 已回归；Excel/PPT 的 modifier drop 仍无自动证据 | 在专用桌面跑通 Excel A2→E2 Ctrl+drag、保存到临时副本并关闭；否则保持 BLOCKED |
+| 独立观察者 / `screen_assert` | 无任务；需要 ZHIPU key 或 dsv4fv 文本输出修复 | 自绘/canvas 的“独立裁决”仍靠 oracle 文件，不是第二观察者 | 提供可用视觉 key 或修复文本输出 |
+| `selectText` / key hold / mouse down-up / drag-from-element | 工具面不存在这些原语 | 复杂文本选择/形状拖拽仍靠坐标 | 驱动/插件新增原语后再测 |
+| 多显示器 | `get_screen_size` 只暴露主屏 | 跨屏坐标/落点未验证 | 驱动暴露多屏枚举 |
+| macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证 | 不能把“能加载”当“已验收” | 有环境时跑离线 + `verify-runtime` |
+
+## 2. 已知边界（不是阻塞，但不计入 pass）
+
+- **state 文件被信任**：`state.json`/`seedHash` 由 setup 写入；oracle 不证明模型没有改过它。mutation 只针对模型可达的产物，不测 state 篡改。
+- **`app_launch` 子进程 IL**：2026-11-20 实测 daemon High、`powershell.exe` 子进程 Medium；alt+F4 可关闭，无残留。不同驱动/启动路径仍可能是 High；按实际 IL 判断，不把它写成“一律 High”。
+- **p01-p03**：opencode image 路由 3/3 pass；text-only 路由未验证，失败时按模型能力失败处理，不记 ENV。
+- **t13**：真实网络下载保留 `ac2:none`；SKIP 不是 PASS。t18 的本地 HTTP 下载补 AC2 覆盖。
+- **ENV**：应用缺失、TabState 无法备份、网络不可达、模型凭据 401/402 一律记 ENV，不混入通过率。
+- **AC6**：n<8 时 p90 不稳定；`totalTokens` 含 cacheRead，成本对比需同时看 `billable`。
+- **`app_launch` 残留**：即使本次 alt+F4 成功，仍保留“驱动侧关闭失败→LEFT_OVER + 精确 HWND/PID”策略；不按进程名杀。
+
+## 3. 规则
+
+1. 新任务/探针遇到上述阻塞时，记录 `BLOCKED` 或 `ENV`，不要写 `PASS`。
+2. 解除阻塞后，先在本文删除对应行，再把结果写进 `VERIFICATION.md` 与 `docs/EVIDENCE.md`。
+3. 不要用“手工跑过一次”替代可复现命令；命令必须留在 `docs/TESTING.md` 或 `evals/README.md`。

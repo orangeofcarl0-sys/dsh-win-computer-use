@@ -10,7 +10,7 @@
 | 项 | 事实 | 后果 |
 |---|---|---|
 | `cua-driver.exe` | 二进制清单 `requireAdministrator`，daemon 以 High IL 运行 | 插件以固定 argv spawn 它；驱动自身可能需要 UAC/已提升的 daemon |
-| `app_launch` 子进程 | 继承驱动的高完整性级别（High IL） | 非提权客户端 `taskkill` / `Stop-Process` / `PostMessage(WM_CLOSE)` 都可能被 UIPI 拒绝 |
+| `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；0.52.13 实测 daemon 为 High，但 `powershell.exe` 子进程为 Medium（`S-1-16-8192`） | 不要一律假定 High；先读实际进程 IL，再决定能否由非提权客户端关闭 |
 | 对照：同一 shell 直接 `Start-Process notepad` | Medium IL | High IL 来自驱动链，不是“启动方式随便造成的” |
 | 驱动操作自己启动的 High IL 窗口 | 实测可行（提权记事本 `computer_type` 成功且 `effect:confirmed`） | “管理员窗口一律不可操作”不成立；要按目标与通道分别判断 |
 | WinUI/XAML 目标关闭 | `alt+f4` 可能撞 UIA 加速器超时（#3908）；`invoke_menu` 可能 `menu_path_unavailable` | 连驱动侧关闭通道也可能断，只能人工收尾 |
@@ -44,7 +44,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 | 目标类型 | 文本 | 组合键 | 菜单 | 备注 |
 |---|---|---|---|---|
-| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | `invoke_menu` 可用 | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
+| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | regedit 等经典菜单可用；WinForms MenuStrip/原生 HMENU 在 2026-11-20 探针中仍 `menu_path_unavailable`（BLOCKED） | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
 | XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**和 `could not find a UIA AcceleratorKey`（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单栏项 → 观察弹出菜单 → 点菜单项”；`xamlKeyFallback: auto`（默认 off）可实验性自动做这一步；`press_key` 可能 `effect:unverifiable` |
 | Electron / Chromium / WebView2 | 通常可 UIA ValuePattern；内容区可能不暴露树 | 后台事件可能被静默丢弃（`background_unavailable`） | 取决于应用 | 用 `native` 截图 + element/像素点击 |
 | Canvas / 游戏 / 自绘 | 无 AX 树 | 同左 | 不可用 | `native` 或 `vision`；坐标点击 best-effort |

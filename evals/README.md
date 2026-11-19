@@ -63,14 +63,20 @@ evals/
   cleanup/          23 个 cleanup.ps1
   simulate/         22 个 simulate.ps1（t13 仍 ac2:none）
   fixtures/         t12/t14/t17/t18 成功态夹具（测试输入，不是测量产物）
+  mutate/           release.ps1 + apply.ps1（oracle 变异，不是任务）
   lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / form-server.mjs / cdp.mjs
   headless-run.mjs  当前 runner（--stage / --tasks / --tier）
   verify-oracles.mjs  AC2 双向验证
+  oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
+  ac6-summary.mjs   per-task token/步数汇总
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs
   probe-*.mjs       真机探针（不加入 npm test）
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
+  RETIRED.md        退役任务/runner 台账
+  BLOCKED.md        未覆盖/无法证明的能力（不计入 pass）
   headless-runs/    运行产物（gitignore）
   verify-runs/      验证产物（gitignore）
+  mutation-runs/    变异产物（gitignore）
 ```
 
 - 任务沙箱：`%USERPROFILE%\.dsh\s4-evals\<taskId>\`（历史命名，冻结）。
@@ -89,6 +95,7 @@ evals/
 ## 5. 模型通道
 
 - 基线 overlay `headless-patch.yml`：启用 `credentials`，模型 `deepseek-official/deepseek-flash`。
+- 2026-11-20：默认 DeepSeek 通道返回 `QUOTA` 402（余额不足），本轮 t19/t20/p01-p03/AC6 真跑改用 opencode overlay；ENV 不记为任务失败。
 - opencode overlay `headless-patch.opencode.yml`：`llm-pi-ai` provider `opencode-go`、模型 `deepseek-v4.1-flash`、1M context / 128K output / text+image；必须带请求头 `x-opencode-session`（dsh 0.2.2 的 provider 要求；缺失会 400 `MissingSessionID`）。
 - key 只从 `~/.dsh/.credentials.yaml` 读取；不要写进仓库、不要打印。
 - dsh 0.2.2 不支持 seed/top_p；重复测试只能按统计分布解读，不能做严格 A/B 因果。
@@ -146,6 +153,19 @@ node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10
 node evals/verify-oracles.mjs --stage S4
 node evals/verify-oracles.mjs --tasks t11,t15
 
+# oracle 反向敏感性：错误但像成功的产物必须 exit 1
+node evals/oracle-mutation.mjs
+node evals/oracle-mutation.mjs --tasks t01,t16,t20
+
+# 真机探针（自建窗口；不需要模型）
+node evals/probe-ops.mjs
+node evals/probe-launch.mjs
+node evals/probe-modifier-drop.mjs
+
+# AC6 成本：先跑任务，再汇总 usage
+node evals/headless-run.mjs --tasks t01,t05,t11,t14,t15 --repeats 5 --timeout-min 12 --report evals/headless-runs/ac6/report.json
+node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json
+
 node evals/analyze-trajectory.mjs <file> --json
 node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 ```
@@ -165,6 +185,8 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 | `innerSteps` / `wallMs` | dsh 内部步数、墙钟 |
 | `toolCalls` / `toolErrors` / `unverified` | 工具调用、错误、未验证 |
 | `requireTool` / `requireToolUsed` | 任务要求的工具及是否实际调用（x1） |
+| `tokens` | `input/output/cacheRead/cacheWrite/total/steps`（来自 `status/step_end.usage`；total 含 cacheRead） |
+| `modelRoute` | overlay 的 `agent-default-model` provider/model（summary 级；不读密钥） |
 | `patchPath` / `patchSha256` | 使用的 overlay 与哈希 |
 | `trajectory` | JSONL 路径（gitignored） |
 | `oracle` | oracle stdout JSON / 失败原因 |
@@ -182,7 +204,8 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 ## 11. 基线政策
 
-- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差；单次 pass 只作为样本。
+- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差；2026-11-20 opencode 两次样本：t19 1 pass / 1 fail，t20 1 pass / 1 fail；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
+- p01-p03 需要 image 路由；opencode 通道已验证，text-only 路由失败不算 ENV。
 - 基线比较必须同 overlay、同模型、同预算、同桌面状态；跨 provider 不是受控 A/B。
 - 失败样本保留：环境态、模型策略、插件缺陷分开归因；修复后保留根因与守门测试。
 - 不把 `dirty`、`SKIP`、`env` 计入 pass。

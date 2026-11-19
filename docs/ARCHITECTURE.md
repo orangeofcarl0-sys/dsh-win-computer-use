@@ -2,7 +2,7 @@
 
 > 目的：模块边界、工具面、请求/观察管线、快照、投递、委派、不变量与扩展方式。
 > 读者：要改代码或排查行为的人。
-> 状态：当前实现（最后核对 2026-11-19；代码快照 `main` @ 0.5.7，npm 已发布）。
+> 状态：当前实现（最后核对 2026-11-20；代码快照 `main` @ 0.5.7，npm 已发布）。
 > 相关：[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [docs/README](README.md)。
 
 ## 1. 目标与非目标
@@ -421,7 +421,7 @@ stateDiagram-v2
 | # | 位置 | 现象 | 影响 | 方向 |
 |---|---|---|---|---|
 | A7 | `lib/actions.js` 像素路径 | 驱动 0.23.2 在混合 DPI 下像素点击落点有实测偏差（三种语义假设均有反例） | 像素点击 best-effort；element 路径不受影响 | 等上游修复；文档已降级表述 |
-| A8 | `computer_drag` schema/payload | 0.23.2 的 drag `modifier` 不读取；插件改为 **modifier/dwell_ms 走私有 SendInput helper**，无 modifier 仍走 driver；0.39+ 原生可用 | 私有路径不支持 `from_zoom`（明确报错）；`modifier` 是原子手势，不做失败后重试 | WinForms 探针通过；Explorer/Excel/PPT 的 modifier drop 待真机 |
+| A8 | `computer_drag` schema/payload | 0.23.2 的 drag `modifier` 不读取；插件改为 **modifier/dwell_ms 走私有 SendInput helper**，无 modifier 仍走 driver；0.39+ 原生可用 | 私有路径不支持 `from_zoom`（明确报错）；`modifier` 是原子手势，不做失败后重试 | WinForms 探针通过；Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 仍 BLOCKED |
 | A10 | native observe | `probe-native-freshness` 在 WinForms 文本变化窗口未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
 | A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PPT 形状拖拽仍靠坐标；t17 的单行 PDF 句子已用三击 + Ctrl+C 覆盖 | 评估 selectText/key hold/down-up；drag 支持 from_element |
 | A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后通过；t15 文件单选用 foreground=true 后不再误开应用 | 保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
@@ -429,15 +429,17 @@ stateDiagram-v2
 | A14 | 输入真实性 | 无 Document/TextArea 的聚焦输入保留快照，避免每格 observe；有回读控件仍逐字复核 | Excel/PPT 连续输入不再 snapshot churn | 单测 D-bg/F17-F20/E29-E30；t14/t17 复跑观察 |
 | A15 | 观察提示 | 目标 z 序落后时提示 `computer_activate`；坐标行带源图尺寸并警告预览缩放；网格/画布用 `screen_zoom`+`from_zoom` | z 序不是 OS 前台，文案保守；`z_index=null` 不提示 | 单测 C15-C18；t14/t17 复跑 |
 | A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11/t15/t14/t17 回归 |
-| A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；Explorer/Excel/PPT drop 待下一轮 |
+| A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；`probe-modifier-drop` 已回归 Explorer Ctrl+drag 复制与普通 drag 移动；Excel/PPT 仍 BLOCKED |
+| A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；2026-11-20 实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
 | G7 | 部署 | web profile 仍是旧名 v0.5.3；npm 已发布 0.5.7 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 ## 14. 测试与证据
 
-- 离线：26 套、646 项检查（2026-11-19；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：26 套、652 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 23 条任务，S1 9 / S2 4 / S3 10 / S4 8（成员 31，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
+- 反向证据：`evals/oracle-mutation.mjs` 对 19 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。
 - 当前矩阵：[VERIFICATION](../VERIFICATION.md)；按日期证据：[EVIDENCE](EVIDENCE.md)；模型行为：[TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 15. 参考

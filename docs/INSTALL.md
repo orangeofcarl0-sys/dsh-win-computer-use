@@ -33,7 +33,7 @@ cua-driver status
 cua-driver doctor
 ```
 
-Windows 上驱动二进制以管理员权限运行（清单 `requireAdministrator`），daemon 为 High IL；这是 `app_launch` 子进程继承高完整性的原因，详见 [WINDOWS](WINDOWS.md) §1。
+Windows 上驱动二进制以管理员权限运行（清单 `requireAdministrator`），daemon 为 High IL；`app_launch` 子进程的完整性级别取决于驱动版本与启动路径（0.52.13 实测 PowerShell 为 Medium），详见 [WINDOWS](WINDOWS.md) §1。
 
 > 驱动 CLI 与 daemon 版本不一致时，调用会报 `contract version X does not match SDK Y`。两者一起升级，再重启 daemon；不要在只升级一侧后继续排障。
 

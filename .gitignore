@@ -20,5 +20,6 @@ evals/report-last.json
 evals/report-last-headless.json
 evals/headless-runs/
 evals/verify-runs/
+evals/mutation-runs/
 evals/_tabstate-active.json
 evals/_tabstate-backup/

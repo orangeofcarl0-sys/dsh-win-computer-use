@@ -1,7 +1,7 @@
 # store-evidence — 安装 / 启动 / 卸载证据
 
 > 用途：DSH STORE 审查要求的一次性 profile 安装、启动、卸载证据与可复现步骤。
-> 状态：当前实现（最后核对 2026-11-19；包名 `dsh-win-computer-use`，`0.5.7` 已发布 npm）。
+> 状态：当前实现（最后核对 2026-11-20；包名 `dsh-win-computer-use`，`0.5.7` 已发布 npm）。
 > 权限面详见 [PERMISSIONS](../PERMISSIONS.md)；验证报告见 [VERIFICATION](../VERIFICATION.md)；安装细节见 [INSTALL](INSTALL.md)。
 
 ## 1. 一次性 profile 步骤（在 DSH 宿主执行）
@@ -37,9 +37,9 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **32/32** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
+| 语法 + 安装脚本 | `npm run check` | **37/37** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **26 套 / 646 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **26 套 / 652 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <overlay> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
