@@ -25,6 +25,7 @@
 - **probe-safety-runtime 13/13；probe-scroll 3/3**（已改为 `import.meta.url` 推导根目录，加 120s 自关 Timer 与子进程身份清理）。
 - **真跑**：默认 overlay 在 t19/t20 第一步即 `QUOTA` 402（ENV，不是任务失败）；opencode overlay：t19 **pass 35 步**、t20 **pass 17 步**（首轮）；第二轮 t19 **fail 56 步**、t20 **fail 33 步**（方差样本）。t20 第二轮失败时 Confirm 模态未关，cleanup 曾记 dirty；已加“先关 owned 模态 + 精确 PID/start 兜底”，合成模态复测 cleanup dirty=false。
 - **S2 图像真跑**：p01 **pass 6 步**、p02 **pass 11 步**、p03 **pass 8 步**（opencode text+image；oracle 分别命中 C2 / P02-7K9 / D3）。
+- **轨迹细节**：逐轮 observe/action、错误、重复调用与模型行为见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §11；本节只保留结果摘要。
 - **TabState 事件**：首轮 opencode t19/t20 结束时，模型自开的测试 Notepad（`target.txt`，modified）阻止 restore；按精确 HWND/pid/start + 允许标签 `target.txt` 关闭并丢弃，`tabstate.ps1 restore` 恢复 28 个用户 bin。t19/t20 cleanup 已加 `Close-OrphanTestNotepads` 防复发。
 - **CI**：ubuntu 加 `npm ci` + `npm test`；新增手动 Windows self-hosted workflow（`verify-runtime` exit 2 视为 ENV；可选 probes）。
 - **AC6**：`headless-run` 落 `tokens`/`modelRoute`；`ac6-summary` 汇总 t01/t05 各 5 轮（opencode-go/deepseek-v4.1-flash）：

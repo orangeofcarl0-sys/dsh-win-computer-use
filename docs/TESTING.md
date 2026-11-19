@@ -326,7 +326,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | AC2 全量 | 2026-11-20：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty） |
 | oracle 变异 | 2026-11-20：**19/19**（t04/t07 live GUI、t13 ac2:none 按原因 SKIP）；错误但像成功的产物全部 exit 1 |
 | 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3** |
-| 模型真跑 | 2026-11-20：默认 DeepSeek 通道 `QUOTA` 402（ENV）；opencode：t19 1 pass/1 fail（35/56 步）、t20 1 pass/1 fail（17/33 步）、p01/p02/p03 均 pass（6/11/8 步） |
+| 模型真跑 | 2026-11-20：默认 DeepSeek 通道 `QUOTA` 402（ENV）；opencode：t19 1 pass/1 fail（35/56 步）、t20 1 pass/1 fail（17/33 步）、p01/p02/p03 均 pass（6/11/8 步）；t19/t20 二轮均撞 12min 预算（无 final），按预算耗尽样本记录 |
 | AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15、billable 10,731；t05 steps 24 / p90 47、billable 24,993；t11/t14/t15 未跑 |
 | P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |

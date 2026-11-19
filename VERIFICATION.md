@@ -30,7 +30,7 @@
 | app 启动/收尾探针 | 2026-11-20：**7/7**；daemon High、`powershell.exe` 子进程 Medium；alt+F4 关闭、无残留、基线窗口保留 | Windows 11 / 0.52.13 | `node evals/probe-launch.mjs` |
 | modifier-drop 探针 | 2026-11-20：**5/5**；Explorer Ctrl+drag 复制、普通 drag 移动、无卡键 | Windows 11 | `node evals/probe-modifier-drop.mjs` |
 | oracle 反向敏感性 | 2026-11-20：**19/19** 变异被 exit 1 拒绝；t04/t07 live GUI、t13 ac2:none SKIP | Windows 11 | `node evals/oracle-mutation.mjs` |
-| 模型真跑样本 | 2026-11-20：opencode t19 **pass 35 步 / fail 56 步**；t20 **pass 17 步 / fail 33 步**；p01/p02/p03 **pass 6/11/8 步**；默认 DeepSeek `QUOTA` 402（ENV） | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,p01,p02,p03 --patch evals/headless-patch.opencode.yml` |
+| 模型真跑样本 | 2026-11-20：opencode t19 **pass 35 步 / fail 56 步**；t20 **pass 17 步 / fail 33 步**；两轮 fail 均撞 12min 预算（无 final）；p01/p02/p03 **pass 6/11/8 步**；默认 DeepSeek `QUOTA` 402（ENV） | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,p01,p02,p03 --patch evals/headless-patch.opencode.yml` |
 | AC6 成本工具 | 2026-11-20：t01/t05 各 5 轮全 pass；t01 steps 中位 12/p90 15、billable 10,731；t05 steps 24/p90 47、billable 24,993；t11/t14/t15 未跑 | Windows 11 / opencode-go | `node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json` |
 | S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §3.1 |
 | S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §5.3 |

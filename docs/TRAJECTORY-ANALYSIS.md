@@ -1,13 +1,13 @@
 # TRAJECTORY-ANALYSIS — 模型行为与失败模式
 
-> 目的：分析 t11/t12/t14/t15/t17 上模型“怎么用工具、为什么失败、哪些是插件缺口”；原始逐轮数据见 [EVIDENCE](EVIDENCE.md)。
+> 目的：分析 t11/t12/t14/t15/t17 与 2026-11-20 的 t19/t20/p01-p03/t01/t05 上模型“怎么用工具、为什么失败、哪些是插件缺口”；原始逐轮数据见 [EVIDENCE](EVIDENCE.md)。
 > 读者：架构/评测/维护者。
-> 状态：研究分析（数据截至 2026-11-18；结论随模型/驱动版本变化）。
+> 状态：研究分析（数据截至 2026-11-20；结论随模型/驱动版本变化）。
 > 相关：[CU-RESEARCH](CU-RESEARCH.md) · [TESTING](TESTING.md) · [WINDOWS](WINDOWS.md) · [EVIDENCE](EVIDENCE.md)。
 
 ## 1. 方法与证据边界
 
-- 对象：dsh 0.2.2-rc.1 + 本插件，Windows 11 x64 / 150% DPI / dirty 桌面；驱动 0.23.2 与 0.52.13；模型 DeepSeek 官方与 opencode-go/deepseek-v4.1-flash。
+- 对象：dsh 0.2.2-rc.1 + 本插件，Windows 11 x64 / 150% DPI / dirty 桌面；驱动 0.23.2 与 0.52.13；模型 DeepSeek 官方与 opencode-go/deepseek-v4.1-flash。2026-11-20 追加 t19/t20（导航/对话框）、p01-p03（像素）、t01/t05（AC6）。
 - 原始 report/trajectory 在 gitignored 的 `evals/headless-runs/`；本文不包含截图、文档正文、模型原始 thinking。
 - 运行矩阵、逐轮步数、工具计数、错误分类见 [EVIDENCE](EVIDENCE.md) §2–§5；本文只保留**仍然成立的结论**与**当前建议**。
 - 跨 provider 不是受控 A/B：桌面脏状态、采样、驱动 capture 行为都会影响步数；单次 pass 不是稳定承诺。
@@ -133,3 +133,118 @@
 3. **工具描述可更明确**：参数误用（`screen_zoom(x,y,width,height)`、`computer_activate(foreground)`、`computer_key(pid,window_id)`）现在有 `PARAM_HINTS` + 通用速查，1 步可恢复。
 4. **`markTokensStale` 是必要代价**：0.23.2 像素预取替换 index map，旧编号必须失效；模型重新 observe 的 1–2 步是正确行为。
 5. **t17 capture-only 29 步**：保留 token 后回到 zoom/from_zoom 路径；不需要任务级提示。
+
+## 11. 2026-11-20：t19/t20、p01-p03 与 AC6 轨迹
+
+> 数据：`evals/headless-runs/2026-11-19T17-30-51`（t19/t20 首轮）、`17-41-07`（第二轮）、`18-09-47`（p01-p03）、`18-15-16`（t01/t05 各 5 轮）。模型 opencode-go/deepseek-v4.1-flash；驱动 0.52.13；Windows 11 / 150% DPI / 有用户窗口的桌面。
+
+### 11.1 总表
+
+| 运行 | inner steps | observe | action | obs:act | errors | unverified | wall | input | output | cacheRead | total | 结果 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| t19 首轮 | 32 | 13 | 19 | 0.68 | 1 | 11 | 335s | 41,071 | 7,369 | 812,288 | 874,168 | pass（Notepad 路径） |
+| t19 二轮 | 52 | 25 | 27 | 0.93 | 7 | 21 | 708s | 69,860 | 14,840 | 2,226,048 | 2,310,748 | fail（撞 12min 预算） |
+| t20 首轮 | 16 | 10 | 6 | 1.67 | 4 | 4 | 157s | 15,501 | 2,116 | 179,712 | 197,329 | pass |
+| t20 二轮 | 28 | 17 | 11 | 1.55 | 3 | 5 | 709s | 25,845 | 14,537 | 529,920 | 596,158 | fail（撞 12min 预算） |
+| p01 | 6 | 4 | 2 | 2.00 | 0 | 1 | 76s | 13,897 | 1,722 | 55,040 | 70,659 | pass |
+| p02 | 10 | 5 | 5 | 1.00 | 1 | 3 | 100s | 15,924 | 1,467 | 115,712 | 133,103 | pass |
+| p03 | 7 | 5 | 2 | 2.50 | 0 | 1 | 74s | 8,324 | 1,201 | 85,376 | 94,901 | pass |
+| t01 r1 / r2 | 7 / 12 | 4 / 7 | 3 / 5 | 1.33 / 1.40 | 0 / 2 | 3 / 2 | 93 / 163s | 7,494 / 11,043 | 2,119 / 4,654 | 84,608 / 173,696 | 94,221 / 189,393 | 均 pass |
+| t05 r1 / r4 | 12 / 43 | 5 / 19 | 7 / 24 | 0.71 / 0.79 | 1 / 6 | 3 / 14 | 120 / 431s | 11,169 / 39,869 | 2,097 / 9,382 | 142,336 / 1,199,872 | 155,602 / 1,249,123 | 均 pass |
+
+两个 t19/t20 二轮的 `wallMs` 都是 **720,0xx ms**，正好落在 `--timeout-min 12` 边界，且没有 `final`/`turn_end`；应归因为**时间预算耗尽**，不是稳定的任务失败率。`headless-run` 当前把 `timedOut` 记为 false（进程关闭与超时计时器竞争），报告语义需要修。
+
+### 11.2 t19：地址栏可靠，创建文件是薄弱环节
+
+**首轮 pass（35 个工具调用 / 32 inner）**：
+1. 观察 Explorer → `computer_activate` → `ctrl+l` → 输入任务目录 → `enter`，3 个动作到达 `nav`。
+2. 没有使用 Explorer 的“新建”菜单，而是 **Win 键 → 开始菜单 → 记事本**，输入 `NAV-OK`。
+3. `ctrl+s` 被 WinUI 拒绝（“没有可匹配的 UIA 加速键”），改用“点文件菜单 → 点保存”；随后 Save As 用 `computer_set_value` 写完整路径，点击/Enter 保存。
+4. 回 Explorer 按 F5、zoom 确认。最终 `final` 明确写“通过 Explorer 地址栏进入…并用记事本新建 target.txt”。
+
+**二轮 fail（56 个工具调用 / 52 inner）**：
+- 同样在 3 个动作内到达 `nav`，说明**地址栏导航本身是可靠的**。
+- 随后找“新建”按钮：点 `(57,113)` 两次无变化；点 `(121,241)` 反而点到导航树，跳到 D: 盘。
+- 重新导航回 `nav`，用 `screen_zoom` + `from_zoom` 点“新建”，实际点中了地址栏；再试 `shift+f10`、右键空白、`win+r`。
+- `win+r` 在这台机器上打开的是 **Command Palette（CmdPal）**，不是运行对话框；CmdPal AX 树为空、`type_text` 投递失败、`bring_to_front`/`click` 被前台锁拒绝。模型在 CmdPal 上耗了约 10 步。
+- 结束：`alt+f` 后撞 12min 预算；36 次 `get_window_state`、25 次 `list_windows`、19 次 `bring_to_front`、12 次 click。
+
+**结论**：
+1. **导航能力已被证明**：两轮都在 3 步内到达任务目录；失败不在 Ctrl+L/路径输入。
+2. **创建文件没有稳定入口**：Explorer 的“新建”按钮/右键菜单没有被可靠定位；坐标 `(57,113)` 与 `(121,241)` 说明模型在读图后仍用像素猜工具栏。t19 的 pass 实际是“导航 + 记事本另存为”，oracle 只验文件，无法区分 Explorer 新建与 Notepad 另存为。
+3. **CmdPal 是环境陷阱**：Win+R 不再保证 Run 对话框；shell 表面无 AX、不能前台激活。题面/提示应引导 `app_launch` 或开始菜单，而不是 Win+R。
+4. **无目标 observe 的代价**：首步 `screen_observe` 未指定窗口，选中 CmdPal（AX 空）→ 又用 `alt+tab` 失败；这是 2 步噪声。
+
+### 11.3 t20：同一动作两种驱动状态，模态是死锁点
+
+**首轮 pass（16 inner）**：
+- 观察主窗 → 点 Delete（`unverifiable`，但模态出现）→ 观察主窗 → 点 Confirm 的“否(N)”元素，首次返回 **`element_not_visible` 拒绝**；模型没有重复同一点，而是观察 Confirm 独立窗口、用其快照再点，成功。
+- 随后再次 Delete → Confirm → 点“是(Y)”元素成功；最终 `final` 明确写“未使用任何键盘快捷键”。
+
+**二轮 fail（28 inner）**：
+- 点 Delete **`cua-driver click timeout after 30000ms`**；Confirm 出现后，坐标 click 同样 30s 超时；`computer_activate` 也超时/拒绝。
+- 模型尝试 `screen_zoom`/`from_zoom`、`computer_drag`（同点 dwell）、`computer_hover`、`app_list`，均无进展。
+- 关键误导：`computer_drag((150,10)→(170,30))` 实际拖动了**标题栏**，窗口原点 +21/+20；模型把 `screenOrigin` 变化当成“坐标输入生效”，继续点 No，但仍未关闭对话框。
+- 最后主窗激活后前台变成 ChatGPT，模型 `screen_observe("ChatGPT")` 并结束；没有 result.json。
+
+**结论**：
+1. **同一 Delete 点击有两种驱动结果**：首轮 `unverifiable`，二轮 30s timeout。模态出现时驱动/UIA 等待会阻塞；这是驱动层不稳定，不是模型单独的错。
+2. **`element_not_visible` 可能是假阴性**：首轮拒绝后，重新观察再点成功。插件现有“拒绝可能是误报”的提示是必要的。
+3. **模态需要独立窗口快照**：首轮模型做对了（观察 `Confirm` 并用它的 element）；二轮被困在像素/zoom/drag，没有回到这条路径。
+4. **标题栏拖动不是点击证据**：拖动窗口改变 `screenOrigin` 会让坐标“看起来生效”，但没有改变对话框状态。工具提示应避免把 drag 当 click 的替代。
+5. **题面禁止键盘快捷键**：t20 prompt 写“Do not use keyboard shortcuts to bypass the dialogs”。二轮模型因此完全没有尝试 Enter/Escape；而 `Escape` = No、`Enter` = 默认 Yes 是原生 MessageBox 的可靠回退。题面应区分“不得绕过对话框”和“可用 Tab/Enter 选择按钮”。
+6. **注意力漂移**：主窗激活失败后前台是 ChatGPT，模型跟到 ChatGPT；应在题面/系统提示中要求“始终以 S4-T20-DIALOG 为目标，不要跟随前台窗口”。
+
+### 11.4 p01-p03：像素链路可用，成本低
+
+- **p01**：AX 观察 → 激活 → native `force` → zoom → `from_zoom` 点击 → native 验证；6 inner，70,659 total。
+- **p02**：native 读 canvas token → zoom → 激活 → 点输入框 → AX 观察找到 element 12 → `computer_type` 后台被 Chrome 拒绝（`background_unavailable`）→ 前台重试成功 → native 验证 → 点 Submit → native 验证；10 inner，133,103 total。
+- **p03**：catalog → **无目标 AX 观察选中 ChatGPT（浪费 1 步）** → 目标 AX → 激活 → native → zoom → `from_zoom` 点击 → native 验证；7 inner，94,901 total。
+
+**结论**：
+1. canvas/OCR/zoom 的模型路径已成立：3/3 pass，6–10 inner，成本远低于 t11/t12 的 Office 任务。
+2. p02 暴露了 Chrome 的后台输入限制；前台重试 1 步恢复，属于预期能力边界。
+3. p03/t01 r2/t19 二轮都出现“无目标 observe 选到 ChatGPT/CmdPal”的噪声；这是跨任务的提示层问题。
+
+### 11.5 t01/t05（AC6）：方差来自一个错误原语
+
+- **t01 r1（7 inner，94k）**：catalog → 观察 `note.txt` → 一次 `computer_type` → 观察 → 点“文件” → 观察 → 点“保存” → 观察。
+- **t01 r2（12 inner，189k）**：完整 catalog + status → **无目标 observe 选中 ChatGPT** → 观察 note.txt → 激活 → 输入 → zoom 验证 → 两次 `computer_menu`（`文件->保存` 被解析成 `文件-`；`文件>保存` 找不到第二段）→ 观察 → 点“保存”。菜单尝试多花 2 个工具调用。
+- **t05 r1（12 inner，156k）**：status → catalog → app_list → 观察 pid → 激活 → `ctrl+shift+s`（WinUI 拒绝，给出菜单指引）→ 点“文件” → 点“另存为” → Save As 观察 → **`computer_set_value` 写完整路径** → 观察 → 点保存 → 观察标题。
+- **t05 r4（43 inner，1.25M）**：观察标题 → 3 次 catalog → 激活 → `ctrl+shift+s` 失败 → 点文件/另存为 → Save As → **`computer_type` 写文件名**，结果把路径追加到 `draft.txt` 后面（`draft.txt…`），随后 query/观察/点字段/双击/ctrl+a/backspace/前台点击/拖动，全部无效或未验证；最后 `computer_set_value("out-ansi.txt")` 覆盖并点保存，成功。6 errors、14 unverified、431s，是 t05 的 1.25M total 尾部样本。
+
+**结论**：
+1. **Save As 文件名必须优先 `computer_set_value`**：`computer_type` 在已有值的编辑框会追加；`ctrl+a` 在 WinUI 对话框不可用；backspace/拖动救不回来。t05 的 12 → 43 步几乎全部由这一处引起。
+2. **`computer_key ctrl+a` 的提示方向错误**：当前回执建议“点击输入框后用 computer_type”；对预填字段这是 append 陷阱。应改为“先 set_value 覆盖；控件不支持 ValuePattern 时再点击+清空+type”。
+3. **`computer_menu` 的 `->` 解析**：`文件->保存` 被拆成 `文件-` + `保存`；应归一化 `->`/`→`，或明确拒绝并提示用 `>`。
+4. **cacheRead 主导成本**：t05 r4 total 1.25M 中 cacheRead 1.20M（96%）；AC6 的 `billable`（in+out+cacheWrite）只有 24,993（中位），不能把 cacheRead 当“免费”或当“输入 token”。
+5. **错误/未验证数与成本强相关**：t05 r1 1 error/3 unverified/156k；r4 6/14/1.25M；t19 1/11/874k vs 7/21/2.31M。`unverified` 单独不是失败（p01/t20 pass 也有），但与反复 observe/重试叠加时会放大 context。
+
+### 11.6 横向模式
+
+| 模式 | 证据 | 影响 | 建议 |
+|---|---|---|---|
+| 无目标 `screen_observe` 选中前台 ChatGPT/CmdPal | t19 二轮首步、t01 r2、p03 | 1–2 步噪声；CmdPal 可引发 10 步陷阱 | 题面/COMMON 要求先按任务窗口标题观察；工具层考虑排除 shell 表面（CmdPal/TextInputHost） |
+| Win+R 打开 CmdPal 而非 Run | t19 二轮 | CmdPal 无 AX、不能前台激活，输入失败 | 指引用 `app_launch`/开始菜单；文档记录环境差异 |
+| 模态 click 30s timeout | t20 二轮 | pass/fail 分化的直接原因 | click 超时回执给“观察新对话框/使用其快照/Enter-Escape”指引；不要重试像素/zoom/drag |
+| 预填文件名用 `computer_type` | t05 r4 | 12 → 43 步、1.25M total | `computer_type`/`ctrl+a` 提示改为优先 `computer_set_value`；描述明确“可能追加” |
+| `computer_menu` 的 `->` | t01 r2 | 2 次无效调用 | 解析归一化 `->`，或在错误中明确“用 `>`/数组” |
+| 标题栏 drag 改变 origin | t20 二轮 | 模型误以为坐标生效 | drag 描述/回执提示“从标题栏拖动=移动窗口，不是点击/落点证明” |
+| 12min 边界无 final | t19/t20 二轮 | 被记 fail，但实际是预算耗尽 | `headless-run` 增加 `budgetExhausted/noFinal` 标记；报告不要把边界样本当稳定失败率 |
+| t19 用 Notepad 另存为 | t19 首轮 | 可达 oracle，但未验证 Explorer 新建文件 | 要么题面/README 明确允许；要么加 provenance（禁止 Notepad 窗口） |
+| t20 禁止键盘 | t20 prompt | 模态 click 超时后无回退 | 改为“不得绕过对话框；可用 Tab/Enter 选择按钮”，或明确 Enter/Escape 可用 |
+
+### 11.7 优先级建议
+
+| 优先级 | 改动 | 理由 |
+|---|---|---|
+| P0 | t20 prompt 澄清 Tab/Enter 可用于选择对话框按钮；保留“不得绕过/不得直接改文件” | 二轮 fail 的直接可修复项；当前题面把唯一的可靠回退禁掉了 |
+| P0 | `computer_key` `ctrl+a` 回执与 `computer_type` 描述：预填字段优先 `computer_set_value` | t05 12→43 步、1.25M total 的根因 |
+| P1 | `computer_click` 超时回执：先观察新顶层对话框、用其 window_id/snapshot；不要重试像素/drag/hover | t20 二轮 30s 超时后模型进入 10+ 步无效探索 |
+| P1 | `computer_menu` 路径解析归一化 `->`/`→`；WinUI 菜单明确“不可用，点菜单栏” | t01 r2 的 2 次无效调用；与 WinForms menu BLOCKED 一致 |
+| P1 | `screen_observe` 无目标时排除 CmdPal/TextInputHost 等 shell 表面，或返回候选列表 | 多个任务的 1–2 步噪声；t19 二轮 CmdPal 陷阱 |
+| P1 | `headless-run` 报告 `budgetExhausted`/`noFinal` | 当前 720s 边界样本被记为普通 fail，混淆通过率 |
+| P2 | t19 增加“Explorer 新建”provenance 或题面明确允许 Notepad 另存为 | 避免把 Notepad 路径当成 Explorer 新建能力的证据 |
+| P2 | `computer_drag` 描述提示标题栏拖动=移动窗口 | 防止模型把 origin 变化当成点击生效 |
+| P2 | AC6 继续跑 t11/t14/t15 5 轮；报告同时给 total 与 billable | 当前只有 t01/t05；长任务尾部成本未知 |
+

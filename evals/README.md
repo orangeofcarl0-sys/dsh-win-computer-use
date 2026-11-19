@@ -204,7 +204,7 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 ## 11. 基线政策
 
-- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差；2026-11-20 opencode 两次样本：t19 1 pass / 1 fail，t20 1 pass / 1 fail；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
+- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差；2026-11-20 opencode 两次样本：t19 1 pass / 1 fail，t20 1 pass / 1 fail；两次 fail 都跑满 12min 预算（无 final），按预算耗尽样本记录；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
 - p01-p03 需要 image 路由；opencode 通道已验证，text-only 路由失败不算 ENV。
 - 基线比较必须同 overlay、同模型、同预算、同桌面状态；跨 provider 不是受控 A/B。
 - 失败样本保留：环境态、模型策略、插件缺陷分开归因；修复后保留根因与守门测试。
