@@ -22,7 +22,7 @@
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C6 | web profile 部署 | 待授权 | npm 已发布 0.5.8；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.8）。见 [PUBLISH](PUBLISH.md) |
+| C6 | web profile 部署 | 已安装，待重启 | npm 已发布 0.5.8；web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles，旧 0.5.6 已移除；运行中的 web 进程需重启。见 [PUBLISH](PUBLISH.md) |
 | C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
 | C13 | daemon 高完整性/清理 | 待评估 | #3607；先试非提权重启 daemon，避免 `app_launch` 子进程 High IL |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |

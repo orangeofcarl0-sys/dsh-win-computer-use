@@ -150,7 +150,7 @@ cua-driver autostart kick
 ## 5. 部署现实
 
 - **web profile 是拷贝，不是链接**：发布 tag 不会自动进入用户 harness；必须重新安装/链接并重启。
-- 当前：`~/.dsh/profiles/web/node_modules/dsh-computer-use` = **0.5.6**（旧名；2026-11-20 实测，非当前 0.5.7）；`dsh-computer-use.0.5.5-kept` = 0.5.5 副本；新包名 = `dsh-win-computer-use`。
+- 当前：`~/.dsh/profiles/web/node_modules/dsh-win-computer-use` = **0.5.8**（2026-11-20 安装并写入 bundles）；旧 `dsh-computer-use` 0.5.6 已移除，`dsh-computer-use.0.5.5-kept` 保留为备份。
 - 切换版本：用新名重装/改目录名 → 重启 harness → 会话内 `computer_do(status)` 冒烟。
 - **headless 探针通道**（不影响 web 客户端）：
   - `~/.dsh/profiles/headless/node_modules/dsh-win-computer-use` 建 junction → 本仓库。
@@ -169,7 +169,7 @@ cua-driver autostart kick
 | # | 位置 | 现象 | 影响 | 建议 |
 |---|---|---|---|---|
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 有环境时补矩阵 |
-| G7 | 部署 | web profile 仍是旧版；npm 已发布 0.5.8 | 用户看到的可能不是 main | 按 PUBLISH 部署 |
+| G7 | 部署 | web profile 已安装 0.5.8 并切换 bundles；运行中的 web 进程需重启 | 重启前用户看到的可能仍是旧版 | 重启 harness 后冒烟 |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 | A11 | 手势原语 | 无 selectText/key hold/mouse down-up；drag 无元素源 | 复杂文本选择/形状拖拽仍靠坐标 | 评估下一层原语 |
 | A17 | 私有拖拽 | Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 未自动回归 | 已知边界 | Excel 需 UIA 网格 + 保存路径；PPT 仍 BLOCKED |
@@ -181,7 +181,7 @@ cua-driver autostart kick
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | web profile 切新版（npm 0.5.8 已发布，需用户明确部署授权） |
+| P1 | web profile 已切 0.5.8；待重启 harness 后冒烟 |
 | P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
 | P2 | daemon 提权/清理问题（#3607）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |

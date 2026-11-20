@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-20）：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6）。
+> 状态（2026-11-20）：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8；web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles（运行中的 web 进程需重启）。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -14,7 +14,7 @@
 | `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
 | `package.json` version | `0.5.8` |
 | npm | 已发布 `dsh-win-computer-use@0.5.8`；`npm view dsh-win-computer-use version` 复核 |
-| 部署 | web profile 仍是旧名 `dsh-computer-use` 的 0.5.6 拷贝（2026-11-20 实测）；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
+| 部署 | web profile 已安装 `dsh-win-computer-use@0.5.8` 并替换 bundle；旧 `dsh-computer-use` 0.5.6 已移除（`dsh-computer-use.0.5.5-kept` 保留）；重启后生效 |
 | 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
 
 ## 2. 版本口径

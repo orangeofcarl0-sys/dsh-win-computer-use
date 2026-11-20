@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-20）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 部署状态以 [PUBLISH](PUBLISH.md) 为准。
+> **版本状态（2026-11-20）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
 ## 0.5.8 (2026-11-20)

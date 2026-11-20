@@ -144,5 +144,5 @@ node verify-runtime.mjs
 
 - headless profile 默认禁用 `credentials`；探针 patch 启用后，2026-11-12 已在 dsh 0.2.2-rc.1 上完成真机加载与 5 步只读调用（2 可见/20 隐藏，当时）。默认配置下 `MISSING_CREDENTIAL` 不是插件加载错误。
 - npm 已发布 `dsh-win-computer-use@0.5.8`；dsh-market 的 npm tarball 安装路径可用（需宿主支持）。
-- web profile 当前仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.8）；更名后需重新安装为 `dsh-win-computer-use`。
+- web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles（旧 `dsh-computer-use` 0.5.6 已移除，0.5.5-kept 保留备份）；运行中的 web 进程需重启生效。
 - Linux 未验证；macOS 近期未回归。不要把“安装成功”当成“平台已验收”。

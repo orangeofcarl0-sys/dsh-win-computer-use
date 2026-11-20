@@ -440,7 +440,7 @@ stateDiagram-v2
 | A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；`probe-modifier-drop` 已回归 Explorer Ctrl+drag 复制与普通 drag 移动；Excel/PPT 仍 BLOCKED |
 | A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；2026-11-20 实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
-| G7 | 部署 | web profile 仍是旧名 `dsh-computer-use`（实测 0.5.6，非当前 0.5.8）；npm 已发布 0.5.8 | 用户看到的可能不是 main | 见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+| G7 | 部署 | web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles；运行中的 web 进程需重启 | 重启前用户看到的可能仍是旧版 | 重启后冒烟 |
 
 ## 14. 测试与证据
 
