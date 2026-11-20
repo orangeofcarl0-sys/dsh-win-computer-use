@@ -2,7 +2,7 @@
 
 > 目的：插件侧 Windows 后台输入（B0/B1/B2/B3）的通道矩阵、配置、回执、安全边界与实测结果。
 > 读者：要启用/排障实验输入的人；改 `lib/backgroundInput.js` 或 `tools/background-input.ps1` 的人。
-> 状态：实验性，默认全关（2026-11-20 实现；真机探针 12 PASS / 1 BLOCKED / 0 FAIL）。
+> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 真机探针最终 12 PASS / 3 BLOCKED / 0 FAIL）。
 > 相关：[WINDOWS](WINDOWS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [SECURITY](SECURITY.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 定位
@@ -23,7 +23,7 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 |---|---|---|
 | **B0** | 不碰光标、前台、窗口位置、Z 序 | `backgroundInput`：窗口消息/控件消息 |
 | **B1** | 不碰光标/前台；目标可命中，不提升/不改透明度 | `syntheticPointer`：合成触控 |
-| **B2** | 临时接管真实光标，结束后还原 | `anchoredInput: cursor` |
+| **B2** | 临时接管真实光标，结束后还原 | `anchoredInput: cursor`（`BlockInput`）或 `cursor-clip`（`ClipCursor`，免提权） |
 | **B3** | 临时移动目标窗口，结束后还原 | `anchoredInput: window` |
 | **B4** | 真实前台 + `SendInput` | 现有 `deliveryMode=auto/foreground` |
 | **B5** | 全局键状态/内核驱动 | 不在本功能；不实现 |
@@ -49,6 +49,7 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 | B0 control | `backgroundInput: auto` | 标准 `Button` 子控件 | 左单击 | 屏幕点 → 子控件 | `BM_CLICK` | B0 |
 | B1 synthetic | `syntheticPointer: auto` + `allowedApps` | 无 UIA 的 pointer/touch 窗口 | 左单击 | 虚拟屏幕物理坐标 | `InjectSyntheticPointerInput(PT_TOUCH)` | B1 |
 | B2 cursor | `anchoredInput: cursor` + `allowedApps` | 无 UIA 的 cursor-polling 窗口 | 左单击 | 真实光标移到目标点 | 消息 + `BlockInput` | B2 |
+| B2 cursor-clip | `anchoredInput: cursor-clip` + `allowedApps` | 无 UIA 的 cursor-polling 窗口 | 左单击 | 真实光标移到目标点，`ClipCursor` 限制 5×5 | 消息（不阻塞键盘） | B2 |
 | B3 window | `anchoredInput: window` + `allowedApps` | 无 UIA 的 cursor-polling 窗口 | 左单击 | 移动窗口使目标点落在光标下 | 消息 | B3 |
 
 - B1/B2/B3 只支持**左单击**；双击/右键继续 driver/前台。
@@ -89,6 +90,8 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 
 ## 7. B2：光标锚定
 
+以下为 `anchoredInput: cursor`（严格模式）；免提权替代见 §7.1 `cursor-clip`。
+
 - 前置：目标可见、未最小化、点在桌面、点在 `ClipCursor` 内、`BlockInput(TRUE)` 成功。
 - 保存光标 → `BlockInput(TRUE)` → `SetCursorPos` → 30ms → 消息点击 → 30ms → 还原光标 → `BlockInput(FALSE)`。
 - `BlockInput` 失败时**不移动光标**，返回 `background_input_block_input_denied`（部分会话/安全软件会拒绝）。
@@ -96,11 +99,20 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 - `SetCursorPos` 后用 `GetCursorPos` 复核目标点；`BlockInput(false)` 失败时回执 `input_unblocked=false`，helper 在回复后退出以释放输入阻塞。
 - 还原失败不假装成功：回执 `cursor_restored=false` + `complete:false` + `warning_code=cursor_restore_failed`。
 
+### 7.1 `cursor-clip`（免提权替代）
+
+- 不调用 `BlockInput`，改用 `ClipCursor` 把光标限制在目标点 5×5 区域；不阻塞键盘。
+- `GetClipCursor` 保存原裁剪区 → `ClipCursor(5×5)` → `SetCursorPos` → 30ms 复核 → `PostMessage` 前再复核一次 → `finally` 恢复原裁剪区 → 复核。
+- 失败码：`background_input_clip_anchor_failed`（`ClipCursor` 失败）；恢复失败回执 `warning_code=clip_restore_failed`；1.5s 看门狗线程兜底恢复。
+- 回执字段：`method=clip_anchored`、`clip_anchored=true`、`clip_restored`、`input_blocked=false`、`cursor_restored`、`input_blocked_ms`。
+- 2026-11-21 实测：当前会话严格 `BlockInput` 被拒，`cursor-clip` 两轮 PASS（109–125ms、`MOUSEDOWN`、clip/光标均还原）。
+
 ## 8. B3：窗口锚定
 
 - 前置：`allowedApps` 命中、顶层窗口、非最小化/最大化/无边框全屏、`SetWindowPos` 可用。
 - 保存窗口 rect → 计算 `newLeft = cursor.x - clientX - borderX` → `SetWindowPos` → 有界轮询（≤500ms）→ 校验窗口位置与光标下客户区点 → 消息点击 → 还原窗口 rect（同样有界轮询）。
 - 操作期间光标移动 >2px 或窗口被外部改动 → `background_input_cursor_changed` / `background_input_window_changed_externally`；不抢回用户改动。
+- 请求位置恰好等于原位置时也检测外部移动；点击后 50ms 再检查，窗口已外移则不还原，回执 `ok:true + delivered:true + warning_code=window_changed_externally + windowRestored:false`。
 - 只支持左单击；会短暂移动窗口；不做离屏截图/伪最小化/改 Z 序。
 - 回执带 `window_moved`、`window_restored`、`complete`；还原失败 `warning_code=window_restore_failed`。
 
@@ -109,7 +121,7 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 ```yaml
 backgroundInput: off       # off | auto（B0）
 syntheticPointer: off      # off | auto（B1）
-anchoredInput: off         # off | cursor | window（B2/B3）
+anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 ```
 
 - 三键全 off：零 spawn、零行为变化。
@@ -148,7 +160,9 @@ anchoredInput: off         # off | cursor | window（B2/B3）
 | `background_input_window_move_failed` | 移动/对齐失败 |
 | `background_input_cursor_changed` | 操作期间光标被外部移动 |
 | `background_input_window_changed_externally` | 窗口被外部移动；未抢回、未继续 |
-| `background_input_block_input_denied` | B2 `BlockInput` 被当前会话拒绝；未移动光标 |
+| `background_input_block_input_denied` | B2 `BlockInput` 被当前会话拒绝；未移动光标；回执带 `win32_error`/`diagnostics`（`helperElevated`/`helperUIAccess`/session/desktop） |
+| `background_input_desktop_busy` | 静默预检发现光标仍在移动；未发送；回执带 `drift` |
+| `background_input_clip_anchor_failed` | `cursor-clip` 的 `ClipCursor` 失败；未移动光标/未发送 |
 | `background_input_synthetic_unavailable` | 系统不支持合成触控 |
 | `background_input_injection_failed` | 合成触控/注入失败，结果未知或未完整 |
 | `background_input_window_not_available` | 目标不可见/最小化/已消失；未发送 |
@@ -166,20 +180,21 @@ anchoredInput: off         # off | cursor | window（B2/B3）
 - 安全桌面（UAC/锁屏）直接拒绝；不自动化 UAC。
 - 不自动选择 Yes/No；不绕过现有密码守卫；`backgroundInput` 文本也会检查 `ES_PASSWORD`。
 - B1 遮挡不借 Z 序/透明度；失败关闭。
-- B2 先 `BlockInput` 成功才移动光标；失败不移动。
+- B2 `cursor` 先 `BlockInput` 成功才移动光标；失败不移动。`cursor-clip` 用 `ClipCursor` 限制光标 5×5，不阻塞键盘；clip 恢复失败会给 `warning_code=clip_restore_failed`，并有 1.5s 看门狗。
 - B3 只移动 `allowedApps` 内的目标；最大化/最小化/全屏拒绝；外部改动不抢回。
 - 不实现全局受管键、Interception/ViGEm、UIAccess、反作弊规避。
 - helper 是中/高完整性 PowerShell；高完整性目标由 `probe` 判断；不同 session 拒绝。
 
 ## 12. 测试与证据
 
-- 离线：`tests/background-input.test.mjs`（42 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由。
+- 离线：`tests/background-input.test.mjs`（48 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由、`cursor-clip`/`desktop_busy`/诊断透传、B3 外部移动回执。
 - 真机：`evals/probe-background-input.mjs`（不加入 `npm test`）：
-  - 自建原生 pointer 窗口 + 只处理 `WM_TOUCH` 的 touch-only 窗口 + 隐藏 controller + cover；
+  - 自建原生 pointer 窗口 + 只处理 `WM_TOUCH` 的 touch-only 窗口 + 未注册触控的 mouse-only 窗口 + 隐藏 controller + cover；
   - B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 遮挡、B1 前台不变、B3 window 实测通过；
-  - B2 在当前会话 `BlockInput` 被拒绝 → BLOCKED（失败关闭，未移动光标）；
-  - B1 光标干净轮次 0px 漂移 → PASS；脏桌面轮次外部光标漂移 30–751px → BLOCKED（helper 报告 `cursorMoved=false`）。B3 干净轮次 PASS；脏桌面/安全桌面变化时 `window_move_failed`/`secure_desktop` → BLOCKED。
-  - 2026-11-20 结果：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；脏桌面/安全桌面切换轮次 **8 PASS / 3 BLOCKED / 0 FAIL**（B1 光标漂移、B3 fail-closed；不冒充 PASS）。
+  - B2 严格 `BlockInput` 在当前会话被拒绝 → BLOCKED（`win32_error` 缺失/0，`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default）；同一目标改用 `cursor-clip` **PASS**（125ms，MOUSEDOWN，`clipRestored=true`、`cursorRestored=true`）；
+  - B1 mouse-only 普通窗口未收到 `MOUSEDOWN`/`WMTOUCH` → BLOCKED（普通应用不外推）；B1 光标干净轮次 0px 漂移 → PASS；脏桌面轮次外部光标漂移 13–236px → BLOCKED（helper 报告 `cursorMoved=false`）。
+  - B3 干净轮次 PASS；脏桌面/输入桌面变化时 `window_move_failed`/`desktop_busy`/`window_changed_externally` → BLOCKED；点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally`。
+  - 2026-11-21 结果：三轮（两轮 11 PASS / 4 BLOCKED、最终 **12 PASS / 3 BLOCKED / 0 FAIL**）（严格 B2、B1 光标漂移、B1 mouse-only、B3 脏桌面）；`cursor-clip` 两轮均 PASS。不把 BLOCKED 当 PASS。
 - 运行：`node evals/probe-background-input.mjs`；清理只按探针 HWND/PID。
 
 ## 13. 已知限制

@@ -47,7 +47,9 @@
 | `background_input_window_move_failed` | 移动/对齐失败；窗口已还原 | 先 observe；不要重复 |
 | `background_input_cursor_changed` | 操作期间光标被外部移动 | 先 observe；干净桌面再试 |
 | `background_input_window_changed_externally` | 操作期间窗口被外部移动；为避免抢回用户窗口，未还原/未继续 | 先 observe；不要重复 |
-| `background_input_block_input_denied` | B2 的 `BlockInput` 被当前会话拒绝；未移动光标、未发送 | 不要重试 B2；改用 B0/B1 或前台 |
+| `background_input_block_input_denied` | B2 的 `BlockInput` 被当前会话拒绝；未移动光标、未发送；带 `win32_error`/`diagnostics` | 不要重试 B2；改用 `cursor-clip`、B0/B1 或前台 |
+| `background_input_desktop_busy` | 静默预检发现光标仍在移动；未发送；带 `drift` | 停止移动鼠标后重试；或改用前台 |
+| `background_input_clip_anchor_failed` | `cursor-clip` 的 `ClipCursor` 失败；未移动光标/未发送 | 改用 `cursor` 或前台 |
 | `background_input_synthetic_unavailable` | 系统不支持合成触控（`CreateSyntheticPointerDevice` 不可用） | 不要重试 B1 |
 | `background_input_injection_failed` | 合成触控/注入失败，结果未知或未完整 | 不要重复；先 observe |
 | `background_input_window_not_available` | 目标窗口不可见/最小化或已消失；未发送 | 先 observe/activate |
@@ -57,7 +59,7 @@
 | `background_input_helper_exited` | helper 异常退出，结果未知 | 不要重复；先 observe |
 | `background_input_failed` | 其他未发送/失败 | 先 observe；必要时改用 foreground=true |
 
-> B1 遮挡失败关闭；B2 `BlockInput` 失败时不移动光标；B2/B3 还原失败会返回 `ok:true` + `complete:false` + `warning_code`（`cursor_restore_failed`/`window_restore_failed`/`input_unblock_failed`），避免重复点击。结构化回执同时带 `cursor_restored`/`window_restored`/`input_blocked_ms`。
+> B1 遮挡失败关闭；B2 `BlockInput` 失败时不移动光标；B2/B3 还原失败会返回 `ok:true` + `complete:false` + `warning_code`（`cursor_restore_failed`/`window_restore_failed`/`input_unblock_failed`/`clip_restore_failed`），避免重复点击。结构化回执同时带 `cursor_restored`/`window_restored`/`input_blocked_ms`/`clip_anchored`/`clip_restored`/`win32_error`/`diagnostics`。
 
 > `[<tool-name>]` 是 `computer_do` 路由成功/失败时加的结果前缀（如 `[computer_click] ...`），不是错误码。
 

@@ -65,6 +65,8 @@ public static class DshInput
     const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
     const uint TOKEN_QUERY = 0x0008;
     const int TokenIntegrityLevel = 25;
+    const int TokenElevation = 20;
+    const int TokenUIAccess = 26;
     const uint SMTO_BLOCK = 0x0001;
     const uint SMTO_ABORTIFHUNG = 0x0002;
 
@@ -197,13 +199,16 @@ public static class DshInput
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
     [DllImport("user32.dll")] static extern bool CloseTouchInputHandle(IntPtr handle);
-    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
-    [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT pt);
-    [DllImport("user32.dll")] static extern bool GetClipCursor(out RECT rect);
-    [DllImport("user32.dll")] static extern bool BlockInput(bool block);
-    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
-    [DllImport("user32.dll")] static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool GetCursorPos(out POINT pt);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool GetClipCursor(out RECT rect);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool ClipCursor(ref RECT rect);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool BlockInput(bool block);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll", SetLastError = true)] static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
     [DllImport("user32.dll")] static extern bool CloseDesktop(IntPtr hDesktop);
+    [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
+    [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint threadId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool GetUserObjectInformation(IntPtr hObj, int index, StringBuilder info, int len, out int needed);
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] static extern IntPtr MonitorFromPoint(POINT pt, uint flags);
@@ -223,14 +228,16 @@ public static class DshInput
 
     // ---- synthetic pointer ----
     [DllImport("user32.dll")] static extern IntPtr CreateSyntheticPointerDevice(int pointerType, uint maxCount, int mode);
-    [DllImport("user32.dll")] static extern bool InjectSyntheticPointerInput(IntPtr device, POINTER_TYPE_INFO[] pointerInfo, uint count);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool InjectSyntheticPointerInput(IntPtr device, POINTER_TYPE_INFO[] pointerInfo, uint count);
     [DllImport("user32.dll")] static extern void DestroySyntheticPointerDevice(IntPtr device);
     [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr context);
 
     // ---- kernel32 / advapi32 ----
     [DllImport("kernel32.dll")] static extern uint GetCurrentProcessId();
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+    [DllImport("kernel32.dll")] static extern uint WTSGetActiveConsoleSessionId();
     [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref int size);
@@ -318,6 +325,120 @@ public static class DshInput
         d["side_effects"] = se;
     }
 
+    // ---- diagnostics ----
+    static uint TokenDword(int infoClass)
+    {
+        IntPtr token = IntPtr.Zero;
+        IntPtr buffer = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out token)) return 0;
+            buffer = Marshal.AllocHGlobal(4);
+            int needed = 0;
+            if (!GetTokenInformation(token, infoClass, buffer, 4, out needed)) return 0;
+            return (uint)Marshal.ReadInt32(buffer);
+        }
+        catch { return 0; }
+        finally
+        {
+            if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer);
+            if (token != IntPtr.Zero) CloseHandle(token);
+        }
+    }
+
+    static string UserObjectName(IntPtr h)
+    {
+        if (h == IntPtr.Zero) return "";
+        StringBuilder sb = new StringBuilder(260);
+        int needed = 0;
+        if (!GetUserObjectInformation(h, UOI_NAME, sb, sb.Capacity, out needed)) return "";
+        return sb.ToString();
+    }
+
+    static bool SecureDesktopInfo(out string name, out int error)
+    {
+        name = "";
+        error = 0;
+        SetLastError(0);
+        IntPtr desktop = OpenInputDesktop(0, false, DESKTOP_SWITCHDESKTOP);
+        if (desktop == IntPtr.Zero)
+        {
+            error = Marshal.GetLastWin32Error();
+            return true;
+        }
+        try
+        {
+            name = UserObjectName(desktop);
+            return !String.Equals(name, "Default", StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            CloseDesktop(desktop);
+        }
+    }
+
+    static bool IsSecureDesktop()
+    {
+        string name;
+        int error;
+        return SecureDesktopInfo(out name, out error);
+    }
+
+    static Dictionary<string, object> Diagnostics()
+    {
+        Dictionary<string, object> d = D();
+        int selfPid = (int)GetCurrentProcessId();
+        uint session = 0;
+        ProcessIdToSessionId((uint)selfPid, out session);
+        IntPtr fg = GetForegroundWindow();
+        uint fgPid = 0;
+        if (fg != IntPtr.Zero) GetWindowThreadProcessId(fg, out fgPid);
+        string inputName;
+        int inputError;
+        bool secure = SecureDesktopInfo(out inputName, out inputError);
+        int selfRank = IntegrityRank(selfPid);
+        d["helperPid"] = selfPid;
+        d["helperElevated"] = TokenDword(TokenElevation) != 0;
+        d["helperUIAccess"] = TokenDword(TokenUIAccess) != 0;
+        d["helperIntegrity"] = IntegrityName(selfRank);
+        d["helperIntegrityRank"] = selfRank;
+        d["helperSessionId"] = (int)session;
+        d["activeConsoleSessionId"] = (int)WTSGetActiveConsoleSessionId();
+        d["windowStation"] = UserObjectName(GetProcessWindowStation());
+        d["threadDesktop"] = UserObjectName(GetThreadDesktop(GetCurrentThreadId()));
+        d["inputDesktop"] = inputName;
+        d["inputDesktopError"] = inputError;
+        d["secureDesktop"] = secure;
+        d["foregroundHwnd"] = (long)fg.ToInt64();
+        d["foregroundPid"] = (int)fgPid;
+        d["foregroundIntegrityRank"] = fgPid == 0 ? 99 : IntegrityRank((int)fgPid);
+        return d;
+    }
+
+    static Dictionary<string, object> FailDiag(string code, string error, uint win32Error)
+    {
+        Dictionary<string, object> f = Fail(code, error);
+        f["win32Error"] = (int)win32Error;
+        f["diagnostics"] = Diagnostics();
+        return f;
+    }
+
+    static bool DesktopBusy(out int drift)
+    {
+        drift = 0;
+        POINT a, b;
+        if (!GetCursorPos(out a)) { drift = 999; return true; }
+        for (int i = 0; i < 5; i++)
+        {
+            Thread.Sleep(50);
+            if (!GetCursorPos(out b)) { drift = 999; return true; }
+            int d = Math.Abs(b.X - a.X) + Math.Abs(b.Y - a.Y);
+            if (d > drift) drift = d;
+            a = b;
+        }
+        return drift > 2;
+    }
+
     // ---- validation ----
     static string CheckWindow(IntPtr hwnd, int expectedPid)
     {
@@ -383,23 +504,6 @@ public static class DshInput
         if (rank == 2) return "high";
         if (rank == 3) return "system";
         return "unknown";
-    }
-
-    static bool IsSecureDesktop()
-    {
-        IntPtr desktop = OpenInputDesktop(0, false, DESKTOP_SWITCHDESKTOP);
-        if (desktop == IntPtr.Zero) return true;
-        try
-        {
-            StringBuilder sb = new StringBuilder(260);
-            int needed = 0;
-            if (!GetUserObjectInformation(desktop, UOI_NAME, sb, sb.Capacity, out needed)) return true;
-            return !String.Equals(sb.ToString(), "Default", StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            CloseDesktop(desktop);
-        }
     }
 
     static string CheckAction(IntPtr hwnd, int expectedPid)
@@ -650,7 +754,7 @@ public static class DshInput
     }
 
     // ---- B2 cursor anchored ----
-    public static Dictionary<string, object> CursorClick(long hwndL, int expectedPid, int sx, int sy)
+    public static Dictionary<string, object> CursorClick(long hwndL, int expectedPid, int sx, int sy, string anchor)
     {
         IntPtr hwnd = new IntPtr(hwndL);
         string bad = CheckAction(hwnd, expectedPid);
@@ -670,7 +774,18 @@ public static class DshInput
             return Fail("clip_cursor", "cursor is clipped before the target point");
         POINT saved;
         if (!GetCursorPos(out saved)) return Fail("cursor_failed", "GetCursorPos failed");
-        if (!BlockInput(true)) return Fail("block_input_failed", "BlockInput(TRUE) failed");
+        int drift;
+        if (DesktopBusy(out drift))
+        {
+            Dictionary<string, object> f = Fail("desktop_busy", "cursor moved during quiet check drift=" + drift);
+            f["drift"] = drift;
+            return f;
+        }
+        if (String.Equals(anchor, "clip", StringComparison.OrdinalIgnoreCase))
+            return CursorClickClip(hwnd, pt, saved);
+        SetLastError(0);
+        if (!BlockInput(true))
+            return FailDiag("block_input_failed", "BlockInput(TRUE) failed", (uint)Marshal.GetLastWin32Error());
         int started = Environment.TickCount;
         bool restored = false;
         bool unblocked = true;
@@ -684,7 +799,7 @@ public static class DshInput
             if (!SetCursorPos(sx, sy))
             {
                 failCode = "cursor_move_failed";
-                failError = "SetCursorPos failed";
+                failError = "SetCursorPos failed err=" + Marshal.GetLastWin32Error();
             }
             else
             {
@@ -722,6 +837,7 @@ public static class DshInput
             Dictionary<string, object> f = Fail(failCode.Length > 0 ? failCode : "post_failed", failError);
             f["cursorMoved"] = moved;
             f["cursorRestored"] = restored;
+            f["inputBlocked"] = true;
             f["inputBlockedMs"] = elapsed;
             f["inputUnblocked"] = unblocked;
             AddSideEffects(f, moved, false, false);
@@ -735,12 +851,136 @@ public static class DshInput
         d["effect"] = "unverifiable";
         d["cursorMoved"] = true;
         d["cursorRestored"] = restored;
+        d["inputBlocked"] = true;
         d["inputBlockedMs"] = elapsed;
         d["inputUnblocked"] = unblocked;
         d["complete"] = restored && unblocked && String.IsNullOrEmpty(warning);
         if (!String.IsNullOrEmpty(warning)) { d["partial"] = true; d["warning_code"] = warning; }
         else if (!restored) d["warning_code"] = "cursor_restore_failed";
         else if (!unblocked) d["warning_code"] = "input_unblock_failed";
+        AddSideEffects(d, true, false, false);
+        return d;
+    }
+
+    static bool RectNearRect(RECT a, RECT b)
+    {
+        return Math.Abs(a.Left - b.Left) <= 2 && Math.Abs(a.Top - b.Top) <= 2
+            && Math.Abs(a.Right - b.Right) <= 2 && Math.Abs(a.Bottom - b.Bottom) <= 2;
+    }
+
+    static Dictionary<string, object> CursorClickClip(IntPtr hwnd, POINT pt, POINT saved)
+    {
+        RECT savedClip;
+        SetLastError(0);
+        if (!GetClipCursor(out savedClip))
+            return FailDiag("clip_anchor_failed", "GetClipCursor failed", (uint)Marshal.GetLastWin32Error());
+        RECT tiny = new RECT();
+        tiny.Left = pt.X - 2;
+        tiny.Top = pt.Y - 2;
+        tiny.Right = pt.X + 3;
+        tiny.Bottom = pt.Y + 3;
+        SetLastError(0);
+        if (!ClipCursor(ref tiny))
+            return FailDiag("clip_anchor_failed", "ClipCursor failed", (uint)Marshal.GetLastWin32Error());
+        int clipState = 0;
+        Thread watchdog = new Thread(delegate()
+        {
+            Thread.Sleep(1500);
+            if (Interlocked.CompareExchange(ref clipState, 1, 0) == 0)
+            {
+                try { ClipCursor(ref savedClip); } catch { }
+            }
+        });
+        watchdog.IsBackground = true;
+        watchdog.Name = "DshClipWatchdog";
+        watchdog.Start();
+        int started = Environment.TickCount;
+        bool moved = false;
+        bool restored = false;
+        bool clipRestored = false;
+        bool delivered = false;
+        string warning = "";
+        string failCode = "";
+        string failError = "";
+        try
+        {
+            if (!SetCursorPos(pt.X, pt.Y))
+            {
+                failCode = "cursor_move_failed";
+                failError = "SetCursorPos failed err=" + Marshal.GetLastWin32Error();
+            }
+            else
+            {
+                moved = true;
+                Thread.Sleep(30);
+                POINT actual;
+                if (!GetCursorPos(out actual) || Math.Abs(actual.X - pt.X) > 2 || Math.Abs(actual.Y - pt.Y) > 2)
+                {
+                    failCode = "cursor_move_failed";
+                    failError = "cursor did not reach the requested point (clip/DPI?)";
+                }
+                else
+                {
+                    POINT before;
+                    if (!GetCursorPos(out before) || Math.Abs(before.X - pt.X) > 2 || Math.Abs(before.Y - pt.Y) > 2)
+                    {
+                        failCode = "cursor_changed";
+                        failError = "cursor moved before PostMessage";
+                    }
+                    else
+                    {
+                        string method, childClass;
+                        int childHwnd;
+                        delivered = PostClick(hwnd, pt, "left", 1, out method, out childClass, out childHwnd, out warning);
+                        if (!delivered)
+                        {
+                            failCode = "post_failed";
+                            failError = "PostMessage failed";
+                        }
+                        Thread.Sleep(30);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref clipState, 1);
+            SetLastError(0);
+            bool clipOk = ClipCursor(ref savedClip);
+            RECT checkClip;
+            bool checkOk = GetClipCursor(out checkClip) && RectNearRect(checkClip, savedClip);
+            clipRestored = clipOk && checkOk;
+            restored = SetCursorPos(saved.X, saved.Y);
+        }
+        int elapsed = Environment.TickCount - started;
+        if (failCode.Length > 0 || !delivered)
+        {
+            Dictionary<string, object> f = Fail(failCode.Length > 0 ? failCode : "post_failed", failError);
+            f["cursorMoved"] = moved;
+            f["cursorRestored"] = restored;
+            f["clipAnchored"] = true;
+            f["clipRestored"] = clipRestored;
+            f["inputBlocked"] = false;
+            f["inputBlockedMs"] = elapsed;
+            AddSideEffects(f, moved, false, false);
+            if (!clipRestored) f["warning_code"] = "clip_restore_failed";
+            else if (!restored) f["warning_code"] = "cursor_restore_failed";
+            return f;
+        }
+        Dictionary<string, object> d = Ok();
+        d["delivered"] = true;
+        d["method"] = "clip_anchored";
+        d["effect"] = "unverifiable";
+        d["cursorMoved"] = true;
+        d["cursorRestored"] = restored;
+        d["clipAnchored"] = true;
+        d["clipRestored"] = clipRestored;
+        d["inputBlocked"] = false;
+        d["inputBlockedMs"] = elapsed;
+        d["complete"] = restored && clipRestored && String.IsNullOrEmpty(warning);
+        if (!String.IsNullOrEmpty(warning)) { d["partial"] = true; d["warning_code"] = warning; }
+        else if (!clipRestored) d["warning_code"] = "clip_restore_failed";
+        else if (!restored) d["warning_code"] = "cursor_restore_failed";
         AddSideEffects(d, true, false, false);
         return d;
     }
@@ -783,6 +1023,13 @@ public static class DshInput
         string bad = CheckAction(hwnd, expectedPid);
         if (bad.Length > 0) return Fail(bad, bad);
         if (IsIconic(hwnd) || IsZoomed(hwnd)) return Fail("window_not_movable", "target window is minimized or maximized");
+        int drift;
+        if (DesktopBusy(out drift))
+        {
+            Dictionary<string, object> f = Fail("desktop_busy", "cursor moved during quiet check drift=" + drift);
+            f["drift"] = drift;
+            return f;
+        }
         int style = GetWindowLong(hwnd, GWL_STYLE);
         if (((uint)style & WS_POPUP) != 0 && ((uint)style & WS_CAPTION) == 0)
             return Fail("window_not_movable", "target window looks like borderless fullscreen");
@@ -809,7 +1056,7 @@ public static class DshInput
         {
             if (!GetWindowRect(hwnd, out current)) return FailWindow("window_not_found", "GetWindowRect failed after move", moved, false, original, current);
             if (RectNear(current, newLeft, newTop)) { reached = true; break; }
-            if (!RectNear(current, original.Left, original.Top) && moved) { external = true; break; }
+            if (!RectNear(current, original.Left, original.Top) && !RectNear(current, newLeft, newTop)) { external = true; break; }
             Thread.Sleep(20);
         }
         if (external)
@@ -852,8 +1099,30 @@ public static class DshInput
         int childHwnd;
         bool delivered = PostClick(hwnd, cursor, "left", 1, out method, out childClass, out childHwnd, out warning);
         Thread.Sleep(50);
-        bool restoredFinal = RestoreWindow(hwnd, original);
         RECT finalRect;
+        GetWindowRect(hwnd, out finalRect);
+        // Do not restore/fight a window the user moved after the click. The click was
+        // already posted; report it as delivered but unverifiable instead of pretending
+        // the window is still ours.
+        if (!RectNear(finalRect, original.Left, original.Top) && !RectNear(finalRect, newLeft, newTop))
+        {
+            if (!delivered)
+                return FailWindow("window_changed_externally", "window moved externally after click", true, false, original, finalRect);
+            Dictionary<string, object> ext = Ok();
+            ext["delivered"] = true;
+            ext["method"] = "window_anchored";
+            ext["effect"] = "unverifiable";
+            ext["windowMoved"] = true;
+            ext["windowRestored"] = false;
+            ext["cursorMoved"] = false;
+            ext["complete"] = false;
+            ext["warning_code"] = "window_changed_externally";
+            ext["originalRect"] = RectDict(original);
+            ext["currentRect"] = RectDict(finalRect);
+            AddSideEffects(ext, false, true, false);
+            return ext;
+        }
+        bool restoredFinal = RestoreWindow(hwnd, original);
         GetWindowRect(hwnd, out finalRect);
         if (!delivered)
             return FailWindow("post_failed", "PostMessage failed", moved, restoredFinal, original, finalRect);
@@ -924,7 +1193,11 @@ public static class DshInput
         d["integrityRank"] = targetRank;
         d["currentIntegrityRank"] = currentRank;
         d["sameSession"] = SameSession((int)pid);
-        d["secureDesktop"] = IsSecureDesktop();
+        string inputName;
+        int inputError;
+        d["secureDesktop"] = SecureDesktopInfo(out inputName, out inputError);
+        d["inputDesktop"] = inputName;
+        d["inputDesktopError"] = inputError;
         d["visible"] = IsWindowVisible(hwnd);
         d["iconic"] = IsIconic(hwnd);
         d["zoomed"] = IsZoomed(hwnd);
@@ -937,6 +1210,11 @@ public static class DshInput
         d["cursor"] = PointDict(cursor);
         d["clipCursor"] = RectDict(clip);
         d["virtualScreen"] = RectDict(virtualRect);
+        Dictionary<string, object> diag = Diagnostics();
+        foreach (KeyValuePair<string, object> kv in diag)
+        {
+            if (!d.ContainsKey(kv.Key)) d[kv.Key] = kv.Value;
+        }
         return d;
     }
 
@@ -1214,6 +1492,13 @@ public static class DshInput
         POINT pt = new POINT();
         pt.X = sx; pt.Y = sy;
         if (!OnDesktop(pt)) return Fail("outside_desktop", "target point is outside the desktop");
+        int drift;
+        if (DesktopBusy(out drift))
+        {
+            Dictionary<string, object> f = Fail("desktop_busy", "cursor moved during quiet check drift=" + drift);
+            f["drift"] = drift;
+            return f;
+        }
         if (!EnsureWorker()) return Fail("synthetic_unavailable", workerError ?? "synthetic worker unavailable");
         lock (workerSync)
         {
@@ -1279,7 +1564,7 @@ while ($true) {
                 $resp = [DshInput]::PostText([long]$req.hwnd, [int]$req.pid, [bool]$req.hasPoint, [int]$req.x, [int]$req.y, $text)
             }
             'syntheticClick' { $resp = [DshInput]::SyntheticClick([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y) }
-            'cursorClick' { $resp = [DshInput]::CursorClick([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y) }
+            'cursorClick' { $resp = [DshInput]::CursorClick([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y, [string]$req.anchor) }
             'windowClick' { $resp = [DshInput]::WindowClick([long]$req.hwnd, [int]$req.pid, [int]$req.clientX, [int]$req.clientY) }
             'restore' { $resp = [DshInput]::Restore() }
             'shutdown' { $resp = [DshInput]::Shutdown() }

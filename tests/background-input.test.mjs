@@ -406,6 +406,23 @@ try {
       && /还原失败/.test(b2.note || '') && /解除输入阻塞失败/.test(b2.note || ''), JSON.stringify(b2.value))
 
     real.clearProfileCache()
+    const clip = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor-clip', allowedApps: ['Game'] },
+      client: {
+        ...client,
+        cursorClick: async () => ({
+          ok: true, delivered: true, method: 'clip_anchored', effect: 'unverifiable',
+          clipAnchored: true, clipRestored: false, inputBlocked: false, cursorRestored: true,
+          inputBlockedMs: 80, complete: false, warning_code: 'clip_restore_failed',
+        }),
+      },
+    })
+    check('J4b: cursor-clip 回执字段/文案', clip.value.clip_anchored === true
+      && clip.value.clip_restored === false && clip.value.input_blocked === false
+      && /cursor-clip/.test(clip.note || '') && /裁剪区还原失败/.test(clip.note || ''),
+      JSON.stringify(clip.value))
+
+    real.clearProfileCache()
     const b1 = await real.tryBackgroundClick({
       tool: 'click', target, snap, args: {},
       cfg: { ...baseCfg, backgroundInput: 'off', syntheticPointer: 'auto', allowedApps: ['Game'] },
@@ -433,6 +450,38 @@ try {
     })
     check('J7: BlockInput 拒绝 → 专用码', blocked.value.code === 'background_input_block_input_denied'
       && /不要重试 B2/.test(blocked.refusalNote || ''), JSON.stringify(blocked.value))
+
+    real.clearProfileCache()
+    const denied = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor', allowedApps: ['Game'] },
+      client: {
+        ...client,
+        cursorClick: async () => ({
+          ok: false, code: 'block_input_failed', delivered: false, error: 'BlockInput failed',
+          win32Error: 5, diagnostics: { helperElevated: false, helperUIAccess: false, helperSessionId: 3 },
+        }),
+      },
+    })
+    check('J7b: BlockInput 诊断透传', denied.value.code === 'background_input_block_input_denied'
+      && denied.value.win32_error === 5
+      && denied.value.diagnostics?.helperElevated === false
+      && denied.value.diagnostics?.helperUIAccess === false, JSON.stringify(denied.value))
+
+    real.clearProfileCache()
+    const busy = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor', allowedApps: ['Game'] },
+      client: { ...client, cursorClick: async () => ({ ok: false, code: 'desktop_busy', delivered: false, error: 'busy', drift: 7 }) },
+    })
+    check('J7c: desktop_busy → 专用码 + drift', busy.value.code === 'background_input_desktop_busy'
+      && busy.value.drift === 7 && /静止|脏桌面/.test(busy.refusalNote || ''), JSON.stringify(busy.value))
+
+    real.clearProfileCache()
+    const clipFail = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor-clip', allowedApps: ['Game'] },
+      client: { ...client, cursorClick: async () => ({ ok: false, code: 'clip_anchor_failed', delivered: false, error: 'ClipCursor failed', win32Error: 5 }) },
+    })
+    check('J7d: clip_anchor_failed → 专用码', clipFail.value.code === 'background_input_clip_anchor_failed'
+      && clipFail.value.win32_error === 5, JSON.stringify(clipFail.value))
 
     real.clearProfileCache()
     const unavailable = await real.tryBackgroundClick({
@@ -493,12 +542,37 @@ try {
     check('I4: B2 cursor 路由', calls.cur.length === 1 && b2.value.delivery.mode === 'cursor-anchored'
       && /光标锚定/.test(b2.note || ''), JSON.stringify(calls.cur[0]))
 
+    calls.cur.length = 0
+    real.clearProfileCache()
+    const clipCfg = { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor-clip', allowedApps: ['Game'] }
+    const clip = await real.tryBackgroundClick({ tool: 'click', target, snap, args: {}, cfg: clipCfg, client })
+    check('I4b: B2 cursor-clip 路由传 anchor=clip', calls.cur.length === 1
+      && calls.cur[0].anchor === 'clip' && clip.value.delivery.mode === 'cursor-anchored',
+      JSON.stringify(calls.cur[0]))
+
     calls.win.length = 0
     const b3cfg = { ...baseCfg, backgroundInput: 'off', anchoredInput: 'window', allowedApps: ['Game'] }
     const b3 = await real.tryBackgroundClick({ tool: 'click', target, snap, args: {}, cfg: b3cfg, client })
     check('I5: B3 window 路由传客户区坐标', calls.win.length === 1
       && calls.win[0].clientX === 10 && calls.win[0].clientY === 20
       && b3.value.delivery.mode === 'window-anchored', JSON.stringify(calls.win[0]))
+
+    calls.win.length = 0
+    real.clearProfileCache()
+    const ext = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: b3cfg,
+      client: {
+        ...client,
+        windowClick: async () => ({
+          ok: true, delivered: true, method: 'window_anchored', effect: 'unverifiable',
+          windowMoved: true, windowRestored: false, complete: false,
+          warning_code: 'window_changed_externally',
+        }),
+      },
+    })
+    check('I5b: B3 外部移动 → 保留回执/警告，不宣称已还原', ext.value.window_restored === false
+      && ext.value.warning_code === 'window_changed_externally'
+      && /window_changed_externally/.test(ext.note || ''), JSON.stringify(ext.value))
 
     const fg = await real.tryBackgroundClick({ tool: 'click', target, snap, args: { foreground: true }, cfg: baseCfg, client })
     const md = await real.tryBackgroundClick({ tool: 'click', target, snap, args: {}, cfg: baseCfg, extra: { modifier: ['ctrl'] }, client })

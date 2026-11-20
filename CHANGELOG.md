@@ -1,9 +1,9 @@
 # Changelog
 
-> **版本状态（2026-11-20）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
+> **版本状态（2026-11-21）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
-## 未发布 (2026-11-20)
+## 未发布 (2026-11-21)
 
 **主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）+ 经典 HMENU 菜单兜底。不改驱动、不改变默认行为。
 
@@ -11,8 +11,11 @@
 
 - 新增 `backgroundInput`（B0，默认 off）：无交互 UIA 目标上 click 走 `WM_*`/`BM_CLICK`，plain key 走 `WM_KEYDOWN/UP`，text 走 `WM_CHAR`；鼠标异步 PostMessage，键盘/文本同步 `SendMessageTimeout`。
 - 新增 `syntheticPointer`（B1，默认 off）：`InjectSyntheticPointerInput(PT_TOUCH)` + 4×4 anchor；不移动光标/前台；遮挡失败关闭，不借 Z 序/透明度；只左单击；需 `allowedApps`。
-- 新增 `anchoredInput`（B2/B3，默认 off）：`cursor` 临时移光标 + `BlockInput`；`window` 临时移窗口使目标点落在光标下；只左单击；需 `allowedApps`；失败关闭/还原。
-- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（42 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
+- 新增 `anchoredInput`（B2/B3，默认 off）：`cursor` 临时移光标 + `BlockInput`；`cursor-clip` 用 `ClipCursor` 把光标限制在目标 5×5（免提权、不阻塞键盘）；`window` 临时移窗口使目标点落在光标下；只左单击；需 `allowedApps`；失败关闭/还原。
+- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（48 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
+- B2 诊断：`BlockInput`/`SetCursorPos`/`ClipCursor`/`SetWindowPos`/`InjectSyntheticPointerInput` 采集 `GetLastError`；`probe` 回传 helper elevation/UIAccess/session/active console session/window station/desktop/前台 IL；拒绝回执带 `win32_error`/`diagnostics`。新增 `evals/probe-b2-elevated.mjs`（一次性 UAC 根因探针，不进入生产路径）。
+- B1/B3 静默预检与外部改动：helper 增加 300ms 光标静止检查（`desktop_busy`，带 `drift`）；B3 在请求位置=原位置时也检测外部移动，点击后外移不还原并返回 `warning_code=window_changed_externally`；探针增加 `waitQuiet()` 与 mouse-only 普通窗口实验。
+- `probe-modifier-drop.mjs --excel` 分支：Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何（`"A" 2`/`"E" 2`）、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；当前真机 E2 未复制 → BLOCKED，不冒充 PASS。
 - 新增 `nativeMenus`（经典 Win32 HMENU，默认 off）：驱动 `invoke_menu` 结构化拒绝后，`GetMenu` 精确路径解析 + 一次 `PostMessage(WM_COMMAND)`；只叶子命令、同 pid、不自动选择；`effect:unverifiable`；MenuStrip/WPF/WinUI 返回 `no_hmenu`。新增 `lib/nativeMenus.js`、`tools/native-menu.ps1`、`tests/native-menus.test.mjs`（18 项）；`probe-ops` SetMenu fixture 真机通过。
 - 新增 `nativeButtonTrigger`（标准 Win32/WinForms Button，默认 off）：`computer_click(element=Button)` 单次左键时，重新枚举同 pid 标准 Button，严格 class/style/label/屏幕点唯一匹配后 `BM_CLICK`；t20 形态 1.2s 返回；10s latch；pre-delivery 回退 driver，owner_disabled/超时不回退。新增 `lib/nativeButtonTrigger.js`、`tools/native-button.ps1`、`tests/native-button-trigger.test.mjs`（12 项）、`evals/probe-native-button.mjs`（4/4 PASS）。
 - 回执新增投递标签：后台消息/控件消息/合成触控/光标锚定/窗口锚定；拒绝码 `background_input_*`。
@@ -20,8 +23,8 @@
 ### Notes
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
-- 真机探针 2026-11-20（硬化后）：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；新增 B1 WM_TOUCH-only 与 B1 前台不变检查；B2 仍因 `BlockInput` 被拒记 BLOCKED；脏桌面切换轮次 8 PASS / 3 BLOCKED / 0 FAIL。
-- 离线 31 套 / 764 项；语法 48/48；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
+- 真机探针 2026-11-21：三轮（两轮 **11 PASS / 4 BLOCKED**、最终 **12 PASS / 3 BLOCKED / 0 FAIL**）；严格 B2 `BlockInput` 仍被拒 → BLOCKED（诊断显示非提权/无 UIAccess、Default 桌面），但 `cursor-clip` 两轮 PASS（125ms、`MOUSEDOWN`、clip/光标还原）；B1 mouse-only 普通窗口未收到鼠标提升 → 普通应用不外推；B1 光标漂移/B3 脏桌面 → BLOCKED；安静轮 B3 PASS。
+- 离线 31 套 / 770 项；语法 49/49；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
 - `nativeMenus` 真机已 PASS：`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过；MenuStrip/WPF/WinUI 仍明确不支持。
 - `nativeButtonTrigger` 真机探针：自建 WinForms Delete + MessageBox **4 PASS / 0 BLOCKED / 0 FAIL**（1.2s、opened=1、native-dialog 关闭、latch）；默认 off，t20 需显式开启 overlay 复跑。
 
@@ -32,6 +35,8 @@
 - **错误码/ fail-closed**：新增 `block_input_denied`/`synthetic_unavailable`/`injection_failed`/`window_not_available`/`window_changed_externally`；完整性未知（99）不再当成同级；`elementCount=0` 但仍存在可交互 entries 时不再接管。
 - **B0/B1/B2/B3 清理**：B0 down/up/KEYUP 失败补发并标 partial；B2 复核光标位置、检查 `BlockInput(false)`、失败分支携带还原状态；B3 有界轮询 + 还原校验 + 不抢回外部位移；B1 修正 `WM_POINTER*` 常量、补发 target up、关闭 worker 超时污染、测量前台变化。
 - **sidecar 生命周期**：子进程 generation 隔离，旧 `exit` 不再误杀新进程；ready 后非 JSON 立即 `bad_response`；长文本按长度缩放超时。
+- **B3 外部改动判定**：不再只在请求位置与原点不同时检测；请求位置=原位置时也会识别外部移动；点击后窗口被外部移动时不还原，返回 `ok:true` + `warning_code=window_changed_externally`，不再和用户抢窗口。探针把 `desktop_busy`/`window_changed_externally`/`window_not_movable` 归为 BLOCKED。
+- **B2 失败诊断**：`block_input_failed` 现在带 `win32_error` 和 `diagnostics`；严格 B2 仍 fail-closed，不自动回退；`cursor-clip` 是独立的免提权通道，默认 off。
 
 ## 0.5.8 (2026-11-20)
 

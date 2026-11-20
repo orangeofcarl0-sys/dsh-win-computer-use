@@ -36,6 +36,30 @@ function readLog(file) {
   try { return readFileSync(file, 'utf8') } catch { return '' }
 }
 
+/**
+ * Wait until the physical cursor is still for ~0.7s. Dirty desktops otherwise
+ * flip B1/B3 to BLOCKED or make the helper return desktop_busy; retry a few times.
+ */
+async function waitQuiet(hwnd, pid, tries = 3) {
+  for (let t = 0; t < tries; t += 1) {
+    let prev = null
+    let still = true
+    for (let i = 0; i < 6; i += 1) {
+      const p = await client.probe({ hwnd, pid })
+      if (!p || p.ok !== true) return false
+      if (prev) {
+        const d = Math.abs(Number(p.cursor?.x) - prev.x) + Math.abs(Number(p.cursor?.y) - prev.y)
+        if (d > 2) { still = false; break }
+      }
+      prev = { x: Number(p.cursor?.x), y: Number(p.cursor?.y) }
+      await sleep(120)
+    }
+    if (still) return true
+    await sleep(800)
+  }
+  return false
+}
+
 const appPs1 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'lib', 'background-input-app.ps1'), 'utf8')
 
 function findWindowPid(hwnd) {
@@ -95,6 +119,7 @@ try {
   state.logFile = logFile
   state.wndLog = logFile + '.wnd'
   state.touchOnlyLog = logFile + '.touch'
+  state.mouseOnlyLog = logFile + '.mouse'
   state.coverFile = coverFile
   state.stopFile = stopFile
 
@@ -134,11 +159,14 @@ try {
   const pm = await client.postMouse({ hwnd: state.pointer, pid: state.pid, x: pc.x, y: pc.y, button: 'left', count: 1 })
   await sleep(300)
   record('pointer WndProc 可达', /MOUSEDOWN|TOUCHDOWN|CHAR:|KEYDOWN/.test(readLog(state.wndLog)) ? 'PASS' : 'FAIL', JSON.stringify(pm) + ' log=' + JSON.stringify(readLog(state.wndLog).slice(-200)) + ' wnd=' + state.wndLog + ' app=' + JSON.stringify(appOut.slice(-300)))
+  await waitQuiet(state.pointer, state.pid)
   writeFileSync(state.wndLog, '')
   const s1 = await client.syntheticClick({ hwnd: state.pointer, pid: state.pid, x: pc.x, y: pc.y })
   await sleep(350)
   const b1log = readLog(state.wndLog)
-  record('B1 synthetic touch', s1?.ok && /TOUCHDOWN|WMTOUCH/.test(b1log) ? 'PASS' : 'FAIL', JSON.stringify(s1) + ' log=' + JSON.stringify(b1log.slice(-200)))
+  if (s1?.ok && /TOUCHDOWN|WMTOUCH/.test(b1log)) record('B1 synthetic touch', 'PASS', JSON.stringify(s1) + ' log=' + JSON.stringify(b1log.slice(-200)))
+  else if (s1?.code === 'desktop_busy') record('B1 synthetic touch', 'BLOCKED', '静默预检失败（桌面光标仍在移动）：' + JSON.stringify(s1))
+  else record('B1 synthetic touch', 'FAIL', JSON.stringify(s1) + ' log=' + JSON.stringify(b1log.slice(-200)))
   const p2 = await client.probe({ hwnd: state.pointer, pid: state.pid })
   const b1Drift = p2 && p2.cursor && p.cursor ? Math.abs(p2.cursor.x - p.cursor.x) + Math.abs(p2.cursor.y - p.cursor.y) : 999
   if (s1?.side_effects?.cursorMoved === true) record('B1 不移动光标', 'FAIL', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift, side: s1?.side_effects }))
@@ -152,45 +180,93 @@ try {
   const t = await client.probe({ hwnd: state.touchOnly, pid: state.pid })
   if (!t || t.ok !== true) throw new Error(`probe touchOnly failed: ${JSON.stringify(t)}`)
   const tc = { x: t.clientOrigin.x + Math.floor(t.clientRect.width / 2), y: t.clientOrigin.y + Math.floor(t.clientRect.height / 2) }
+  await waitQuiet(state.touchOnly, state.pid)
   writeFileSync(state.touchOnlyLog, '')
   const st = await client.syntheticClick({ hwnd: state.touchOnly, pid: state.pid, x: tc.x, y: tc.y })
   await sleep(350)
   const tlog = readLog(state.touchOnlyLog)
   if (st?.ok && /WMTOUCH/.test(tlog)) record('B1 WM_TOUCH-only 目标', 'PASS', JSON.stringify(st) + ' log=' + JSON.stringify(tlog.slice(-120)))
+  else if (st?.code === 'desktop_busy') record('B1 WM_TOUCH-only 目标', 'BLOCKED', '静默预检失败：' + JSON.stringify(st))
   else if (st?.ok === false) record('B1 WM_TOUCH-only 目标', 'BLOCKED', 'helper 拒绝/不可用；未证明 WM_TOUCH 转换：' + JSON.stringify(st))
   else record('B1 WM_TOUCH-only 目标', 'BLOCKED', '合成 pointer 未转换为 WM_TOUCH；目标不支持 B1：' + JSON.stringify({ st, log: tlog.slice(-120) }))
 
+  // B1 对未注册触控的普通窗口：系统是否把合成 pointer 提升为鼠标消息。
+  const mo = await client.probe({ hwnd: state.mouseOnly, pid: state.pid })
+  if (!mo || mo.ok !== true) {
+    record('B1 普通窗口鼠标提升', 'BLOCKED', `probe mouseOnly failed: ${JSON.stringify(mo)}`)
+  } else {
+    const mc = { x: mo.clientOrigin.x + Math.floor(mo.clientRect.width / 2), y: mo.clientOrigin.y + Math.floor(mo.clientRect.height / 2) }
+    await waitQuiet(state.mouseOnly, state.pid)
+    writeFileSync(state.mouseOnlyLog, '')
+    const sm = await client.syntheticClick({ hwnd: state.mouseOnly, pid: state.pid, x: mc.x, y: mc.y })
+    await sleep(350)
+    const mlog = readLog(state.mouseOnlyLog)
+    if (sm?.ok && /MOUSEDOWN/.test(mlog)) {
+      record('B1 普通窗口鼠标提升', 'PASS', '合成 pointer 被系统提升为鼠标消息；应用语义仍未验证：' + JSON.stringify(sm) + ' log=' + JSON.stringify(mlog.slice(-120)))
+    } else if (sm?.code === 'desktop_busy') {
+      record('B1 普通窗口鼠标提升', 'BLOCKED', '静默预检失败：' + JSON.stringify(sm))
+    } else if (sm?.ok === false) {
+      record('B1 普通窗口鼠标提升', 'BLOCKED', 'helper 拒绝：' + JSON.stringify(sm))
+    } else {
+      record('B1 普通窗口鼠标提升', 'BLOCKED', '未收到 MOUSEDOWN/MOUSEUP；普通窗口不外推：' + JSON.stringify({ sm, log: mlog.slice(-120) }))
+    }
+  }
+
+  await waitQuiet(state.pointer, state.pid)
   writeFileSync(coverFile, '1')
   await sleep(500)
   const s2 = await client.syntheticClick({ hwnd: state.pointer, pid: state.pid, x: pc.x, y: pc.y })
   if (s2 && s2.ok === false && s2.code === 'occluded') record('B1 遮挡失败关闭', 'PASS', JSON.stringify(s2))
+  else if (s2 && s2.code === 'desktop_busy') record('B1 遮挡失败关闭', 'BLOCKED', '静默预检失败：' + JSON.stringify(s2))
   else if (s2 && (s2.code === 'secure_desktop' || s2.code === 'uipi')) record('B1 遮挡失败关闭', 'BLOCKED', '输入桌面/完整性变化；失败关闭：' + JSON.stringify(s2))
   else record('B1 遮挡失败关闭', 'FAIL', JSON.stringify(s2))
   writeFileSync(coverFile, '0')
   await sleep(300)
 
+  await waitQuiet(state.message, state.pid)
   writeFileSync(state.wndLog, '')
-  const c = await client.cursorClick({ hwnd: state.message, pid: state.pid, x: btn.x, y: btn.y })
+  const c = await client.cursorClick({ hwnd: state.message, pid: state.pid, x: btn.x, y: btn.y, anchor: 'block' })
   if (c?.ok === true) {
     await sleep(300)
-    record('B2 cursor anchored', /MOUSEDOWN/.test(readLog(state.wndLog)) && c.cursorRestored === true ? 'PASS' : 'FAIL', JSON.stringify(c) + ' log=' + JSON.stringify(readLog(state.wndLog).slice(-120)))
+    const clog = readLog(state.wndLog)
+    record('B2 cursor anchored (BlockInput)', /MOUSEDOWN/.test(clog) && c.cursorRestored === true ? 'PASS' : 'FAIL', JSON.stringify(c) + ' log=' + JSON.stringify(clog.slice(-120)))
   } else if (c?.code === 'block_input_failed') {
-    record('B2 cursor anchored', 'BLOCKED', '当前会话 BlockInput 被拒绝；实现失败关闭，未移动光标')
+    const diag = c.diagnostics || {}
+    record('B2 cursor anchored (BlockInput)', 'BLOCKED',
+      `BlockInput 被拒 win32=${c.win32Error ?? '?'} elevated=${diag.helperElevated} uiAccess=${diag.helperUIAccess} session=${diag.helperSessionId}/${diag.activeConsoleSessionId} desktop=${diag.inputDesktop || diag.threadDesktop || '?'}`)
+    await waitQuiet(state.message, state.pid)
+    writeFileSync(state.wndLog, '')
+    const cc = await client.cursorClick({ hwnd: state.message, pid: state.pid, x: btn.x, y: btn.y, anchor: 'clip' })
+    if (cc?.ok === true) {
+      await sleep(300)
+      const cliplog = readLog(state.wndLog)
+      const clipOk = /MOUSEDOWN/.test(cliplog) && cc.clipRestored === true && cc.cursorRestored !== false
+      record('B2 cursor-clip anchored', clipOk ? 'PASS' : 'FAIL', JSON.stringify(cc) + ' log=' + JSON.stringify(cliplog.slice(-120)))
+    } else if (cc?.code === 'desktop_busy' || cc?.code === 'clip_anchor_failed' || cc?.code === 'secure_desktop' || cc?.code === 'uipi' || cc?.code === 'clip_cursor') {
+      record('B2 cursor-clip anchored', 'BLOCKED', 'ClipCursor 替代锚定失败关闭；未冒充 PASS：' + JSON.stringify(cc))
+    } else {
+      record('B2 cursor-clip anchored', 'FAIL', JSON.stringify(cc))
+    }
+  } else if (c?.code === 'desktop_busy') {
+    record('B2 cursor anchored (BlockInput)', 'BLOCKED', '静默预检失败（桌面光标仍在移动）：' + JSON.stringify(c))
   } else if (c?.code === 'secure_desktop' || c?.code === 'uipi') {
-    record('B2 cursor anchored', 'BLOCKED', '输入桌面/完整性变化；失败关闭：' + JSON.stringify(c))
+    record('B2 cursor anchored (BlockInput)', 'BLOCKED', '输入桌面/完整性变化；失败关闭：' + JSON.stringify(c))
   } else {
-    record('B2 cursor anchored', 'FAIL', JSON.stringify(c))
+    record('B2 cursor anchored (BlockInput)', 'FAIL', JSON.stringify(c))
   }
 
+  await waitQuiet(state.message, state.pid)
   const before = await client.probe({ hwnd: state.message, pid: state.pid })
-  writeFileSync(logFile, '')
+  writeFileSync(state.wndLog, '')
   const w = await client.windowClick({ hwnd: state.message, pid: state.pid, clientX: 50, clientY: 50 })
   await sleep(350)
   const after = await client.probe({ hwnd: state.message, pid: state.pid })
   const restored = before && after && before.windowRect.left === after.windowRect.left && before.windowRect.top === after.windowRect.top
   if (w?.ok === true && w.windowRestored === true && restored && /MOUSEDOWN/.test(readLog(state.wndLog))) {
     record('B3 window anchored', 'PASS', JSON.stringify(w))
-  } else if (w?.code === 'window_move_failed' || w?.code === 'cursor_changed' || w?.code === 'secure_desktop' || w?.code === 'uipi') {
+  } else if (w?.ok === true && w?.warning_code === 'window_changed_externally') {
+    record('B3 window anchored', 'BLOCKED', '点击后窗口被外部移动；未抢回，不冒充 PASS：' + JSON.stringify(w))
+  } else if (['window_move_failed', 'cursor_changed', 'secure_desktop', 'uipi', 'desktop_busy', 'window_changed_externally', 'window_not_movable', 'clip_cursor'].includes(w?.code)) {
     record('B3 window anchored', 'BLOCKED', '脏桌面/输入桌面变化导致失败关闭；未发送点击，不冒充 PASS：' + JSON.stringify(w))
   } else {
     record('B3 window anchored', 'FAIL', JSON.stringify(w) + ' log=' + JSON.stringify(readLog(state.wndLog).slice(-120)))

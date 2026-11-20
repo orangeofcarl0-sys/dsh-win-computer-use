@@ -246,6 +246,27 @@ node tests/native-dialogs.test.mjs
 | HMENU 真机 | PASS | fixture 的 `window_id` 即 HWND；`GetMenu` 可读；`WM_COMMAND` commandId 到达 |
 | 离线 | 42 + 18 + 12 项 | `npm test` 31 套 / 764 项 |
 
+## 1.9 2026-11-21 — B2 cursor-clip、B1/B3 静默预检、Excel 探针分支
+
+命令：
+- `node evals/probe-background-input.mjs`：三轮 **两轮 11 PASS / 4 BLOCKED、最终 12 PASS / 3 BLOCKED / 0 FAIL**。
+- `node evals/probe-modifier-drop.mjs --excel --excel-only`：Excel 分支 **8 PASS / 1 BLOCKED / 0 FAIL**（最后一次干净轮）。
+- `node evals/probe-b2-elevated.mjs --no-uac`：**1 PASS / 1 BLOCKED / 0 FAIL**；非提权 `BlockInput=false`、`err=0`、`elevated=false`、`uiAccess=false`、session 1/1。不带 `--no-uac` 的 UAC 版本需人工批准，本轮未运行。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| B2 严格 `BlockInput` | BLOCKED | `block_input_failed`；`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default；未移动光标 |
+| B2 `cursor-clip` | PASS | 同一目标 109–125ms 返回；`MOUSEDOWN`；`clipAnchored=true`、`clipRestored=true`、`cursorRestored=true`；不阻塞键盘 |
+| B1 synthetic touch | PASS | `TOUCHDOWN/TOUCHUP`；`cursorMoved=false` |
+| B1 WM_TOUCH-only | PASS | 收到 `WMTOUCH`（系统转换） |
+| B1 mouse-only 普通窗口 | BLOCKED | 未收到 `MOUSEDOWN`/`WMTOUCH`；普通窗口不外推 |
+| B1 不移动光标 | BLOCKED | 外部光标漂移 13–236px；helper 报告 `cursorMoved=false`，脏桌面无法归因 |
+| B3 window | PASS/BLOCKED | 安静轮 PASS（`windowRestored=true`、日志 `MOUSEDOWN`）；脏桌面轮 `desktop_busy`/`window_move_failed` → BLOCKED |
+| B3 外部移动 | 修正 | 点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally` |
+| Excel 分支 | 实现 | Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；A2 保留但 E2 为空 → BLOCKED |
+
+> 环境：Windows 11 x64，DPI 150%，dirty 桌面；B1/B3 的 BLOCKED 来自外部光标移动，不改写成 PASS。
+
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
 环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。

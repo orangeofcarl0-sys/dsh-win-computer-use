@@ -226,11 +226,13 @@ export const Config = z.object({
   /**
    * 实验性锚定输入（B2/B3，默认 off）：
    *   cursor = 光标锚定：临时把真实光标移到目标点，BlockInput 保护，post 消息后还原；
+   *   cursor-clip = 免 BlockInput 的光标锚定：ClipCursor 把光标限制在目标 5x5 区域，
+   *                 post 消息后还原；不阻塞键盘，恢复失败会给 warning；
    *   window = 窗口锚定：光标不动，临时移动目标窗口使目标点落在光标下，post 消息后还原。
    *   仅用于无 UIA 的 cursor-polling 目标；只支持左单击；需要 allowedApps 显式包含目标。
    *   cursor 会短暂抢光标，window 会短暂移动窗口；失败关闭，不自动升级前台。
    */
-  anchoredInput: z.union(['off', 'cursor', 'window']).default('off'),
+  anchoredInput: z.union(['off', 'cursor', 'window', 'cursor-clip']).default('off'),
   /**
    * XAML/WinUI 组合键失败后的控件回退（实验性，默认 off）：
    *   off：只返回“改点菜单/控件”的可执行指引；

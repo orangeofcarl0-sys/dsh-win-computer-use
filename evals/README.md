@@ -169,7 +169,11 @@ node evals/probe-modal-escapes.mjs --trigger-only
 node evals/probe-native-dialog.mjs
 # 原生 Button 触发：WinForms Delete + MessageBox；1.2s 触发、native-dialog 关闭、10s latch（~10s）
 node evals/probe-native-button.mjs
-# 默认允许已知 BLOCKED（Excel stub 等），必须读输出；严格验收：
+# Excel Ctrl+drag：UIA DataItem 几何 + OOXML 校验；--excel-only 跳过 Explorer 部分
+node evals/probe-modifier-drop.mjs --excel --excel-only
+# B2 严格 BlockInput 根因：一次性 UAC 提权探针（不改生产路径）
+node evals/probe-b2-elevated.mjs
+# 默认允许已知 BLOCKED（Excel 等），必须读输出；严格验收：
 node evals/probe-ops.mjs --strict-blocked          # 有 BLOCKED 时 exit 2
 node evals/probe-modifier-drop.mjs --excel --strict-blocked
 
