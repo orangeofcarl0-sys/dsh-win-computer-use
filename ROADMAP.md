@@ -1,6 +1,6 @@
 # ROADMAP — dsh-win-computer-use
 
-> 状态基线：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`）；`package.json` 为 0.5.8，`main` 已推送。
+> 状态基线：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`，tag 在 `84225cc`）；`main` 已包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力；`package.json` 仍为 0.5.8。
 > 这是个人项目路线图，不是承诺清单。**触发条件**决定何时解冻；没有触发条件的事项不排期。
 > 历史细节见 [CHANGELOG](CHANGELOG.md)；逐轮证据见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 主题 | 关键结果 |
 |---|---|---|
+| 0.5.8 | t20 模态 30s 根因 + 原生对话框 + 回执/测试收口 | `nativeDialogs`（标准 `#32770` + `BM_CLICK`，9/9 PASS）；超时不再被前置动作吞掉；`win+r` fail-closed；`set_value` 新值回执/另存为提示；t05 副作用 oracle；评测预算语义 |
 | 0.5.7 | 工具面收敛 + 安全边界 + 更名 + dsh 0.2.2 + 驱动兼容 | `dispatcher` 默认（2 可见/21 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；`computer_activate`；`startActivation`；`lib/driver/`；click modifier；私有拖拽；观察回执修复 |
 | 0.5.6 | 委派降级阶梯 | `toolFilter` 被拒时只丢该约束，保住结构化输出；回执写明权限后果 |
 | 0.5.5 | 动态工具面（已废弃） | 折叠 2 / 展开 21；工具面 −81%；因 cache 实测被 0.5.7 删除 |
@@ -18,17 +19,19 @@
 | 0.5.0 | 工具改进包 | verify / wait_for / clipboard / menu / hover / stop / resume；12→19 工具 |
 | 0.4.x | 无感自治 + zoom | 删除审批网关；三级投递链；`screen_zoom` 定位原语；虚拟光标主题 |
 
-## 2. 当前优先（0.5.8 收尾）
+## 2. 当前优先（0.5.9 收尾）
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C6 | web profile 部署 | 已安装，待重启 | npm 已发布 0.5.8；web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles，旧 0.5.6 已移除；运行中的 web 进程需重启。见 [PUBLISH](PUBLISH.md) |
+| C6 | web profile 部署 | 0.5.8 已安装，待重启 | web profile 安装物是 `0.5.8`，不包含当前 main 的 B0-B3/nativeMenus；运行中的 web 进程需重启。要验证 HEAD 需重新部署或发布 0.5.9。见 [PUBLISH](PUBLISH.md) |
 | C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
-| C13 | daemon 高完整性/清理 | 待评估 | #3607；先试非提权重启 daemon，避免 `app_launch` 子进程 High IL |
+| C13 | daemon 高完整性/清理 | 上游已关闭，保留观测 | #3607 已 completed；0.52.13 实测 daemon High 但 PowerShell 子进程 Medium，按实际 IL 清理 |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |
 | C15 | macOS 回归 | 待环境 | 近期证据都在 Windows；macOS 仍是历史验证 |
 | C16 | 驱动库存候补 | 待评估 | `browser_*`、`set_window_frame`、trajectory 录制/重放等 |
-| C17 | 实验性后台输入（B0/B1/B2/B3） | 已实现，默认 off | 无交互 UIA 目标的消息/合成触控/光标/窗口锚定；B0/B1/B3 真机通过，B2 `BlockInput` 当前会话 BLOCKED；见 [BACKGROUND-INPUT](docs/BACKGROUND-INPUT.md) |
+| C17 | 实验性后台输入（B0/B1/B2/B3） | 已实现，默认 off | 无交互 UIA 目标的消息/合成触控/光标/窗口锚定；B0/B1/B3 仅在自建探针通过（B1 touch-only 收到 `WMTOUCH`），普通应用仍需逐个确认；B2 `BlockInput` 当前会话 BLOCKED；见 [BACKGROUND-INPUT](docs/BACKGROUND-INPUT.md) |
+| C18 | 经典 HMENU 菜单兜底（nativeMenus） | 已实现，默认 off；真机通过 | 驱动 `invoke_menu` 结构化拒绝后 `GetMenu` 精确路径 + `PostMessage(WM_COMMAND)`；离线 18 项 + `probe-ops` SetMenu fixture 通过 |
+| C19 | 原生 Button 触发（nativeButtonTrigger） | 已实现，默认 off；自建探针通过 | 标准 Win32/WinForms Button 唯一匹配 + `BM_CLICK`；t20 形态 1.2s、opened=1、latch 生效；t20 需显式 overlay 复跑 |
 
 > 0.5.7 的 C1–C5、C7–C11 已完成（文档体系、install 配置、task 描述、toolFilter 删除、scroll/drag snapshot_id、headless 加载、zoom 坐标语义、Web runner 退役、wa2 归因、dsh 0.2.2 升级）；细节见 CHANGELOG 与 EVIDENCE。
 
@@ -44,6 +47,8 @@
 | A6 | Windows 密码框投影探针 | ✅ 9/9（结构标记/硬拒/零误拒/时延/crop） | — |
 | A7 | 坐标语义落点实验 | ✅ 六轮完成；0.23.2 混合 DPI 三假设均有反例 → 像素 best-effort；element 可靠 | 上游修复或换驱动版本时重测 |
 | A10 | native freshness | ✅ 探针未复现“AX 已变而 PNG 不变” | 在 Paint/Office 复现时 |
+| A20 | 经典 HMENU 菜单后端 | ✅ 离线 18 项 + 真机 SetMenu fixture 通过；MenuStrip/WPF/WinUI 明确不支持 | 用 regedit/MFC 交叉验证 |
+| A21 | 原生 Button 触发 | ✅ 离线 12 项 + 自建 WinForms Delete/MessageBox 探针 4/4；默认 off | t20 overlay 复跑；WPF/WinUI/ToolStrip 仍回退 driver |
 | 独立观察者 | 独立观察者裁决 / screen_assert（原 S3b） | 未做；视觉断言协议（原 S3a）已注入描述 | ZHIPU_API_KEY 或 dsv4fv 观察者文本输出修复 |
 
 ## 4. 驱动与上游
@@ -53,8 +58,10 @@
 | [#3576](https://github.com/trycua/cua/issues/3576) 元素投影 `is_password` | 已提 | 插件用 sidecar 结构位兜底；上游落地后可简化 |
 | [#3586](https://github.com/trycua/cua/issues/3586) 树 revision + 条件请求 | 已提 | 落地后快照 TTL 可退役为上限保险，`supersession` 可升 enforce |
 | [#3587](https://github.com/trycua/cua/issues/3587) 结构化干预信号 | 已提 | 落地后可疑状态由真实干预驱动 |
-| [#3607](https://github.com/trycua/cua/issues/3607) 驱动高完整性/清理 | 已提 | daemon 提权导致 `app_launch` 窗口非提权侧清不掉 |
+| [#3607](https://github.com/trycua/cua/issues/3607) 驱动高完整性/清理 | 上游已关闭（completed） | 0.52.13 实测 daemon High、PowerShell 子进程 Medium；按实际 IL 清理，不按进程名杀 |
 | [#3908](https://github.com/trycua/cua/issues/3908) WinUI3 hotkey 超时 | 已提 | 插件翻译为“改点控件”；观察实战影响面 |
+| [#5012](https://github.com/trycua/cua/issues/5012) 模态期间 UIA/动作阻塞 | open | t20 触发 click 仍可能 30s；插件侧仅有 native-dialog/超时回执兜底 |
+| [#5046](https://github.com/trycua/cua/pull/5046) bounded semantic click | closed-unmerged PR | 不是可用修复；引用时以 #5012 为准 |
 | 像素点击落点（A7） | 素材已备，未单独提 | 文档定性 best-effort；等上游或换版本重测 |
 | 0.53 `screenshot_frame` | 预期 | 有 0.53 时跑 `probe-driver-shape`；未真机前不写成已支持 |
 

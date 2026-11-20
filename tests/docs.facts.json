@@ -4,12 +4,12 @@
   "dispatcherHidden": 21,
   "hybridVisible": 7,
   "hybridHidden": 16,
-  "configKeys": 29,
-  "offlineSuites": 30,
-  "offlineChecks": 748,
-  "syntaxFiles": 46,
+  "configKeys": 30,
+  "offlineSuites": 31,
+  "offlineChecks": 764,
+  "syntaxFiles": 48,
   "runtimeChecks": 18,
-  "packFiles": 64,
+  "packFiles": 66,
   "evalTasks": 23,
   "stageS1": 9,
   "stageS2": 4,
@@ -22,5 +22,5 @@
   "nodeMin": "22.18.0",
   "driverBaseline": "0.23.2",
   "driverCanary": "0.52.13",
-  "lastVerified": "2026-11-20"
+  "lastVerified": "2026-11-21"
 }

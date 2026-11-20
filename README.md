@@ -5,13 +5,13 @@
 
 [![Release](https://img.shields.io/badge/release-0.5.8-blue)]()
 [![npm](https://img.shields.io/badge/npm-dsh--win--computer--use-CB3837)](https://www.npmjs.com/package/dsh-win-computer-use)
-[![main](https://img.shields.io/badge/main-0.5.8-blue)]()
+[![main](https://img.shields.io/badge/main-unreleased-blue)]()
 [![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.2--rc.1-green)]()
 [![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)]()
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-20）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-21）**：npm 最新为 `dsh-win-computer-use@0.5.8`（tag `84225cc`）；`main` 已包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力，`package.json` 仍为 0.5.8。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 安装的是 0.5.8（运行中的 web 进程需重启），不包含当前 main——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 
@@ -151,7 +151,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 |---|---|
 | [INSTALL](docs/INSTALL.md) | 安装、升级、卸载、首跑自检 |
 | [TOOLS](docs/TOOLS.md) | 23 个工具的参数、默认值、前置、回执、示例 |
-| [CONFIGURATION](docs/CONFIGURATION.md) | 29 个配置键、环境变量、交互、陷阱 |
+| [CONFIGURATION](docs/CONFIGURATION.md) | 30 个配置键、环境变量、交互、陷阱 |
 | [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | 错误码总表 / 按症状排障 |
 | [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md) | 威胁模型 / 权限声明 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 内部结构与运行时链路 |

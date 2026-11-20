@@ -62,6 +62,7 @@
 | 结构密码扫描 | Windows，`passwordScan: auto` | 失败/超时降级启发式；经典 Win32 `ES_PASSWORD` 依赖 sidecar |
 | 原生对话框点击 | Windows，`nativeDialogs: auto`；只对同 pid 标准 `#32770` 模态对话框的 Button | 只发 `BM_CLICK`；不自动选择 Yes/No；坐标/输入/双击/右键不走该路径；`off` 禁用 |
 | 原生菜单命令 | Windows，`nativeMenus: auto`（默认 off）；只对同 pid 顶层窗口标准 HMENU 的精确叶子路径 | 只发一次 `PostMessage(WM_COMMAND)`；不自动选择/不模糊匹配；MenuStrip/WPF/WinUI 不支持；超时可能已发送，不重试；`off` 零 spawn |
+| 原生 Button 触发 | Windows，`nativeButtonTrigger: auto`（默认 off）；只对同 pid 标准 Win32/WinForms Button 的单次左键 | 只发一次 `PostMessage(BM_CLICK)`；class/style/label/屏幕点唯一匹配；不自动选择 Yes/No；明确未匹配回退 driver；owner_disabled/超时不回退；10s latch |
 | 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 `off`；只对无交互 UIA 的目标；B1/B2/B3 需 `allowedApps` 非空；B1 遮挡失败关闭；B2 先 `BlockInput` 成功才移光标；B3 只移 `allowedApps` 窗口 | B0 可对任意无交互 UIA 目标发消息；helper 仍受 UIPI/安全桌面/完整性限制；B2 会短暂抢光标，B3 会短暂移窗口；`off` 零 spawn |
 | 快照 TTL / 无快照拒绝 | 操作类工具（click/type/key/scroll/drag/set_value） | 菜单/悬停/应用列表/激活不要求快照 |
 | `allowedApps` | 操作类工具；精确 `appName` | 观察/启动/激活不受限；空 = 关闭 |

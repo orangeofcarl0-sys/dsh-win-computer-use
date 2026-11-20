@@ -54,6 +54,11 @@ export const state = {
   typeResult: null,
   keyResult: null,
 }
+export function screenPointOfTarget(target, snap) {
+  if (!target || target.fromZoom) return null
+  const org = snap?.screenOrigin || { x: 0, y: 0 }
+  return { x: Math.round(Number(org.x) + Number(target.x)), y: Math.round(Number(org.y) + Number(target.y)) }
+}
 export async function tryBackgroundClick(args) {
   const cfg = args.cfg || {}
   const on = cfg.backgroundInput === 'auto' || cfg.syntheticPointer === 'auto'

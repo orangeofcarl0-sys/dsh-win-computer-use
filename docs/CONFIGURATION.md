@@ -1,6 +1,6 @@
 # CONFIGURATION — 配置与环境变量
 
-> 目的：29 个配置键、环境变量、优先级、交互与已知陷阱。
+> 目的：30 个配置键、环境变量、优先级、交互与已知陷阱。
 > 读者：部署者、集成者、排障者。
 > 状态：当前实现（最后核对 2026-11-20；由 `npm run docs:check` 校验键数）。
 > 相关：[INSTALL](INSTALL.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
@@ -29,6 +29,7 @@
 | `observeDedup` | string | `summary` | `brief`/`summary`/`off` | 同窗口未变时的降噪：`summary` 带关键控件与编号摘要，`brief` 只回一行，`off` 每次全量 |
 | `nativeDialogs` | string | `auto` | `auto`/`off` | Windows 标准 Win32 模态对话框（`#32770`）的原生子控件后端：UIA 树为空时返回原生按钮，点击走 `BM_CLICK`（异步/未验证）；`off` = 零 PowerShell spawn，仅 UIA |
 | `nativeMenus` | string | `off` | `off`/`auto` | 实验性：驱动 `invoke_menu` 结构化拒绝后，对顶层窗口标准 Win32 HMENU 做精确路径解析并 `PostMessage(WM_COMMAND)`（未验证）；MenuStrip/WPF/WinUI 不支持；`off` = 零 spawn |
+| `nativeButtonTrigger` | string | `off` | `off`/`auto` | 实验性：`computer_click(element=Button)` 单次左键时，对同 pid 标准 Win32/WinForms Button 做唯一 class/style/label/屏幕点匹配后 `BM_CLICK`（未验证）；明确未匹配回退 driver；`off` = 零 spawn |
 | `surfaceMode` | string | `dispatcher` | `dispatcher`/`hybrid` | 工具面：2 可见/21 隐藏，或 2+5 热工具/16 隐藏。会话内稳定 |
 | `verboseReceipts` | boolean | `false` | 只有 `true` 生效 | 动作回执附原始 JSON，排障用 |
 
@@ -114,6 +115,10 @@
 | `nativeMenus: auto` × 经典 HMENU | 只在驱动结构化拒绝后解析 `GetMenu` 路径并 `PostMessage(WM_COMMAND)`；`effect:unverifiable`，不要重复 |
 | `nativeMenus: auto` × MenuStrip/WPF/WinUI | `GetMenu` 为 0 → `no_hmenu`；明确不支持，不回退像素/坐标 |
 | `nativeMenus: off` × 菜单 | 零 PowerShell spawn；保持驱动/UIA 的拒绝与未确认语义 |
+| `nativeButtonTrigger: auto` × 标准 Button | 只对唯一匹配的 Win32/WinForms Button 发 `BM_CLICK`；1.2s 级返回；10s latch 防重复；`effect:unverifiable` |
+| `nativeButtonTrigger: auto` × WPF/WinUI/ToolStrip | 没有独立标准 BUTTON 子 HWND → `no_match`，回退 driver；不会误点相邻同名控件 |
+| `nativeButtonTrigger: auto` × 模态已打开 | 主窗口 owner 被禁用 → `owner_disabled`，不回退 driver；先 observe 同 pid 对话框 |
+| `nativeButtonTrigger: off` × click | 零 PowerShell spawn；保持 driver UIA 语义（模态触发仍可能 30s） |
 | `backgroundInput: auto` × 有可交互 UIA | 不接管；继续 driver/UIA。只有快照没有 Button/Edit/MenuItem 等可交互角色时才走插件消息通道 |
 | `syntheticPointer: auto` × `allowedApps: []` | 不接管（B1/B2/B3 的强制安全闸）；B0 不受此限制 |
 | `anchoredInput: cursor/window` × 脏桌面 | 光标/窗口被外部改动时失败关闭（`background_input_cursor_changed` / 还原失败），不抢回用户改动 |
@@ -188,6 +193,8 @@
 14. **B0 文本/按键是同步 `SendMessageTimeout`**：目标窗口过程卡住时每个字符最多等 1s；鼠标仍是异步 `PostMessage`。超时/未知不要重复输入。
 15. **`nativeMenus` 只认经典 HMENU**：WinForms `MenuStrip`、WPF/WinUI 的 `GetMenu` 为 0，返回 `no_hmenu`；不要把它当成“WinForms 菜单已支持”。
 16. **`nativeMenus` 的成功是未验证**：`WM_COMMAND` 只证明消息已投递；回执 `effect=unverifiable`，不要重复同一路径。
+17. **`nativeButtonTrigger` 只对唯一匹配生效**：同 label 多按钮/点在 rect 外/非标准 Button 都会回退 driver；不要把它当成“所有 Button 都能原生触发”。
+18. **`nativeButtonTrigger` 的 BM_CLICK 是异步的**：等待 1–3s 再观察模态；10s 内重复点击会被 latch 拒绝，超时/异常不回退 driver。
 
 ## 7. 配置变更检查
 

@@ -78,6 +78,16 @@
 | `pid_missing`/`window_missing`/`bad_path` | 回退参数不足 | 补 pid/window_id/路径 |
 | `unavailable`/`failed` | 脚本缺失或执行失败 | 回退 UIA；不要重复 |
 
+### 2.3 原生 Button 触发码（`nativeButtonTrigger:auto`）
+
+| 代码 | 含义 | 模型下一步 |
+|---|---|---|
+| `native_button_owner_disabled` | 主窗口已被模态禁用；未发送 | 先 observe 同 pid 新对话框；不要重复点主窗口按钮 |
+| `native_button_latched` | 10s 内同一按钮已触发过；未发送 | 先 observe；不要重复 |
+| `native_button_unknown` | helper 超时/异常，BM_CLICK 可能已发送 | 不要重复；先 observe 是否出现新同 pid 窗口 |
+| `no_match`/`ambiguous` | 未找到/多个标准 Button 匹配 | 回退 driver；不要坐标乱点 |
+| `window_not_found`/`pid_mismatch`/`post_message_failed` | 未投递 | 回退 driver；先 observe |
+
 ## 3. 驱动码
 
 这些码通常出现在 `result` 文本里，由 `engineRefusal`/`deliveryFailure` 分类；是否 `ok:false` 取决于层。

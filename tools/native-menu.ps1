@@ -3,7 +3,8 @@ param(
   [Alias('Pid')][int]$TargetPid,
   [long]$Hwnd,
   [string]$PathB64,
-  [int]$CommandId
+  [int]$CommandId,
+  [string]$TitleB64
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
@@ -39,6 +40,9 @@ public static class DshNativeMenu
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
     [DllImport("user32.dll")] static extern IntPtr GetMenu(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr hwnd, StringBuilder text, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
+    [DllImport("user32.dll")] static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll")] static extern int GetMenuItemCount(IntPtr menu);
     [DllImport("user32.dll")] static extern IntPtr GetSubMenu(IntPtr menu, int pos);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool GetMenuItemInfoW(IntPtr menu, uint item, bool byPosition, ref MENUITEMINFO info);
@@ -82,6 +86,56 @@ public static class DshNativeMenu
         return s;
     }
 
+    static string ClassOf(IntPtr hwnd)
+    {
+        StringBuilder sb = new StringBuilder(256);
+        GetClassNameW(hwnd, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    static string TitleOf(IntPtr hwnd)
+    {
+        StringBuilder sb = new StringBuilder(512);
+        GetWindowTextW(hwnd, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    static int MenuCount(IntPtr hwnd)
+    {
+        IntPtr menu = GetMenu(hwnd);
+        return menu == IntPtr.Zero ? 0 : GetMenuItemCount(menu);
+    }
+
+    static Dictionary<string, object> WindowInfo(IntPtr hwnd, int pid)
+    {
+        Dictionary<string, object> d = D();
+        d["hwnd"] = hwnd.ToInt64();
+        d["pid"] = pid;
+        d["visible"] = IsWindowVisible(hwnd);
+        d["enabled"] = IsWindowEnabled(hwnd);
+        d["class"] = ClassOf(hwnd);
+        d["title"] = TitleOf(hwnd);
+        d["menu"] = GetMenu(hwnd).ToInt64();
+        d["menuCount"] = MenuCount(hwnd);
+        return d;
+    }
+
+    static List<Dictionary<string, object>> CollectCandidates(int pid, string titleFilter)
+    {
+        List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
+        EnumWindows(delegate(IntPtr h, IntPtr l)
+        {
+            uint p;
+            GetWindowThreadProcessId(h, out p);
+            if ((int)p != pid) return true;
+            bool menu = GetMenu(h) != IntPtr.Zero;
+            bool titleMatch = String.IsNullOrEmpty(titleFilter) || Norm(TitleOf(h)) == Norm(titleFilter);
+            if (IsWindowVisible(h) && (menu || titleMatch)) list.Add(WindowInfo(h, pid));
+            return true;
+        }, IntPtr.Zero);
+        return list;
+    }
+
     static string CheckWindow(IntPtr hwnd, int expectedPid)
     {
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return "window_not_found";
@@ -91,41 +145,67 @@ public static class DshNativeMenu
         return "";
     }
 
-    // The driver window_id is not guaranteed to be a HWND; auto-resolve only a unique visible top-level menu window of the same pid.
-    static int FindMenuWindow(int pid, out IntPtr found)
-    {
-        List<IntPtr> windows = new List<IntPtr>();
-        EnumWindows(delegate(IntPtr h, IntPtr l)
-        {
-            uint p;
-            GetWindowThreadProcessId(h, out p);
-            if ((int)p == pid && IsWindowVisible(h) && GetMenu(h) != IntPtr.Zero) windows.Add(h);
-            return true;
-        }, IntPtr.Zero);
-        found = windows.Count == 1 ? windows[0] : IntPtr.Zero;
-        return windows.Count;
-    }
-
-    static string ResolveHwnd(ref IntPtr hwnd, int expectedPid)
+    // The driver window_id is normally the HWND on Windows, but may be stale or point at a child/owner.
+    // Auto-resolve only a unique visible top-level menu window of the same pid (optionally title-matched).
+    static string ResolveHwnd(ref IntPtr hwnd, int expectedPid, string titleFilter)
     {
         if (hwnd != IntPtr.Zero && IsWindow(hwnd))
         {
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            if (expectedPid > 0 && (int)pid != expectedPid) return "pid_mismatch";
             if (GetMenu(hwnd) != IntPtr.Zero) return "";
             // Driver window ids may point at a child/owner; try the top-level root.
             IntPtr root = GetAncestor(hwnd, 2);
-            if (root != IntPtr.Zero && root != hwnd && GetMenu(root) != IntPtr.Zero) { hwnd = root; return ""; }
+            if (root != IntPtr.Zero && root != hwnd)
+            {
+                uint rpid;
+                GetWindowThreadProcessId(root, out rpid);
+                if ((expectedPid <= 0 || (int)rpid == expectedPid) && GetMenu(root) != IntPtr.Zero)
+                {
+                    hwnd = root;
+                    return "";
+                }
+            }
         }
-        IntPtr found;
-        int count = FindMenuWindow(expectedPid, out found);
-        if (count == 1) { hwnd = found; return ""; }
-        if (count > 1) return "ambiguous_window";
+        List<Dictionary<string, object>> candidates = CollectCandidates(expectedPid, titleFilter);
+        List<Dictionary<string, object>> menuCandidates = new List<Dictionary<string, object>>();
+        foreach (Dictionary<string, object> c in candidates)
+        {
+            if ((long)c["menu"] != 0) menuCandidates.Add(c);
+        }
+        if (menuCandidates.Count == 1)
+        {
+            hwnd = new IntPtr((long)menuCandidates[0]["hwnd"]);
+            return "";
+        }
+        if (menuCandidates.Count > 1) return "ambiguous_window";
+        if (hwnd != IntPtr.Zero && IsWindow(hwnd)) return "no_hmenu";
         return "window_not_found";
     }
 
-    static Dictionary<string, object> ResolvePath(IntPtr hwnd, int expectedPid, string[] parts)
+    static Dictionary<string, object> WithDiag(Dictionary<string, object> d, IntPtr input, IntPtr resolved, int pid)
     {
-        string bad = ResolveHwnd(ref hwnd, expectedPid);
-        if (bad.Length > 0) return Fail(bad, bad);
+        d["hwndInput"] = input.ToInt64();
+        d["hwndResolved"] = resolved.ToInt64();
+        d["pidInput"] = pid;
+        uint actual = 0;
+        if (input != IntPtr.Zero && IsWindow(input)) GetWindowThreadProcessId(input, out actual);
+        d["pidActual"] = (int)actual;
+        d["isWindow"] = input != IntPtr.Zero && IsWindow(input);
+        d["candidates"] = CollectCandidates(pid, "");
+        return d;
+    }
+
+    static Dictionary<string, object> ResolvePath(IntPtr hwnd, int expectedPid, string[] parts, string titleFilter)
+    {
+        IntPtr input = hwnd;
+        string bad = ResolveHwnd(ref hwnd, expectedPid, titleFilter);
+        if (bad.Length > 0)
+        {
+            Dictionary<string, object> f = Fail(bad, bad);
+            return WithDiag(f, input, hwnd, expectedPid);
+        }
         IntPtr menu = GetMenu(hwnd);
         if (menu == IntPtr.Zero) return Fail("no_hmenu", "target has no standard HMENU (WinForms MenuStrip/WPF/WinUI are not supported)");
         IntPtr current = menu;
@@ -170,6 +250,7 @@ public static class DshNativeMenu
             if ((foundState & MFS_GRAYED) != 0) return Fail("disabled", "menu item is disabled: " + parts[level]);
             if (foundId == 0 || foundId > 0xFFFF) return Fail("bad_command_id", "menu command id out of range");
             Dictionary<string, object> d = Ok();
+            d["hwnd"] = hwnd.ToInt64();
             d["commandId"] = (int)foundId;
             d["index"] = foundIndex;
             d["path"] = parts;
@@ -178,26 +259,58 @@ public static class DshNativeMenu
         return Fail("path_not_found", "empty path");
     }
 
-    public static Dictionary<string, object> Resolve(long hwndL, int expectedPid, string[] parts)
+    public static Dictionary<string, object> Resolve(long hwndL, int expectedPid, string[] parts, string titleFilter)
     {
-        return ResolvePath(new IntPtr(hwndL), expectedPid, parts);
+        return ResolvePath(new IntPtr(hwndL), expectedPid, parts, titleFilter);
     }
 
-    public static Dictionary<string, object> Invoke(long hwndL, int expectedPid, string[] parts, int commandId)
+    public static Dictionary<string, object> Invoke(long hwndL, int expectedPid, string[] parts, int commandId, string titleFilter)
     {
-        IntPtr hwnd = new IntPtr(hwndL);
-        string bad = CheckWindow(hwnd, expectedPid);
-        if (bad.Length > 0) return Fail(bad, bad);
-        Dictionary<string, object> resolved = ResolvePath(hwnd, expectedPid, parts);
+        IntPtr input = new IntPtr(hwndL);
+        IntPtr hwnd = input;
+        Dictionary<string, object> resolved = ResolvePath(hwnd, expectedPid, parts, titleFilter);
         if (!(bool)resolved["ok"]) return resolved;
+        hwnd = new IntPtr((long)resolved["hwnd"]);
+        string bad = CheckWindow(hwnd, expectedPid);
+        if (bad.Length > 0) return WithDiag(Fail(bad, bad), input, hwnd, expectedPid);
         int currentId = (int)resolved["commandId"];
-        if (currentId != commandId) return Fail("stale_command", "menu changed between resolve and invoke");
+        if (currentId != commandId) return WithDiag(Fail("stale_command", "menu changed between resolve and invoke"), input, hwnd, expectedPid);
         if (!PostMessageW(hwnd, WM_COMMAND, new IntPtr(commandId), IntPtr.Zero))
-            return Fail("post_message_failed", "PostMessage(WM_COMMAND) failed");
+            return WithDiag(Fail("post_message_failed", "PostMessage(WM_COMMAND) failed"), input, hwnd, expectedPid);
         Dictionary<string, object> d = Ok();
         d["method"] = "WM_COMMAND";
+        d["hwnd"] = hwnd.ToInt64();
         d["commandId"] = commandId;
         d["path"] = parts;
+        return d;
+    }
+
+    public static Dictionary<string, object> Inspect(long hwndL, int expectedPid, string titleFilter)
+    {
+        IntPtr input = new IntPtr(hwndL);
+        IntPtr resolved = input;
+        string code = ResolveHwnd(ref resolved, expectedPid, titleFilter);
+        Dictionary<string, object> d = Ok();
+        d["code"] = code;
+        d["resolvedOk"] = code.Length == 0;
+        d["autoResolved"] = resolved != input;
+        d["hwndInput"] = input.ToInt64();
+        d["hwndResolved"] = resolved.ToInt64();
+        d["pidInput"] = expectedPid;
+        uint actual = 0;
+        if (input != IntPtr.Zero && IsWindow(input)) GetWindowThreadProcessId(input, out actual);
+        d["pidActual"] = (int)actual;
+        d["isWindow"] = input != IntPtr.Zero && IsWindow(input);
+        d["visible"] = input != IntPtr.Zero && IsWindowVisible(input);
+        d["enabled"] = input != IntPtr.Zero && IsWindowEnabled(input);
+        d["class"] = input != IntPtr.Zero && IsWindow(input) ? ClassOf(input) : "";
+        d["title"] = input != IntPtr.Zero && IsWindow(input) ? TitleOf(input) : "";
+        d["menu"] = input != IntPtr.Zero && IsWindow(input) ? GetMenu(input).ToInt64() : 0;
+        d["menuCount"] = input != IntPtr.Zero && IsWindow(input) ? MenuCount(input) : 0;
+        IntPtr root = input != IntPtr.Zero && IsWindow(input) ? GetAncestor(input, 2) : IntPtr.Zero;
+        d["root"] = root.ToInt64();
+        d["rootMenu"] = root != IntPtr.Zero ? GetMenu(root).ToInt64() : 0;
+        d["candidates"] = CollectCandidates(expectedPid, "");
         return d;
     }
 }
@@ -210,21 +323,31 @@ function Write-Result($value) {
 }
 
 try {
-    if ([string]::IsNullOrWhiteSpace($PathB64)) { throw "PathB64 is required" }
-    $bytes = [Convert]::FromBase64String($PathB64)
-    $jsonText = [System.Text.Encoding]::UTF8.GetString($bytes)
-    $parsed = $jsonText | ConvertFrom-Json
-    $path = @()
-    foreach ($p in @($parsed)) { $path += [string]$p }
-    if ($path.Length -eq 0) { throw "menu path is empty" }
-    if ($Action -eq 'resolve') {
-        Write-Result ([DshNativeMenu]::Resolve([long]$Hwnd, [int]$TargetPid, [string[]]$path))
+    $title = ''
+    if (-not [string]::IsNullOrWhiteSpace($TitleB64)) {
+        $titleBytes = [Convert]::FromBase64String($TitleB64)
+        $title = [System.Text.Encoding]::UTF8.GetString($titleBytes)
     }
-    elseif ($Action -eq 'invoke') {
-        Write-Result ([DshNativeMenu]::Invoke([long]$Hwnd, [int]$TargetPid, [string[]]$path, [int]$CommandId))
+    if ($Action -eq 'inspect') {
+        Write-Result ([DshNativeMenu]::Inspect([long]$Hwnd, [int]$TargetPid, $title))
     }
     else {
-        Write-Result @{ ok = $false; code = 'bad_action'; error = "unknown action: $Action" }
+        if ([string]::IsNullOrWhiteSpace($PathB64)) { throw "PathB64 is required" }
+        $bytes = [Convert]::FromBase64String($PathB64)
+        $jsonText = [System.Text.Encoding]::UTF8.GetString($bytes)
+        $parsed = $jsonText | ConvertFrom-Json
+        $path = @()
+        foreach ($p in @($parsed)) { $path += [string]$p }
+        if ($path.Length -eq 0) { throw "menu path is empty" }
+        if ($Action -eq 'resolve') {
+            Write-Result ([DshNativeMenu]::Resolve([long]$Hwnd, [int]$TargetPid, [string[]]$path, $title))
+        }
+        elseif ($Action -eq 'invoke') {
+            Write-Result ([DshNativeMenu]::Invoke([long]$Hwnd, [int]$TargetPid, [string[]]$path, [int]$CommandId, $title))
+        }
+        else {
+            Write-Result @{ ok = $false; code = 'bad_action'; error = "unknown action: $Action" }
+        }
     }
 }
 catch {

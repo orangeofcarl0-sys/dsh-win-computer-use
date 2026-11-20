@@ -229,8 +229,22 @@ node tests/native-dialogs.test.mjs
 | B1 incomplete/回执字段 | 离线 | `complete=false` + `warning_code` 进入插件结构化回执 |
 | B2 正路径断言 | 修正 | 探针改读 `state.wndLog` + `MOUSEDOWN`；当前会话仍 `BlockInput` 被拒 → BLOCKED |
 | B0/B3 清理 | 离线 | down/up/KEYUP 失败补发并标 partial；B3 有界轮询 + 还原校验 |
-| nativeMenus 真机 | BLOCKED | `probe-ops` 的 SetMenu fixture 仍 `window_not_found`；离线 `tests/native-menus.test.mjs` 14 项通过；MenuStrip/WPF/WinUI 明确 `no_hmenu` |
-| 离线 | 42 + 14 项 | `npm test` 30 套 / 748 项 |
+| nativeMenus 真机 | PASS | `probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count，专用 `menu:0x4D4B` marker 出现；离线 18 项通过；MenuStrip/WPF/WinUI 明确 `no_hmenu` |
+| 离线 | 42 + 18 项 | `npm test` 31 套 / 764 项 |
+
+## 1.8 2026-11-21 — nativeMenu 真机通过 + 原生 Button 触发探针
+
+命令：
+- `node evals/probe-ops.mjs`：**13 PASS / 0 BLOCKED / 0 FAIL**；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 `GetMenu`/menu-count，`menu:0x4D4B` marker）。
+- `node evals/probe-native-button.mjs`：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms `Delete` + MessageBox。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| 原生 Button 触发 | PASS | `nativeButtonTrigger:auto` 点击 1.2s 返回；`opened=1`；driver UIA 对照 30s |
+| 模态出现/关闭 | PASS | MessageBox `Confirm` 出现；native-dialog 点 `否(N)`，`cancelled=1` |
+| 10s latch | PASS | 重新 observe 后再次点同一 Delete，被 `native_button_latched` 拒绝；`opened` 仍 1 |
+| HMENU 真机 | PASS | fixture 的 `window_id` 即 HWND；`GetMenu` 可读；`WM_COMMAND` commandId 到达 |
+| 离线 | 42 + 18 + 12 项 | `npm test` 31 套 / 764 项 |
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

@@ -97,9 +97,9 @@ try {
   // D. 原生超时：可能已发送，不重试
   {
     r = await fresh({ nativeMenus: 'auto' })
-    native.state.result = { ok: false, code: 'timeout', unknown: true, error: 'timeout' }
+    native.state.result = { ok: false, code: 'timeout', unknown: true, stage: 'invoke', error: 'timeout' }
     const m = await menuCall(r, { pid: 42, window_id: 200, path: ['Tools', 'Mark'] })
-    check('M4: 原生超时 → 可能已发送/不要重复', m.ok === false
+    check('M4: 原生 invoke 超时 → 可能已发送/不要重复', m.ok === false
       && /可能已经发送/.test(m.result || '') && /不要重复/.test(m.result || ''), m.result)
   }
 
@@ -180,6 +180,36 @@ try {
       spawnFn: () => { throw new Error('spawn failed') },
     })
     check('M14: spawn 失败 → unavailable', unavailable.ok === false && unavailable.code === 'unavailable', JSON.stringify(unavailable))
+
+    const chainCalls = []
+    const chainSpawn = (cmd, args) => {
+      chainCalls.push(args)
+      return mkChild({ ok: true, hwnd: 999, commandId: 1001, path: ['Tools', 'Mark'] })
+    }
+    const chained = await real.tryNativeMenu({ pid: 42, hwnd: 200, path: ['Tools', 'Mark'], title: 'My Menu' }, { spawnFn: chainSpawn })
+    const invokeArgs = chainCalls.find((a) => a.includes('invoke')) || []
+    check('M15: resolve→invoke 使用 resolved hwnd', chained.ok === true && chained.hwnd === 999
+      && invokeArgs[invokeArgs.indexOf('-Hwnd') + 1] === '999', JSON.stringify({ chained, invokeArgs }))
+
+    const resolveTimeout = await real.resolveNativeMenu({ pid: 42, hwnd: 200, path: ['Tools'] }, {
+      spawnFn: () => { const c = new EventEmitter(); c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); c.kill = () => {}; return c },
+      timeoutMs: 60,
+    })
+    check('M16: resolve 超时 → 未发送/可重试', resolveTimeout.code === 'timeout'
+      && resolveTimeout.stage === 'resolve' && resolveTimeout.unknown === false, JSON.stringify(resolveTimeout))
+
+    const ambiguous = await real.resolveNativeMenu({ pid: 42, hwnd: 200, path: ['Tools'] }, {
+      spawnFn: okSpawn({ ok: false, code: 'ambiguous_window', hwndResolved: 0, candidates: [{ hwnd: 1 }, { hwnd: 2 }] }),
+    })
+    check('M17: ambiguous_window 带候选诊断', ambiguous.ok === false && ambiguous.code === 'ambiguous_window'
+      && ambiguous.candidates?.length === 2, JSON.stringify(ambiguous))
+
+    const titleSpawn = okSpawn({ ok: true, hwnd: 999, commandId: 1001, path: ['Tools'] })
+    await real.resolveNativeMenu({ pid: 42, hwnd: 200, path: ['Tools'], title: 'My Menu' }, { spawnFn: titleSpawn })
+    const targs = titleSpawn.calls[0].args
+    const tb64 = targs[targs.indexOf('-TitleB64') + 1]
+    check('M18: title 以 base64 传入', Boolean(tb64)
+      && Buffer.from(tb64, 'base64').toString('utf8') === 'My Menu', JSON.stringify(targs))
   }
 } finally {
   cleanupWork(work)

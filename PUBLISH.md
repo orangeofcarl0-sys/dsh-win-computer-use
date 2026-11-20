@@ -27,6 +27,7 @@
 | 分支 | 只推 `main`；不再维护发布分支 |
 | 发布物 | 提交 + 注解 tag；不是工作区 |
 | 授权 | push/tag/npm/部署只在用户明说“发布”时执行 |
+| main 状态 | `main` 可领先 npm；发布前必须重新核对 `package.json`、CHANGELOG、tag 与 npm latest，不能把 main 的功能当成已发布 |
 
 ## 3. 发布前检查（逐项跑，看退出码）
 
@@ -37,7 +38,7 @@ git status --short
 # 1. 语法 + 安装脚本 + 文档/任务一致性
 npm run check; echo "check=$?"
 
-# 2. 离线测试（30 套 / 748 项；&& 串联，必须看 $?）
+# 2. 离线测试（31 套 / 764 项；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
 # 3. 真驱动运行时（只读观察；18/18）

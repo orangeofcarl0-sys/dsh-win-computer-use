@@ -46,11 +46,15 @@ public class S4NativeMenu {
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool AppendMenuW(IntPtr hMenu, uint flags, IntPtr id, string text);
   [DllImport("user32.dll")] public static extern bool SetMenu(IntPtr hwnd, IntPtr menu);
   [DllImport("user32.dll")] public static extern bool DrawMenuBar(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetMenu(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern int GetMenuItemCount(IntPtr menu);
 }
 public class S4Form : Form {
   public event EventHandler Command;
   protected override void WndProc(ref Message m) {
-    if (m.Msg == 0x0111) { if (Command != null) Command(this, EventArgs.Empty); }
+    if (m.Msg == 0x0111 && (m.WParam.ToInt64() & 0xFFFF) == 0x4D4B) {
+      if (Command != null) Command(this, EventArgs.Empty);
+    }
     base.WndProc(ref m);
   }
 }
@@ -65,15 +69,33 @@ $form.Height = 580
 $form.StartPosition = 'Manual'
 $form.Left = 160
 $form.Top = 100
-$form.add_Command({ Write-Mark 'menu' })
+$form.add_Command({ Write-Mark 'menu:0x4D4B' })
 $form.Add_Shown({
   $menu = [S4NativeMenu]::CreateMenu()
   $popup = [S4NativeMenu]::CreatePopupMenu()
-  [void][S4NativeMenu]::AppendMenuW($popup, 0x0000, [IntPtr]1001, 'Mark')
-  [void][S4NativeMenu]::AppendMenuW($menu, 0x0010, $popup, 'Tools')
+  $appendRoot = [S4NativeMenu]::AppendMenuW($menu, 0x0010, $popup, 'Tools')
+  $appendItem = [S4NativeMenu]::AppendMenuW($popup, 0x0000, [IntPtr]0x4D4B, 'Mark')
   $set = [S4NativeMenu]::SetMenu($form.Handle, $menu)
   [void][S4NativeMenu]::DrawMenuBar($form.Handle)
+  $got = [S4NativeMenu]::GetMenu($form.Handle)
+  Write-Mark ('fixture-pid:' + $PID)
+  Write-Mark ('fixture-hwnd:' + $form.Handle.ToInt64())
+  Write-Mark ('menu-create:' + $menu.ToInt64())
+  Write-Mark ('popup-create:' + $popup.ToInt64())
+  Write-Mark ('menu-append-root:' + $appendRoot)
+  Write-Mark ('menu-append-item:' + $appendItem)
   Write-Mark ('menu-set:' + $set)
+  Write-Mark ('get-menu-after-set:' + $got.ToInt64())
+  Write-Mark ('menu-count-after-set:' + [S4NativeMenu]::GetMenuItemCount($got))
+  $menuCheck = New-Object System.Windows.Forms.Timer
+  $menuCheck.Interval = 1000
+  $menuCheck.Add_Tick({
+    $menuCheck.Stop()
+    $now = [S4NativeMenu]::GetMenu($form.Handle)
+    Write-Mark ('get-menu-after-1s:' + $now.ToInt64())
+    Write-Mark ('menu-count-after-1s:' + [S4NativeMenu]::GetMenuItemCount($now))
+  })
+  $menuCheck.Start()
 })
 $click = New-Object System.Windows.Forms.Button
 $click.Text = 'Click'
@@ -136,9 +158,13 @@ $start.Add_Click({
   $readyTimer.Start()
 })
 $auto = New-Object System.Windows.Forms.Timer
-$auto.Interval = 120000
+$auto.Interval = 300000
 $auto.Add_Tick({ $auto.Stop(); $form.Close() })
 $auto.Start()
+$heartbeat = New-Object System.Windows.Forms.Timer
+$heartbeat.Interval = 10000
+$heartbeat.Add_Tick({ Write-Mark ('heartbeat:' + [Environment]::TickCount) })
+$heartbeat.Start()
 [System.Windows.Forms.Application]::Run($form)
 `
 writeFileSync(appPath, app, 'utf8')
@@ -455,42 +481,29 @@ try {
 
   // menu
   {
-    await call('computer_activate', { window_id: hwnd, pid })
-    const ids = [...new Set([hwnd, driverWid].filter((x) => Number.isFinite(x) && x > 0))]
-    let r = null
-    for (const id of ids) {
-      r = await call('computer_menu', { window_id: id, pid, path: ['Tools', 'Mark'] })
-      await delay(400)
-      if (r?.ok === true && hasMark('menu')) break
+    const menuMark = 'menu:0x4D4B'
+    const marks0 = readMarks()
+    const fixtureHwnd = Number((marks0.find((x) => x.startsWith('fixture-hwnd:')) || '').split(':')[1])
+    const gotMenu = Number((marks0.find((x) => x.startsWith('get-menu-after-set:')) || '').split(':')[1])
+    const setOk = marks0.includes('menu-set:True')
+    if (setOk && gotMenu !== 0) pass('fixture HMENU setup', true, `fixture-hwnd=${fixtureHwnd} menu=${gotMenu}`)
+    else pass('fixture HMENU setup', false, `menu-set=${setOk} get-menu=${gotMenu} marks=${JSON.stringify(marks0.slice(-8))}`)
+
+    const list2 = await cuaCall('list_windows', { on_screen_only: true })
+    const live = (list2?.windows || []).find((w) => String(w.title || '').includes(TITLE) && Number(w.pid) === pid)
+    const freshHwnd = Number(live?.window_id) || hwnd
+    if (fixtureHwnd && freshHwnd !== fixtureHwnd) {
+      blocked('computer_menu invoked item', `fixture hwnd ${fixtureHwnd} != live window_id ${freshHwnd}; marks=${JSON.stringify(marks0.slice(-8))}`)
+    } else {
+      await call('computer_activate', { window_id: freshHwnd, pid })
+      const before = readMarks().length
+      const r = await call('computer_menu', { window_id: freshHwnd, pid, path: ['Tools', 'Mark'] })
+      await delay(900)
+      const newMarks = readMarks().slice(before)
+      if (r?.ok === true && newMarks.includes(menuMark)) pass('computer_menu invoked item', true, String(r?.result || '').slice(0, 140))
+      else if (r?.ok === true) pass('computer_menu invoked item', false, `ok:true but no ${menuMark}; newMarks=${JSON.stringify(newMarks.slice(-8))}`)
+      else blocked('computer_menu invoked item', `${String(r?.result || '').slice(0, 220)} newMarks=${JSON.stringify(newMarks.slice(-8))} marks=${JSON.stringify(readMarks().slice(-8))}`)
     }
-    if (r?.ok !== true || !hasMark('menu')) {
-      const { els } = await observe()
-      const tools = findByLabel(els, /^Tools$/)
-      if (tools) {
-        await call('computer_click', { element: tools.index })
-        await delay(600)
-        await observe()
-        const openIds = [...new Set([driverWid, hwnd].filter((x) => Number.isFinite(x) && x > 0))]
-        for (const id of openIds) {
-          const rr = await call('computer_menu', { window_id: id, pid, path: ['Mark'] })
-          await delay(300)
-          if (rr?.ok === true && hasMark('menu')) { r = rr; break }
-          if (rr) r = rr
-        }
-        if (r?.ok !== true || !hasMark('menu')) {
-          for (const id of openIds) {
-            const rr = await call('computer_menu', { window_id: id, pid, path: ['Tools', 'Mark'] })
-            await delay(300)
-            if (rr?.ok === true && hasMark('menu')) { r = rr; break }
-            if (rr) r = rr
-          }
-        }
-      }
-    }
-    await delay(500)
-    if (r?.ok === true && hasMark('menu')) pass('computer_menu invoked item', true, String(r?.result || '').slice(0, 100))
-    else if (r?.ok === true) pass('computer_menu invoked item', false, 'ok:true but menu item never fired')
-    else blocked('computer_menu invoked item', String(r?.result || '').slice(0, 180))
   }
 } catch (err) {
   pass('probe completed', false, String(err.message || err))

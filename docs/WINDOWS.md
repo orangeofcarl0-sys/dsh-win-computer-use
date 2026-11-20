@@ -44,7 +44,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 | 目标类型 | 文本 | 组合键 | 菜单 | 备注 |
 |---|---|---|---|---|
-| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | 经典 `SetMenu` HMENU 可用 `nativeMenus:auto` 走精确路径 + `WM_COMMAND`（实验性、未验证）；WinForms `MenuStrip` 不是 HMENU，仍 `menu_path_unavailable`（BLOCKED） | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
+| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | 经典 `SetMenu` HMENU 可用 `nativeMenus:auto` 走精确路径 + `WM_COMMAND`（真机 fixture 已通过）；WinForms `MenuStrip` 不是 HMENU，仍 `menu_path_unavailable`；`nativeButtonTrigger:auto` 可对标准 Button 走 `BM_CLICK`（t20 形态 1.2s，默认 off） | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
 | XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**和 `could not find a UIA AcceleratorKey`（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单栏项 → 观察弹出菜单 → 点菜单项”；`xamlKeyFallback: auto`（默认 off）可实验性自动做这一步；`press_key` 可能 `effect:unverifiable` |
 | Electron / Chromium / WebView2 | 通常可 UIA ValuePattern；内容区可能不暴露树 | 后台事件可能被静默丢弃（`background_unavailable`） | 取决于应用 | 用 `native` 截图 + element/像素点击 |
 | Canvas / 游戏 / 自绘 | 无 AX 树 | 同左 | 不可用 | `native` 或 `vision`；坐标点击 best-effort |
@@ -245,7 +245,7 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 | [trycua/cua#3576](https://github.com/trycua/cua/issues/3576) | 元素投影增加 `is_password` | 已提；插件用 sidecar 结构位兜底 |
 | [trycua/cua#3586](https://github.com/trycua/cua/issues/3586) | UI 树 revision + 条件请求 | 已提；落地后 TTL 可退役为上限保险 |
 | [trycua/cua#3587](https://github.com/trycua/cua/issues/3587) | 结构化干预信号 | 已提；落地后可疑状态可由真实干预驱动 |
-| [trycua/cua#3607](https://github.com/trycua/cua/issues/3607) | 驱动高完整性/清理边界 | 已附对照实验与清理后果 |
+| [trycua/cua#3607](https://github.com/trycua/cua/issues/3607) | 驱动高完整性/清理边界 | 上游已关闭（completed）；0.52.13 实测 daemon High、PowerShell 子进程 Medium，按实际 IL 清理 |
 | [trycua/cua#3908](https://github.com/trycua/cua/issues/3908) | WinUI3 hotkey UIA 加速器超时 | 已提；插件翻译为“改点控件”指引 |
 | — | 像素点击落点（A7） | 素材已备，未单独提交；插件层定性 best-effort |
 

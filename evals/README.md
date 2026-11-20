@@ -11,7 +11,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 29 套 / 724；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 30 套 / 748；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / p01 / p02 / p03（4） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
@@ -167,7 +167,9 @@ node evals/probe-modal-escapes.mjs
 node evals/probe-modal-escapes.mjs --trigger-only
 # 插件侧原生对话框后端：UIA trigger → native-dialog observe → BM_CLICK No（~10s）
 node evals/probe-native-dialog.mjs
-# 默认允许已知 BLOCKED（WinForms menu / Excel stub），必须读输出；严格验收：
+# 原生 Button 触发：WinForms Delete + MessageBox；1.2s 触发、native-dialog 关闭、10s latch（~10s）
+node evals/probe-native-button.mjs
+# 默认允许已知 BLOCKED（Excel stub 等），必须读输出；严格验收：
 node evals/probe-ops.mjs --strict-blocked          # 有 BLOCKED 时 exit 2
 node evals/probe-modifier-drop.mjs --excel --strict-blocked
 

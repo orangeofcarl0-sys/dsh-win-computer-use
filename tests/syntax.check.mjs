@@ -30,6 +30,7 @@ const extraFiles = [
   'evals/probe-modal-escapes.mjs',
   'evals/probe-native-dialog.mjs',
   'evals/probe-background-input.mjs',
+  'evals/probe-native-button.mjs',
   'evals/oracle-mutation.mjs',
   'evals/ac6-summary.mjs',
   'tests/tasks.check.mjs',

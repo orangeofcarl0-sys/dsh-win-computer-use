@@ -23,6 +23,7 @@
 | 实验后台输入 | `powershell.exe` + `tools/background-input.ps1` | Windows 实验性 B0/B1/B2/B3；同 pid；三键默认 off；B1/B2/B3 需 `allowedApps`；无文件/网络 |
 | 原生对话框 | `powershell.exe` + `tools/native-dialog.ps1` | Windows 标准 `#32770` 模态对话框：只读子控件枚举 + `BM_CLICK`；`nativeDialogs:off` 禁用 |
 | 原生菜单 | `powershell.exe` + `tools/native-menu.ps1` | Windows 经典 HMENU：同 pid、精确路径、叶子命令、`PostMessage(WM_COMMAND)`；`nativeMenus:off` 禁用 |
+| 原生 Button | `powershell.exe` + `tools/native-button.ps1` | Windows 标准 Win32/WinForms Button：同 pid、唯一 class/style/label/屏幕点匹配、单次 `BM_CLICK`；`nativeButtonTrigger:off` 禁用 |
 | 轨迹日志（可选） | `node:fs` 写 `trajectoryFile`/`DSH_CU_TRAJECTORY_FILE` | 默认关闭；开启后写本地 JSONL |
 
 插件**不**使用 `approval` 服务；动作零审批、零打断。
@@ -100,6 +101,21 @@ spawn('powershell.exe', [
 - `invoke`：重新解析并校验 commandId 未变，只发一次 `PostMessage(WM_COMMAND)`；同 pid、只顶层窗口标准 HMENU，不碰系统菜单。
 - PostMessage 只证明投递，不证明执行；结果 `effect:unverifiable`，不写用户文件、不联网；`Add-Type` 使用用户 TEMP。
 
+### 2.4.2 原生 Button helper（Windows，实验性，按需）
+
+```js
+spawn('powershell.exe', [
+  '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+  '-File', 'tools/native-button.ps1',
+  '-Action', 'trigger', '-Pid', pid, '-Hwnd', hwnd,
+  '-LabelB64', labelB64, '-TitleB64', titleB64, '-ScreenX', x, '-ScreenY', y,
+], { windowsHide: true })
+```
+
+- 仅 `nativeButtonTrigger:auto`、Windows、`computer_click(element=Button)` 单次左键时触发；`off` 零 spawn。
+- 只对同 pid 顶层窗口的标准 `Button`/`WindowsForms10.BUTTON*`；要求 `BS_PUSHBUTTON`/`BS_DEFPUSHBUTTON`（WinForms 允许 owner-draw）、label 归一化相等、屏幕点在 rect 内、全局唯一。
+- 只发一次 `PostMessage(BM_CLICK)`；不激活、不自动选择 Yes/No；明确未匹配回退 driver；owner_disabled/超时不回退。
+
 ### 2.5 实验后台输入 helper（Windows，按需）
 
 ```js
@@ -127,7 +143,7 @@ spawn('powershell.exe', [
 | 用户文件/项目文件读写 | ❌ 无 |
 | 直接文件写入 | ⚠️ 默认无；仅当显式配置 `trajectoryFile` 或 `DSH_CU_TRAJECTORY_FILE` 时写该 JSONL（`mkdirSync` + `appendFileSync`） |
 | 直接文件读取 | ⚠️ 仅 `existsSync()` 探测驱动可执行文件是否存在 |
-| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1`、`tools/native-dialog.ps1`、`tools/native-menu.ps1`、`tools/background-input.ps1` |
+| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1`、`tools/native-dialog.ps1`、`tools/native-menu.ps1`、`tools/native-button.ps1`、`tools/background-input.ps1` |
 | 临时文件 | Windows PowerShell `Add-Type` 会在用户 TEMP 写临时编译文件；插件不主动写用户文件；测试在工作区 `.dsh-test/` 下建工作副本 |
 
 ### 3.2 环境变量

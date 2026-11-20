@@ -10,10 +10,10 @@
 - **名称**：`dsh-win-computer-use`（原名 `dsh-computer-use`，2026-11-10 更名）。
 - **定位**：Windows-first Computer Use 插件，DeepSeek Harness（dsh）的桌面操作层；个人项目，MIT。
 - **仓库**：`github.com/orangeofcarl0-sys/dsh-win-computer-use`，默认分支 `main`。
-- **版本**：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`）；`package.json` 为 0.5.8，`main` 已推送。
+- **版本**：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`，tag `84225cc`）；`main` 已包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger；`package.json` 仍为 0.5.8。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 30 套 / **748** 项；`npm run check` 语法 **46/46** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
+- **测试基线**：`npm test` 31 套 / **764** 项；`npm run check` 语法 **48/48** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 环境
 
@@ -159,7 +159,7 @@ cua-driver autostart kick
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 已发布 `dsh-win-computer-use@0.5.8`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
-- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修（本地 WSL 30 套全过），推送后以 CI 结果为准。
+- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修；`ab61fc4` 与 `4596c1b` 的 Ubuntu CI 均 success。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
 ## 6. 已知缺口
@@ -174,6 +174,9 @@ cua-driver autostart kick
 | A11 | 手势原语 | 无 selectText/key hold/mouse down-up；drag 无元素源 | 复杂文本选择/形状拖拽仍靠坐标 | 评估下一层原语 |
 | A17 | 私有拖拽 | Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 未自动回归 | 已知边界 | Excel 需 UIA 网格 + 保存路径；PPT 仍 BLOCKED |
 | A18 | `app_launch` | 子进程 IL 依驱动/路径；0.52.13 daemon High 但 powershell Medium | 不能一律按 High 清理 | `probe-launch` 记录实际 IL；残留写 leftover |
+| A19 | 实验后台输入 | B0/B1/B3 自建探针通过；B2 `BlockInput` 当前会话被拒；B1 普通应用不外推 | 默认 off；只在显式 `allowedApps` 下启用 B1/B2/B3 |
+| A20 | 经典 HMENU | 离线 18 项 + 真机 SetMenu fixture 通过；MenuStrip/WPF/WinUI 不支持 | 默认 off；用 regedit/MFC 交叉验证，不要写成 WinForms 已支持 |
+| A21 | 原生 Button | 自建 WinForms Delete/MessageBox 4/4；默认 off；10s latch | t20 overlay 复跑；WPF/WinUI/ToolStrip 回退 driver |
 
 其余见 [ARCHITECTURE](docs/ARCHITECTURE.md) §13。
 
@@ -183,7 +186,7 @@ cua-driver autostart kick
 |---|---|
 | P1 | web profile 已切 0.5.8；待重启 harness 后冒烟 |
 | P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
-| P2 | daemon 提权/清理问题（#3607）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
+| P2 | daemon 提权/清理问题（#3607 上游已关闭）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |
 | P3 | macOS 回归；Linux 不在承诺范围 |
 | P3 | 驱动库存候补（browser_*、set_window_frame、trajectory…） |

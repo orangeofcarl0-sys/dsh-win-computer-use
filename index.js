@@ -56,6 +56,7 @@ const defineTool = (options) => {
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { resetCursorMotion } from './lib/human.js'
 import { resetBackgroundInput } from './lib/backgroundInput.js'
+import { resetNativeButtonTrigger } from './lib/nativeButtonTrigger.js'
 import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
 import { getSnapshot, markConsumed, markSuspect, resetInputGuard } from './lib/snapshot.js'
 import { timeoutReceipt } from './lib/receipt.js'
@@ -176,6 +177,14 @@ export const Config = z.object({
    *   off = 零 PowerShell spawn，保持驱动/UIA 拒绝语义。
    */
   nativeMenus: z.union(['auto', 'off']).default('off'),
+  /**
+   * 标准 Win32/WinForms Button 的原生触发（Windows，实验性，默认 off）。
+   *   auto = computer_click(element=Button) 单次左键时重新枚举同 pid 标准 BUTTON 子 HWND，
+   *          严格 class/style/label/屏幕点唯一匹配后 PostMessage(BM_CLICK)；
+   *          明确未匹配/未投递回退 driver；owner_disabled 与 helper 超时不回退。
+   *   off = 零 spawn，行为与 4596c1b 一致。
+   */
+  nativeButtonTrigger: z.union(['auto', 'off']).default('off'),
   /**
    * 快照新鲜度（PLAN-snapshot-freshness）：同快照连击的引用作废语义。
    *   note 默认：同一快照被动作消费后，后续动作附一致性注记（不阻断，"确认未变可继续"）；
@@ -596,7 +605,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。实验性 backgroundInput/syntheticPointer/anchoredInput（默认 off）可在无 UIA 目标上走插件侧消息/合成触控/光标或窗口锚定；失败不自动前台，先观察。',
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。实验性 backgroundInput/syntheticPointer/anchoredInput（默认 off）可在无 UIA 目标上走插件侧消息/合成触控/光标或窗口锚定；失败不自动前台，先观察。实验性 nativeButtonTrigger（默认 off）只对能唯一匹配的标准 Win32/WinForms Button 发 BM_CLICK（未验证）；明确未匹配会回退 driver，owner_disabled/超时不回退。',
     parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
@@ -1083,6 +1092,7 @@ export function apply(ctx, config) {
   resetLoopGuard()
   resetCursorMotion()
   resetBackgroundInput()  // 实验性后台输入 helper 按会话重置（无 helper 时零开销）
+  resetNativeButtonTrigger()  // 原生按钮 10s latch 按会话重置
   resetTaskCalls()   // 委派预算按会话重置
   resetInputGuard()  // 输入未确认门禁按会话重置
   const cfg = {
@@ -1108,6 +1118,7 @@ export function apply(ctx, config) {
     passwordScan: config.passwordScan || 'auto',
     nativeDialogs: config.nativeDialogs || 'auto',
     nativeMenus: config.nativeMenus || 'off',
+    nativeButtonTrigger: config.nativeButtonTrigger || 'off',
     deliveryMode: config.deliveryMode || 'auto',
     backgroundInput: config.backgroundInput || 'off',
     syntheticPointer: config.syntheticPointer || 'off',
