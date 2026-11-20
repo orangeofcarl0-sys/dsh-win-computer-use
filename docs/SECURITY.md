@@ -61,6 +61,7 @@
 | 密码硬拒 | `computer_type`/`computer_set_value` 且目标元素被标记为密码 | 坐标输入/未指定 element 无法预知目标；只在 element 模式生效 |
 | 结构密码扫描 | Windows，`passwordScan: auto` | 失败/超时降级启发式；经典 Win32 `ES_PASSWORD` 依赖 sidecar |
 | 原生对话框点击 | Windows，`nativeDialogs: auto`；只对同 pid 标准 `#32770` 模态对话框的 Button | 只发 `BM_CLICK`；不自动选择 Yes/No；坐标/输入/双击/右键不走该路径；`off` 禁用 |
+| 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 `off`；只对无交互 UIA 的目标；B1/B2/B3 需 `allowedApps` 非空；B1 遮挡失败关闭；B2 先 `BlockInput` 成功才移光标；B3 只移 `allowedApps` 窗口 | B0 可对任意无交互 UIA 目标发消息；helper 仍受 UIPI/安全桌面/完整性限制；B2 会短暂抢光标，B3 会短暂移窗口；`off` 零 spawn |
 | 快照 TTL / 无快照拒绝 | 操作类工具（click/type/key/scroll/drag/set_value） | 菜单/悬停/应用列表/激活不要求快照 |
 | `allowedApps` | 操作类工具；精确 `appName` | 观察/启动/激活不受限；空 = 关闭 |
 | `computer_stop` 锁存 | 全部桌面操作 | `computer_resume` 是唯一解锁路径 |
@@ -78,6 +79,8 @@
 6. **不保证像素点击落点**：驱动 0.23.2 在混合 DPI 下有实测偏差；element 路径是可靠主路径。
 7. **不保证“零审批 = 零风险”**：零审批是产品选择；风险由部署者通过白名单、模型选择、任务边界承担。
 8. **不保证驱动自身可信**：驱动是高权限本地进程；插件只消费其输出，不审计驱动内部。
+9. **不保证后台注入被目标接受**：B0/B1 只证明消息/触控已投递；目标可能忽略，或反作弊/EDR 拦截。插件不规避检测。
+10. **不做 UAC/安全桌面自动化**：B0-B3 遇到非 Default 输入桌面直接拒绝。
 
 ## 6. 数据外发
 
@@ -115,6 +118,7 @@
 | 演示 | `cursorMotion: human` 可见滑行；`foreground` 按需；注意截图外发 |
 | 评测 | 用隔离 profile；dirty 任务复用用户桌面时严格遵守清理规则（[WINDOWS](WINDOWS.md) §6） |
 | 不希望任何文件写入 | 保持 `trajectoryFile: ''` 且不设 `DSH_CU_TRAJECTORY_FILE` |
+| 实验性后台输入 | 默认全关；确需启用时先设 `allowedApps`，只在干净桌面验证；B2 会短暂抢光标、B3 会短暂移窗口；B1 遮挡失败关闭。见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md) |
 
 ## 10. 漏洞报告
 

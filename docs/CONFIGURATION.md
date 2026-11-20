@@ -1,6 +1,6 @@
 # CONFIGURATION — 配置与环境变量
 
-> 目的：25 个配置键、环境变量、优先级、交互与已知陷阱。
+> 目的：28 个配置键、环境变量、优先级、交互与已知陷阱。
 > 读者：部署者、集成者、排障者。
 > 状态：当前实现（最后核对 2026-11-20；由 `npm run docs:check` 校验键数）。
 > 相关：[INSTALL](INSTALL.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
@@ -70,6 +70,16 @@
 | `visionModel` | string | `deepseek-flash` | 模型 id | `vision` 观察者模型；必须声明 image 输入 |
 | `trajectoryFile` | string | `''` | 文件路径 | 非空时写 CU 轨迹 JSONL；`DSH_CU_TRAJECTORY_FILE` 可覆盖。开启后插件会写本地文件 |
 
+### 2.6 实验性后台输入
+
+| 键 | 类型 | 默认 | 枚举/范围 | 作用 |
+|---|---|---|---|---|
+| `backgroundInput` | string | `off` | `off`/`auto` | B0：快照没有可交互 UIA 元素时，click 走 `WM_*`/`BM_CLICK`，plain key/text 走 `WM_KEY*`/`WM_CHAR`；不移动光标/前台，未验证 |
+| `syntheticPointer` | string | `off` | `off`/`auto` | B1：对无 UIA 的 pointer/触控目标注入合成触控左单击；不移动光标/前台；遮挡失败关闭；需要 `allowedApps` 非空 |
+| `anchoredInput` | string | `off` | `off`/`cursor`/`window` | B2/B3：`cursor` 临时移光标 + `BlockInput`；`window` 临时移窗口。只左单击；需要 `allowedApps` 非空；会动光标/窗口 |
+
+三键全 `off` 时零 PowerShell spawn，行为与 0.5.8 一致。B1/B2/B3 只对“没有可交互 UIA 元素”的快照生效；有 Button/Edit/MenuItem 等仍走 driver/UIA。组合键/modifier/`foreground=true`/`deliveryMode=foreground`/`from_zoom` 一律跳过本功能。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
+
 ## 3. 环境变量
 
 | 变量 | 默认 | 作用 | 优先级 |
@@ -100,6 +110,10 @@
 | `allowedApps` × 观察/启动 | 只约束操作类工具；`screen_observe`/`app_list`/`app_launch` 不受限 |
 | `nativeDialogs: auto` × 标准 MessageBox | 空 AX + 同 pid `#32770` modal → `native-dialog` 按钮；点击走 `BM_CLICK`（异步/未验证）；触发模态的 UIA click 仍可能 30s |
 | `nativeDialogs: off` × 模态 | 不 spawn Win32 对话框 helper；UIA 树为 0 时回到原有 30s/桌面降级路径 |
+| `backgroundInput: auto` × 有可交互 UIA | 不接管；继续 driver/UIA。只有快照没有 Button/Edit/MenuItem 等可交互角色时才走插件消息通道 |
+| `syntheticPointer: auto` × `allowedApps: []` | 不接管（B1/B2/B3 的强制安全闸）；B0 不受此限制 |
+| `anchoredInput: cursor/window` × 脏桌面 | 光标/窗口被外部改动时失败关闭（`background_input_cursor_changed` / 还原失败），不抢回用户改动 |
+| `backgroundInput: auto` × 组合键/modifier/foreground | 一律跳过插件通道；组合键继续前台，modifier 继续前台 |
 | `passwordScan: off` × `computer_type` | 结构位扫描关闭，只剩角色/标签/掩码启发式；经典 Win32 `ES_PASSWORD` 可能漏标 |
 
 ## 5. 示例
@@ -166,6 +180,8 @@
 10. **`verifyAfterAction` 会延长 TTL**：复核刷新 `at`；长流程中可能让快照“看起来没过期”，但界面可能已经变了。
 11. **`allowedApps` 是精确匹配 `appName`**：不是标题子串；别名不生效。
 12. **`driverProfile: latest` 不保证驱动真的支持**：它强制新请求形态；不支持时由错误学习/回执暴露。
+13. **`backgroundInput` 不是“所有后台通道”总开关**：它只覆盖 B0；B1/B2/B3 由 `syntheticPointer`/`anchoredInput` 单独控制。
+14. **B0 文本/按键是同步 `SendMessageTimeout`**：目标窗口过程卡住时每个字符最多等 1s；鼠标仍是异步 `PostMessage`。超时/未知不要重复输入。
 
 ## 7. 配置变更检查
 

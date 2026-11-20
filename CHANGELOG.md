@@ -3,6 +3,24 @@
 > **版本状态（2026-11-20）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
+## 未发布 (2026-11-20)
+
+**主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）。不改驱动、不改变默认行为。
+
+### Added
+
+- 新增 `backgroundInput`（B0，默认 off）：无交互 UIA 目标上 click 走 `WM_*`/`BM_CLICK`，plain key 走 `WM_KEYDOWN/UP`，text 走 `WM_CHAR`；鼠标异步 PostMessage，键盘/文本同步 `SendMessageTimeout`。
+- 新增 `syntheticPointer`（B1，默认 off）：`InjectSyntheticPointerInput(PT_TOUCH)` + 4×4 anchor；不移动光标/前台；遮挡失败关闭，不借 Z 序/透明度；只左单击；需 `allowedApps`。
+- 新增 `anchoredInput`（B2/B3，默认 off）：`cursor` 临时移光标 + `BlockInput`；`window` 临时移窗口使目标点落在光标下；只左单击；需 `allowedApps`；失败关闭/还原。
+- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（32 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
+- 回执新增投递标签：后台消息/控件消息/合成触控/光标锚定/窗口锚定；拒绝码 `background_input_*`。
+
+### Notes
+
+- 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
+- 真机探针 2026-11-20：干净轮次 10 PASS / 1 BLOCKED / 0 FAIL；脏桌面/安全桌面切换轮次 8 PASS / 3 BLOCKED / 0 FAIL（B2 `BlockInput` 被拒、B1 光标漂移、B3 fail-closed；不冒充 PASS）。
+- 离线 29 套 / 724 项；语法 45/45；`npm test`/`npm run check` 通过。未 push/tag/publish。
+
 ## 0.5.8 (2026-11-20)
 
 **主题**：t20 模态 30s 超时根因定位 + 插件侧 Win32 原生对话框后端；回执与测试收口。不改驱动。

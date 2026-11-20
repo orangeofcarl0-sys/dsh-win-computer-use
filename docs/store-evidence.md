@@ -37,9 +37,9 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **43/43** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
+| 语法 + 安装脚本 | `npm run check` | **45/45** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **28 套 / 692 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **29 套 / 724 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <overlay> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
@@ -55,15 +55,15 @@ rm -rf "$DSH_HOME"
 | 规范仓库 | `package.json` `repository` → `git+https://github.com/orangeofcarl0-sys/dsh-win-computer-use.git` |
 | Node 兼容性 | `engines.node >= 22.18.0` + `dsh.compatibility.node`；dsh 兼容基线 `>=0.2.2-rc.1 <0.3.0` |
 | 供应链 | 运行时 peer 依赖仅 `@deepseek-ai/dsh-tools` + `@deepseek-ai/schemastery`（宿主提供）；无第三方 runtime/optional 依赖；devDependencies 只用于测试 |
-| 文件权限 | 有 `spawn`（cua-driver；Windows 按需 powershell.exe 跑 UIA 密码扫描/私有拖拽/原生对话框）——插件核心能力；默认无用户文件读写；轨迹开启时写指定 JSONL；仅 `existsSync` 探测驱动 |
-| 命令权限 | 固定 argv、`shell:false`：`cua-driver call …`；Windows `powershell.exe -File tools/uia-password-scan.ps1`（只读）、`tools/private-drag.ps1`（私有 SendInput 拖拽，按需）、`tools/native-dialog.ps1`（标准 #32770 扫描 + BM_CLICK，按需） |
+| 文件权限 | 有 `spawn`（cua-driver；Windows 按需 powershell.exe 跑 UIA 密码扫描/私有拖拽/原生对话框/实验后台输入）——插件核心能力；默认无用户文件读写；轨迹开启时写指定 JSONL；仅 `existsSync` 探测驱动 |
+| 命令权限 | 固定 argv、`shell:false`：`cua-driver call …`；Windows `powershell.exe -File tools/uia-password-scan.ps1`（只读）、`tools/private-drag.ps1`（私有 SendInput 拖拽，按需）、`tools/native-dialog.ps1`（标准 #32770 扫描 + BM_CLICK，按需）、`tools/background-input.ps1`（实验 B0/B1/B2/B3，默认 off） |
 | 网络权限 | 核心无网络；可选 GLM 视觉兜底在配置 `ZHIPU_API_KEY`/`GLM_API_KEY` 后向 `GLM_API_BASE` 外呼（含截图）；`native`/DeepSeek 观察者经宿主模型通道 |
 | 凭据权限 | 仅环境变量：`CUA_DRIVER_BIN`、`CUA_DRIVER_VERSION`、`CUA_DRIVER_PROFILE`、`CUA_CALL_TIMEOUT_MS`、`CUA_SESSION`、`DSH_CU_TRAJECTORY_FILE`、`DSH_POWERSHELL`、`S4_TEMP`/`DSH_TEMP`（`S4_TEMP` 为历史命名）、`ZHIPU_API_KEY`/`GLM_API_KEY`、`GLM_API_BASE`、`GLM_VISION_MODEL`；不读密钥文件 |
 | 生命周期脚本 | 无 install/postinstall/prepare |
 
 ## 4. 打包内容
 
-> 本节以 `npm pack --dry-run --json` 的实际输出为准；新增/删除发布文件后必须同步本清单、`tests/docs.facts.json` 与 `tests/package-manifest.test.mjs`。当前基线为 **59 文件**。
+> 本节以 `npm pack --dry-run --json` 的实际输出为准；新增/删除发布文件后必须同步本清单、`tests/docs.facts.json` 与 `tests/package-manifest.test.mjs`。当前基线为 **62 文件**。
 
 ```text
 LICENSE
@@ -73,6 +73,7 @@ VERIFICATION.md
 assets/demo-verified.png
 cordis.patch.yml
 docs/ARCHITECTURE.md
+docs/BACKGROUND-INPUT.md
 docs/COMPATIBILITY-0.2.2.md
 docs/COMPATIBILITY.md
 docs/CONFIGURATION.md
@@ -92,6 +93,7 @@ docs/TROUBLESHOOTING.md
 docs/WINDOWS.md
 index.js
 lib/actions.js
+lib/backgroundInput.js
 lib/attach.js
 lib/cua.js
 lib/dispatcher.js
@@ -118,6 +120,7 @@ lib/trajectory.js
 lib/vision.js
 lib/windowMap.js
 package.json
+tools/background-input.ps1
 tools/make_theme.py
 tools/native-dialog.ps1
 tools/password-probe.ps1

@@ -169,6 +169,13 @@ ensureDriverInfo（--version/status，进程级缓存）
 - 快照是全局单例：动作回执不携带 snapshot id，观察回执是唯一 id 来源；native/vision 全量观察在文本中回显当前 id，query 回执明确旧快照已清除。
 - `nativeImage=auto/compact` 不做整窗 zoom：驱动 zoom 区域宽上限 500px，无法整窗缩放；超限时明确失败并提示改 ax/vision 或 screen_zoom。
 
+### 4.6 实验性后台输入
+
+- `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对快照没有可交互 UIA 元素的目标生效（`hasNoActionableUia`）。
+- 命中后由 `lib/backgroundInput.js` 直接返回 driver 形状回执并走 `settleAction`，**不进入 `cuaDeliver`**：避免 L2/L3 重复投递。未命中返回 null，继续原 driver 路径。
+- B0 鼠标 `PostMessage` 异步；plain key/text `SendMessageTimeout` 同步（每字符最多 1s）。B1 合成触控、B2 光标锚定、B3 窗口锚定都返回 `unverifiable`；B1 遮挡失败关闭；B2/B3 在 helper 内 finally 还原。
+- 拒绝/超时/未验证不自动换通道、不自动前台；回执提示先观察。投递标签见 [TOOLS](TOOLS.md) 与 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
+
 ## 5. 快捷键/XAML
 
 - 组合键 → `hotkey`；无修饰键 → `press_key`。组合键一律自动前台并恢复原前台（即使 `deliveryMode:background`）：后台 synthetic 不更新 OS 修饰键状态，实测 `Ctrl+V` 只落 `v`；回执注明“组合键需前台注入”。

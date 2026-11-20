@@ -55,6 +55,7 @@ const defineTool = (options) => {
 
 import { screenObserve, screenZoom, dedupReset } from './lib/observe.js'
 import { resetCursorMotion } from './lib/human.js'
+import { resetBackgroundInput } from './lib/backgroundInput.js'
 import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.js'
 import { getSnapshot, markConsumed, markSuspect, resetInputGuard } from './lib/snapshot.js'
 import { timeoutReceipt } from './lib/receipt.js'
@@ -186,6 +187,33 @@ export const Config = z.object({
    * 工具级 foreground=true 可对单次动作强制前台。
    */
   deliveryMode: z.union(['background', 'auto', 'foreground']).default('auto'),
+  /**
+   * 实验性插件侧后台输入（B0，默认 off）：
+   *   auto = 当快照没有可交互 UIA 元素（Button/Edit/MenuItem 等）、目标非 native-dialog 时，
+   *          允许插件侧消息/控件通道接管 click/key/type：
+   *          - click 走 WM_ACTIVATE + WM_MOUSE*（Button 子控件优先 BM_CLICK）；
+   *          - key 走 WM_KEYDOWN/UP；type 走 WM_CHAR。
+   *          只对处理窗口消息的目标有效；仅证明消息投递，不证明应用处理。
+   *   off = 零 PowerShell spawn，行为与 0.5.8 完全一致。
+   * 组合键/modifier/foreground/from_zoom 一律不接管，继续走 driver 规则。
+   */
+  backgroundInput: z.union(['off', 'auto']).default('off'),
+  /**
+   * 实验性合成触控（B1，默认 off）：
+   *   auto = 对无 UIA 的 pointer/触控目标（Unity/Unreal/RegisterTouchWindow）注入
+   *          WM_POINTER 左单击；不移动光标、不改变前台。目标点被遮挡时失败关闭，
+   *          不提升窗口、不改透明度。只支持左单击；无滚轮/键盘/右键/双击。
+   *   需要 allowedApps 显式包含目标应用（安全闸）；off = 零 spawn。
+   */
+  syntheticPointer: z.union(['off', 'auto']).default('off'),
+  /**
+   * 实验性锚定输入（B2/B3，默认 off）：
+   *   cursor = 光标锚定：临时把真实光标移到目标点，BlockInput 保护，post 消息后还原；
+   *   window = 窗口锚定：光标不动，临时移动目标窗口使目标点落在光标下，post 消息后还原。
+   *   仅用于无 UIA 的 cursor-polling 目标；只支持左单击；需要 allowedApps 显式包含目标。
+   *   cursor 会短暂抢光标，window 会短暂移动窗口；失败关闭，不自动升级前台。
+   */
+  anchoredInput: z.union(['off', 'cursor', 'window']).default('off'),
   /**
    * XAML/WinUI 组合键失败后的控件回退（实验性，默认 off）：
    *   off：只返回“改点菜单/控件”的可执行指引；
@@ -560,7 +588,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。',
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。实验性 backgroundInput/syntheticPointer/anchoredInput（默认 off）可在无 UIA 目标上走插件侧消息/合成触控/光标或窗口锚定；失败不自动前台，先观察。',
     parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
@@ -584,7 +612,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_type',
-    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。预填字段（如“另存为”文件名）优先 computer_set_value(element=编号, value=完整内容) 覆盖；computer_type 是追加输入，可能把新文本接在旧值后面。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败，也不要用 SPACE/BACKSPACE/重复输入强制置脏。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。',
+    description: '文本输入：向快照窗口当前焦点（或指定元素）输入一段文本。调用前必须先 screen_observe；指定 element 时可走 UIA ValuePattern（XAML/WinUI 主机必需）。预填字段（如“另存为”文件名）优先 computer_set_value(element=编号, value=完整内容) 覆盖；computer_type 是追加输入，可能把新文本接在旧值后面。文档/输入框优先 element + 默认 background；foreground 会走全局输入，WinUI 可能丢字/错字；UIA 注入可能不置“未保存”标记，不要据此判断失败，也不要用 SPACE/BACKSPACE/重复输入强制置脏。注意：不要在密码框使用——密码必须由用户本人输入。from_zoom 不适用于输入；需要先定位时，用 computer_click(x=,y=,from_zoom=true) 点输入框再 type。实验性 backgroundInput:auto 时，无 UIA 目标可走 WM_CHAR（仅简单文本；无 IME/组合键；未验证）。',
     parameters: {
       text: { type: 'string', required: true, description: '要输入的文本。' },
       element: TARGET_PARAMS.element,
@@ -616,7 +644,8 @@ function actionToolDefs(ctx, cfg, wrap) {
       + 'ctrl+a 在 WinUI 对话框/无菜单栏窗口可能不可用；替换预填字段优先 computer_set_value，而不是 ctrl+a 后 type。'
       + 'Ctrl+L 后直接 computer_type 完整路径再 Enter；不要先按 Enter 接受地址栏建议列表。'
       + 'win/super/meta 组合键暂不支持（会静默只发 win，打开开始菜单）；启动应用用 app_launch，不要用 Win+R。'
-      + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。',
+      + '开启 xamlKeyFallback=auto 可实验性自动完成这一步（默认关闭；歧义/缺失即停）。'
+      + '实验性 backgroundInput:auto 时，无 UIA 目标的普通键可走 WM_KEYDOWN/UP；组合键仍一律前台。',
     parameters: {
       key: { type: 'string', required: true, description: '按键名或组合（示例: return / cmd+c / shift+tab / cmd+shift+p）。' },
       ...SNAPSHOT_ID_PARAM,
@@ -1043,6 +1072,7 @@ export function apply(ctx, config) {
   resetWindowMap()
   resetLoopGuard()
   resetCursorMotion()
+  resetBackgroundInput()  // 实验性后台输入 helper 按会话重置（无 helper 时零开销）
   resetTaskCalls()   // 委派预算按会话重置
   resetInputGuard()  // 输入未确认门禁按会话重置
   const cfg = {
@@ -1068,6 +1098,9 @@ export function apply(ctx, config) {
     passwordScan: config.passwordScan || 'auto',
     nativeDialogs: config.nativeDialogs || 'auto',
     deliveryMode: config.deliveryMode || 'auto',
+    backgroundInput: config.backgroundInput || 'off',
+    syntheticPointer: config.syntheticPointer || 'off',
+    anchoredInput: config.anchoredInput || 'off',
     xamlKeyFallback: config.xamlKeyFallback || 'off',
     xamlPressFallback: config.xamlPressFallback || 'off',
     driverProfile: config.driverProfile || 'auto',

@@ -119,6 +119,7 @@
 
 - `element` 走 `element_token`，支持后台/隐藏窗口，不受 DPI 混合影响；像素路径 best-effort。
 - `native-dialog` 快照的按钮是 **Win32 原生控件**：只支持 `computer_click(element=编号)` 单次左键（`BM_CLICK`，异步/未验证）；坐标点击、type/key/scroll/drag、double/right、modifier/count>1/from_zoom 一律拒绝。点击后先 `screen_observe` 确认对话框是否关闭；不要重复点击或自动选择 Yes/No。
+- **实验性后台输入（默认 off）**：目标没有任何可交互 UIA 元素时，`backgroundInput:auto` 可走 B0 `WM_*`/`BM_CLICK`（支持左/右/双击）；`syntheticPointer:auto` 可走 B1 合成触控左单击；`anchoredInput:cursor/window` 可走 B2/B3 左单击。失败/未验证不自动前台；B1 遮挡失败关闭；B1/B2/B3 需要 `allowedApps`。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
 - 坐标点击按快照条目中心 24px 内取最近元素，回执回显目标（编号/角色/标签/当前值；密码值隐藏）。
 - 非空 `modifier` 在 Windows 上自动 `forceForeground`（SendInput 前台注入）并恢复原前台。
 - **Explorer 文件项单选请用 `foreground=true`**：后台坐标点击可能走 UIA Invoke 直接打开文件。
@@ -141,6 +142,7 @@
 - 失败/未验证时对 Document/TextArea/Edit 做逐字回读（只报一致/不一致/无法回读与长度，不打印正文）；不一致或无法回读会设置 `inputUnconfirmed`，保存意图被拦。
 - 没有可回读控件的聚焦输入（Excel 网格、PPT 画布）不会刷新/清空快照，避免连续 Tab/Enter 得到 `[snapshot_missing]`。
 - 不支持 `from_zoom`；先用 `computer_click(..., from_zoom=true)` 点输入框，再 type。
+- **实验性 `backgroundInput:auto`**：无交互 UIA 的目标可走 B0 `WM_CHAR`（同步 `SendMessageTimeout`）；支持简单文本，不支持 IME/代理对合并/组合键；`ES_PASSWORD` 仍拒绝。
 
 ### 4.3 `computer_set_value`
 
@@ -160,7 +162,7 @@
 | `snapshot_id` | string | 否 | — | 证据基线 |
 | `foreground` | boolean | 否 | `false` | 前台投递 |
 
-- 普通按键默认后台 PostMessage；带修饰键的组合键**一律自动前台注入并恢复原前台**（后台 synthetic 不更新 OS 修饰键状态，`Ctrl+V` 可能只落 `v`）。
+- 普通按键默认后台 PostMessage；带修饰键的组合键**一律自动前台注入并恢复原前台**（后台 synthetic 不更新 OS 修饰键状态，`Ctrl+V` 可能只落 `v`）。实验性 `backgroundInput:auto` 下，无交互 UIA 目标的普通键可走 B0 `WM_KEYDOWN/UP`；组合键仍一律前台。
 - 绑定快照窗口；不要传 `pid`/`window_id`。
 - XAML/WinUI 组合键可能因 UIA 加速器超时或 `could not find a UIA AcceleratorKey` 失败；回执给“点菜单栏项 → 点菜单项”的指引。`xamlKeyFallback: auto` 可实验性自动完成，默认 `off`。
 - `ctrl+a` 在 WinUI 对话框/无菜单栏窗口可能不可用；替换预填字段优先 `computer_set_value`，而不是 `ctrl+a` 后 `type`。

@@ -28,6 +28,7 @@
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |
 | C15 | macOS 回归 | 待环境 | 近期证据都在 Windows；macOS 仍是历史验证 |
 | C16 | 驱动库存候补 | 待评估 | `browser_*`、`set_window_frame`、trajectory 录制/重放等 |
+| C17 | 实验性后台输入（B0/B1/B2/B3） | 已实现，默认 off | 无交互 UIA 目标的消息/合成触控/光标/窗口锚定；B0/B1/B3 真机通过，B2 `BlockInput` 当前会话 BLOCKED；见 [BACKGROUND-INPUT](docs/BACKGROUND-INPUT.md) |
 
 > 0.5.7 的 C1–C5、C7–C11 已完成（文档体系、install 配置、task 描述、toolFilter 删除、scroll/drag snapshot_id、headless 加载、zoom 坐标语义、Web runner 退役、wa2 归因、dsh 0.2.2 升级）；细节见 CHANGELOG 与 EVIDENCE。
 

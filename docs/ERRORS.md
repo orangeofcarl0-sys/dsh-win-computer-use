@@ -32,6 +32,27 @@
 | `[repeat_suppressed]` | `loopGuard` | false | 不消费 | 先观察；确认要再点就换目标或 `count=2` | 5s 同窗口/同目标/同投递模式 |
 | `[stale_element_token]` | `receipt` | false（引擎拒绝） | 清空 | 重新观察，不要重试旧编号 | 驱动 session/token 失效 |
 
+### 2.1 实验性后台输入
+
+这些码来自 `lib/backgroundInput.js`/`tools/background-input.ps1`，只在 `backgroundInput`/`syntheticPointer`/`anchoredInput` 启用且目标没有可交互 UIA 元素时出现。全部 `ok:false`、不消费快照、不自动换通道。
+
+| 代码 | 含义 | 模型下一步 |
+|---|---|---|
+| `background_input_occluded` | 目标点被遮挡/不在目标窗口；未发送 | 先 `computer_activate` 或移开遮挡窗口；不要重复 |
+| `background_input_anchor_blocked` | B1 anchor 被 topmost 窗口遮挡；未注入 | 移开遮挡或改用前台 |
+| `background_input_uipi` | 完整性/session 不匹配 | 不要绕过 UIPI；改用同 IL 进程/前台 |
+| `background_input_secure_desktop` | 非 Default 输入桌面 | 不要自动化 UAC；人工处理 |
+| `background_input_clip_cursor` | `ClipCursor` 不允许目标点 | 让目标释放光标裁剪 |
+| `background_input_window_not_movable` | 最小化/最大化/全屏/拒绝移动 | 还原窗口或改用 B1/B0 |
+| `background_input_window_move_failed` | 移动/对齐失败；窗口已还原 | 先 observe；不要重复 |
+| `background_input_cursor_changed` | 操作期间光标被外部移动 | 先 observe；干净桌面再试 |
+| `background_input_password_denied` | 焦点/目标是密码框 | 由用户本人输入 |
+| `background_input_timeout` | helper 超时，结果未知 | 不要重复；先 observe |
+| `background_input_helper_exited` | helper 异常退出，结果未知 | 不要重复；先 observe |
+| `background_input_failed` | 其他未发送/失败 | 先 observe；必要时改用 foreground=true |
+
+> B1 遮挡失败关闭；B2 `BlockInput` 失败时不移动光标；B3 还原失败会返回 `ok:true` + `warning_code`，避免重复点击。
+
 > `[<tool-name>]` 是 `computer_do` 路由成功/失败时加的结果前缀（如 `[computer_click] ...`），不是错误码。
 
 ## 3. 驱动码

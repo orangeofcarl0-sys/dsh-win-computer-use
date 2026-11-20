@@ -139,6 +139,7 @@ const currentDocs = [
   'README.md', 'docs/README.md', 'docs/INSTALL.md', 'docs/TOOLS.md', 'docs/CONFIGURATION.md',
   'docs/ERRORS.md', 'docs/TROUBLESHOOTING.md', 'docs/SECURITY.md', 'docs/COMPATIBILITY.md',
   'docs/ARCHITECTURE.md', 'docs/RUNTIME-PIPELINE.md', 'docs/DRIVER-SDK.md', 'docs/WINDOWS.md',
+  'docs/BACKGROUND-INPUT.md',
   'docs/TESTING.md', 'VERIFICATION.md', 'PERMISSIONS.md', 'docs/store-evidence.md',
   'MAINTAINING.md', 'PUBLISH.md', 'ROADMAP.md',
 ]

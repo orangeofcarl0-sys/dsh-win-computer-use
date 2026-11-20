@@ -190,6 +190,30 @@ node tests/native-dialogs.test.mjs
 - 覆盖范围：同 pid 顶层标准 `#32770` 模态对话框 + 标准 `Button`；只发 `BM_CLICK`；不自动选择 Yes/No。
 - 未覆盖：触发模态的 UIA click 仍可能 30s；WPF/WinUI/自定义对话框、Edit 输入、modifier/double/right/from_zoom 不走该后端。驱动/UIA 根因仍见 §1.4，`evals/BLOCKED.md` 保持“部分 BLOCKED”。
 
+## 1.6 2026-11-20 — 实验性后台输入（B0/B1/B2/B3）真机探针
+
+命令：`node evals/probe-background-input.mjs`（自建原生 message/pointer 窗口 + 隐藏 controller + cover；不加入 `npm test`）。
+
+结果：干净轮次 **10 PASS / 1 BLOCKED / 0 FAIL**；脏桌面轮次 **8 PASS / 3 BLOCKED / 0 FAIL**（B1 光标漂移、B3 fail-closed；均不冒充 PASS）。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| 自建窗口 | PASS | native pointer 窗口，`touchWindow=true`，clientOrigin/rect 可读 |
+| B0 posted click | PASS | 指针窗口收到 `MOUSEDOWN/MOUSEUP`；side_effects.cursorMoved=false |
+| B0 posted text | PASS | `WM_CHAR` 5 字符收到（`CHAR:112/114/111/98/101`） |
+| B0 posted key | PASS | `KEYDOWN:65` 收到；`FocusOrTarget` 未发到无关窗口 |
+| B1 synthetic touch | PASS | pointer 窗口收到 `TOUCHDOWN/TOUCHUP`；anchorUsed=true |
+| B1 遮挡 | PASS | cover 覆盖后返回 `occluded`，未注入、未提升窗口 |
+| B1 光标 | PASS | 最终一轮漂移 0px；helper `cursorMoved=false`。早期脏桌面轮次漂移 30–751px 时记 BLOCKED，不冒充 PASS |
+| B2 cursor | BLOCKED | 当前会话 `BlockInput(TRUE)` 返回 false；实现失败关闭，未移动光标 |
+| B3 window | PASS | 窗口移到光标下点击后还原；窗口 rect 与光标检查通过 |
+
+结论：
+
+- B0 消息/文本/按键、B1 合成触控、B1 遮挡失败关闭、B3 窗口锚定均有端到端证据。
+- B2 在当前会话不可用（`BlockInput` 被拒），记 BLOCKED；B1 的“不移动光标”在最终干净轮次通过，但脏桌面外部光标移动仍可能使其 BLOCKED。
+- 离线新增 `tests/background-input.test.mjs`（29 项）；`npm test` 29 套 / 724 项；语法 45/45；默认三键 off。
+
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
 环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。

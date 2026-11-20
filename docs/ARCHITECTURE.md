@@ -63,6 +63,7 @@ flowchart LR
 | `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf`、`describeClickTarget`、`nearestEntry` | 虚拟光标滑行（auto/human/off）；element_token / 像素点击；坐标适配；目标回显 | cua / snapshot |
 | `lib/privateDrag.js` | `privateDrag`、`stopPrivateDrag` | 持久 PowerShell helper 的 stdin/stdout JSON 封装；惰性启动、串行队列、超时/崩溃恢复、空闲退出 | `tools/private-drag.ps1` |
 | `lib/nativeDialogs.js` | `scanNativeDialog`、`clickNativeDialog`、`IS_WINDOWS` | Windows 标准 `#32770` 模态对话框的 Win32 子控件扫描（Button/Static）与 `BM_CLICK`；失败/超时回退 UIA | `tools/native-dialog.ps1` |
+| `lib/backgroundInput.js` | `tryBackgroundClick`、`tryBackgroundType`、`tryBackgroundKey`、`stopBackgroundInput`、`createBackgroundInputClient` | 实验性无 UIA 目标后台输入（B0 消息/控件、B1 合成触控、B2 光标锚定、B3 窗口锚定）；默认 off；失败关闭、不自动升级 | `tools/background-input.ps1` |
 | `lib/loopGuard.js` | `checkRepeat`、`noteObserveChange`、`resetLoopGuard` | 同窗口/目标/投递模式 5s 重复点击抑制；观察变化清除 | human |
 | `lib/trajectory.js` | `trajectoryStart`、`runTool`、`logDriverCall`、`trajectorySummary`、`sanitizeArgs` | CU 轨迹 JSONL：脱敏、驱动归属、loop/耗时/未验证/移动数 | node:fs / node:async_hooks |
 | `lib/ops.js` | `createOpsState`、`gate`、`stop`、`resume`、`verifyOnce`、`waitFor`、`clipboard`、`menu`、`hover` | 确定性验证、轮询、剪贴板、菜单直调、悬停、强杀锁存 | cua / snapshot / attach / engine / receipt / menuPath |
@@ -438,13 +439,14 @@ stateDiagram-v2
 | A15 | 观察提示 | 目标 z 序落后时提示 `computer_activate`；坐标行带源图尺寸并警告预览缩放；网格/画布用 `screen_zoom`+`from_zoom` | z 序不是 OS 前台，文案保守；`z_index=null` 不提示 | 单测 C15-C18；t14/t17 复跑 |
 | A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11/t15/t14/t17 回归 |
 | A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；`probe-modifier-drop` 已回归 Explorer Ctrl+drag 复制与普通 drag 移动；Excel/PPT 仍 BLOCKED |
+| A19 | 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对无交互 UIA 的目标；B1 遮挡失败关闭；B2 依赖 `BlockInput`；B3 会移窗口 | B0/B1/B3 真机通过；B2 在当前会话 `BlockInput` 被拒绝 → BLOCKED；干净轮次 B1 光标 PASS、B3 PASS；脏桌面/安全桌面切换时 B1/B3 可能 BLOCKED | 见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)；不把 BLOCKED 当 PASS |
 | A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；2026-11-20 实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
 | G7 | 部署 | web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles；运行中的 web 进程需重启 | 重启前用户看到的可能仍是旧版 | 重启后冒烟 |
 
 ## 14. 测试与证据
 
-- 离线：28 套、692 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：29 套、724 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 23 条任务，S1 9 / S2 4 / S3 10 / S4 8（成员 31，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
 - 反向证据：`evals/oracle-mutation.mjs` 对 19 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。

@@ -20,6 +20,7 @@
 | 子 agent 委派 | 宿主 `subagents.startActivation`（`computer_task`） | 一次性子会话，能力受宿主限制 |
 | 结构密码扫描 | `powershell.exe` + `tools/uia-password-scan.ps1` | Windows，只读 UIA/样式位 |
 | 私有拖拽 | `powershell.exe` + `tools/private-drag.ps1` | Windows 前台 SendInput；仅 modifier/dwell 路径 |
+| 实验后台输入 | `powershell.exe` + `tools/background-input.ps1` | Windows 实验性 B0/B1/B2/B3；同 pid；三键默认 off；B1/B2/B3 需 `allowedApps`；无文件/网络 |
 | 原生对话框 | `powershell.exe` + `tools/native-dialog.ps1` | Windows 标准 `#32770` 模态对话框：只读子控件枚举 + `BM_CLICK`；`nativeDialogs:off` 禁用 |
 | 轨迹日志（可选） | `node:fs` 写 `trajectoryFile`/`DSH_CU_TRAJECTORY_FILE` | 默认关闭；开启后写本地 JSONL |
 
@@ -82,7 +83,21 @@ spawn('powershell.exe', [
 - `click`：再次校验 pid/class/modal/按钮 id+class+label+enabled+visible，只发 `PostMessage(BM_CLICK)`；不按 ID 盲发 `WM_COMMAND`，不做二次投递。
 - 不写用户文件、不联网；`Add-Type` 使用用户 TEMP。
 
-### 2.5 非运行时脚本
+### 2.5 实验后台输入 helper（Windows，按需）
+
+```js
+spawn('powershell.exe', [
+  '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+  '-File', 'tools/background-input.ps1',
+], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+```
+
+- 仅 `backgroundInput/syntheticPointer/anchoredInput` 任一非 off、Windows、且目标没有可交互 UIA 元素时惰性启动；三键全 off 零 spawn。
+- 持久进程，stdin/stdout JSON 行；启动输出 `{"ready":true}`；空闲 120s 退出；`computer_stop` 先发 `restore` + `shutdown`。
+- 只对同 pid 目标：`probe` 校验 session/完整性/可见/最小化；B0 发 `WM_*`/`BM_CLICK`；B1 `InjectSyntheticPointerInput`；B2 `SetCursorPos`+`BlockInput`；B3 `SetWindowPos`。
+- 不写用户文件、不联网；`Add-Type` 使用用户 TEMP；文本以 base64 跨 argv/stdin。
+
+### 2.6 非运行时脚本
 
 `install.sh` / `uninstall.sh` 是给用户手动执行的安装辅助脚本，**不是 npm lifecycle**；`package.json` 没有 `install` / `postinstall` / `prepare` 等脚本。
 
@@ -95,7 +110,7 @@ spawn('powershell.exe', [
 | 用户文件/项目文件读写 | ❌ 无 |
 | 直接文件写入 | ⚠️ 默认无；仅当显式配置 `trajectoryFile` 或 `DSH_CU_TRAJECTORY_FILE` 时写该 JSONL（`mkdirSync` + `appendFileSync`） |
 | 直接文件读取 | ⚠️ 仅 `existsSync()` 探测驱动可执行文件是否存在 |
-| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1`、`tools/native-dialog.ps1` |
+| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1`、`tools/native-dialog.ps1`、`tools/background-input.ps1` |
 | 临时文件 | Windows PowerShell `Add-Type` 会在用户 TEMP 写临时编译文件；插件不主动写用户文件；测试在工作区 `.dsh-test/` 下建工作副本 |
 
 ### 3.2 环境变量

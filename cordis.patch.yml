@@ -22,3 +22,11 @@
         #   background 全程后台（不抢焦点）；后台不可用→结构化错误+升级指引
         #   foreground 始终前台（短暂焦点交换）
         deliveryMode: auto
+
+        # 实验性后台输入（默认全关；详见 docs/BACKGROUND-INPUT.md）：
+        #   backgroundInput: off | auto          B0 窗口消息/控件消息
+        #   syntheticPointer: off | auto         B1 合成触控（需 allowedApps）
+        #   anchoredInput: off | cursor | window B2 光标锚定 / B3 窗口锚定（需 allowedApps）
+        # backgroundInput: auto
+        # syntheticPointer: auto
+        # anchoredInput: cursor

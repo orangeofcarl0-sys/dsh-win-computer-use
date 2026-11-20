@@ -226,6 +226,18 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 - 私有拖拽不支持 `from_zoom`；UIPI 高权限目标会失败。
 - Linux/macOS 的 Windows 专属行为（结构密码扫描、UIPI、AttachThreadInput）不适用或未验证。
 
+### 9.1 实验性后台输入（默认 off）
+
+对没有可交互 UIA 元素的目标，插件提供三组实验键（全部默认 off）：
+
+| 键 | 通道 | 等级 | 代价/限制 |
+|---|---|---|---|
+| `backgroundInput: auto` | B0：`PostMessage` 鼠标；`SendMessageTimeout` plain key/`WM_CHAR`；`BM_CLICK` | 不碰光标/前台 | 只对处理窗口消息的目标有效；不更新 OS 修饰键状态；目标卡住时文本每字符最多等 1s |
+| `syntheticPointer: auto` | B1：`InjectSyntheticPointerInput(PT_TOUCH)` + anchor | 不碰光标/前台 | 只左单击；无滚轮/键盘；目标必须处理 `WM_POINTER`；遮挡失败关闭，不借 Z 序/透明度；需 `allowedApps` |
+| `anchoredInput: cursor/window` | B2/B3：临时移光标/移窗口后发消息 | 不抢前台，但动光标/窗口 | 只左单击；需 `allowedApps`；B2 依赖 `BlockInput`；B3 不改 Z 序/不做离屏截图；外部移动光标/窗口时失败关闭 |
+
+三键全 off 时零 PowerShell spawn。组合键/modifier/`foreground=true`/`deliveryMode=foreground`/`from_zoom` 一律跳过本功能；失败/未验证不自动换通道。通道矩阵、回执、错误码与实测见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
+
 ## 10. 上游跟踪
 
 | 编号 | 内容 | 状态 |
