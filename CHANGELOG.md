@@ -19,7 +19,11 @@
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
 - 真机探针 2026-11-20：干净轮次 10 PASS / 1 BLOCKED / 0 FAIL；脏桌面/安全桌面切换轮次 8 PASS / 3 BLOCKED / 0 FAIL（B2 `BlockInput` 被拒、B1 光标漂移、B3 fail-closed；不冒充 PASS）。
-- 离线 29 套 / 724 项；语法 45/45；`npm test`/`npm run check` 通过。未 push/tag/publish。
+- 离线 29 套 / 724 项；语法 45/45；`npm test`/`npm run check` 通过。已 push 到 `main`（`ba4fe8f`）；未 tag/npm publish。
+
+### Fixed
+
+- **Linux CI 平台守卫**：`scanPasswords` / `runNative` 在调用方注入 `spawnFn` 时不再按宿主平台短路；`observe.js` 的 native-dialog 闸门改用 `nativeDialogs` 导出的 `IS_WINDOWS`。修复 0.5.8 后 ubuntu `npm test` 在 H1/H2、N1/N15-N18 的失败（本地 WSL Ubuntu 26.04 / Node 24 29 套全过；GitHub CI 结果待推送后复核）。
 
 ## 0.5.8 (2026-11-20)
 
