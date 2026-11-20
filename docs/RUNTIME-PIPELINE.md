@@ -55,6 +55,7 @@ pickObserveTarget
   -> list_windows(on_screen_only)
   -> check_permissions（30s 缓存，避免每次观察固定多付 ~2s）
   -> get_window_state(include_screenshot?, include_accessibility_tree?, max_elements, query?)
+  -> 空树/失败且 nativeDialogs:auto？scanNativeDialog（同 pid #32770 modal；只读 Button/Static；失败回退）
   -> rawElements.filter(isActionable)
   -> resolveObserveMode(ax/native/vision/desktop fallback)
   -> markStructuralPasswords（Windows sidecar，最多 5s）

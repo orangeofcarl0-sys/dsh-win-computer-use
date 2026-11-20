@@ -1,8 +1,8 @@
 # CONFIGURATION — 配置与环境变量
 
-> 目的：24 个配置键、环境变量、优先级、交互与已知陷阱。
+> 目的：25 个配置键、环境变量、优先级、交互与已知陷阱。
 > 读者：部署者、集成者、排障者。
-> 状态：当前实现（最后核对 2026-11-18；由 `npm run docs:check` 校验键数）。
+> 状态：当前实现（最后核对 2026-11-20；由 `npm run docs:check` 校验键数）。
 > 相关：[INSTALL](INSTALL.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 加载与优先级
@@ -27,6 +27,7 @@
 | `ttlMs` | number | `60000` | 任意毫秒 | 观察快照有效期；过期动作 `[snapshot_expired]`。过大增加陈旧风险，`0` 会立即过期 |
 | `maxElements` | number | `120` | 任意正整数 | 单次观察最多编号元素数；调用级 `maxElements` 可覆盖。过大增加上下文成本 |
 | `observeDedup` | string | `summary` | `brief`/`summary`/`off` | 同窗口未变时的降噪：`summary` 带关键控件与编号摘要，`brief` 只回一行，`off` 每次全量 |
+| `nativeDialogs` | string | `auto` | `auto`/`off` | Windows 标准 Win32 模态对话框（`#32770`）的原生子控件后端：UIA 树为空时返回原生按钮，点击走 `BM_CLICK`（异步/未验证）；`off` = 零 PowerShell spawn，仅 UIA |
 | `surfaceMode` | string | `dispatcher` | `dispatcher`/`hybrid` | 工具面：2 可见/21 隐藏，或 2+5 热工具/16 隐藏。会话内稳定 |
 | `verboseReceipts` | boolean | `false` | 只有 `true` 生效 | 动作回执附原始 JSON，排障用 |
 
@@ -97,6 +98,8 @@
 | `driverProfile: legacy` × `dragEngine: auto` | legacy 清空现代能力标志，drag modifier 默认走私有 helper |
 | `dragEngine: private` × `from_zoom` | 私有拖拽不支持 `from_zoom`，明确报 `[private_drag_zoom_unsupported]` |
 | `allowedApps` × 观察/启动 | 只约束操作类工具；`screen_observe`/`app_list`/`app_launch` 不受限 |
+| `nativeDialogs: auto` × 标准 MessageBox | 空 AX + 同 pid `#32770` modal → `native-dialog` 按钮；点击走 `BM_CLICK`（异步/未验证）；触发模态的 UIA click 仍可能 30s |
+| `nativeDialogs: off` × 模态 | 不 spawn Win32 对话框 helper；UIA 树为 0 时回到原有 30s/桌面降级路径 |
 | `passwordScan: off` × `computer_type` | 结构位扫描关闭，只剩角色/标签/掩码启发式；经典 Win32 `ES_PASSWORD` 可能漏标 |
 
 ## 5. 示例

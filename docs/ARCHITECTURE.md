@@ -59,9 +59,10 @@ flowchart LR
 |---|---|---|---|
 | `index.js` | `Config`、`apply`、`toolDefinitions` | 配置 schema；五组工具定义；`defineTool` 投影；`apply()` 注册可见工具；`wrap()` 统一管线；`computer_do` 元工具 | 全部 lib |
 | `lib/observe.js` | `screenObserve`、`screenZoom`、`dedupEvaluate`、`dedupReset` | 目标选择、抓树、桌面降级、模式决策、结构密码标记、状态差分、快照缓存、渲染、降噪、zoom 裁剪 | cua / snapshot / attach / vision / passwordScan / roles |
-| `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp`、`activate` | 动作实现；快照/窗口解析；目标回显；投递；回执 | cua / human / receipt / snapshot / engine / privateDrag |
+| `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp`、`activate` | 动作实现；快照/窗口解析；目标回显；投递；回执 | cua / human / receipt / snapshot / engine / privateDrag / nativeDialogs |
 | `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf`、`describeClickTarget`、`nearestEntry` | 虚拟光标滑行（auto/human/off）；element_token / 像素点击；坐标适配；目标回显 | cua / snapshot |
 | `lib/privateDrag.js` | `privateDrag`、`stopPrivateDrag` | 持久 PowerShell helper 的 stdin/stdout JSON 封装；惰性启动、串行队列、超时/崩溃恢复、空闲退出 | `tools/private-drag.ps1` |
+| `lib/nativeDialogs.js` | `scanNativeDialog`、`clickNativeDialog`、`IS_WINDOWS` | Windows 标准 `#32770` 模态对话框的 Win32 子控件扫描（Button/Static）与 `BM_CLICK`；失败/超时回退 UIA | `tools/native-dialog.ps1` |
 | `lib/loopGuard.js` | `checkRepeat`、`noteObserveChange`、`resetLoopGuard` | 同窗口/目标/投递模式 5s 重复点击抑制；观察变化清除 | human |
 | `lib/trajectory.js` | `trajectoryStart`、`runTool`、`logDriverCall`、`trajectorySummary`、`sanitizeArgs` | CU 轨迹 JSONL：脱敏、驱动归属、loop/耗时/未验证/移动数 | node:fs / node:async_hooks |
 | `lib/ops.js` | `createOpsState`、`gate`、`stop`、`resume`、`verifyOnce`、`waitFor`、`clipboard`、`menu`、`hover` | 确定性验证、轮询、剪贴板、菜单直调、悬停、强杀锁存 | cua / snapshot / attach / engine / receipt / menuPath |
@@ -240,7 +241,10 @@ flowchart TD
   F --> H["check_permissions（只读，30s 缓存）"]
   G --> H
   H --> I["get_window_state(include_screenshot?, max_elements, query?)"]
-  I -->|失败| J["get_desktop_state → desktop-visual 降级"]
+  I -->|失败| X["native-dialog 扫描（同 pid #32770 模态对话框）"]
+  X -->|找到按钮| O2["native-dialog：Win32 按钮树（BM_CLICK）"]
+  X -->|否| J["get_desktop_state → desktop-visual 降级"]
+  I -->|树空| X
   I --> K["原始元素 → isActionable 过滤"]
   K --> L{"树空 / degraded_reason?"}
   L -->|是| M["需要补截图：模型可看图或 GLM 已配置"]
@@ -440,7 +444,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：27 套、674 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：28 套、692 项检查（2026-11-20；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 23 条任务，S1 9 / S2 4 / S3 10 / S4 8（成员 31，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
 - 反向证据：`evals/oracle-mutation.mjs` 对 19 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。

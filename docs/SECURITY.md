@@ -60,6 +60,7 @@
 |---|---|---|
 | 密码硬拒 | `computer_type`/`computer_set_value` 且目标元素被标记为密码 | 坐标输入/未指定 element 无法预知目标；只在 element 模式生效 |
 | 结构密码扫描 | Windows，`passwordScan: auto` | 失败/超时降级启发式；经典 Win32 `ES_PASSWORD` 依赖 sidecar |
+| 原生对话框点击 | Windows，`nativeDialogs: auto`；只对同 pid 标准 `#32770` 模态对话框的 Button | 只发 `BM_CLICK`；不自动选择 Yes/No；坐标/输入/双击/右键不走该路径；`off` 禁用 |
 | 快照 TTL / 无快照拒绝 | 操作类工具（click/type/key/scroll/drag/set_value） | 菜单/悬停/应用列表/激活不要求快照 |
 | `allowedApps` | 操作类工具；精确 `appName` | 观察/启动/激活不受限；空 = 关闭 |
 | `computer_stop` 锁存 | 全部桌面操作 | `computer_resume` 是唯一解锁路径 |

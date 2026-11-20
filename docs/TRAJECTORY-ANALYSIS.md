@@ -376,3 +376,17 @@
 - 触发模态的 element click 本身仍会阻塞到对话框关闭（30s transport abort）。要消除它，需要原生标准 Button 点击或驱动侧异步 Invoke；本轮未实现。
 - 驱动 hotkey 偶尔能在 20–25s 关闭对话框，但回执可能是失败/超时；不能把它写成稳定路径。
 - 结论仍是 `BLOCKED`（`evals/BLOCKED.md`）：上游驱动在模态期间绕过 UIA，或单独立项原生标准控件快速路径。
+
+### 11.11 私有实现：Win32 原生对话框后端（2026-11-20）
+
+§11.10 的结论不是“只能等上游”。作为插件侧私有实现，新增 `nativeDialogs:auto`：
+
+- `screen_observe` 在 UIA 树为空、目标是同 pid 标准 `#32770` 模态对话框时，用 Win32 `EnumChildWindows` 返回 Button/Static；
+- 按钮 token 为 `native:<window_id>:<control_id>:<index>`，快照 `backend='native-dialog'`；
+- `computer_click(element=编号)` 直接 `PostMessage(BM_CLICK)`，不经过驱动 UIA Invoke；
+- 只支持单次左键；坐标/键盘/滚动/拖拽、double/right、modifier/count>1/from_zoom 一律拒绝；不自动选择 Yes/No；
+- 回执 `effect:unverifiable` + `delivery.mode='native-message'`，标记快照消费 + suspect，要求重新观察。
+
+真机 `evals/probe-native-dialog.mjs`：**9 PASS**。UIA trigger 打开 MessageBox → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭，state `cancelled=1`；挂起的 UIA trigger 在对话框关闭后返回。离线 `tests/native-dialogs.test.mjs` **18/18**。
+
+边界：触发模态的 UIA click 仍可能 30s；原生后端只覆盖标准 `#32770` 按钮，不覆盖 WPF/WinUI/自定义/Edit 输入；异步未验证，不报 confirmed。t20 的收益是“模态内不再重复付 30s”，不是“触发 click 也消失”；后者仍需上游 bounded semantic click（#5046 方向）或 phase 2 原生触发。

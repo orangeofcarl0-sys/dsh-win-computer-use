@@ -76,6 +76,7 @@
 - **目标选择**：`window_id` 精确匹配；`window` 依次按 pid、标题子串、应用名/中英别名匹配。指定目标未找到时 fail-closed，返回最多 8 个候选，不回退到最前窗口；不会建立新快照（已有新鲜旧快照会保留并提示）。
 - **快照全局单例**：任意成功全量观察（ax/native/vision，含其它窗口）都会替换 `snapshot_id`；旧 id 在动作中会得到 `[snapshot_mismatch]`。
 - **模式**：`ax` 零视觉 token；`native` 要求当前 route 声明 image 输入，截图经宿主 attachments 落盘；`vision` 走配置的观察者，失败回退 GLM。树空/降级时按 native → vision → ax 自动降级；窗口级失败降级为 `desktop-visual`（桌面坐标，不能直接用于窗口动作）。
+- **原生对话框后端（Windows，`nativeDialogs:auto`）**：UIA 树为空且目标是同 pid 的标准 `#32770` 模态对话框时，用 Win32 子控件枚举返回 `mode:native-dialog` 的按钮（含控件 ID/标签/enabled）；只读按钮，不读 Edit/密码。按钮用 `computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证），只支持单次左键；不支持 modifier/count>1/from_zoom；不自动选择 Yes/No。`nativeDialogs:off` 禁用（零 PowerShell spawn）。
 - **query**：驱动返回过滤树后跳过差分/缓存/降噪，并 `clearSnapshot()`；输出 `snapshotId:null`，回执明确“旧动作快照已清除”。需要动作时不要带 query 重新观察。
 - **降噪**：同窗口、同模式、界面哈希未变、上次观察后无动作消费、无 `force`/`query` 时，返回 `summary`/`brief` 极简回执；结构化 `elements` 复用上次映射，编号仍有效。
 - **状态差分**：回执带 `自上次观察：...`（标题/输入值/状态栏/元素增删）；时间/行列噪声归一。这是 `unverifiable` 动作的主要状态证据。
@@ -117,6 +118,7 @@
 行为：
 
 - `element` 走 `element_token`，支持后台/隐藏窗口，不受 DPI 混合影响；像素路径 best-effort。
+- `native-dialog` 快照的按钮是 **Win32 原生控件**：只支持 `computer_click(element=编号)` 单次左键（`BM_CLICK`，异步/未验证）；坐标点击、type/key/scroll/drag、double/right、modifier/count>1/from_zoom 一律拒绝。点击后先 `screen_observe` 确认对话框是否关闭；不要重复点击或自动选择 Yes/No。
 - 坐标点击按快照条目中心 24px 内取最近元素，回执回显目标（编号/角色/标签/当前值；密码值隐藏）。
 - 非空 `modifier` 在 Windows 上自动 `forceForeground`（SendInput 前台注入）并恢复原前台。
 - **Explorer 文件项单选请用 `foreground=true`**：后台坐标点击可能走 UIA Invoke 直接打开文件。

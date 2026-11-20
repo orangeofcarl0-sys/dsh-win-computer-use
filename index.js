@@ -159,6 +159,15 @@ export const Config = z.object({
    */
   passwordScan: z.union(['auto', 'off']).default('auto'),
   /**
+   * 标准 Win32 模态对话框的原生后端（Windows）：
+   *   auto（默认）= UIA 树为空且目标是同 pid 的标准 #32770 模态对话框时，用
+   *                 Win32 子控件枚举返回按钮；computer_click(element=编号) 走 BM_CLICK
+   *                 （异步/未验证；只支持单次左键；不自动选择 Yes/No）。
+   *   off = 零 PowerShell spawn，仅 UIA（模态期间仍会 30s 阻塞）。
+   * 这是模态 UIA provider 不响应时的 Windows-only 兜底，不改变普通窗口的 UIA 点击。
+   */
+  nativeDialogs: z.union(['auto', 'off']).default('auto'),
+  /**
    * 快照新鲜度（PLAN-snapshot-freshness）：同快照连击的引用作废语义。
    *   note 默认：同一快照被动作消费后，后续动作附一致性注记（不阻断，"确认未变可继续"）；
    *   enforce：同快照第二次动作直接拒绝（[snapshot_consumed]），直至重新 screen_observe
@@ -457,7 +466,8 @@ function observeToolDefs(ctx, cfg, wrap) {
       '观察屏幕：目标窗口的"编号 + 控件 + 坐标"界面树（AX，零视觉成本），文本里的 @(x,y) 与 computer_click 同空间可直接传。' +
       '动作前必须先观察取快照（60s 过期）；同一快照可连续动作，界面没变不必反复观察。' +
       '成本：ax（文本）< screen_zoom 小裁剪 < native 整窗 PNG 直读——native 同时返回 AX 编号，读字+定位可一次完成；' +
-      '快照为全局单例：任意新观察（含其它窗口、ax→native）都会替换 id，旧 snapshot_id 失效；不要同轮先 ax 再 native。' + S3_ASSERT_PROTOCOL,
+      '快照为全局单例：任意新观察（含其它窗口、ax→native）都会替换 id，旧 snapshot_id 失效；不要同轮先 ax 再 native。' +
+      '标准 Win32 模态对话框（#32770）在 UIA 树为空时返回 native-dialog 模式的原生按钮；这些按钮用 computer_click(element=编号) 点击，走 BM_CLICK（异步/未验证），只支持单次左键。' + S3_ASSERT_PROTOCOL,
     parameters: {
       window: { type: 'string', description: '目标窗口：pid 或标题子串；window_id 用独立的 window_id 参数。' },
       window_id: { type: 'integer', description: '目标窗口 id（精确匹配；多窗口同 pid 时优先用它，避免选错辅助窗口）。' },
@@ -550,7 +560,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。',
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。',
     parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
@@ -1056,6 +1066,7 @@ export function apply(ctx, config) {
     extremeRes: (Array.isArray(config.extremePatterns) ? config.extremePatterns : [])
       .map((p) => new RegExp(p)),
     passwordScan: config.passwordScan || 'auto',
+    nativeDialogs: config.nativeDialogs || 'auto',
     deliveryMode: config.deliveryMode || 'auto',
     xamlKeyFallback: config.xamlKeyFallback || 'off',
     xamlPressFallback: config.xamlPressFallback || 'off',

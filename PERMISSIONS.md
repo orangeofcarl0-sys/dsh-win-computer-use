@@ -20,6 +20,7 @@
 | 子 agent 委派 | 宿主 `subagents.startActivation`（`computer_task`） | 一次性子会话，能力受宿主限制 |
 | 结构密码扫描 | `powershell.exe` + `tools/uia-password-scan.ps1` | Windows，只读 UIA/样式位 |
 | 私有拖拽 | `powershell.exe` + `tools/private-drag.ps1` | Windows 前台 SendInput；仅 modifier/dwell 路径 |
+| 原生对话框 | `powershell.exe` + `tools/native-dialog.ps1` | Windows 标准 `#32770` 模态对话框：只读子控件枚举 + `BM_CLICK`；`nativeDialogs:off` 禁用 |
 | 轨迹日志（可选） | `node:fs` 写 `trajectoryFile`/`DSH_CU_TRAJECTORY_FILE` | 默认关闭；开启后写本地 JSONL |
 
 插件**不**使用 `approval` 服务；动作零审批、零打断。
@@ -66,7 +67,22 @@ spawn('powershell.exe', [
 - 坐标是屏幕物理像素（virtual desktop），由插件从 `screenOrigin + 截图尺寸` 映射；私有路径不支持 `from_zoom`（明确报错，不静默丢 modifier）。
 - 不写用户文件、不联网；`Add-Type` 使用调用方用户 TEMP（可用 `DSH_POWERSHELL`、`S4_TEMP`/`DSH_TEMP` 覆盖；`S4_TEMP` 是历史命名）。
 
-### 2.4 非运行时脚本
+### 2.4 原生对话框 helper（Windows，按需）
+
+```js
+spawn('powershell.exe', [
+  '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+  '-File', 'tools/native-dialog.ps1',
+  '-Action', 'scan|click', '-Pid', pid, '-Hwnd', hwnd, ...
+], { windowsHide: true })
+```
+
+- 仅在 `nativeDialogs !== 'off'`、Windows、`screen_observe` 的 UIA 树为空且目标为同 pid 标准 `#32770` 模态对话框时触发；`off` 零 spawn。
+- `scan`：只读 `EnumChildWindows`/`GetClassName`/`GetWindowText`/`IsWindowEnabled`/`GetWindowRect`；只返回 Button/Static，不返回 Edit 内容。
+- `click`：再次校验 pid/class/modal/按钮 id+class+label+enabled+visible，只发 `PostMessage(BM_CLICK)`；不按 ID 盲发 `WM_COMMAND`，不做二次投递。
+- 不写用户文件、不联网；`Add-Type` 使用用户 TEMP。
+
+### 2.5 非运行时脚本
 
 `install.sh` / `uninstall.sh` 是给用户手动执行的安装辅助脚本，**不是 npm lifecycle**；`package.json` 没有 `install` / `postinstall` / `prepare` 等脚本。
 
@@ -79,7 +95,7 @@ spawn('powershell.exe', [
 | 用户文件/项目文件读写 | ❌ 无 |
 | 直接文件写入 | ⚠️ 默认无；仅当显式配置 `trajectoryFile` 或 `DSH_CU_TRAJECTORY_FILE` 时写该 JSONL（`mkdirSync` + `appendFileSync`） |
 | 直接文件读取 | ⚠️ 仅 `existsSync()` 探测驱动可执行文件是否存在 |
-| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1` |
+| 随包脚本 | `tools/uia-password-scan.ps1`、`tools/password-probe.ps1`（手动探针）、`tools/private-drag.ps1`、`tools/native-dialog.ps1` |
 | 临时文件 | Windows PowerShell `Add-Type` 会在用户 TEMP 写临时编译文件；插件不主动写用户文件；测试在工作区 `.dsh-test/` 下建工作副本 |
 
 ### 3.2 环境变量

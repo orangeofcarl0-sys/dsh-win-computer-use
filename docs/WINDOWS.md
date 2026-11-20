@@ -73,7 +73,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - 不要重复点击/按键/activate，也不要把 `timeout_ms` 调大当成修复（已证伪）；
 - 先等待 5–10s，再 `screen_observe`（capture/ax 均可）确认是否“延迟成功”；
 - 若仍在，按对话框按钮的加速键（Alt+字母）只发一次；`Escape` 在 Yes/No 上通常无效，`Enter`/foreground 键也可能 60s 阻塞；
-- 原生 Win32 `WM_COMMAND`/`BM_CLICK` 可在 ~1s 关闭标准对话框，但插件尚未暴露该路径；见 [evals/BLOCKED.md](../evals/BLOCKED.md)。
+- 原生 Win32 `WM_COMMAND`/`BM_CLICK` 可在 ~1s 关闭标准对话框。插件已提供**私有原生对话框后端**：`nativeDialogs:auto` 时，UIA 树为 0 且目标是同 pid 标准 `#32770` 模态对话框，`screen_observe` 返回 `mode:native-dialog` 按钮，`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证）。只覆盖标准 Button，不自动选择 Yes/No；触发模态的 UIA click 仍可能 30s。`nativeDialogs:off` 完全禁用（零 PowerShell spawn）。详见 [TOOLS](TOOLS.md) §3.1/§4.1 与 [EVIDENCE §1.5](EVIDENCE.md)。
 
 ## 4. 私有拖拽（modifier / dwell_ms）
 

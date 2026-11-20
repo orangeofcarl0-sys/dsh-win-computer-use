@@ -21,16 +21,18 @@
 - **标题栏拖拽语义**：观察时缓存 `titleBarRect`；`computer_drag` 起点命中标题栏时回执明确“移动窗口、不是点击/落点证据”并清空快照；描述同步。
 - **eval 预算语义**：`evals/lib/run.mjs` 修 `timedOut` 与 `close` 竞争；`headless-run` 增加 `budgetExhausted`/`noFinal`，预算耗尽记 `verdict=timeout`；`ac6-summary`/`ab-summary` 同步。
 - **t20 模态 30s 超时根因定位**：新增 `evals/probe-modal-timeout.mjs` / `probe-modal-escapes.mjs`。实测 MessageBox 打开期间同 pid 的 AX 树在 **1s/5s/15s** 预算下均为 0 元素（capture-only 1.5s 成功）；驱动的 `click`/`press_key`/`bring_to_front` 阻塞到模态关闭；原生 `WM_COMMAND`/`BM_CLICK` 可 ~1s 关闭。`timeout_ms` 调大**不是**修复；驱动根因保持 BLOCKED，不盲改 observe 默认。
+- **原生 Win32 对话框后端（私有实现，Windows）**：新增 `nativeDialogs: auto|off`（默认 auto）。UIA 树为空且目标是同 pid 标准 `#32770` 模态对话框时，`screen_observe` 通过 Win32 子控件枚举返回 `native-dialog` 按钮；`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证），只支持单次左键，不自动选择 Yes/No。触发模态的 UIA click 仍可能 30s；本后端消除模态内按钮的重复 30s。
 - **模态超时回执修正**：不再建议 `Escape=No` / `Enter=默认` / `foreground 普通键` 作为快速路径（实测在模态中同样 30–60s，Escape 在 Yes/No 无效）；改为“等待 5–10s → screen_observe（capture/ax）确认延迟成功 → 必要时按加速键只发一次”。守门断言在 `tests/delivery.failures.mjs`。
 - **题面**：t20 允许 Tab/Enter/Escape 选择对话框按钮并强调始终回到 `S4-T20-DIALOG`；t19 明确允许 Notepad 另存为。
 - **COMMON**：真实模型运行统一要求显式指定任务窗口，不依赖无目标“最前窗口”，不跟随无关前台窗口。
 
 ### Tests / Docs
 
-- 新增 `tests/proc-run.test.mjs`（3 项）；`npm test` **27 套 / 674 项**，语法 **41/41**，`npm pack` **57 文件**。
+- 新增 `tests/proc-run.test.mjs`（3 项）；`npm test` **28 套 / 692 项**，语法 **43/43**，`npm pack` **59 文件**。
 - 新增模态根因探针 `evals/probe-modal-timeout.mjs`（~75s）与 `evals/probe-modal-escapes.mjs`（~3min，`--trigger-only` 快速验证触发侧）；不加入 `npm test`。
+- 新增原生对话框后端 `lib/nativeDialogs.js` + `tools/native-dialog.ps1`；`tests/native-dialogs.test.mjs` 18 项；真机 `evals/probe-native-dialog.mjs` 9 PASS。
 - `tests/tasks.check.mjs` 增加 t19/t20 题面守卫与 t05 副作用守卫（332 项）。
-- 文档同步：TOOLS/ERRORS/WINDOWS/TROUBLESHOOTING/ARCHITECTURE/TESTING/VERIFICATION/evals README；EVIDENCE §1.4 与 TRAJECTORY-ANALYSIS §11.10 记录模态根因。
+- 文档同步：TOOLS/CONFIGURATION/WINDOWS/ARCHITECTURE/TESTING/VERIFICATION/PERMISSIONS/evals README；EVIDENCE §1.5 与 TRAJECTORY-ANALYSIS §11.11 记录私有实现。
 - 2026-11-20 复跑：t20 **2/2 pass**（inner 27/25，626/601s；30s 超时仍多、候选 window_id 出现）、t19 **2/2 pass**（inner 70/48；`win+r` 归零，但 r1 从 40→70 回归）、t05 **2/2 pass**（inner 10/15；零 `type` 改文件名、无 `src` 残留）。
 
 ## 0.5.7 (2026-11-19)

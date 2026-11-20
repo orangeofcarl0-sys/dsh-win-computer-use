@@ -167,6 +167,29 @@ node evals/probe-modal-escapes.mjs            # 约 3 分钟；--trigger-only �
 - 改为：先等待 5–10s，再用 `screen_observe`（capture/ax 均可）确认“超时是否其实是延迟成功”；若仍需操作，按对话框按钮的加速键只发一次，并接受回执可能延迟/失败。
 - 守门：`tests/delivery.failures.mjs` 的 `D-timeout-click` / `D-timeout-key` 断言包含 `capture`、`Escape 在 Yes/No`、`5–10s`、`加速键`。
 
+## 1.5 2026-11-20 — 私有 Win32 原生对话框后端
+
+环境：Windows 11 x64，DPI 150%，cua-driver 0.52.13。实现：`nativeDialogs:auto`（默认）+ `tools/native-dialog.ps1` + `lib/nativeDialogs.js`。
+
+真机命令：
+
+```bash
+node evals/probe-native-dialog.mjs
+node tests/native-dialogs.test.mjs
+```
+
+结果：
+
+- `probe-native-dialog` **9 PASS / 0 BLOCKED / 0 FAIL**：
+  - 插件 UIA element click 打开 `S4-NATIVE-DIALOG-CONFIRM`（触发调用挂起，正是 t20 路径）；
+  - `screen_observe(window_id=dialog)` → `mode=native-dialog`，2 个按钮（是/否），坐标在对话框本地空间（rect 同源）；
+  - `computer_double_click` / `computer_key` 明确拒绝；
+  - `computer_click(element=No)` → 原生消息 `BM_CLICK`，对话框关闭，state `cancelled=1`；
+  - 之前挂起的 UIA trigger 在对话框关闭后返回（ok=true / unverifiable）。
+- 离线 `tests/native-dialogs.test.mjs` **18/18**：空 AX→native 合成按钮；native click 不走驱动；坐标/键盘/滚动/双击/右键拒绝；`nativeDialogs:off`/非模态回退；点击失败不消费；allowedApps/snapshot_id/UIA 复核；sidecar JSON/base64/超时。
+- 覆盖范围：同 pid 顶层标准 `#32770` 模态对话框 + 标准 `Button`；只发 `BM_CLICK`；不自动选择 Yes/No。
+- 未覆盖：触发模态的 UIA click 仍可能 30s；WPF/WinUI/自定义对话框、Edit 输入、modifier/double/right/from_zoom 不走该后端。驱动/UIA 根因仍见 §1.4，`evals/BLOCKED.md` 保持“部分 BLOCKED”。
+
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
 环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。
