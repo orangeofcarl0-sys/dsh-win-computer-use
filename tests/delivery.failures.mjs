@@ -112,7 +112,8 @@ process.env.CUA_DELIVERY_MODE = 'timeout'
   const r = await call('computer_click', { element: 0, snapshot_id: obs.snapshotId })
   check('D-timeout-click: ok:false + 模态/观察指引',
     r.ok === false && /超时/.test(r.result || '') && /对话框/.test(r.result || '')
-      && /screen_observe/.test(r.result || '') && /不要重复点击/.test(r.result || ''), r.result)
+      && /screen_observe/.test(r.result || '') && /不要重复点击/.test(r.result || '')
+      && /capture/.test(r.result || '') && /Escape 在 Yes\/No/.test(r.result || ''), r.result)
 }
 {
   const { call, obs } = await fresh()
@@ -124,7 +125,8 @@ process.env.CUA_DELIVERY_MODE = 'timeout'
   const { call, obs } = await fresh()
   const r = await call('computer_key', { key: 'escape', snapshot_id: obs.snapshotId })
   check('D-timeout-key: 按键结果未知 + 不要重复按',
-    r.ok === false && /按键结果未知/.test(r.result || '') && /不要重复按/.test(r.result || ''), r.result)
+    r.ok === false && /按键结果未知/.test(r.result || '') && /不要重复按/.test(r.result || '')
+      && /5–10s/.test(r.result || '') && /加速键/.test(r.result || ''), r.result)
 }
 {
   const { call, obs } = await fresh()

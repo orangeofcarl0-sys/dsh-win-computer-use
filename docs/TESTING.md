@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-20：`npm test` 27 套 / **674 项检查**；`npm run check` 语法 39/39 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-20：`npm test` 27 套 / **674 项检查**；`npm run check` 语法 41/41 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -31,6 +31,8 @@
 | 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 11 PASS / 1 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`computer_menu` 在 WinForms 上 BLOCKED（见 [BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked`（有 BLOCKED 时 exit 2） |
 | app 启动/收尾 | S1/S4 | `node evals/probe-launch.mjs` | 7 项 | app_launch pid/window、子进程 IL 实测、驱动侧 alt+F4/关闭按钮、基线窗口保留 |
 | modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs` | 5 项 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支 opt-in/BLOCKED。`--strict-blocked` 时 BLOCKED 为 exit 2 |
+| 模态根因 | S3 | `node evals/probe-modal-timeout.mjs` | 10 PASS / 13 BLOCKED | MessageBox 期间 AX 树 0@1s/5s/15s、capture 1.5s、驱动 click/key/bring 阻塞、原生 WM_COMMAND 关闭、触发 click 随模态关闭返回 |
+| 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 19 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13 按原因 SKIP |
 | AC6 成本 | S1-S4 | `node evals/ac6-summary.mjs --reports <report>` | per-task token/步数 | 读 `status/step_end.usage`，输出中位数/p90 与 billable |
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
@@ -319,7 +321,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 项 | 值 |
 |---|---|
 | 离线 | 27 套 / 674 ✅ / 0 ❌ |
-| 语法 | 39/39 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 语法 | 41/41 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
@@ -327,7 +329,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 评测 | 23 条任务：S1 9 / S2 4 / S3 10 / S4 8（成员 31）；t12/t14/t17/t18/p01-p03/t19/t20 均有 simulate；仅 t13 仍 `ac2:none`，其 SKIP 不是 PASS |
 | AC2 全量 | 2026-11-20：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty） |
 | oracle 变异 | 2026-11-20：**19/19**（t04/t07 live GUI、t13 ac2:none 按原因 SKIP）；错误但像成功的产物全部 exit 1 |
-| 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3** |
+| 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3**；modal-timeout **10 PASS / 13 BLOCKED**、modal-escapes **6 PASS / 4 BLOCKED**（根因见 EVIDENCE §1.4） |
 | 模型真跑（最新） | 2026-11-20：opencode t19 **2/2 pass**（inner 70/48）、t20 **2/2 pass**（inner 27/25）、t05 **2/2 pass**（inner 10/15）；0 timeout/dirty；t20 30s 超时仍多但候选 window_id 已出现；t19 `win+r` 归零、r1 回归；t05 无 `type`/无 src 残留；见 EVIDENCE §1.3 |
 | 模型真跑（上一轮/修复前） | 上一轮 t19 40/56、t20 27/25、t05 21/13；修复前 t19/t20 各 1 pass/1 预算耗尽（35/56、17/33），p01/p02/p03 6/11/8；保留为历史 |
 | AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24 / p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 |

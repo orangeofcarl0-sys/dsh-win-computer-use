@@ -7,6 +7,7 @@
 
 | 项 | 证据 | 影响 | 解除条件 |
 |---|---|---|---|
+| WinForms MessageBox 模态期间的 UIA/动作 | `evals/probe-modal-timeout.mjs` / `probe-modal-escapes.mjs`（2026-11-20）：AX 树在 1s/5s/15s 预算下均为 0 元素；同 pid 主窗口也为 0；capture-only 1.5s 成功；`bring_to_front`/`press_key`/坐标 click 均阻塞；原生 `WM_COMMAND`/`BM_CLICK` 可在 ~1s 关闭对话框，但插件未暴露该路径 | t20 每轮仍有多次 30s 超时；`get_window_state` 调大 `timeout_ms` 不是修复 | 上游驱动在模态期间绕过 UIA（或暴露原生 Win32 标准控件动作）；否则保持 BLOCKED，不把“调大预算”写成已修复 |
 | `computer_menu` on WinForms/原生 HMENU | `evals/probe-ops.mjs`（2026-11-20）：自建窗口的 `Tools` 菜单项在 AX 树中可见，但 `invoke_menu` 返回 `menu_path_unavailable` / `window_id is closed, stale, or invalid`；未出现 `effect:confirmed` | menu 原语只在“驱动可解析的经典菜单”上有历史证据；WinForms 目标未证明 | 驱动修复 `invoke_menu` 的 WinForms 窗口寻址，或换一个可稳定解析的经典 Win32 目标 |
 | Excel modifier drop | `evals/probe-modifier-drop.mjs` 默认只覆盖 Explorer；Excel 分支未实现（需要 UIA 网格几何 + 保存/关闭路径） | Explorer Ctrl+drop 已回归；Excel/PPT 的 modifier drop 仍无自动证据 | 在专用桌面跑通 Excel A2→E2 Ctrl+drag、保存到临时副本并关闭；否则保持 BLOCKED |
 | 独立观察者 / `screen_assert` | 无任务；需要 ZHIPU key 或 dsv4fv 文本输出修复 | 自绘/canvas 的“独立裁决”仍靠 oracle 文件，不是第二观察者 | 提供可用视觉 key 或修复文本输出 |

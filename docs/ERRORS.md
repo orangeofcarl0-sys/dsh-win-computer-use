@@ -64,7 +64,7 @@
 | kind | 含义 | 上层行为 |
 |---|---|---|
 | `spawn` | 找不到/无法启动驱动 | 结构化错误 + `CUA_DRIVER_BIN` 指引 |
-| `timeout` | 超过 `CUA_CALL_TIMEOUT_MS`（默认 30s） | 结构化超时；不自动重试。click 超时后回执提示“结果未知”：先观察是否出现模态对话框，用其 `window_id` 重新观察；type 超时提示可能已部分写入 |
+| `timeout` | 超过 `CUA_CALL_TIMEOUT_MS`（默认 30s） | 结构化超时；不自动重试。click 超时后回执提示“结果未知”：先等待 5–10s，再 observe（capture/ax）确认是否延迟成功；模态期间 UIA 树可能持续 0 元素，不要连续重试/换键/activate。根因见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。type 超时提示可能已部分写入 |
 | `exit` | 非零退出且非 JSON | 原样报错 |
 | `structured` | 非零退出 + JSON 拒绝 | 动作类当回执值；观察类抛错走降级 |
 | `nonjson` | 退出 0 但 stdout 非 JSON | 原样报错 |

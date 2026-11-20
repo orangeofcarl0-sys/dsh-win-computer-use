@@ -214,7 +214,9 @@ sequenceDiagram
 | `refusal` / `error` / `code` | `false` | 不消费（除非 `suspected_noop`） | 拒绝原因 |
 | `effect:suspected_noop` | `false` | `markSuspect`，不 `markConsumed` | 附“不要立即重放” |
 | `menu_path_unavailable` 等 | `false` | — | `refusalReceipt` |
-| 驱动调用 `timeout` | `false` | `markSuspect` | `timeoutReceipt`：click 指向“先看新模态对话框/不要重试像素”，type 指向“可能已部分写入” |
+| 驱动调用 `timeout` | `false` | `markSuspect` | `timeoutReceipt`：click 先等待 5–10s 再 observe 新模态/capture 确认；type 指向“可能已部分写入” |
+
+> 2026-11-20 探针补充：WinForms MessageBox 打开期间，该进程 UIA provider 不服务跨进程请求——同 pid 的 AX 树在 1s/5s/15s 预算下都是 0 元素；驱动的 click/press_key/bring_to_front 会阻塞到模态关闭。`timeoutReceipt` 已按此修正，不再建议 Escape/Enter/foreground 键作为快速路径。详见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。
 
 XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
 

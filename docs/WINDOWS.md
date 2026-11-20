@@ -68,7 +68,12 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 **显式窗口激活**：`computer_activate(window_id, pid?)` 直接把已存在窗口前置（driver `bring_to_front`），**不启动/关闭应用，也不恢复原前台**；不要求快照，但激活后操作内容仍需 `screen_observe`。脏桌面多窗口切换优先用它，而不是点任务栏或反复 Alt+Tab。
 
-**模态点击 30s 超时**：对刚弹出的模态对话框点击可能触发驱动超时，回执报“点击结果未知”。这时不要重试像素/zoom/drag；先 `screen_observe` 看是否出现新的顶层对话框，用它的 `window_id` 重新观察，再点其按钮。原生 WinForms MessageBox 可用 `Escape`=No、`Enter`=默认按钮（本机 t20 是 Yes）。
+**模态点击 30s 超时（2026-11-20 根因已定位）**：MessageBox 打开期间，该进程的 UIA provider 不服务跨进程 UIA/COM 请求——同 pid 的主窗口和对话框 AX 树在 **1s/5s/15s** 预算下都是 0 元素（capture-only 仍可读）；驱动的 `click`/`press_key`/`bring_to_front` 会阻塞到模态关闭，30s 只是 transport 上限。因此：
+
+- 不要重复点击/按键/activate，也不要把 `timeout_ms` 调大当成修复（已证伪）；
+- 先等待 5–10s，再 `screen_observe`（capture/ax 均可）确认是否“延迟成功”；
+- 若仍在，按对话框按钮的加速键（Alt+字母）只发一次；`Escape` 在 Yes/No 上通常无效，`Enter`/foreground 键也可能 60s 阻塞；
+- 原生 Win32 `WM_COMMAND`/`BM_CLICK` 可在 ~1s 关闭标准对话框，但插件尚未暴露该路径；见 [evals/BLOCKED.md](../evals/BLOCKED.md)。
 
 ## 4. 私有拖拽（modifier / dwell_ms）
 

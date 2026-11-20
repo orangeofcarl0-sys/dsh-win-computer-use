@@ -70,7 +70,7 @@ evals/
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
   ac6-summary.mjs   per-task token/步数汇总
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs
-  probe-*.mjs       真机探针（不加入 npm test）
+  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-timeout/probe-modal-escapes 是 t20 模态根因探针
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
   RETIRED.md        退役任务/runner 台账
   BLOCKED.md        未覆盖/无法证明的能力（不计入 pass）
@@ -161,6 +161,10 @@ node evals/oracle-mutation.mjs --tasks t01,t16,t20
 node evals/probe-ops.mjs
 node evals/probe-launch.mjs
 node evals/probe-modifier-drop.mjs
+# t20 模态根因：AX 预算/阻塞矩阵（~75s）与原生 Win32 逃逸路径（~3min；--trigger-only 只跑触发侧）
+node evals/probe-modal-timeout.mjs
+node evals/probe-modal-escapes.mjs
+node evals/probe-modal-escapes.mjs --trigger-only
 # 默认允许已知 BLOCKED（WinForms menu / Excel stub），必须读输出；严格验收：
 node evals/probe-ops.mjs --strict-blocked          # 有 BLOCKED 时 exit 2
 node evals/probe-modifier-drop.mjs --excel --strict-blocked
@@ -210,6 +214,7 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 - **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差。2026-11-20 最新 P0/P1 复跑：t19 **2/2 pass**（inner 70/48，652/454s；`win+r` 归零，但 r1 从 40→70 inner 回归）、t20 **2/2 pass**（inner 27/25，626/601s；30s 超时仍多，候选 window_id 已出现）、t05 **2/2 pass**（inner 10/15，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty。上一轮样本为 t19 40/56、t20 27/25、t05 21/13；再往前修复前 t19/t20 各 1 pass / 1 预算耗尽（旧 runner 记 `fail/timedOut=false`，现记 `verdict=timeout + budgetExhausted=true`）；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
 - **预算耗尽不是任务失败率**：`wallMs` 达到 `--timeout-min` 且没有 `final` 的样本单独计数，不与普通 fail 混比；报告里同时保留 `timedOut/noFinal` 便于区分“驱动超时”和“模型没跑完”。
+- **t20 模态 30s 超时已有独立根因证据（2026-11-20）**：`probe-modal-timeout` / `probe-modal-escapes` 证明 MessageBox 打开期间同 pid 的 AX 树在 1s/5s/15s 预算下都是 0 元素，capture-only 仍可读；驱动的 `click`/`press_key`/`bring_to_front` 会阻塞到模态结束，原生 `WM_COMMAND`/`BM_CLICK` 可 ~1s 关闭。`timeout_ms` 调大**不是**修复；不要把“调大预算”写成已解决。详见 [EVIDENCE §1.4](../docs/EVIDENCE.md)。
 - p01-p03 需要 image 路由；opencode 通道已验证，text-only 路由失败不算 ENV。
 - 基线比较必须同 overlay、同模型、同预算、同桌面状态；跨 provider 不是受控 A/B。
 - 失败样本保留：环境态、模型策略、插件缺陷分开归因；修复后保留根因与守门测试。

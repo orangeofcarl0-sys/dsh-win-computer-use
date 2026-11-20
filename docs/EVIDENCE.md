@@ -123,6 +123,50 @@
 - P0 另存为：t05 **10/15 inner、86/106s**，零 `type` 追加、零 `src` 残留；这是本轮最确定的收益。
 - P1 地址栏提示/新值回执/clear-eval 均有轨迹命中；t19 r1 的 70 inner 是新的高方差样本，不作为“稳定通过”。
 
+## 1.4 2026-11-20 — t20 模态 30s 超时根因探针
+
+环境：Windows 11 x64，DPI 150%，cua-driver **0.52.13**；无模型（直接驱动调用）。
+命令：
+
+```bash
+node evals/probe-modal-timeout.mjs
+node evals/probe-modal-escapes.mjs            # 约 3 分钟；--trigger-only 只跑触发侧
+```
+
+探针自建 WinForms `S4-MODAL-PROBE`，点 `Delete` 弹出 `MessageBox(YesNo)`（与 t20 同形态），逐项测量。结果：
+
+| 观测 | 结果 |
+|---|---|
+| 基线 AX 树（模态前） | **6 元素 / 1.6s** |
+| 模态期间 `get_window_state` 默认 1000ms | **0 元素 / 3.0s**，`truncation_reason=timeout` |
+| 同调用 `timeout_ms=5000` | **0 元素 / 6.9–7.4s** |
+| 同调用 `timeout_ms=15000` | **0 元素 / 17–18s** |
+| 同 pid 主窗口 `timeout_ms=5000` | **0 元素 / 7.0s**（整个进程，不只对话框） |
+| capture-only（`include_accessibility_tree:false`） | **成功 / 1.5–1.9s / PNG 16KB** |
+| `bring_to_front`（8s 上限） | timeout |
+| `press_key` background / foreground（8s 上限） | timeout |
+| 坐标 `click` background（8s 上限） | timeout |
+| 原生 `WM_COMMAND(IDNO/IDYES)` 或 `GetDlgItem+BM_CLICK` | **对话框关闭**；`cancelled/confirmed` 状态正确 |
+| 原生 `PostMessage(WM_KEYDOWN, VK_ESCAPE)` | 无效（Yes/No 对话框没有 Cancel 按钮） |
+| 驱动 `press_key` Escape background（60s） | timeout，对话框未关 |
+| 驱动 `hotkey` Alt+N foreground（60s） | 一次 20.3s 关闭但回执为失败；另一次 60s timeout 未关（不稳定） |
+| 原生 `EnumChildWindows` 找 `Button` + `BM_CLICK` 点 Delete | **~1.2s 返回**，模态 4s 内出现，无 30s 阻塞 |
+| 触发模态的 element click 返回时间 | 探针先跑 ~75s 的其他测试；原生关闭模态后 click 立即返回（总计 74.6s），证明它被模态生命周期卡住 |
+
+结论：
+
+1. **UI 线程没有死**：MessageBox 的模态循环仍会抽 Win32 消息，`WM_COMMAND`/`BM_CLICK` 能立即关闭对话框。问题不是“窗口无响应”。
+2. **UIA provider 在模态期间不服务跨进程 UIA/COM 请求**：同 pid 的主窗口和 MessageBox 都返回 0 元素；把预算从 1s 提到 5s/15s 仍为 0。因此 **`timeout_ms` 重试不是修复**，`observe` 不应据此改默认。
+3. **驱动的动作层依赖 UIA/前台激活**：`click` 的 element token 走 UIA Invoke，背景像素点击先做 UIA hit-test；`bring_to_front`/`press_key` 也在模态期间阻塞。30s 是插件的传输层上限，不是驱动的内部超时；模态关闭后，挂起的 element click 会返回。
+4. **原生 Win32 标准控件路径不受影响**：`EnumChildWindows` + `BM_CLICK` / 控件 ID 的 `WM_COMMAND` 可在 ~1s 内完成“触发 + 关闭”。这是一条可行的 Windows-only 快速路径，但它绕过驱动的 UIA 动作层，属于新能力，需单独的安全边界与产品决策；本轮**未**把它加入插件。
+5. 因此 t20 的 30s 超时根因是**驱动/UIA 等待模态**，不是插件重试策略；插件侧调参不能消除。当前 t20 仍 2/2 pass，但每轮仍有多次 30s 超时。
+
+回执修正（本轮）：
+
+- click/key 超时不再建议“Escape=取消 / Enter=默认按钮 / foreground 键”作为快速路径（实测 Escape 在 Yes/No 上无效，foreground 键 60s 仍阻塞）。
+- 改为：先等待 5–10s，再用 `screen_observe`（capture/ax 均可）确认“超时是否其实是延迟成功”；若仍需操作，按对话框按钮的加速键只发一次，并接受回执可能延迟/失败。
+- 守门：`tests/delivery.failures.mjs` 的 `D-timeout-click` / `D-timeout-key` 断言包含 `capture`、`Escape 在 Yes/No`、`5–10s`、`加速键`。
+
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
 环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。

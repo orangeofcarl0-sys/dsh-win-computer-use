@@ -26,6 +26,8 @@ const extraFiles = [
   'evals/probe-ops.mjs',
   'evals/probe-launch.mjs',
   'evals/probe-modifier-drop.mjs',
+  'evals/probe-modal-timeout.mjs',
+  'evals/probe-modal-escapes.mjs',
   'evals/oracle-mutation.mjs',
   'evals/ac6-summary.mjs',
   'tests/tasks.check.mjs',

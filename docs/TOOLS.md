@@ -122,7 +122,7 @@
 - **Explorer 文件项单选请用 `foreground=true`**：后台坐标点击可能走 UIA Invoke 直接打开文件。
 - `double_click` 不参与重复点击抑制；`click`/`right_click` 参与。
 - 回执：`ok:false` 表示拒绝/未送达；`ok:true` 仍可能 `effect:unverifiable`，需 observe/verify 复核。
-- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先 `screen_observe` 看是否出现新顶层对话框，用它的 `window_id` 重新观察；不要重试像素/zoom/drag，也不要重复同一坐标。原生对话框可用 Escape/Enter 选按钮。
+- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先等待 5–10s，再 `screen_observe`（capture/ax）确认是否“延迟成功”，用新顶层 `window_id` 重新观察；不要连续重试像素/zoom/drag、换键或 activate（模态期间 UIA 树可能持续 0 元素）。Escape 在 Yes/No 上通常无效；必要时按对话框加速键只发一次。根因见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。
 
 ### 4.2 `computer_type`
 

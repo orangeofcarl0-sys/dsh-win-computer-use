@@ -294,7 +294,7 @@
 | P2 drag 标题栏 | **已闭合** | E34/E35 通过 |
 | P2 AC6 t11/t14/t15 5 轮 | **未做** | 本轮只复跑 t20/t19/t05；长任务成本仍未测，不伪造中位数 |
 
-静态基线：`npm test` **27 套 / 674 项**，语法 **39/39**，`npm pack` **57 文件**；t20/t19 AC2 2/2 PASS。所有复跑数据见 [EVIDENCE](EVIDENCE.md) §1.2。
+静态基线（当时）：`npm test` **27 套 / 674 项**，语法 **39/39**，`npm pack` **57 文件**；t20/t19 AC2 2/2 PASS。所有复跑数据见 [EVIDENCE](EVIDENCE.md) §1.2。
 
 ### 11.9 第二轮修复验证（2026-11-20，P0/P1 后）
 
@@ -321,7 +321,7 @@
 
 | 项 | 状态 | 建议 |
 |---|---|---|
-| t20 模态 30s 超时 | **未闭合（驱动根因）** | 保持“超时=结果未知”的回执；下一步做 `get_window_state timeout_ms:5000` 探针，只有探针 PASS 才改 observe 重试；不盲改默认 |
+| t20 模态 30s 超时 | **未闭合（驱动根因）** | §11.10 探针已完成：AX 树 0@1/5/15s，`timeout_ms` 重试证伪；原生 WM_COMMAND/BM_CLICK 可 ~1s 关闭但插件未暴露；保持 BLOCKED |
 | t19 r1 Explorer 新建探索 | **新发现的高方差** | 题面加一句“If Explorer New is not directly available, switch to Notepad Save As instead of probing toolbar coordinates”；改后需复跑 2 轮，不能沿用本轮数据 |
 | t19 r1 未用 set_value | 模型策略 | 题面已允许 Save As；可在 t19 Notes 明确“优先 app_launch Notepad + set_value 完整路径”，但会降低 Explorer 新建覆盖，需选一个目标 |
 | t20 候选提示仍会后台点击 | 模型策略 | 回执已说“不要后台坐标点击”；若仍反复，可评估在对话框窗口上直接拒绝 background 点击（需要更细的模态识别） |
@@ -330,3 +330,49 @@
 
 本轮结论：**P0 超时透传/候选回执、win fail-closed、t05 另存为修复均已落地并有真实轨迹支撑；t20 驱动根因和 t19 Explorer 新建方差仍未闭合**。
 
+### 11.10 模态 30s 超时根因（2026-11-20 探针）
+
+§11.9 的下一步“做 `get_window_state timeout_ms:5000` 探针”已完成；结论是否定的，且根因已定位到驱动/UIA 层，不再是猜测。
+
+#### 11.10.1 探针与结果
+
+`evals/probe-modal-timeout.mjs`（AX/阻塞矩阵，~75s）与 `evals/probe-modal-escapes.mjs`（原生逃逸路径，~3min）自建 WinForms `S4-MODAL-PROBE`，点 `Delete` 弹出 `MessageBox(YesNo)`：
+
+| 观测 | 结果 |
+|---|---|
+| 模态前 AX 树 | 6 元素 / 1.6s |
+| 模态期间 `get_window_state` 1000ms | 0 元素 / 3.0s，`truncation_reason=timeout` |
+| `timeout_ms=5000` | 0 元素 / 6.9–7.4s |
+| `timeout_ms=15000` | 0 元素 / 17–18s |
+| 同 pid 主窗口 `timeout_ms=5000` | 0 元素 / 7.0s |
+| capture-only | 成功 / 1.5–1.9s / PNG 16KB |
+| `bring_to_front` / `press_key` bg+fg / 坐标 click（8s 上限） | 全部 timeout |
+| 原生 `WM_COMMAND(IDNO/IDYES)` / `BM_CLICK` | 关闭成功，状态 `cancelled/confirmed` 正确 |
+| 原生 `PostMessage(VK_ESCAPE)` | 无效（Yes/No 无 Cancel） |
+| 驱动 `press_key` Escape（60s） | timeout，未关闭 |
+| 驱动 `hotkey` Alt+N（60s） | 一次 20.3s 关闭但回执失败，一次 60s timeout（不稳定） |
+| 原生 `EnumChildWindows`+`BM_CLICK` 点 Delete | ~1.2s 返回，模态 4s 内出现 |
+| 触发 click 返回 | 探针先跑 ~75s 其他测试；原生关闭模态后 click 立即返回（总计 74.6s），证明被模态生命周期卡住 |
+
+#### 11.10.2 机制
+
+1. `MessageBox.Show` 在 WinForms UI 线程上跑原生模态循环。窗口消息仍被抽取（所以 `WM_COMMAND`/`BM_CLICK` 立即生效），但该进程的 **UIA provider 在模态期间不服务跨进程 UIA/COM 请求**；同 pid 的主窗口也读不到树。
+2. 驱动的 `click` 对 element token 走 UIA Invoke，对背景像素先做 UIA hit-test；`bring_to_front`/`press_key` 也需要 UIA/前台激活。这些调用会一直等到模态关闭；30s 是插件的 transport 上限，不是驱动内部超时。
+3. 因此 `timeout_ms` 调大不会恢复树，也不会缩短动作；**“调大预算”这条修复路径证伪**。
+4. 原生 Win32 标准控件（`EnumChildWindows`/控件 ID + `BM_CLICK`/`WM_COMMAND`）不受 UIA 饥饿影响，但插件目前没有暴露该动作路径；把它产品化需要单独定义 Windows-only 安全边界（只对同 pid 的标准 `#32770` 对话框/标准 Button，绝不自动选择 Yes/No）。
+
+#### 11.10.3 对回执的修正
+
+旧回执把 `Escape=取消(No)`、`Enter=默认按钮`、`foreground=true 普通键` 当成快速路径；实测这些在模态期间同样 30–60s 阻塞，Escape 在 Yes/No 上无效。现已改为：
+
+- 先等待 5–10s，再用 `screen_observe`（capture/ax 均可）确认“超时是否其实是延迟成功”；
+- 若仍需操作，按对话框按钮的加速键只发一次，并接受回执可能延迟/失败；
+- 不连按 Escape/Tab/Enter，不连续换键，不在对话框上后台坐标点击。
+
+这不会消除 30s，但能减少“每次超时后再付 30s”的连锁成本。守门断言在 `tests/delivery.failures.mjs`。
+
+#### 11.10.4 仍未闭合
+
+- 触发模态的 element click 本身仍会阻塞到对话框关闭（30s transport abort）。要消除它，需要原生标准 Button 点击或驱动侧异步 Invoke；本轮未实现。
+- 驱动 hotkey 偶尔能在 20–25s 关闭对话框，但回执可能是失败/超时；不能把它写成稳定路径。
+- 结论仍是 `BLOCKED`（`evals/BLOCKED.md`）：上游驱动在模态期间绕过 UIA，或单独立项原生标准控件快速路径。

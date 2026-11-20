@@ -10,7 +10,7 @@
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
 | 离线测试 | **27 套 / 674 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **39/39 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 语法/安装脚本 | **41/41 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -26,6 +26,7 @@
 | S3 导航/对话框 | 2026-11-20 题面修改后：t19/t20 AC2 **2/2 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t19,t20` |
 | 安全运行时探针 | 2026-11-20：**13/13 PASS**（密码拒绝、TTL 过期、stop/resume、驱动错误恢复；root 由 import.meta.url 推导） | Windows 11 | `node evals/probe-safety-runtime.mjs` |
 | 滚动探针 | 2026-11-20：**3/3 PASS**（WinForms AutoScroll 向下/向上与位置回读；120s 自关 Timer） | Windows 11 | `node evals/probe-scroll.mjs` |
+| 模态超时根因探针 | 2026-11-20：**AX 树 0 元素 @1s/5s/15s**；同 pid 主窗口同样 0；capture-only 1.5s；驱动 click/key/bring 阻塞；原生 `WM_COMMAND`/`BM_CLICK` 关闭成功；`timeout_ms` 重试**证伪** | Windows 11 / 0.52.13 | `node evals/probe-modal-timeout.mjs`；`node evals/probe-modal-escapes.mjs` |
 | 原语矩阵探针 | 2026-11-20：**11 PASS + 1 BLOCKED**；double/right/key/hover/verify/wait_for/activate/app_list 均有 marker/回读；WinForms menu BLOCKED | Windows 11 | `node evals/probe-ops.mjs` |
 | app 启动/收尾探针 | 2026-11-20：**7/7**；daemon High、`powershell.exe` 子进程 Medium；alt+F4 关闭、无残留、基线窗口保留 | Windows 11 / 0.52.13 | `node evals/probe-launch.mjs` |
 | modifier-drop 探针 | 2026-11-20：**5/5**；Explorer Ctrl+drag 复制、普通 drag 移动、无卡键 | Windows 11 | `node evals/probe-modifier-drop.mjs` |
@@ -96,7 +97,7 @@
 | 委派工具约束 | 宿主相关 | 0.2.2 `startActivation` 没有 `toolFilter` | 插件如实说明；严格限制用宿主 Agent Preset |
 | A11 手势原语 | 未做 | 无 `selectText`/key hold/mouse down-up；drag 无元素源 | 评估；见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 |
 | A17 私有拖拽 drop 真机 | 部分 | WinForms 探针 + Explorer Ctrl+drag 已回归；Excel/PPT 的 modifier drop 仍 BLOCKED | 下一轮真机项 |
-| 模态 click/press_key 30s 超时 | 仍会发生 | t20 2/2 pass，但两轮仍多次 30s 超时、总时长 626/601s；驱动/UIA 等待模态是根因。新回执已把模型引向键盘/新对话框，不能消除超时本身 | 上游驱动修复；插件侧可评估模态专用快速路径 |
+| 模态 click/press_key 30s 超时 | 根因已定位，仍未消除 | t20 2/2 pass，但两轮仍多次 30s 超时、总时长 626/601s。2026-11-20 探针（`probe-modal-timeout`/`probe-modal-escapes`）：MessageBox 模态期间同 pid AX 树在 **1s/5s/15s** 预算下均为 0 元素；capture-only 1.5s 成功；`bring_to_front`/`press_key`/坐标 click 均阻塞；原生 `WM_COMMAND`/`BM_CLICK` 可 ~1s 关闭，但插件未暴露该路径 | 上游驱动在模态期间绕过 UIA，或单独立项 Windows-only 原生标准控件快速路径；`timeout_ms` 调大已证伪 |
 
 ## 3. 复现方式
 
@@ -118,7 +119,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 判据：
 
 - `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **674**。
-- `npm run check` 退出码 0：语法 **39/39** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm run check` 退出码 0：语法 **41/41** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。
