@@ -157,7 +157,7 @@ ensureDriverInfo（--version/status，进程级缓存）
 - **无回读控件的聚焦输入**：`type_text` 未指定 element 且快照没有 Document/TextArea（Excel 网格、PowerPoint 画布）时，非硬失败的 unverified 结果不调用 `refreshSnapshotState`、不清快照、不设保存门禁；回执提示“未刷新快照，连续输入可继续 Tab/Enter，完成一块后统一核对”。
 - **保存门禁**：`guard` 在 inputUnconfirmed 时只拦保存意图（Ctrl+S/Ctrl+Shift+S、保存/另存为元素或 24px 近邻、保存菜单路径）；type/set_value、Ctrl+A/C/V/X/Z、非保存点击放行。回读一致、同窗口 native observe 或 screen_zoom 会清除门禁；普通 ax observe 不清除。
 - `app_launch`：启动成功即 `ok:true`，前置失败只写“启动成功，但前置未确认”，并输出 `window_id`（可见主窗）；避免把可选前置失败误判为启动失败而重复启动。
-- `computer_menu`：path 支持 `"文件/保存"`；`menu_path_unavailable` 时若快照里有对应顶层菜单栏项，回执给出具体 `element=<编号>`。
+- `computer_menu`：path 支持 `"文件/保存"`；`menu_path_unavailable` 时若快照里有对应顶层菜单栏项，回执给出具体 `element=<编号>`。`nativeMenus:auto` 时，驱动结构化拒绝后再尝试顶层标准 HMENU 的精确路径 + `PostMessage(WM_COMMAND)`；成功只报 `effect:unverifiable`，`no_hmenu` 明确 MenuStrip/WPF/WinUI 不支持。
 
 ### 4.5 快照语义
 

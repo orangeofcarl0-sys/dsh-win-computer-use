@@ -13,7 +13,7 @@
 - **版本**：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`）；`package.json` 为 0.5.8，`main` 已推送。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 29 套 / **724** 项；`npm run check` 语法 **45/45** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
+- **测试基线**：`npm test` 30 套 / **748** 项；`npm run check` 语法 **46/46** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 环境
 
@@ -159,7 +159,7 @@ cua-driver autostart kick
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 已发布 `dsh-win-computer-use@0.5.8`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
-- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修（本地 WSL 29 套全过），推送后以 CI 结果为准。
+- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修（本地 WSL 30 套全过），推送后以 CI 结果为准。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
 ## 6. 已知缺口

@@ -212,7 +212,25 @@ node tests/native-dialogs.test.mjs
 
 - B0 消息/文本/按键、B1 合成触控、B1 遮挡失败关闭、B3 窗口锚定均有端到端证据。
 - B2 在当前会话不可用（`BlockInput` 被拒），记 BLOCKED；B1 的“不移动光标”在最终干净轮次通过，但脏桌面外部光标移动仍可能使其 BLOCKED。
-- 离线新增 `tests/background-input.test.mjs`（29 项）；`npm test` 29 套 / 724 项；语法 45/45；默认三键 off。
+- 离线新增 `tests/background-input.test.mjs`（32 项）；`npm test` 29 套 / 724 项；语法 45/45；默认三键 off。
+
+## 1.7 2026-11-20 — 后台输入硬化与 WM_TOUCH-only 探针
+
+命令：`node evals/probe-background-input.mjs`（新增只处理 `WM_TOUCH` 的 touch-only 窗口；不加入 `npm test`）。
+
+结果：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；B2 仍因 `BlockInput` 被拒记 BLOCKED。
+
+新增/变化的证据：
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| B1 WM_TOUCH-only 目标 | PASS | 只处理 `WM_TOUCH` 的窗口收到 `WMTOUCH`；合成 pointer 被系统转换 |
+| B1 不改变前台 | PASS | 注入前后 `probe.foreground` 不变；`side_effects.foregroundChanged=false` |
+| B1 incomplete/回执字段 | 离线 | `complete=false` + `warning_code` 进入插件结构化回执 |
+| B2 正路径断言 | 修正 | 探针改读 `state.wndLog` + `MOUSEDOWN`；当前会话仍 `BlockInput` 被拒 → BLOCKED |
+| B0/B3 清理 | 离线 | down/up/KEYUP 失败补发并标 partial；B3 有界轮询 + 还原校验 |
+| nativeMenus 真机 | BLOCKED | `probe-ops` 的 SetMenu fixture 仍 `window_not_found`；离线 `tests/native-menus.test.mjs` 14 项通过；MenuStrip/WPF/WinUI 明确 `no_hmenu` |
+| 离线 | 42 + 14 项 | `npm test` 30 套 / 748 项 |
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

@@ -300,6 +300,142 @@ try {
     const emptyClient = real.createBackgroundInputClient({ platform: 'linux', scriptPath: 'x', exists: () => true })
     const none = await emptyClient.probe({ hwnd: 1, pid: 1 })
     check('H5: 非 Windows → null/零 spawn', none === null)
+
+    // 旧子进程的 exit 不得误杀新子进程（generation guard）。
+    {
+      const kids = []
+      let spawnCount = 0
+      const genClient = real.createBackgroundInputClient({
+        platform: 'win32', scriptPath: 'fake.ps1', exists: () => true,
+        spawnFn: () => {
+          const idx = spawnCount++
+          const child = makeChild((req) => (idx === 0 ? undefined : (req.cmd === 'probe' ? { ok: true, pid: 42 } : { ok: true })))
+          if (idx === 0) child.kill = () => {}
+          kids.push(child)
+          return child
+        },
+      })
+      const first = await genClient.probe({ hwnd: 1, pid: 1 }, { timeoutMs: 40 })
+      const secondPromise = genClient.probe({ hwnd: 2, pid: 2 }, { timeoutMs: 2000 })
+      await new Promise((r) => setTimeout(r, 20))
+      kids[0].emit('exit', 0, null) // late exit from the timed-out old child
+      const second = await secondPromise
+      check('H6: 旧子进程 exit 不影响新请求', first.code === 'background_input_timeout'
+        && second.ok === true && second.pid === 42, JSON.stringify({ first, second }))
+      await genClient.stop()
+    }
+
+    // ready 之后的坏响应立即拒绝，不等到请求超时。
+    {
+      const child = new EventEmitter()
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.stdout.setEncoding = () => {}
+      child.stderr.setEncoding = () => {}
+      child.stdin = {
+        write() { setImmediate(() => child.stdout.emit('data', 'not-json\n')) },
+        end() {},
+      }
+      child.kill = () => {}
+      const badProto = real.createBackgroundInputClient({
+        platform: 'win32', scriptPath: 'fake.ps1', exists: () => true,
+        spawnFn: () => { setImmediate(() => child.stdout.emit('data', '{"ready":true}\n')); return child },
+      })
+      const br = await badProto.probe({ hwnd: 1, pid: 1 }, { timeoutMs: 2000 })
+      check('H7: ready 后非 JSON → 立即 bad_response', br.code === 'background_input_bad_response', JSON.stringify(br))
+      await badProto.stop()
+    }
+  }
+
+  // J. 回执字段/错误码/fail-closed 语义
+  {
+    const profile = {
+      ok: true, hwnd: 200, pid: 42,
+      className: 'Game', touchWindow: false, integrityRank: 1, currentIntegrityRank: 1,
+      sameSession: true, secureDesktop: false, visible: true, iconic: false,
+    }
+    const snap = {
+      pid: 42, windowId: 200, elementCount: 0, backend: 'ax', screenOrigin: { x: 100, y: 200, width: 400, height: 200 },
+      screenshotWidth: 400, screenshotHeight: 200, entries: new Map(), appName: 'Game',
+    }
+    const target = { pid: 42, windowId: 200, x: 10, y: 20 }
+    const baseCfg = { backgroundInput: 'auto', syntheticPointer: 'off', anchoredInput: 'off', deliveryMode: 'auto', allowedApps: [] }
+    const client = {
+      available: true,
+      probe: async () => profile,
+      postMouse: async () => ({ ok: true, delivered: true, method: 'posted', effect: 'unverifiable' }),
+      syntheticClick: async () => ({ ok: true, delivered: true, method: 'synthetic_touch', effect: 'unverifiable' }),
+      cursorClick: async () => ({ ok: true, delivered: true, method: 'cursor_anchored', effect: 'unverifiable', inputBlockedMs: 60 }),
+      windowClick: async () => ({ ok: true, delivered: true, method: 'window_anchored', effect: 'unverifiable' }),
+    }
+    check('J1: elementCount=0 但 entries 有 Button → 不接管',
+      real.hasNoActionableUia({ ...snap, entries: new Map([[1, { role: 'Button', x: 200, y: 100 }]]) }) === false
+      && real.classifyTarget({ snap: { ...snap, entries: new Map([[1, { role: 'Button', x: 200, y: 100 }]]) }, profile }) === 'uia')
+    check('J2: 完整性未知(99) → unknown/不接管',
+      real.classifyTarget({ snap, profile: { ...profile, integrityRank: 99 } }) === 'unknown'
+      && real.classifyTarget({ snap, profile: { ...profile, currentIntegrityRank: 99 } }) === 'unknown')
+
+    real.clearProfileCache()
+    const bm = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: baseCfg,
+      client: { ...client, postMouse: async () => ({ ok: true, delivered: true, method: 'bm_click', effect: 'unverifiable' }) },
+    })
+    check('J3: BM_CLICK → win32-control + 控件文案', bm.value.delivery.mode === 'win32-control'
+      && /控件消息/.test(bm.note || ''), JSON.stringify(bm))
+
+    real.clearProfileCache()
+    const b2 = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor', allowedApps: ['Game'] },
+      client: {
+        ...client,
+        cursorClick: async () => ({
+          ok: true, delivered: true, method: 'cursor_anchored', effect: 'unverifiable',
+          inputBlockedMs: 60, cursorRestored: false, inputUnblocked: false,
+          complete: false, warning_code: 'cursor_restore_failed',
+        }),
+      },
+    })
+    check('J4: B2 还原失败字段/文案', b2.value.cursor_restored === false
+      && b2.value.input_blocked_ms === 60 && b2.value.complete === false
+      && b2.value.warning_code === 'cursor_restore_failed'
+      && /还原失败/.test(b2.note || '') && /解除输入阻塞失败/.test(b2.note || ''), JSON.stringify(b2.value))
+
+    real.clearProfileCache()
+    const b1 = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {},
+      cfg: { ...baseCfg, backgroundInput: 'off', syntheticPointer: 'auto', allowedApps: ['Game'] },
+      client: {
+        ...client,
+        probe: async () => ({ ...profile, className: 'UnityWndClass', touchWindow: true }),
+        syntheticClick: async () => ({ ok: true, delivered: true, method: 'synthetic_touch', effect: 'unverifiable', complete: false, warning_code: 'inject_up_failed' }),
+      },
+    })
+    check('J5: B1 incomplete 字段/文案', b1.value.complete === false
+      && /未完整完成/.test(b1.note || '') && /inject_up_failed/.test(b1.note || ''), JSON.stringify(b1.value))
+
+    const partial = await real.tryBackgroundType({
+      args: { text: 'abc' }, snap, cfg: baseCfg,
+      client: { ...client, postText: async () => ({ ok: false, code: 'send_failed', delivered: true, partial: true, sentChars: 2, error: 'failed after 2 chars' }) },
+    })
+    check('J6: 部分文本 → partial_delivery，保留已发送字符数', partial.value.ok === false
+      && partial.value.code === 'background_input_partial_delivery'
+      && partial.value.partial === true && partial.value.sent_chars === 2
+      && partial.value.delivered === true, JSON.stringify(partial.value))
+
+    const blocked = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: { ...baseCfg, backgroundInput: 'off', anchoredInput: 'cursor', allowedApps: ['Game'] },
+      client: { ...client, cursorClick: async () => ({ ok: false, code: 'block_input_failed', delivered: false, error: 'BlockInput failed' }) },
+    })
+    check('J7: BlockInput 拒绝 → 专用码', blocked.value.code === 'background_input_block_input_denied'
+      && /不要重试 B2/.test(blocked.refusalNote || ''), JSON.stringify(blocked.value))
+
+    real.clearProfileCache()
+    const unavailable = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: baseCfg,
+      client: { ...client, postMouse: async () => ({ ok: false, code: 'unavailable', delivered: false, error: 'minimized' }) },
+    })
+    check('J8: helper unavailable → window_not_available', unavailable.value.code === 'background_input_window_not_available',
+      JSON.stringify(unavailable.value))
   }
 
   // I. 真模块路由：B0/B1/B2/B3/遮挡不降级

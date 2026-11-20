@@ -287,6 +287,9 @@
 - 只对已打开/可实时解析的菜单有效；关闭的菜单先点菜单栏项，再观察弹出菜单。
 - fail-closed：缺失/歧义/禁用/结构不匹配即失败，绝不回退像素。
 - 只有 `effect:"confirmed"` 才算成功；`effect:unverifiable`/缺失都报“未确认”，不要重复调用。
+- `nativeMenus:auto`（默认 off）：驱动结构化拒绝后，对顶层窗口经典 Win32 HMENU 精确解析路径并 `PostMessage(WM_COMMAND)`；回执 `route=win32-hmenu`、`effect:unverifiable`，只证明投递。
+- 只支持标准 HMENU 叶子命令；WinForms `MenuStrip`/WPF/WinUI 返回 `no_hmenu`，不要改用坐标点击。同层同名/禁用/分隔符/owner-draw/最终项含子菜单都拒绝。
+- 原生超时表示 `WM_COMMAND` 可能已发送；不要重复同一路径，先 `screen_observe`。
 
 ### 5.5 `computer_hover`
 

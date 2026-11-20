@@ -5,25 +5,31 @@
 
 ## 未发布 (2026-11-20)
 
-**主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）。不改驱动、不改变默认行为。
+**主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）+ 经典 HMENU 菜单兜底。不改驱动、不改变默认行为。
 
 ### Added
 
 - 新增 `backgroundInput`（B0，默认 off）：无交互 UIA 目标上 click 走 `WM_*`/`BM_CLICK`，plain key 走 `WM_KEYDOWN/UP`，text 走 `WM_CHAR`；鼠标异步 PostMessage，键盘/文本同步 `SendMessageTimeout`。
 - 新增 `syntheticPointer`（B1，默认 off）：`InjectSyntheticPointerInput(PT_TOUCH)` + 4×4 anchor；不移动光标/前台；遮挡失败关闭，不借 Z 序/透明度；只左单击；需 `allowedApps`。
 - 新增 `anchoredInput`（B2/B3，默认 off）：`cursor` 临时移光标 + `BlockInput`；`window` 临时移窗口使目标点落在光标下；只左单击；需 `allowedApps`；失败关闭/还原。
-- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（32 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
+- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（42 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
+- 新增 `nativeMenus`（经典 Win32 HMENU，默认 off）：驱动 `invoke_menu` 结构化拒绝后，`GetMenu` 精确路径解析 + 一次 `PostMessage(WM_COMMAND)`；只叶子命令、同 pid、不自动选择；`effect:unverifiable`；MenuStrip/WPF/WinUI 返回 `no_hmenu`。新增 `lib/nativeMenus.js`、`tools/native-menu.ps1`、`tests/native-menus.test.mjs`（14 项）。
 - 回执新增投递标签：后台消息/控件消息/合成触控/光标锚定/窗口锚定；拒绝码 `background_input_*`。
 
 ### Notes
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
-- 真机探针 2026-11-20：干净轮次 10 PASS / 1 BLOCKED / 0 FAIL；脏桌面/安全桌面切换轮次 8 PASS / 3 BLOCKED / 0 FAIL（B2 `BlockInput` 被拒、B1 光标漂移、B3 fail-closed；不冒充 PASS）。
-- 离线 29 套 / 724 项；语法 45/45；`npm test`/`npm run check` 通过。已 push 到 `main`（`ba4fe8f`）；未 tag/npm publish。
+- 真机探针 2026-11-20（硬化后）：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；新增 B1 WM_TOUCH-only 与 B1 前台不变检查；B2 仍因 `BlockInput` 被拒记 BLOCKED；脏桌面切换轮次 8 PASS / 3 BLOCKED / 0 FAIL。
+- 离线 30 套 / 748 项；语法 46/46；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
+- `nativeMenus` 真机探针仍未 PASS：`probe-ops` 的 SetMenu fixture 返回 `window_not_found`，保持 BLOCKED；离线 14 项通过。
 
 ### Fixed
 
-- **Linux CI 平台守卫**：`scanPasswords` / `runNative` 在调用方注入 `spawnFn` 时不再按宿主平台短路；`observe.js` 的 native-dialog 闸门改用 `nativeDialogs` 导出的 `IS_WINDOWS`。修复 0.5.8 后 ubuntu `npm test` 在 H1/H2、N1/N15-N18 的失败（本地 WSL Ubuntu 26.04 / Node 24 29 套全过；GitHub CI 结果待推送后复核）。
+- **Linux CI 平台守卫**：`scanPasswords` / `runNative` 在调用方注入 `spawnFn` 时不再按宿主平台短路；`observe.js` 的 native-dialog 闸门改用 `nativeDialogs` 导出的 `IS_WINDOWS`。修复 0.5.8 后 ubuntu `npm test` 在 H1/H2、N1/N15-N18 的失败（本地 WSL Ubuntu 26.04 / Node 24 30 套全过；ubuntu CI 已转绿）。
+- **后台输入回执真实性**：透传 `complete`/`warning_code`/`cursor_restored`/`window_restored`/`input_blocked_ms`/`input_unblocked`；BM_CLICK 标为 `win32-control`；B2/B3 还原失败在结构化字段与 note 中同时可见；部分投递升级为 `background_input_partial_delivery`。
+- **错误码/ fail-closed**：新增 `block_input_denied`/`synthetic_unavailable`/`injection_failed`/`window_not_available`/`window_changed_externally`；完整性未知（99）不再当成同级；`elementCount=0` 但仍存在可交互 entries 时不再接管。
+- **B0/B1/B2/B3 清理**：B0 down/up/KEYUP 失败补发并标 partial；B2 复核光标位置、检查 `BlockInput(false)`、失败分支携带还原状态；B3 有界轮询 + 还原校验 + 不抢回外部位移；B1 修正 `WM_POINTER*` 常量、补发 target up、关闭 worker 超时污染、测量前台变化。
+- **sidecar 生命周期**：子进程 generation 隔离，旧 `exit` 不再误杀新进程；ready 后非 JSON 立即 `bad_response`；长文本按长度缩放超时。
 
 ## 0.5.8 (2026-11-20)
 

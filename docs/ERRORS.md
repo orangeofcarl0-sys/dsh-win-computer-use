@@ -46,14 +46,37 @@
 | `background_input_window_not_movable` | 最小化/最大化/全屏/拒绝移动 | 还原窗口或改用 B1/B0 |
 | `background_input_window_move_failed` | 移动/对齐失败；窗口已还原 | 先 observe；不要重复 |
 | `background_input_cursor_changed` | 操作期间光标被外部移动 | 先 observe；干净桌面再试 |
+| `background_input_window_changed_externally` | 操作期间窗口被外部移动；为避免抢回用户窗口，未还原/未继续 | 先 observe；不要重复 |
+| `background_input_block_input_denied` | B2 的 `BlockInput` 被当前会话拒绝；未移动光标、未发送 | 不要重试 B2；改用 B0/B1 或前台 |
+| `background_input_synthetic_unavailable` | 系统不支持合成触控（`CreateSyntheticPointerDevice` 不可用） | 不要重试 B1 |
+| `background_input_injection_failed` | 合成触控/注入失败，结果未知或未完整 | 不要重复；先 observe |
+| `background_input_window_not_available` | 目标窗口不可见/最小化或已消失；未发送 | 先 observe/activate |
+| `background_input_partial_delivery` | 只投递了部分输入（鼠标 up/按键 up/文本未发完） | 不要整段重复；先 observe/回读 |
 | `background_input_password_denied` | 焦点/目标是密码框 | 由用户本人输入 |
 | `background_input_timeout` | helper 超时，结果未知 | 不要重复；先 observe |
 | `background_input_helper_exited` | helper 异常退出，结果未知 | 不要重复；先 observe |
 | `background_input_failed` | 其他未发送/失败 | 先 observe；必要时改用 foreground=true |
 
-> B1 遮挡失败关闭；B2 `BlockInput` 失败时不移动光标；B3 还原失败会返回 `ok:true` + `warning_code`，避免重复点击。
+> B1 遮挡失败关闭；B2 `BlockInput` 失败时不移动光标；B2/B3 还原失败会返回 `ok:true` + `complete:false` + `warning_code`（`cursor_restore_failed`/`window_restore_failed`/`input_unblock_failed`），避免重复点击。结构化回执同时带 `cursor_restored`/`window_restored`/`input_blocked_ms`。
 
 > `[<tool-name>]` 是 `computer_do` 路由成功/失败时加的结果前缀（如 `[computer_click] ...`），不是错误码。
+
+### 2.2 原生菜单兜底码（`nativeMenus:auto`）
+
+这些码出现在 `computer_menu` 的“原生 HMENU 兜底失败（code）”文本里；只在驱动结构化拒绝后出现。
+
+| 代码 | 含义 | 模型下一步 |
+|---|---|---|
+| `no_hmenu` | 目标没有标准 HMENU（MenuStrip/WPF/WinUI） | 不要用坐标点击；先 observe，走 UIA 菜单路径 |
+| `path_not_found` | 路径段不存在或不是子菜单 | 先 observe 确认菜单文本；不要模糊匹配 |
+| `ambiguous` | 同层多个同名项 | 不猜；改用 UIA/点击具体项 |
+| `disabled` | 最终项禁用 | 先处理禁用原因；不要重复 |
+| `item_not_command` | 最终项仍是子菜单 | 补全路径到叶子命令 |
+| `stale_command` | resolve 与 invoke 之间菜单变化 | 重新 observe；不要重复 |
+| `post_message_failed` | `PostMessage(WM_COMMAND)` 失败 | 先 observe；不要重复 |
+| `timeout` | 原生菜单超时；`WM_COMMAND` 可能已发送 | 不要重复；先 observe |
+| `pid_missing`/`window_missing`/`bad_path` | 回退参数不足 | 补 pid/window_id/路径 |
+| `unavailable`/`failed` | 脚本缺失或执行失败 | 回退 UIA；不要重复 |
 
 ## 3. 驱动码
 

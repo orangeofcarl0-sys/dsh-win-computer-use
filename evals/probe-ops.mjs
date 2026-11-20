@@ -173,7 +173,7 @@ const ctx = {
   tools: { register(def) { registered.set(def.name, def); return () => registered.delete(def.name) } },
   toolsRuntime: null,
 }
-plugin.apply(ctx, { ttlMs: 60000, maxElements: 300, deliveryMode: 'auto', nativeImage: 'auto', passwordScan: 'off' })
+plugin.apply(ctx, { ttlMs: 60000, maxElements: 300, deliveryMode: 'auto', nativeImage: 'auto', passwordScan: 'off', nativeMenus: 'auto' })
 const defs = new Map(mod.toolDefinitions().map((d) => [d.name, d]))
 const agent = { options: { provider: 'p', model: 'm' }, session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } }
 async function call(name, args = {}) {
@@ -456,7 +456,7 @@ try {
   // menu
   {
     await call('computer_activate', { window_id: hwnd, pid })
-    const ids = [...new Set([driverWid, hwnd].filter((x) => Number.isFinite(x) && x > 0))]
+    const ids = [...new Set([hwnd, driverWid].filter((x) => Number.isFinite(x) && x > 0))]
     let r = null
     for (const id of ids) {
       r = await call('computer_menu', { window_id: id, pid, path: ['Tools', 'Mark'] })

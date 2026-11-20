@@ -2,7 +2,7 @@
 
 > 目的：插件侧 Windows 后台输入（B0/B1/B2/B3）的通道矩阵、配置、回执、安全边界与实测结果。
 > 读者：要启用/排障实验输入的人；改 `lib/backgroundInput.js` 或 `tools/background-input.ps1` 的人。
-> 状态：实验性，默认全关（2026-11-20 实现；真机探针 10 PASS / 1 BLOCKED / 0 FAIL）。
+> 状态：实验性，默认全关（2026-11-20 实现；真机探针 12 PASS / 1 BLOCKED / 0 FAIL）。
 > 相关：[WINDOWS](WINDOWS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [SECURITY](SECURITY.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 定位
@@ -91,17 +91,18 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 
 - 前置：目标可见、未最小化、点在桌面、点在 `ClipCursor` 内、`BlockInput(TRUE)` 成功。
 - 保存光标 → `BlockInput(TRUE)` → `SetCursorPos` → 30ms → 消息点击 → 30ms → 还原光标 → `BlockInput(FALSE)`。
-- `BlockInput` 失败时**不移动光标**，返回 `background_input_failed`（部分会话/安全软件会拒绝）。
-- 只支持左单击；会短暂抢光标并阻塞用户输入；回执带 `inputBlockedMs` 与 `cursorRestored`。
-- 还原失败不假装成功：回执 `cursorRestored=false` + `warning_code=cursor_restore_failed`。
+- `BlockInput` 失败时**不移动光标**，返回 `background_input_block_input_denied`（部分会话/安全软件会拒绝）。
+- 只支持左单击；会短暂抢光标并阻塞用户输入；回执带 `input_blocked_ms` 与 `cursor_restored`。
+- `SetCursorPos` 后用 `GetCursorPos` 复核目标点；`BlockInput(false)` 失败时回执 `input_unblocked=false`，helper 在回复后退出以释放输入阻塞。
+- 还原失败不假装成功：回执 `cursor_restored=false` + `complete:false` + `warning_code=cursor_restore_failed`。
 
 ## 8. B3：窗口锚定
 
 - 前置：`allowedApps` 命中、顶层窗口、非最小化/最大化/无边框全屏、`SetWindowPos` 可用。
-- 保存窗口 rect → 计算 `newLeft = cursor.x - clientX - borderX` → `SetWindowPos` → 30ms → 校验窗口位置与光标下客户区点 → 消息点击 → 30ms → 还原窗口 rect。
-- 操作期间光标移动 >2px 或窗口被外部改动 → `background_input_cursor_changed` / 还原失败；不抢回用户改动。
+- 保存窗口 rect → 计算 `newLeft = cursor.x - clientX - borderX` → `SetWindowPos` → 有界轮询（≤500ms）→ 校验窗口位置与光标下客户区点 → 消息点击 → 还原窗口 rect（同样有界轮询）。
+- 操作期间光标移动 >2px 或窗口被外部改动 → `background_input_cursor_changed` / `background_input_window_changed_externally`；不抢回用户改动。
 - 只支持左单击；会短暂移动窗口；不做离屏截图/伪最小化/改 Z 序。
-- 回执带 `windowMoved`、`windowRestored`；还原失败 `warning_code=window_restore_failed`。
+- 回执带 `window_moved`、`window_restored`、`complete`；还原失败 `warning_code=window_restore_failed`。
 
 ## 9. 配置
 
@@ -146,6 +147,12 @@ anchoredInput: off         # off | cursor | window（B2/B3）
 | `background_input_window_not_movable` | 最小化/最大化/全屏/拒绝移动 |
 | `background_input_window_move_failed` | 移动/对齐失败 |
 | `background_input_cursor_changed` | 操作期间光标被外部移动 |
+| `background_input_window_changed_externally` | 窗口被外部移动；未抢回、未继续 |
+| `background_input_block_input_denied` | B2 `BlockInput` 被当前会话拒绝；未移动光标 |
+| `background_input_synthetic_unavailable` | 系统不支持合成触控 |
+| `background_input_injection_failed` | 合成触控/注入失败，结果未知或未完整 |
+| `background_input_window_not_available` | 目标不可见/最小化/已消失；未发送 |
+| `background_input_partial_delivery` | 只投递了部分输入 |
 | `background_input_password_denied` | 焦点/目标是密码框 |
 | `background_input_timeout` | helper 超时，结果未知 |
 | `background_input_helper_exited` | helper 异常退出，结果未知 |
@@ -166,13 +173,13 @@ anchoredInput: off         # off | cursor | window（B2/B3）
 
 ## 12. 测试与证据
 
-- 离线：`tests/background-input.test.mjs`（32 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执标签、client 就绪/超时/坏响应、分类器/坐标/VK、B1/B2/B3 路由。
+- 离线：`tests/background-input.test.mjs`（42 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由。
 - 真机：`evals/probe-background-input.mjs`（不加入 `npm test`）：
-  - 自建原生 pointer 窗口 + 隐藏 controller + cover；
-  - B0 click/text/key、B1 synthetic、B1 遮挡、B3 window 实测通过；
+  - 自建原生 pointer 窗口 + 只处理 `WM_TOUCH` 的 touch-only 窗口 + 隐藏 controller + cover；
+  - B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 遮挡、B1 前台不变、B3 window 实测通过；
   - B2 在当前会话 `BlockInput` 被拒绝 → BLOCKED（失败关闭，未移动光标）；
-  - B1 光标干净轮次 0px 漂移 → PASS；脏桌面轮次外部光标漂移 30–1341px → BLOCKED（helper 报告 `cursorMoved=false`）。B3 干净轮次 PASS；脏桌面/安全桌面变化时 `window_move_failed`/`secure_desktop` → BLOCKED。
-  - 2026-11-20 结果：干净轮次 **10 PASS / 1 BLOCKED / 0 FAIL**；脏桌面/安全桌面切换轮次 **8 PASS / 3 BLOCKED / 0 FAIL**（B1 光标漂移、B3 fail-closed；不冒充 PASS）。
+  - B1 光标干净轮次 0px 漂移 → PASS；脏桌面轮次外部光标漂移 30–751px → BLOCKED（helper 报告 `cursorMoved=false`）。B3 干净轮次 PASS；脏桌面/安全桌面变化时 `window_move_failed`/`secure_desktop` → BLOCKED。
+  - 2026-11-20 结果：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；脏桌面/安全桌面切换轮次 **8 PASS / 3 BLOCKED / 0 FAIL**（B1 光标漂移、B3 fail-closed；不冒充 PASS）。
 - 运行：`node evals/probe-background-input.mjs`；清理只按探针 HWND/PID。
 
 ## 13. 已知限制
@@ -180,7 +187,7 @@ anchoredInput: off         # off | cursor | window（B2/B3）
 - 只覆盖无 UIA 目标；有可交互 UIA 元素时继续 driver/UIA。
 - B0 鼠标依赖目标处理 `WM_*` 坐标；光标轮询/Raw Input 目标无效。B0 点击目标点必须在目标窗口上；最小化/被遮挡时 fail-closed。
 - B0 键盘/文本不更新 OS 修饰键状态；组合键仍前台。
-- B1 只支持左单击；无滚轮/键盘；目标必须处理 `WM_POINTER`。anchor 取虚拟屏幕角落；显示器错位/全屏遮挡时可能 fail-closed。
+- B1 只支持左单击；无滚轮/键盘；目标必须处理 `WM_POINTER`，或由系统把合成 pointer 转换为 `WM_TOUCH`（探针的 touch-only 窗口收到 `WMTOUCH`；普通应用仍需逐个确认）。anchor 取虚拟屏幕角落；显示器错位/全屏遮挡时可能 fail-closed。
 - B2 会抢光标；`BlockInput` 在部分会话被拒绝。
 - B3 会移动窗口；用户移动光标/窗口时失败关闭；不做离屏截图。
 - 不做拖拽/滚轮/IME/右键/双击（除 B0 支持的双击/右键）；不做全局键/驱动。
@@ -190,4 +197,4 @@ anchoredInput: off         # off | cursor | window（B2/B3）
 
 - 三键全 `off`：零 spawn、零行为变化。
 - 删除 `lib/backgroundInput.js` + `tools/background-input.ps1` 即回到 0.5.8 行为；无数据迁移。
-- `computer_stop` 会调用 `stopBackgroundInput()`：发 `restore` + `shutdown`，尽力释放 anchor/光标/窗口。
+- `computer_stop` 会调用 `stopBackgroundInput()`：发 `restore` + `shutdown` 停止 B1 worker 并释放 anchor；B2/B3 在各自请求的 `finally` 内还原光标/窗口。若请求已挂死、客户端超时 kill helper，仍可能残留移动后的光标/窗口，需人工检查。

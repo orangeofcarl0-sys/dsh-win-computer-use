@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-20：`npm test` 29 套 / **724 项检查**；`npm run check` 语法 45/45 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-20：`npm test` 30 套 / **748 项检查**；`npm run check` 语法 46/46 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -19,7 +19,7 @@
 | 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|---|
 | 语法/安装脚本 | S1 | `npm run check` | 45 JS（含 lib/driver、eval runner、tasks.check、background-input）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
-| 离线单元/契约 | S1 | `npm test` | 29 套 / 724 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
+| 离线单元/契约 | S1 | `npm test` | 30 套 / 748 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
 | 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
 | from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -28,13 +28,13 @@
 | 安全运行时 | S1/S4 | `node evals/probe-safety-runtime.mjs` | 13 项 | 密码拒绝、TTL 过期、stop/resume 锁存、驱动错误恢复 |
 | 滚动 | S1 | `node evals/probe-scroll.mjs` | 3 项 | WinForms AutoScroll：向下/向上滚动与位置回读 |
 | 私有拖拽 | S2 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
-| 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 11 PASS / 1 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`computer_menu` 在 WinForms 上 BLOCKED（见 [BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked`（有 BLOCKED 时 exit 2） |
+| 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 11 PASS / 1 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`computer_menu` 在 WinForms 上 BLOCKED；`nativeMenus:auto` 尝试后仍 `window_not_found`（SetMenu fixture 的 HWND 映射未证明）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked`（有 BLOCKED 时 exit 2） |
 | app 启动/收尾 | S1/S4 | `node evals/probe-launch.mjs` | 7 项 | app_launch pid/window、子进程 IL 实测、驱动侧 alt+F4/关闭按钮、基线窗口保留 |
 | modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs` | 5 项 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支 opt-in/BLOCKED。`--strict-blocked` 时 BLOCKED 为 exit 2 |
 | 模态根因 | S3 | `node evals/probe-modal-timeout.mjs` | 10 PASS / 13 BLOCKED | MessageBox 期间 AX 树 0@1s/5s/15s、capture 1.5s、驱动 click/key/bring 阻塞、原生 WM_COMMAND 关闭、触发 click 随模态关闭返回 |
 | 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
 | 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
-| 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs` | 10 PASS / 1 BLOCKED | 自建 native message/pointer/cover：B0 click/text/key、B1 synthetic、B1 遮挡、B1 光标、B3 window 通过；干净轮次 10 PASS/1 BLOCKED；脏桌面/安全桌面切换 8 PASS/3 BLOCKED（B1 光标、B3 fail-closed），0 FAIL |
+| 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs` | 12 PASS / 1 BLOCKED | 自建 native message/pointer/touch-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 遮挡、B1 前台不变、B3 window 通过；B2 `BlockInput` 被拒 BLOCKED；干净轮次 12 PASS/1 BLOCKED；脏桌面/安全桌面切换 8 PASS/3 BLOCKED（B1 光标、B3 fail-closed），0 FAIL |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 19 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13 按原因 SKIP |
 | AC6 成本 | S1-S4 | `node evals/ac6-summary.mjs --reports <report>` | per-task token/步数 | 读 `status/step_end.usage`，输出中位数/p90 与 billable |
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
@@ -48,7 +48,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 29/724、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 30/748、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / p01 / p02 / p03（4） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
@@ -79,7 +79,7 @@
 | `eval-safety.mjs` | 83 | 禁止按进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态归属；dirty helper/Downloads hash 清理 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
 | `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
-| `config.plumbing.mjs` | 32 | 28 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵；数字 window/window_id 提示归属 |
+| `config.plumbing.mjs` | 32 | 29 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵；数字 window/window_id 提示归属 |
 | `action-bounds.mjs` | 37 | 无快照/窗口绑定/window_id 透传/suspected_noop/指定窗口 fail-closed/set_value/密码硬拒；drag steps/duration/from_zoom/zoom 缺失/非法参数；modifier/dwell 私有路由、屏幕坐标、modifier+from_zoom 拒绝、缺 frame 拒绝 |
 | `dispatcher.test.mjs` | 36 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 字段、工具面稳定、宿主 schema、click modifier/drag from_zoom+steps、通用快照前置描述 |
 | `driver.normalize.mjs` | 23 | 0.23.2 与 0.53 fixtures 归一化一致；未知字段保留；坐标空间校准 |
@@ -89,9 +89,10 @@
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 | `proc-run.test.mjs` | 3 | 子进程超时（close 抢跑不丢 `timedOut`）、正常退出、spawn 失败不误报超时 |
 | `native-dialogs.test.mjs` | 18 | 空 AX→native-dialog 合成按钮；native click 不走驱动；坐标/键盘/滚动/双击/右键拒绝；off/非模态回退；失败不消费；allowedApps/snapshot_id/UIA 复核；sidecar JSON/base64/超时 |
-| `background-input.test.mjs` | 32 | 实验后台输入：click/type/key 接入；off/foreground/modifier/组合键回退；拒绝不重试；回执标签；client 就绪/超时/坏响应；分类器/坐标/VK；B0/B1/B2/B3 路由、遮挡不降级、密码拒绝 |
+| `background-input.test.mjs` | 42 | 实验后台输入：click/type/key 接入；off/foreground/modifier/组合键回退；拒绝不重试；回执字段/错误码；client 就绪/超时/坏响应/旧进程 exit 竞态；分类器/坐标/VK；B0/B1/B2/B3 路由、遮挡不降级、密码拒绝 |
+| `native-menus.test.mjs` | 14 | 经典 HMENU 兜底：off 零调用；驱动拒绝后才回退；confirmed/unverifiable/effect 缺失/超时不回退；no_hmenu/timeout；resolve/invoke/base64/超时/非零退出 |
 
-合计 **724** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
+合计 **748** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
 
 ### 3.1 共享脚手架
 
@@ -324,8 +325,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 29 套 / 724 ✅ / 0 ❌ |
-| 语法 | 45/45 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 离线 | 30 套 / 748 ✅ / 0 ❌ |
+| 语法 | 46/46 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |

@@ -94,6 +94,7 @@ try {
   state = JSON.parse(readFileSync(stateFile, 'utf8'))
   state.logFile = logFile
   state.wndLog = logFile + '.wnd'
+  state.touchOnlyLog = logFile + '.touch'
   state.coverFile = coverFile
   state.stopFile = stopFile
 
@@ -143,6 +144,21 @@ try {
   if (s1?.side_effects?.cursorMoved === true) record('B1 不移动光标', 'FAIL', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift, side: s1?.side_effects }))
   else if (b1Drift <= 5) record('B1 不移动光标', 'PASS', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift }))
   else record('B1 不移动光标', 'BLOCKED', `脏桌面光标漂移 ${b1Drift}px；helper 报告 cursorMoved=false，无法归因`)
+  if (s1?.side_effects?.foregroundChanged === true) record('B1 不改变前台', 'FAIL', JSON.stringify(s1.side_effects))
+  else if (p2 && p2.foreground !== p.foreground) record('B1 不改变前台', 'BLOCKED', `helper 报告 foregroundChanged=false，但 probe 观测变化（脏桌面无法归因）：${p.foreground} -> ${p2.foreground}`)
+  else record('B1 不改变前台', 'PASS', `foreground=${p.foreground}`)
+
+  // B1 对只处理 WM_TOUCH 的目标：合成 pointer 是否被系统转换为 WM_TOUCH，只做事实记录。
+  const t = await client.probe({ hwnd: state.touchOnly, pid: state.pid })
+  if (!t || t.ok !== true) throw new Error(`probe touchOnly failed: ${JSON.stringify(t)}`)
+  const tc = { x: t.clientOrigin.x + Math.floor(t.clientRect.width / 2), y: t.clientOrigin.y + Math.floor(t.clientRect.height / 2) }
+  writeFileSync(state.touchOnlyLog, '')
+  const st = await client.syntheticClick({ hwnd: state.touchOnly, pid: state.pid, x: tc.x, y: tc.y })
+  await sleep(350)
+  const tlog = readLog(state.touchOnlyLog)
+  if (st?.ok && /WMTOUCH/.test(tlog)) record('B1 WM_TOUCH-only 目标', 'PASS', JSON.stringify(st) + ' log=' + JSON.stringify(tlog.slice(-120)))
+  else if (st?.ok === false) record('B1 WM_TOUCH-only 目标', 'BLOCKED', 'helper 拒绝/不可用；未证明 WM_TOUCH 转换：' + JSON.stringify(st))
+  else record('B1 WM_TOUCH-only 目标', 'BLOCKED', '合成 pointer 未转换为 WM_TOUCH；目标不支持 B1：' + JSON.stringify({ st, log: tlog.slice(-120) }))
 
   writeFileSync(coverFile, '1')
   await sleep(500)
@@ -153,11 +169,11 @@ try {
   writeFileSync(coverFile, '0')
   await sleep(300)
 
-  writeFileSync(logFile, '')
+  writeFileSync(state.wndLog, '')
   const c = await client.cursorClick({ hwnd: state.message, pid: state.pid, x: btn.x, y: btn.y })
   if (c?.ok === true) {
     await sleep(300)
-    record('B2 cursor anchored', /CLICK/.test(readLog(logFile)) && c.cursorRestored === true ? 'PASS' : 'FAIL', JSON.stringify(c))
+    record('B2 cursor anchored', /MOUSEDOWN/.test(readLog(state.wndLog)) && c.cursorRestored === true ? 'PASS' : 'FAIL', JSON.stringify(c) + ' log=' + JSON.stringify(readLog(state.wndLog).slice(-120)))
   } else if (c?.code === 'block_input_failed') {
     record('B2 cursor anchored', 'BLOCKED', '当前会话 BlockInput 被拒绝；实现失败关闭，未移动光标')
   } else if (c?.code === 'secure_desktop' || c?.code === 'uipi') {

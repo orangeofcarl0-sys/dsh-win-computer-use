@@ -151,7 +151,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 |---|---|
 | [INSTALL](docs/INSTALL.md) | 安装、升级、卸载、首跑自检 |
 | [TOOLS](docs/TOOLS.md) | 23 个工具的参数、默认值、前置、回执、示例 |
-| [CONFIGURATION](docs/CONFIGURATION.md) | 28 个配置键、环境变量、交互、陷阱 |
+| [CONFIGURATION](docs/CONFIGURATION.md) | 29 个配置键、环境变量、交互、陷阱 |
 | [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | 错误码总表 / 按症状排障 |
 | [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md) | 威胁模型 / 权限声明 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 内部结构与运行时链路 |

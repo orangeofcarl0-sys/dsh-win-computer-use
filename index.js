@@ -169,6 +169,14 @@ export const Config = z.object({
    */
   nativeDialogs: z.union(['auto', 'off']).default('auto'),
   /**
+   * 经典 Win32 HMENU 菜单兜底（Windows，实验性，默认 off）。
+   *   auto = 驱动 invoke_menu 结构化拒绝后，尝试顶层窗口 GetMenu 的精确路径解析 +
+   *          PostMessage(WM_COMMAND)；只覆盖标准 HMENU，WinForms MenuStrip/WPF/WinUI 不支持。
+   *   只发一次、只叶子命令、不自动选择；结果 effect=unverifiable。
+   *   off = 零 PowerShell spawn，保持驱动/UIA 拒绝语义。
+   */
+  nativeMenus: z.union(['auto', 'off']).default('off'),
+  /**
    * 快照新鲜度（PLAN-snapshot-freshness）：同快照连击的引用作废语义。
    *   note 默认：同一快照被动作消费后，后续动作附一致性注记（不阻断，"确认未变可继续"）；
    *   enforce：同快照第二次动作直接拒绝（[snapshot_consumed]），直至重新 screen_observe
@@ -855,7 +863,9 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
     description:
       '菜单路径直调：按精确逐级菜单路径（如 ["文件","另存为"]）经无障碍 API 解析并调用最终项。' +
       '只对已打开/可实时解析的菜单有效；关闭的菜单先用 computer_click 点菜单栏项，再观察弹出菜单并点具体项。' +
-      '失败关闭：缺失/歧义/禁用/结构不匹配即报错，绝不回退像素；effect=unverifiable 会明确报“未确认”，不要重复调用。',
+      '失败关闭：缺失/歧义/禁用/结构不匹配即报错，绝不回退像素；effect=unverifiable 会明确报“未确认”，不要重复调用。' +
+      'nativeMenus:auto 时，驱动结构化拒绝后会对经典 Win32 HMENU 尝试精确路径 + WM_COMMAND（未验证）；' +
+      'WinForms MenuStrip/WPF/WinUI 不支持，不要改用坐标点击。',
     parameters: {
       pid: { type: 'integer', description: '目标进程 pid。' },
       window_id: { type: 'integer', required: true, description: '目标窗口 id。' },
@@ -869,7 +879,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
       },
     },
     output: OUT(),
-    execute: wrap('computer_menu', (args) => opsMenu(args)),
+    execute: wrap('computer_menu', (args, cfg2) => opsMenu(args, cfg2)),
   },
 
   {
@@ -1097,6 +1107,7 @@ export function apply(ctx, config) {
       .map((p) => new RegExp(p)),
     passwordScan: config.passwordScan || 'auto',
     nativeDialogs: config.nativeDialogs || 'auto',
+    nativeMenus: config.nativeMenus || 'off',
     deliveryMode: config.deliveryMode || 'auto',
     backgroundInput: config.backgroundInput || 'off',
     syntheticPointer: config.syntheticPointer || 'off',

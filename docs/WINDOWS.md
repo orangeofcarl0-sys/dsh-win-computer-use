@@ -44,7 +44,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 | 目标类型 | 文本 | 组合键 | 菜单 | 备注 |
 |---|---|---|---|---|
-| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | regedit 等经典菜单可用；WinForms MenuStrip/原生 HMENU 在 2026-11-20 探针中仍 `menu_path_unavailable`（BLOCKED） | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
+| 经典 Win32（regedit、WinForms） | `type_text` / UIA ValuePattern | `hotkey`（带修饰键）自动前台走 SendInput；`press_key` 后台 PostMessage | 经典 `SetMenu` HMENU 可用 `nativeMenus:auto` 走精确路径 + `WM_COMMAND`（实验性、未验证）；WinForms `MenuStrip` 不是 HMENU，仍 `menu_path_unavailable`（BLOCKED） | 后台 synthetic 不更新修饰键状态，`Ctrl+V` 可能只落 `v`；组合键自动前台 |
 | XAML / WinUI 3（Win11 记事本、计算器） | 指定 element 走 UIA `ValuePattern` | `hotkey` 走 UIA AcceleratorKey 匹配；**实测 4s 超时**和 `could not find a UIA AcceleratorKey`（#3908） | `invoke_menu` 可能 `menu_path_unavailable` | 保存类操作改走“点菜单栏项 → 观察弹出菜单 → 点菜单项”；`xamlKeyFallback: auto`（默认 off）可实验性自动做这一步；`press_key` 可能 `effect:unverifiable` |
 | Electron / Chromium / WebView2 | 通常可 UIA ValuePattern；内容区可能不暴露树 | 后台事件可能被静默丢弃（`background_unavailable`） | 取决于应用 | 用 `native` 截图 + element/像素点击 |
 | Canvas / 游戏 / 自绘 | 无 AX 树 | 同左 | 不可用 | `native` 或 `vision`；坐标点击 best-effort |

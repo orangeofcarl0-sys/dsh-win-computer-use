@@ -27,12 +27,14 @@ public static class DshInput
     const uint WM_RBUTTONDOWN = 0x0204;
     const uint WM_RBUTTONUP = 0x0205;
     const uint BM_CLICK = 0x00F5;
-    const uint WM_POINTERENTER = 0x0240;
-    const uint WM_POINTERLEAVE = 0x0241;
+    // Standard values: WM_TOUCH=0x0240; WM_POINTERENTER=0x0249, LEAVE=0x024A, CAPTURECHANGED=0x024C.
+    const uint WM_TOUCH = 0x0240;
     const uint WM_POINTERUPDATE = 0x0245;
     const uint WM_POINTERDOWN = 0x0246;
     const uint WM_POINTERUP = 0x0247;
-    const uint WM_POINTERCAPTURECHANGED = 0x0249;
+    const uint WM_POINTERENTER = 0x0249;
+    const uint WM_POINTERLEAVE = 0x024A;
+    const uint WM_POINTERCAPTURECHANGED = 0x024C;
 
     const int GWL_STYLE = -16;
     const int GWL_EXSTYLE = -20;
@@ -194,6 +196,7 @@ public static class DshInput
     [DllImport("user32.dll")] static extern bool PtInRect(ref RECT rect, POINT pt);
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+    [DllImport("user32.dll")] static extern bool CloseTouchInputHandle(IntPtr handle);
     [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT pt);
     [DllImport("user32.dll")] static extern bool GetClipCursor(out RECT rect);
@@ -254,8 +257,13 @@ public static class DshInput
     static bool anchorDown;
     static IntPtr pendingHwnd;
     static POINT pendingPoint;
+    static int pendingPid;
     static Dictionary<string, object> pendingResult;
+    static bool workerUnhealthy;
     static WndProc anchorProc = AnchorProc;
+
+    // Set when the helper must exit after replying (e.g. BlockInput release failed).
+    public static bool Fatal = false;
 
     // ---- response helpers ----
     static Dictionary<string, object> D()
@@ -300,11 +308,11 @@ public static class DshInput
         return d;
     }
 
-    static void AddSideEffects(Dictionary<string, object> d, bool cursorMoved, bool windowMoved, bool zOrderChanged)
+    static void AddSideEffects(Dictionary<string, object> d, bool cursorMoved, bool windowMoved, bool zOrderChanged, bool? foregroundChanged = null)
     {
         Dictionary<string, object> se = D();
         se["cursorMoved"] = cursorMoved;
-        se["foregroundChanged"] = false;
+        se["foregroundChanged"] = foregroundChanged.HasValue ? foregroundChanged.Value : false;
         se["windowMoved"] = windowMoved;
         se["zOrderChanged"] = zOrderChanged;
         d["side_effects"] = se;
@@ -403,7 +411,9 @@ public static class DshInput
         if (!SameSession((int)pid)) return "uipi";
         int targetRank = IntegrityRank((int)pid);
         int currentRank = IntegrityRank((int)GetCurrentProcessId());
-        if (targetRank != 99 && currentRank != 99 && targetRank > currentRank) return "uipi";
+        // Unknown integrity must not be treated as same-level; fail closed.
+        if (targetRank == 99 || currentRank == 99) return "uipi";
+        if (targetRank > currentRank) return "uipi";
         if (IsSecureDesktop()) return "secure_desktop";
         return "";
     }
@@ -475,11 +485,12 @@ public static class DshInput
         return new IntPtr(v);
     }
 
-    static bool PostClick(IntPtr hwnd, POINT screen, string button, int count, out string method, out string childClass, out int childHwnd)
+    static bool PostClick(IntPtr hwnd, POINT screen, string button, int count, out string method, out string childClass, out int childHwnd, out string warning)
     {
         method = "posted";
         childClass = "";
         childHwnd = 0;
+        warning = "";
         IntPtr target = ChildAt(screen);
         if (target == IntPtr.Zero) target = hwnd;
         childClass = ClassOf(target);
@@ -494,28 +505,35 @@ public static class DshInput
             method = "bm_click";
             return PostMessage(target, BM_CLICK, IntPtr.Zero, IntPtr.Zero);
         }
-        bool ok = PostMessage(target, WM_MOUSEMOVE, IntPtr.Zero, lp);
+        // WM_MOUSEMOVE is decorative: failure does not negate the subsequent down/up.
+        PostMessage(target, WM_MOUSEMOVE, IntPtr.Zero, lp);
         Thread.Sleep(10);
         if (btn == "right")
         {
-            ok = PostMessage(target, WM_RBUTTONDOWN, new IntPtr(MK_RBUTTON), lp) && ok;
+            if (!PostMessage(target, WM_RBUTTONDOWN, new IntPtr(MK_RBUTTON), lp)) return false;
             Thread.Sleep(30);
-            ok = PostMessage(target, WM_RBUTTONUP, IntPtr.Zero, lp) && ok;
-            return ok;
+            bool up = PostMessage(target, WM_RBUTTONUP, IntPtr.Zero, lp);
+            if (!up) up = PostMessage(target, WM_RBUTTONUP, IntPtr.Zero, lp);
+            if (!up) warning = "mouse_up_failed";
+            return true;
         }
-        ok = PostMessage(target, WM_LBUTTONDOWN, new IntPtr(MK_LBUTTON), lp) && ok;
+        if (!PostMessage(target, WM_LBUTTONDOWN, new IntPtr(MK_LBUTTON), lp)) return false;
         Thread.Sleep(30);
-        ok = PostMessage(target, WM_LBUTTONUP, IntPtr.Zero, lp) && ok;
+        bool upLeft = PostMessage(target, WM_LBUTTONUP, IntPtr.Zero, lp);
+        if (!upLeft) upLeft = PostMessage(target, WM_LBUTTONUP, IntPtr.Zero, lp);
+        if (!upLeft) warning = "mouse_up_failed";
         if (count >= 2)
         {
             Thread.Sleep(30);
             uint cls = GetClassLong(target, GCL_STYLE);
             uint downMsg = ((cls & CS_DBLCLKS) != 0) ? WM_LBUTTONDBLCLK : WM_LBUTTONDOWN;
-            ok = PostMessage(target, downMsg, new IntPtr(MK_LBUTTON), lp) && ok;
+            bool down2 = PostMessage(target, downMsg, new IntPtr(MK_LBUTTON), lp);
             Thread.Sleep(30);
-            ok = PostMessage(target, WM_LBUTTONUP, IntPtr.Zero, lp) && ok;
+            bool up2 = down2 && PostMessage(target, WM_LBUTTONUP, IntPtr.Zero, lp);
+            if (!up2) up2 = PostMessage(target, WM_LBUTTONUP, IntPtr.Zero, lp);
+            if (!down2 || !up2) warning = "double_click_partial";
         }
-        return ok;
+        return true;
     }
 
     public static Dictionary<string, object> PostMouse(long hwndL, int expectedPid, int sx, int sy, string button, int count)
@@ -533,9 +551,9 @@ public static class DshInput
             return Fail("occluded", "target window is not at the point hit=" + hitNow.ToInt64() + " root=" + rootNow.ToInt64() + " hwnd=" + hwnd.ToInt64() + " class=" + ClassOf(hitNow));
         }
         if (count < 1) count = 1;
-        string method, childClass;
+        string method, childClass, warning;
         int childHwnd;
-        bool delivered = PostClick(hwnd, pt, button, count, out method, out childClass, out childHwnd);
+        bool delivered = PostClick(hwnd, pt, button, count, out method, out childClass, out childHwnd, out warning);
         if (!delivered) return Fail("post_failed", "PostMessage failed");
         Dictionary<string, object> d = Ok();
         d["delivered"] = true;
@@ -543,6 +561,7 @@ public static class DshInput
         d["childClass"] = childClass;
         d["childHwnd"] = childHwnd;
         d["effect"] = "unverifiable";
+        if (!String.IsNullOrEmpty(warning)) { d["partial"] = true; d["warning_code"] = warning; }
         AddSideEffects(d, false, false, false);
         return d;
     }
@@ -563,12 +582,14 @@ public static class DshInput
         if (keyDown == IntPtr.Zero) return Fail("send_failed", "SendMessageTimeout WM_KEYDOWN failed");
         Thread.Sleep(10);
         IntPtr keyUp = SendMessageTimeout(target, WM_KEYUP, new IntPtr(vk), new IntPtr(up), SMTO_BLOCK | SMTO_ABORTIFHUNG, 1000, out keyResult);
-        if (keyUp == IntPtr.Zero) return Fail("send_failed", "SendMessageTimeout WM_KEYUP failed");
+        if (keyUp == IntPtr.Zero) keyUp = SendMessageTimeout(target, WM_KEYUP, new IntPtr(vk), new IntPtr(up), SMTO_BLOCK | SMTO_ABORTIFHUNG, 1000, out keyResult);
         Dictionary<string, object> d = Ok();
         d["delivered"] = true;
         d["method"] = "wm_key";
         d["focusedHwnd"] = (long)target.ToInt64();
         d["effect"] = "unverifiable";
+        d["complete"] = keyUp != IntPtr.Zero;
+        if (keyUp == IntPtr.Zero) { d["partial"] = true; d["warning_code"] = "key_up_failed"; }
         AddSideEffects(d, false, false, false);
         return d;
     }
@@ -604,7 +625,14 @@ public static class DshInput
             IntPtr charResult;
             IntPtr charSent = SendMessageTimeout(target, WM_CHAR, new IntPtr((int)ch), new IntPtr(1), SMTO_BLOCK | SMTO_ABORTIFHUNG, 1000, out charResult);
             if (charSent == IntPtr.Zero)
-                return Fail("send_failed", "SendMessageTimeout WM_CHAR failed after " + sent + " chars");
+            {
+                Dictionary<string, object> f = Fail("send_failed", "SendMessageTimeout WM_CHAR failed after " + sent + " chars");
+                f["delivered"] = sent > 0;
+                f["sentChars"] = sent;
+                if (sent > 0) { f["partial"] = true; f["warning_code"] = "text_partial"; }
+                AddSideEffects(f, false, false, false);
+                return f;
+            }
             sent++;
             Thread.Sleep(15);
         }
@@ -614,6 +642,8 @@ public static class DshInput
         d["focusedHwnd"] = (long)target.ToInt64();
         d["verified"] = false;
         d["chars"] = sent;
+        d["sentChars"] = sent;
+        d["complete"] = true;
         d["effect"] = "unverifiable";
         AddSideEffects(d, false, false, false);
         return d;
@@ -643,22 +673,62 @@ public static class DshInput
         if (!BlockInput(true)) return Fail("block_input_failed", "BlockInput(TRUE) failed");
         int started = Environment.TickCount;
         bool restored = false;
+        bool unblocked = true;
+        bool moved = false;
+        bool delivered = false;
+        string warning = "";
+        string failCode = "";
+        string failError = "";
         try
         {
-            if (!SetCursorPos(sx, sy)) return Fail("cursor_move_failed", "SetCursorPos failed");
-            Thread.Sleep(30);
-            string method, childClass;
-            int childHwnd;
-            if (!PostClick(hwnd, pt, "left", 1, out method, out childClass, out childHwnd))
-                return Fail("post_failed", "PostMessage failed");
-            Thread.Sleep(30);
+            if (!SetCursorPos(sx, sy))
+            {
+                failCode = "cursor_move_failed";
+                failError = "SetCursorPos failed";
+            }
+            else
+            {
+                moved = true;
+                Thread.Sleep(30);
+                POINT actual;
+                if (!GetCursorPos(out actual) || Math.Abs(actual.X - sx) > 2 || Math.Abs(actual.Y - sy) > 2)
+                {
+                    failCode = "cursor_move_failed";
+                    failError = "cursor did not reach the requested point (clip/DPI?)";
+                }
+                else
+                {
+                    string method, childClass;
+                    int childHwnd;
+                    delivered = PostClick(hwnd, pt, "left", 1, out method, out childClass, out childHwnd, out warning);
+                    if (!delivered)
+                    {
+                        failCode = "post_failed";
+                        failError = "PostMessage failed";
+                    }
+                    Thread.Sleep(30);
+                }
+            }
         }
         finally
         {
             restored = SetCursorPos(saved.X, saved.Y);
-            BlockInput(false);
+            unblocked = BlockInput(false);
+            if (!unblocked) Fatal = true; // Exiting the process releases BlockInput.
         }
         int elapsed = Environment.TickCount - started;
+        if (failCode.Length > 0 || !delivered)
+        {
+            Dictionary<string, object> f = Fail(failCode.Length > 0 ? failCode : "post_failed", failError);
+            f["cursorMoved"] = moved;
+            f["cursorRestored"] = restored;
+            f["inputBlockedMs"] = elapsed;
+            f["inputUnblocked"] = unblocked;
+            AddSideEffects(f, moved, false, false);
+            if (!restored) f["warning_code"] = "cursor_restore_failed";
+            else if (!unblocked) f["warning_code"] = "input_unblock_failed";
+            return f;
+        }
         Dictionary<string, object> d = Ok();
         d["delivered"] = true;
         d["method"] = "cursor_anchored";
@@ -666,12 +736,47 @@ public static class DshInput
         d["cursorMoved"] = true;
         d["cursorRestored"] = restored;
         d["inputBlockedMs"] = elapsed;
+        d["inputUnblocked"] = unblocked;
+        d["complete"] = restored && unblocked && String.IsNullOrEmpty(warning);
+        if (!String.IsNullOrEmpty(warning)) { d["partial"] = true; d["warning_code"] = warning; }
+        else if (!restored) d["warning_code"] = "cursor_restore_failed";
+        else if (!unblocked) d["warning_code"] = "input_unblock_failed";
         AddSideEffects(d, true, false, false);
-        if (!restored) d["warning_code"] = "cursor_restore_failed";
         return d;
     }
 
     // ---- B3 window anchored ----
+    static bool RectNear(RECT r, int left, int top)
+    {
+        return Math.Abs(r.Left - left) <= 2 && Math.Abs(r.Top - top) <= 2;
+    }
+
+    static bool RestoreWindow(IntPtr hwnd, RECT original)
+    {
+        if (!SetWindowPos(hwnd, IntPtr.Zero, original.Left, original.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS))
+            return false;
+        int deadline = Environment.TickCount + 500;
+        while (Environment.TickCount < deadline)
+        {
+            RECT now;
+            if (GetWindowRect(hwnd, out now) && RectNear(now, original.Left, original.Top)) return true;
+            Thread.Sleep(20);
+        }
+        return false;
+    }
+
+    static Dictionary<string, object> FailWindow(string code, string error, bool moved, bool restored, RECT original, RECT current)
+    {
+        Dictionary<string, object> f = Fail(code, error);
+        f["windowMoved"] = moved;
+        f["windowRestored"] = restored;
+        f["originalRect"] = RectDict(original);
+        f["currentRect"] = RectDict(current);
+        AddSideEffects(f, false, moved, false);
+        if (!restored) f["warning_code"] = "window_restore_failed";
+        return f;
+    }
+
     public static Dictionary<string, object> WindowClick(long hwndL, int expectedPid, int clientX, int clientY)
     {
         IntPtr hwnd = new IntPtr(hwndL);
@@ -691,57 +796,78 @@ public static class DshInput
         if (!GetCursorPos(out cursor)) return Fail("cursor_failed", "GetCursorPos failed");
         int newLeft = cursor.X - clientX - borderX;
         int newTop = cursor.Y - clientY - borderY;
-        bool moved = (newLeft != original.Left || newTop != original.Top);
+        bool moved = !RectNear(original, newLeft, newTop);
         uint moveFlags = SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS;
         if (!SetWindowPos(hwnd, IntPtr.Zero, newLeft, newTop, 0, 0, moveFlags))
-            return Fail("window_move_failed", "SetWindowPos move failed");
-        Thread.Sleep(100);
-        RECT movedRect;
-        GetWindowRect(hwnd, out movedRect);
-        if (moved && (Math.Abs(movedRect.Left - newLeft) > 2 || Math.Abs(movedRect.Top - newTop) > 2))
+            return FailWindow("window_move_failed", "SetWindowPos move failed", false, true, original, original);
+        // Bounded polling instead of a fixed 100ms; distinguish "not applied yet" from external changes.
+        bool reached = false;
+        bool external = false;
+        RECT current = original;
+        int deadline = Environment.TickCount + 500;
+        while (Environment.TickCount < deadline)
         {
-            SetWindowPos(hwnd, IntPtr.Zero, original.Left, original.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            return Fail("window_move_failed", "window did not reach the requested position");
+            if (!GetWindowRect(hwnd, out current)) return FailWindow("window_not_found", "GetWindowRect failed after move", moved, false, original, current);
+            if (RectNear(current, newLeft, newTop)) { reached = true; break; }
+            if (!RectNear(current, original.Left, original.Top) && moved) { external = true; break; }
+            Thread.Sleep(20);
+        }
+        if (external)
+        {
+            // Do not fight a window the user moved.
+            return FailWindow("window_changed_externally", "window moved externally during alignment", moved, false, original, current);
+        }
+        if (!reached)
+        {
+            bool restored = RestoreWindow(hwnd, original);
+            RECT now;
+            GetWindowRect(hwnd, out now);
+            return FailWindow("window_move_failed", "window did not reach the requested position", moved, restored, original, now);
         }
         POINT check = cursor;
         ScreenToClient(hwnd, ref check);
         if (Math.Abs(check.X - clientX) > 2 || Math.Abs(check.Y - clientY) > 2)
         {
-            SetWindowPos(hwnd, IntPtr.Zero, original.Left, original.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            return Fail("window_move_failed", "window alignment check failed");
+            bool restored = RestoreWindow(hwnd, original);
+            RECT now;
+            GetWindowRect(hwnd, out now);
+            return FailWindow("window_move_failed", "window alignment check failed", moved, restored, original, now);
         }
         if (!TargetAt(hwnd, cursor))
         {
-            SetWindowPos(hwnd, IntPtr.Zero, original.Left, original.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            return Fail("occluded", "target window is not at the cursor point after move");
+            bool restored = RestoreWindow(hwnd, original);
+            RECT now;
+            GetWindowRect(hwnd, out now);
+            return FailWindow("occluded", "target window is not at the cursor point after move", moved, restored, original, now);
         }
-        POINT now;
-        if (!GetCursorPos(out now) || Math.Abs(now.X - cursor.X) > 2 || Math.Abs(now.Y - cursor.Y) > 2)
+        POINT nowCursor;
+        if (!GetCursorPos(out nowCursor) || Math.Abs(nowCursor.X - cursor.X) > 2 || Math.Abs(nowCursor.Y - cursor.Y) > 2)
         {
-            SetWindowPos(hwnd, IntPtr.Zero, original.Left, original.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            return Fail("cursor_changed", "cursor moved during window alignment");
+            bool restored = RestoreWindow(hwnd, original);
+            RECT now;
+            GetWindowRect(hwnd, out now);
+            return FailWindow("cursor_changed", "cursor moved during window alignment", moved, restored, original, now);
         }
-        string method, childClass;
+        string method, childClass, warning;
         int childHwnd;
-        bool delivered = PostClick(hwnd, cursor, "left", 1, out method, out childClass, out childHwnd);
+        bool delivered = PostClick(hwnd, cursor, "left", 1, out method, out childClass, out childHwnd, out warning);
         Thread.Sleep(50);
-        bool restored = SetWindowPos(hwnd, IntPtr.Zero, original.Left, original.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        bool restoredFinal = RestoreWindow(hwnd, original);
         RECT finalRect;
-        if (restored && GetWindowRect(hwnd, out finalRect))
-        {
-            if (Math.Abs(finalRect.Left - original.Left) > 2 || Math.Abs(finalRect.Top - original.Top) > 2)
-                restored = false;
-        }
-        if (!delivered) return Fail("post_failed", "PostMessage failed");
+        GetWindowRect(hwnd, out finalRect);
+        if (!delivered)
+            return FailWindow("post_failed", "PostMessage failed", moved, restoredFinal, original, finalRect);
         Dictionary<string, object> d = Ok();
         d["delivered"] = true;
         d["method"] = "window_anchored";
         d["effect"] = "unverifiable";
         d["windowMoved"] = moved;
-        d["windowRestored"] = restored;
+        d["windowRestored"] = restoredFinal;
         d["cursorMoved"] = false;
+        d["complete"] = restoredFinal && String.IsNullOrEmpty(warning);
+        if (!String.IsNullOrEmpty(warning)) { d["partial"] = true; d["warning_code"] = warning; }
+        else if (!restoredFinal) d["warning_code"] = "window_restore_failed";
         AddSideEffects(d, false, moved, false);
-        if (!restored) d["warning_code"] = "window_restore_failed";
         return d;
     }
 
@@ -819,6 +945,12 @@ public static class DshInput
     {
         lock (workerSync)
         {
+            if (workerUnhealthy)
+            {
+                // Last injection was incomplete (pointer may still be down); stop and rebuild.
+                workerUnhealthy = false;
+                StopWorker();
+            }
             if (worker != null && worker.IsAlive) return true;
             workerError = null;
             readyEvent = new ManualResetEventSlim(false);
@@ -913,12 +1045,14 @@ public static class DshInput
                     Dictionary<string, object> result;
                     IntPtr hwnd;
                     POINT pt;
+                    int expectedPid;
                     lock (workerSync)
                     {
                         hwnd = pendingHwnd;
                         pt = pendingPoint;
+                        expectedPid = pendingPid;
                     }
-                    try { result = ExecuteSynthetic(hwnd, pt); }
+                    try { result = ExecuteSynthetic(hwnd, pt, expectedPid); }
                     catch (Exception ex) { result = Fail("synthetic_failed", ex.Message); }
                     lock (workerSync)
                     {
@@ -955,6 +1089,11 @@ public static class DshInput
 
     static IntPtr AnchorProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
+        if (msg == WM_TOUCH)
+        {
+            try { CloseTouchInputHandle(lParam); } catch { }
+            return IntPtr.Zero;
+        }
         if (msg == WM_POINTERENTER || msg == WM_POINTERLEAVE || msg == WM_POINTERUPDATE
             || msg == WM_POINTERDOWN || msg == WM_POINTERUP || msg == WM_POINTERCAPTURECHANGED)
             return IntPtr.Zero;
@@ -1012,9 +1151,10 @@ public static class DshInput
         return InjectSyntheticPointerInput(dev, new POINTER_TYPE_INFO[] { info }, 1);
     }
 
-    static Dictionary<string, object> ExecuteSynthetic(IntPtr hwnd, POINT pt)
+    static Dictionary<string, object> ExecuteSynthetic(IntPtr hwnd, POINT pt, int expectedPid)
     {
-        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return Fail("window_not_found", "target window is gone");
+        string bad = CheckAction(hwnd, expectedPid);
+        if (bad.Length > 0) return Fail(bad, bad);
         if (IsIconic(hwnd)) return Fail("unavailable", "target window is minimized");
         if (!OnDesktop(pt)) return Fail("outside_desktop", "target point is outside the desktop");
         RECT targetRect;
@@ -1031,6 +1171,7 @@ public static class DshInput
         IntPtr root = GetAncestor(hit, GA_ROOT);
         if (hit != hwnd && root != hwnd && !IsChild(hwnd, hit))
             return Fail("occluded", "target point belongs to another window hit=" + hit.ToInt64() + " root=" + root.ToInt64() + " hwnd=" + hwnd.ToInt64() + " child=" + IsChild(hwnd, hit));
+        bool fgBefore = GetForegroundWindow() == GetAncestor(hwnd, GA_ROOTOWNER);
         uint downFlags = POINTER_FLAG_DOWN | POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_CONFIDENCE;
         if (!InjectTouch(device, 1, anchorCenter, downFlags))
             return Fail("injection_failed", "anchor touch down failed");
@@ -1038,15 +1179,21 @@ public static class DshInput
         Thread.Sleep(12);
         if (!InjectTouch(device, 2, pt, downFlags))
         {
-            InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
-            anchorDown = false;
+            bool anchorUp = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
+            if (!anchorUp) workerUnhealthy = true;
+            anchorDown = !anchorUp;
             return Fail("injection_failed", "target touch down failed");
         }
         Thread.Sleep(12);
         bool upOk = InjectTouch(device, 2, pt, POINTER_FLAG_UP);
+        if (!upOk) upOk = InjectTouch(device, 2, pt, POINTER_FLAG_UP);
+        if (!upOk) workerUnhealthy = true; // pointer 2 may still be down; do not reuse this worker.
         Thread.Sleep(12);
         bool anchorUpOk = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
-        if (anchorUpOk) anchorDown = false;
+        if (!anchorUpOk) anchorUpOk = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
+        if (!anchorUpOk) workerUnhealthy = true;
+        else anchorDown = false;
+        bool fgAfter = GetForegroundWindow() == GetAncestor(hwnd, GA_ROOTOWNER);
         Dictionary<string, object> d = Ok();
         d["delivered"] = true;
         d["method"] = "synthetic_touch";
@@ -1054,7 +1201,7 @@ public static class DshInput
         d["anchorUsed"] = true;
         d["complete"] = upOk && anchorUpOk;
         if (!upOk || !anchorUpOk) d["warning_code"] = "inject_up_failed";
-        AddSideEffects(d, false, false, false);
+        AddSideEffects(d, false, false, false, fgBefore != fgAfter);
         return d;
     }
 
@@ -1072,12 +1219,15 @@ public static class DshInput
         {
             pendingHwnd = hwnd;
             pendingPoint = pt;
+            pendingPid = expectedPid;
             pendingResult = null;
             doneEvent.Reset();
         }
         cmdEvent.Set();
         if (!doneEvent.Wait(6000))
         {
+            // Worker may still be injecting; mark unhealthy so the next request rebuilds it.
+            workerUnhealthy = true;
             return Fail("synthetic_timeout", "synthetic click timed out; result unknown");
         }
         lock (workerSync)
@@ -1140,6 +1290,7 @@ while ($true) {
         [Console]::Out.WriteLine($json)
         [Console]::Out.Flush()
         if ($cmd -eq 'shutdown') { break }
+        if ([DshInput]::Fatal) { break }
     } catch {
         $msg = $_.Exception.Message
         $json = @{ ok = $false; code = 'exception'; error = $msg; delivered = $false } | ConvertTo-Json -Compress
