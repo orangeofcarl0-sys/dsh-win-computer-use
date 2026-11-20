@@ -11,8 +11,6 @@
 | Excel modifier drop | `probe-modifier-drop.mjs --excel --excel-only`（2026-11-21）：已实现 Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何（`"A" 2`/`"E" 2`）、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；拖拽已投递（private SendInput/foreground），A2 保留但 E2 仍为空 → BLOCKED。PPT 无分支 | Explorer Ctrl+drop 已回归；Excel/PPT 的 modifier drop 仍无自动 PASS | 在专用桌面确认 Excel 单元格边框拖拽的命中点/手势（当前从 A2 右边框/下边框均未复制）；否则保持 BLOCKED |
 | 独立观察者 / `screen_assert` | 无任务；需要 ZHIPU key 或 dsv4fv 文本输出修复 | 自绘/canvas 的“独立裁决”仍靠 oracle 文件，不是第二观察者 | 提供可用视觉 key 或修复文本输出 |
 | `selectText` / key hold / mouse down-up / drag-from-element | 工具面不存在这些原语 | 复杂文本选择/形状拖拽仍靠坐标 | 驱动/插件新增原语后再测 |
-| B2 严格 `BlockInput` | `evals/probe-background-input.mjs`（2026-11-21）：当前会话 `BlockInput(TRUE)` 返回 false；`diagnostics` 显示 `helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default；实现失败关闭，未移动光标。同一目标 `cursor-clip` 两轮 PASS（125ms、`MOUSEDOWN`、clip/光标还原） | 严格 B2 在可阻塞输入的 High IL/UIAccess 会话才可用；当前不记 PASS；免提权可用 `cursor-clip`（不阻塞键盘） | 在可 `BlockInput` 的会话或提权探针（`node evals/probe-b2-elevated.mjs`）复测；否则严格 B2 保持 BLOCKED |
-| B1 目标处理 `WM_POINTER`/`WM_TOUCH` | 同探针（2026-11-21）：`RegisterTouchWindow` 的 pointer 窗口收到 `TOUCHDOWN/UP`；只处理 `WM_TOUCH` 的窗口收到 `WMTOUCH`；未注册触控的 mouse-only 窗口未收到 `MOUSEDOWN`/`WMTOUCH` | B1 只对触控感知目标有端到端证据；普通窗口未出现鼠标提升，不能外推到普通应用 | 对目标应用单独确认 `WM_POINTER`/`WM_TOUCH` 处理后再声明支持 |
 | 多显示器 | `get_screen_size` 只暴露主屏 | 跨屏坐标/落点未验证 | 驱动暴露多屏枚举 |
 | macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证 | 不能把“能加载”当“已验收” | 有环境时跑离线 + `verify-runtime` |
 
@@ -25,7 +23,10 @@
 - **ENV**：应用缺失、TabState 无法备份、网络不可达、模型凭据 401/402 一律记 ENV，不混入通过率。
 - **AC6**：n<8 时 p90 不稳定；`totalTokens` 含 cacheRead，成本对比需同时看 `billable`。
 - **`app_launch` 残留**：即使本次 alt+F4 成功，仍保留“驱动侧关闭失败→LEFT_OVER + 精确 HWND/PID”策略；不按进程名杀。
-- **实验性后台输入**：B0/B1 只证明消息/触控已投递；目标可能忽略；B2/B3 会动光标/窗口；三键默认 off。B1 只左单击，B2/B3 只左单击；拖拽/滚轮/IME/右键/双击不在本功能内（B0 双击/右键除外）。脏桌面外部移动真实鼠标时，B1 的“光标未动”检查可能记 BLOCKED；最终干净轮次 0px 漂移通过，不把 BLOCKED 当 PASS。
+- **实验性后台输入**：B0/B1/B1-promote 只证明消息/触控/鼠标提升已投递；目标可能忽略；B2/B3 会动光标/窗口；三键默认 off。B1 auto 只对 pointer/touch；B1 promote 只对 message 窗口；两者只左单击；拖拽/滚轮/IME/右键/双击不在本功能内（B0 双击/右键除外）。
+- **严格 B2 的提权边界**：默认非提权会话 `BlockInput` 失败关闭（`win32=0`、非提权/无 UIAccess、Default 桌面）；`node evals/probe-background-input.mjs --elevated`（UAC）**14 PASS / 0 BLOCKED**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）。生产不自动提权；免提权用 `cursor-clip`（不阻塞键盘）。
+- **B1 光标归因**：helper 在注入窗口内采样 `cursorBefore/cursorAfter/cursorDrift`；外部物理漂移单独记录，不再把 B1 误判为 BLOCKED。
+- **B1 普通应用语义**：promote 的 `MOUSEDOWN/MOUSEUP` 已到达 mouse-only 窗口，但应用是否按业务处理仍取决于目标；不外推为“普通应用全部支持”。
 - **`win`/`super`/`meta` 组合键**：本机旧实现会把 `win+r` 降级成单键 `win`（打开 Start/SearchHost），不可靠。2026-11-20 起 fail-closed，回执明确“不支持，用 app_launch/开始菜单”；不做原生 win 发送的承诺。
 
 ## 3. 规则

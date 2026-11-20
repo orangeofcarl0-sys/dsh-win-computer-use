@@ -119,7 +119,7 @@
 
 - `element` 走 `element_token`，支持后台/隐藏窗口，不受 DPI 混合影响；像素路径 best-effort。
 - `native-dialog` 快照的按钮是 **Win32 原生控件**：只支持 `computer_click(element=编号)` 单次左键（`BM_CLICK`，异步/未验证）；坐标点击、type/key/scroll/drag、double/right、modifier/count>1/from_zoom 一律拒绝。点击后先 `screen_observe` 确认对话框是否关闭；不要重复点击或自动选择 Yes/No。
-- **实验性后台输入（默认 off）**：目标没有任何可交互 UIA 元素时，`backgroundInput:auto` 可走 B0 `WM_*`/`BM_CLICK`（支持左/右/双击）；`syntheticPointer:auto` 可走 B1 合成触控左单击；`anchoredInput:cursor/cursor-clip/window` 可走 B2/B3 左单击（`cursor` 用 `BlockInput`；`cursor-clip` 用 `ClipCursor` 5×5、免提权、不阻塞键盘）。失败/未验证不自动前台；B1 遮挡失败关闭；B1/B2/B3 需要 `allowedApps`。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
+- **实验性后台输入（默认 off）**：目标没有任何可交互 UIA 元素时，`backgroundInput:auto` 可走 B0 `WM_*`/`BM_CLICK`（支持左/右/双击）；`syntheticPointer:auto` 可走 B1 合成触控左单击，`syntheticPointer:promote` 可对普通 message 窗口走无 anchor 单点触控（系统提升为鼠标消息）；`anchoredInput:cursor/cursor-clip/window` 可走 B2/B3 左单击（`cursor` 用 `BlockInput`；`cursor-clip` 用 `ClipCursor` 5×5、免提权、不阻塞键盘）。失败/未验证不自动前台；B1 遮挡失败关闭；B1/B2/B3 需要 `allowedApps`。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
 - **实验性原生 Button 触发（`nativeButtonTrigger:auto`，默认 off）**：对 `element` 的 `Button` 单次左键，重新枚举同 pid 标准 `Button`/`WindowsForms10.BUTTON*`，严格 class/style/label/屏幕点唯一匹配后 `PostMessage(BM_CLICK)`；回执 `route=win32-native-button`、`effect:unverifiable`。1.2s 级返回，避免触发模态时 UIA Invoke 30s；明确未匹配回退 driver，`owner_disabled`/超时不回退；10s latch 防重复。WPF/WinUI/ToolStrip 通常 `no_match`。
 - 坐标点击按快照条目中心 24px 内取最近元素，回执回显目标（编号/角色/标签/当前值；密码值隐藏）。
 - 非空 `modifier` 在 Windows 上自动 `forceForeground`（SendInput 前台注入）并恢复原前台。

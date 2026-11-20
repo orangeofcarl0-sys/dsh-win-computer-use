@@ -10,7 +10,7 @@
  *
  * 清理只按本探针的 HWND / 子进程 PID，不按进程名杀；不加入 npm test。
  */
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -31,6 +31,96 @@ function record(name, status, detail = '', data = undefined) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function psQuote(s) {
+  return `'${String(s).replace(/'/g, "''")}'`
+}
+
+function amElevated() {
+  try {
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)',
+    ], { encoding: 'utf8', timeout: 10000, windowsHide: true })
+    return /true/i.test(String(out))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * --elevated: run the whole probe in an elevated child (UAC). Strict B2 needs
+ * a High IL/UIAccess process; self-elevating the probe is safer than adding a
+ * production elevation path. The child writes its stdout to a temp file.
+ */
+async function relaunchElevated() {
+  const dir = mkdtempSync(join(tmpdir(), 's4-bg-elev-'))
+  const outFile = join(dir, 'out.txt')
+  const errFile = join(dir, 'err.txt')
+  const childScript = join(dir, 'child.ps1')
+  const launcher = join(dir, 'launch.ps1')
+  const script = fileURLToPath(import.meta.url)
+  const root = dirname(script)
+  // -Verb RunAs cannot be combined with -RedirectStandardOutput (different
+  // Start-Process parameter sets), so the elevated child redirects internally.
+  writeFileSync(childScript, [
+    '$ErrorActionPreference = "Stop"',
+    `Set-Location -LiteralPath ${psQuote(root)}`,
+    // Decode Node's UTF-8 on the pipeline; PowerShell 5.1 file redirection would
+    // otherwise write UTF-16 and the parent would read mojibake.
+    '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)',
+    '$OutputEncoding = [Console]::OutputEncoding',
+    `$stdout = & ${psQuote(process.execPath)} ${psQuote(script)} --elevated-child 2>&1 | Out-String`,
+    `[IO.File]::WriteAllText(${psQuote(outFile)}, $stdout, (New-Object System.Text.UTF8Encoding($false)))`,
+    'exit $LASTEXITCODE',
+    '',
+  ].join('\n'), 'utf8')
+  const childArgs = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${childScript}"`
+  writeFileSync(launcher, [
+    '$ErrorActionPreference = "Stop"',
+    `$p = Start-Process -FilePath ${psQuote('powershell.exe')} -ArgumentList ${psQuote(childArgs)} -WorkingDirectory ${psQuote(root)} -Verb RunAs -Wait -PassThru -WindowStyle Hidden`,
+    'exit $p.ExitCode',
+    '',
+  ].join('\n'), 'utf8')
+  const result = await new Promise((resolve) => {
+    let settled = false
+    let timer = null
+    const finish = (v) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve(v)
+    }
+    const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', launcher], {
+      windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let err = ''
+    ps.stderr.on('data', (d) => { err += d })
+    ps.on('error', (e) => finish({ code: -1, err: String(e.message || e) }))
+    ps.on('close', (code) => finish({ code, err }))
+    timer = setTimeout(() => {
+      try { ps.kill() } catch { /* ignore */ }
+      finish({ code: -2, err: 'timeout waiting for UAC/result (180s)' })
+    }, 180000)
+  })
+  const out = existsSync(outFile) ? readFileSync(outFile, 'utf8') : ''
+  const err = [existsSync(errFile) ? readFileSync(errFile, 'utf8') : '', result.err].filter(Boolean).join('\n')
+  if (out) process.stdout.write(out)
+  if (err) process.stderr.write(err)
+  if (!out) {
+    console.log('⛔ 提权运行未返回结果（UAC 被取消或超时）；严格 B2 保持 BLOCKED')
+  }
+  if (!process.env.S4_KEEP) {
+    try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
+  } else {
+    console.log(`S4_KEEP: elevated probe files in ${dir}`)
+  }
+  return out ? Number(result.code) || 0 : 0
+}
+
+if (isWin && process.argv.includes('--elevated') && !process.argv.includes('--elevated-child') && !amElevated()) {
+  const code = await relaunchElevated()
+  process.exit(code)
+}
 
 function readLog(file) {
   try { return readFileSync(file, 'utf8') } catch { return '' }
@@ -169,9 +259,18 @@ try {
   else record('B1 synthetic touch', 'FAIL', JSON.stringify(s1) + ' log=' + JSON.stringify(b1log.slice(-200)))
   const p2 = await client.probe({ hwnd: state.pointer, pid: state.pid })
   const b1Drift = p2 && p2.cursor && p.cursor ? Math.abs(p2.cursor.x - p.cursor.x) + Math.abs(p2.cursor.y - p.cursor.y) : 999
-  if (s1?.side_effects?.cursorMoved === true) record('B1 不移动光标', 'FAIL', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift, side: s1?.side_effects }))
-  else if (b1Drift <= 5) record('B1 不移动光标', 'PASS', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift }))
-  else record('B1 不移动光标', 'BLOCKED', `脏桌面光标漂移 ${b1Drift}px；helper 报告 cursorMoved=false，无法归因`)
+  const helperDrift = Number(s1?.cursorDrift)
+  if (s1?.side_effects?.cursorMoved === true) {
+    record('B1 不移动光标', 'FAIL', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift, helperDrift, side: s1?.side_effects }))
+  } else if (Number.isFinite(helperDrift) && helperDrift <= 2) {
+    // The helper samples around the injection itself; external probe-level drift
+    // after the injection is recorded but not attributed to B1.
+    record('B1 不移动光标', 'PASS', JSON.stringify({ helperDrift, externalDrift: b1Drift, before: s1?.cursorBefore, after: s1?.cursorAfter }))
+  } else if (b1Drift <= 5) {
+    record('B1 不移动光标', 'PASS', JSON.stringify({ p: p?.cursor, p2: p2?.cursor, drift: b1Drift }))
+  } else {
+    record('B1 不移动光标', 'BLOCKED', `脏桌面光标漂移 ${b1Drift}px；helper 报告 cursorMoved=false，无法归因`)
+  }
   if (s1?.side_effects?.foregroundChanged === true) record('B1 不改变前台', 'FAIL', JSON.stringify(s1.side_effects))
   else if (p2 && p2.foreground !== p.foreground) record('B1 不改变前台', 'BLOCKED', `helper 报告 foregroundChanged=false，但 probe 观测变化（脏桌面无法归因）：${p.foreground} -> ${p2.foreground}`)
   else record('B1 不改变前台', 'PASS', `foreground=${p.foreground}`)
@@ -198,11 +297,11 @@ try {
     const mc = { x: mo.clientOrigin.x + Math.floor(mo.clientRect.width / 2), y: mo.clientOrigin.y + Math.floor(mo.clientRect.height / 2) }
     await waitQuiet(state.mouseOnly, state.pid)
     writeFileSync(state.mouseOnlyLog, '')
-    const sm = await client.syntheticClick({ hwnd: state.mouseOnly, pid: state.pid, x: mc.x, y: mc.y })
+    const sm = await client.syntheticClick({ hwnd: state.mouseOnly, pid: state.pid, x: mc.x, y: mc.y, anchor: false })
     await sleep(350)
     const mlog = readLog(state.mouseOnlyLog)
     if (sm?.ok && /MOUSEDOWN/.test(mlog)) {
-      record('B1 普通窗口鼠标提升', 'PASS', '合成 pointer 被系统提升为鼠标消息；应用语义仍未验证：' + JSON.stringify(sm) + ' log=' + JSON.stringify(mlog.slice(-120)))
+      record('B1 普通窗口鼠标提升', 'PASS', '无 anchor 单点合成触控被系统提升为鼠标消息；应用语义仍未验证：' + JSON.stringify(sm) + ' log=' + JSON.stringify(mlog.slice(-120)))
     } else if (sm?.code === 'desktop_busy') {
       record('B1 普通窗口鼠标提升', 'BLOCKED', '静默预检失败：' + JSON.stringify(sm))
     } else if (sm?.ok === false) {

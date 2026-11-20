@@ -173,6 +173,9 @@ node evals/probe-native-button.mjs
 node evals/probe-modifier-drop.mjs --excel --excel-only
 # B2 严格 BlockInput 根因：一次性 UAC 提权探针（不改生产路径）
 node evals/probe-b2-elevated.mjs
+# 完整后台输入探针；--elevated 自提权跑严格 B2（UAC）
+node evals/probe-background-input.mjs
+node evals/probe-background-input.mjs --elevated
 # 默认允许已知 BLOCKED（Excel 等），必须读输出；严格验收：
 node evals/probe-ops.mjs --strict-blocked          # 有 BLOCKED 时 exit 2
 node evals/probe-modifier-drop.mjs --excel --strict-blocked

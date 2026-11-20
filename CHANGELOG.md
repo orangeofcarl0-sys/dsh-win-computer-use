@@ -10,11 +10,11 @@
 ### Added
 
 - 新增 `backgroundInput`（B0，默认 off）：无交互 UIA 目标上 click 走 `WM_*`/`BM_CLICK`，plain key 走 `WM_KEYDOWN/UP`，text 走 `WM_CHAR`；鼠标异步 PostMessage，键盘/文本同步 `SendMessageTimeout`。
-- 新增 `syntheticPointer`（B1，默认 off）：`InjectSyntheticPointerInput(PT_TOUCH)` + 4×4 anchor；不移动光标/前台；遮挡失败关闭，不借 Z 序/透明度；只左单击；需 `allowedApps`。
+- 新增 `syntheticPointer`（B1，默认 off）：`auto` 用 `InjectSyntheticPointerInput(PT_TOUCH)` + 4×4 anchor；`promote` 对普通 message 窗口用无 anchor 单点触控，由系统提升为鼠标消息；不移动光标/前台；遮挡失败关闭，不借 Z 序/透明度；只左单击；需 `allowedApps`。
 - 新增 `anchoredInput`（B2/B3，默认 off）：`cursor` 临时移光标 + `BlockInput`；`cursor-clip` 用 `ClipCursor` 把光标限制在目标 5×5（免提权、不阻塞键盘）；`window` 临时移窗口使目标点落在光标下；只左单击；需 `allowedApps`；失败关闭/还原。
-- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（48 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
+- 新增 `lib/backgroundInput.js`、`tools/background-input.ps1`、`tests/background-input.test.mjs`（50 项）、`evals/probe-background-input.mjs`、`docs/BACKGROUND-INPUT.md`。
 - B2 诊断：`BlockInput`/`SetCursorPos`/`ClipCursor`/`SetWindowPos`/`InjectSyntheticPointerInput` 采集 `GetLastError`；`probe` 回传 helper elevation/UIAccess/session/active console session/window station/desktop/前台 IL；拒绝回执带 `win32_error`/`diagnostics`。新增 `evals/probe-b2-elevated.mjs`（一次性 UAC 根因探针，不进入生产路径）。
-- B1/B3 静默预检与外部改动：helper 增加 300ms 光标静止检查（`desktop_busy`，带 `drift`）；B3 在请求位置=原位置时也检测外部移动，点击后外移不还原并返回 `warning_code=window_changed_externally`；探针增加 `waitQuiet()` 与 mouse-only 普通窗口实验。
+- B1/B3 静默预检与外部改动：helper 增加 300ms 光标静止检查（`desktop_busy`，带 `drift`）和注入窗口内 `cursorBefore/cursorAfter/cursorDrift`；B3 在请求位置=原位置时也检测外部移动，点击后外移不还原并返回 `warning_code=window_changed_externally`；探针增加 `waitQuiet()`、mouse-only 普通窗口实验与 `--elevated` 自提权轮次。
 - `probe-modifier-drop.mjs --excel` 分支：Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何（`"A" 2`/`"E" 2`）、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；当前真机 E2 未复制 → BLOCKED，不冒充 PASS。
 - 新增 `nativeMenus`（经典 Win32 HMENU，默认 off）：驱动 `invoke_menu` 结构化拒绝后，`GetMenu` 精确路径解析 + 一次 `PostMessage(WM_COMMAND)`；只叶子命令、同 pid、不自动选择；`effect:unverifiable`；MenuStrip/WPF/WinUI 返回 `no_hmenu`。新增 `lib/nativeMenus.js`、`tools/native-menu.ps1`、`tests/native-menus.test.mjs`（18 项）；`probe-ops` SetMenu fixture 真机通过。
 - 新增 `nativeButtonTrigger`（标准 Win32/WinForms Button，默认 off）：`computer_click(element=Button)` 单次左键时，重新枚举同 pid 标准 Button，严格 class/style/label/屏幕点唯一匹配后 `BM_CLICK`；t20 形态 1.2s 返回；10s latch；pre-delivery 回退 driver，owner_disabled/超时不回退。新增 `lib/nativeButtonTrigger.js`、`tools/native-button.ps1`、`tests/native-button-trigger.test.mjs`（12 项）、`evals/probe-native-button.mjs`（4/4 PASS）。
@@ -23,8 +23,8 @@
 ### Notes
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
-- 真机探针 2026-11-21：三轮（两轮 **11 PASS / 4 BLOCKED**、最终 **12 PASS / 3 BLOCKED / 0 FAIL**）；严格 B2 `BlockInput` 仍被拒 → BLOCKED（诊断显示非提权/无 UIAccess、Default 桌面），但 `cursor-clip` 两轮 PASS（125ms、`MOUSEDOWN`、clip/光标还原）；B1 mouse-only 普通窗口未收到鼠标提升 → 普通应用不外推；B1 光标漂移/B3 脏桌面 → BLOCKED；安静轮 B3 PASS。
-- 离线 31 套 / 770 项；语法 49/49；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
+- 真机探针 2026-11-21：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift=0` 归因，外部漂移（348–766px）不再误判；B3 PASS。
+- 离线 31 套 / 772 项；语法 49/49；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
 - `nativeMenus` 真机已 PASS：`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过；MenuStrip/WPF/WinUI 仍明确不支持。
 - `nativeButtonTrigger` 真机探针：自建 WinForms Delete + MessageBox **4 PASS / 0 BLOCKED / 0 FAIL**（1.2s、opened=1、native-dialog 关闭、latch）；默认 off，t20 需显式开启 overlay 复跑。
 
@@ -56,7 +56,7 @@
 - **标题栏拖拽语义**：观察时缓存 `titleBarRect`；`computer_drag` 起点命中标题栏时回执明确“移动窗口、不是点击/落点证据”并清空快照；描述同步。
 - **eval 预算语义**：`evals/lib/run.mjs` 修 `timedOut` 与 `close` 竞争；`headless-run` 增加 `budgetExhausted`/`noFinal`，预算耗尽记 `verdict=timeout`；`ac6-summary`/`ab-summary` 同步。
 - **t20 模态 30s 超时根因定位**：新增 `evals/probe-modal-timeout.mjs` / `probe-modal-escapes.mjs`。实测 MessageBox 打开期间同 pid 的 AX 树在 **1s/5s/15s** 预算下均为 0 元素（capture-only 1.5s 成功）；驱动的 `click`/`press_key`/`bring_to_front` 阻塞到模态关闭；原生 `WM_COMMAND`/`BM_CLICK` 可 ~1s 关闭。`timeout_ms` 调大**不是**修复；驱动根因保持 BLOCKED，不盲改 observe 默认。
-- **原生 Win32 对话框后端（私有实现，Windows）**：新增 `nativeDialogs: auto|off`（默认 auto）。UIA 树为空且目标是同 pid 标准 `#32770` 模态对话框时，`screen_observe` 通过 Win32 子控件枚举返回 `native-dialog` 按钮；`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证），只支持单次左键，不自动选择 Yes/No。触发模态的 UIA click 仍可能 30s；本后端消除模态内按钮的重复 30s。
+- **原生 Win32 对话框后端（私有实现，Windows）**：新增 `nativeDialogs: auto|off`（默认 auto）。UIA 树为空且目标是同 pid 标准 `#32772` 模态对话框时，`screen_observe` 通过 Win32 子控件枚举返回 `native-dialog` 按钮；`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证），只支持单次左键，不自动选择 Yes/No。触发模态的 UIA click 仍可能 30s；本后端消除模态内按钮的重复 30s。
 - **模态超时回执修正**：不再建议 `Escape=No` / `Enter=默认` / `foreground 普通键` 作为快速路径（实测在模态中同样 30–60s，Escape 在 Yes/No 无效）；改为“等待 5–10s → screen_observe（capture/ax）确认延迟成功 → 必要时按加速键只发一次”。守门断言在 `tests/delivery.failures.mjs`。
 - **题面**：t20 允许 Tab/Enter/Escape 选择对话框按钮并强调始终回到 `S4-T20-DIALOG`；t19 明确允许 Notepad 另存为。
 - **COMMON**：真实模型运行统一要求显式指定任务窗口，不依赖无目标“最前窗口”，不跟随无关前台窗口。

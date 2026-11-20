@@ -265,6 +265,7 @@ public static class DshInput
     static IntPtr pendingHwnd;
     static POINT pendingPoint;
     static int pendingPid;
+    static bool pendingAnchor = true;
     static Dictionary<string, object> pendingResult;
     static bool workerUnhealthy;
     static WndProc anchorProc = AnchorProc;
@@ -1324,13 +1325,15 @@ public static class DshInput
                     IntPtr hwnd;
                     POINT pt;
                     int expectedPid;
+                    bool useAnchor;
                     lock (workerSync)
                     {
                         hwnd = pendingHwnd;
                         pt = pendingPoint;
                         expectedPid = pendingPid;
+                        useAnchor = pendingAnchor;
                     }
-                    try { result = ExecuteSynthetic(hwnd, pt, expectedPid); }
+                    try { result = ExecuteSynthetic(hwnd, pt, expectedPid, useAnchor); }
                     catch (Exception ex) { result = Fail("synthetic_failed", ex.Message); }
                     lock (workerSync)
                     {
@@ -1429,61 +1432,90 @@ public static class DshInput
         return InjectSyntheticPointerInput(dev, new POINTER_TYPE_INFO[] { info }, 1);
     }
 
-    static Dictionary<string, object> ExecuteSynthetic(IntPtr hwnd, POINT pt, int expectedPid)
+    static Dictionary<string, object> ExecuteSynthetic(IntPtr hwnd, POINT pt, int expectedPid, bool useAnchor)
     {
         string bad = CheckAction(hwnd, expectedPid);
         if (bad.Length > 0) return Fail(bad, bad);
         if (IsIconic(hwnd)) return Fail("unavailable", "target window is minimized");
         if (!OnDesktop(pt)) return Fail("outside_desktop", "target point is outside the desktop");
-        RECT targetRect;
-        GetWindowRect(hwnd, out targetRect);
-        POINT origin = ChooseAnchorOrigin(targetRect);
-        SetWindowPos(anchor, new IntPtr(-1), origin.X, origin.Y, 4, 4, SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-        GetWindowRect(anchor, out anchorRect);
-        anchorCenter.X = (anchorRect.Left + anchorRect.Right) / 2;
-        anchorCenter.Y = (anchorRect.Top + anchorRect.Bottom) / 2;
-        if (PtInRect(ref anchorRect, pt)) return Fail("anchor_blocked", "target point is covered by the anchor window");
-        if (WindowFromPoint(anchorCenter) != anchor) return Fail("anchor_blocked", "anchor window is covered by another topmost window");
+        if (useAnchor)
+        {
+            RECT targetRect;
+            GetWindowRect(hwnd, out targetRect);
+            POINT origin = ChooseAnchorOrigin(targetRect);
+            SetWindowPos(anchor, new IntPtr(-1), origin.X, origin.Y, 4, 4, SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+            GetWindowRect(anchor, out anchorRect);
+            anchorCenter.X = (anchorRect.Left + anchorRect.Right) / 2;
+            anchorCenter.Y = (anchorRect.Top + anchorRect.Bottom) / 2;
+            if (PtInRect(ref anchorRect, pt)) return Fail("anchor_blocked", "target point is covered by the anchor window");
+            if (WindowFromPoint(anchorCenter) != anchor) return Fail("anchor_blocked", "anchor window is covered by another topmost window");
+        }
         IntPtr hit = WindowFromPoint(pt);
         if (hit == IntPtr.Zero) return Fail("outside_desktop", "no window at target point");
         IntPtr root = GetAncestor(hit, GA_ROOT);
         if (hit != hwnd && root != hwnd && !IsChild(hwnd, hit))
             return Fail("occluded", "target point belongs to another window hit=" + hit.ToInt64() + " root=" + root.ToInt64() + " hwnd=" + hwnd.ToInt64() + " child=" + IsChild(hwnd, hit));
         bool fgBefore = GetForegroundWindow() == GetAncestor(hwnd, GA_ROOTOWNER);
+        POINT cursorBefore;
+        GetCursorPos(out cursorBefore);
         uint downFlags = POINTER_FLAG_DOWN | POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_CONFIDENCE;
-        if (!InjectTouch(device, 1, anchorCenter, downFlags))
-            return Fail("injection_failed", "anchor touch down failed");
-        anchorDown = true;
-        Thread.Sleep(12);
-        if (!InjectTouch(device, 2, pt, downFlags))
+        bool upOk;
+        bool anchorUpOk = true;
+        if (!useAnchor)
         {
-            bool anchorUp = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
-            if (!anchorUp) workerUnhealthy = true;
-            anchorDown = !anchorUp;
-            return Fail("injection_failed", "target touch down failed");
+            // Single touch without the anchor: lets the system promote the touch
+            // to mouse messages for windows that never called RegisterTouchWindow.
+            if (!InjectTouch(device, 1, pt, downFlags))
+                return Fail("injection_failed", "touch down failed");
+            Thread.Sleep(12);
+            upOk = InjectTouch(device, 1, pt, POINTER_FLAG_UP);
+            if (!upOk) upOk = InjectTouch(device, 1, pt, POINTER_FLAG_UP);
+            if (!upOk) workerUnhealthy = true;
         }
-        Thread.Sleep(12);
-        bool upOk = InjectTouch(device, 2, pt, POINTER_FLAG_UP);
-        if (!upOk) upOk = InjectTouch(device, 2, pt, POINTER_FLAG_UP);
-        if (!upOk) workerUnhealthy = true; // pointer 2 may still be down; do not reuse this worker.
-        Thread.Sleep(12);
-        bool anchorUpOk = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
-        if (!anchorUpOk) anchorUpOk = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
-        if (!anchorUpOk) workerUnhealthy = true;
-        else anchorDown = false;
+        else
+        {
+            if (!InjectTouch(device, 1, anchorCenter, downFlags))
+                return Fail("injection_failed", "anchor touch down failed");
+            anchorDown = true;
+            Thread.Sleep(12);
+            if (!InjectTouch(device, 2, pt, downFlags))
+            {
+                bool anchorUp = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
+                if (!anchorUp) workerUnhealthy = true;
+                anchorDown = !anchorUp;
+                return Fail("injection_failed", "target touch down failed");
+            }
+            Thread.Sleep(12);
+            upOk = InjectTouch(device, 2, pt, POINTER_FLAG_UP);
+            if (!upOk) upOk = InjectTouch(device, 2, pt, POINTER_FLAG_UP);
+            if (!upOk) workerUnhealthy = true; // pointer 2 may still be down; do not reuse this worker.
+            Thread.Sleep(12);
+            anchorUpOk = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
+            if (!anchorUpOk) anchorUpOk = InjectTouch(device, 1, anchorCenter, POINTER_FLAG_UP);
+            if (!anchorUpOk) workerUnhealthy = true;
+            else anchorDown = false;
+        }
         bool fgAfter = GetForegroundWindow() == GetAncestor(hwnd, GA_ROOTOWNER);
+        POINT cursorAfter;
+        GetCursorPos(out cursorAfter);
+        int cursorDrift = Math.Abs(cursorAfter.X - cursorBefore.X) + Math.Abs(cursorAfter.Y - cursorBefore.Y);
+        bool cursorMoved = cursorDrift > 2;
         Dictionary<string, object> d = Ok();
         d["delivered"] = true;
-        d["method"] = "synthetic_touch";
+        d["method"] = useAnchor ? "synthetic_touch" : "synthetic_touch_promote";
         d["effect"] = "unverifiable";
-        d["anchorUsed"] = true;
-        d["complete"] = upOk && anchorUpOk;
+        d["anchorUsed"] = useAnchor;
+        d["cursorBefore"] = PointDict(cursorBefore);
+        d["cursorAfter"] = PointDict(cursorAfter);
+        d["cursorDrift"] = cursorDrift;
+        d["complete"] = upOk && anchorUpOk && !cursorMoved;
         if (!upOk || !anchorUpOk) d["warning_code"] = "inject_up_failed";
-        AddSideEffects(d, false, false, false, fgBefore != fgAfter);
+        else if (cursorMoved) d["warning_code"] = "cursor_moved";
+        AddSideEffects(d, cursorMoved, false, false, fgBefore != fgAfter);
         return d;
     }
 
-    public static Dictionary<string, object> SyntheticClick(long hwndL, int expectedPid, int sx, int sy)
+    public static Dictionary<string, object> SyntheticClick(long hwndL, int expectedPid, int sx, int sy, bool useAnchor)
     {
         IntPtr hwnd = new IntPtr(hwndL);
         string bad = CheckAction(hwnd, expectedPid);
@@ -1505,6 +1537,7 @@ public static class DshInput
             pendingHwnd = hwnd;
             pendingPoint = pt;
             pendingPid = expectedPid;
+            pendingAnchor = useAnchor;
             pendingResult = null;
             doneEvent.Reset();
         }
@@ -1563,7 +1596,11 @@ while ($true) {
                 $text = [System.Text.Encoding]::UTF8.GetString($bytes)
                 $resp = [DshInput]::PostText([long]$req.hwnd, [int]$req.pid, [bool]$req.hasPoint, [int]$req.x, [int]$req.y, $text)
             }
-            'syntheticClick' { $resp = [DshInput]::SyntheticClick([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y) }
+            'syntheticClick' {
+                $useAnchor = $true
+                if ($null -ne $req.anchor) { $useAnchor = [bool]$req.anchor }
+                $resp = [DshInput]::SyntheticClick([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y, $useAnchor)
+            }
             'cursorClick' { $resp = [DshInput]::CursorClick([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y, [string]$req.anchor) }
             'windowClick' { $resp = [DshInput]::WindowClick([long]$req.hwnd, [int]$req.pid, [int]$req.clientX, [int]$req.clientY) }
             'restore' { $resp = [DshInput]::Restore() }

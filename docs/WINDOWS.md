@@ -234,6 +234,7 @@ powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
 |---|---|---|---|
 | `backgroundInput: auto` | B0：`PostMessage` 鼠标；`SendMessageTimeout` plain key/`WM_CHAR`；`BM_CLICK` | 不碰光标/前台 | 只对处理窗口消息的目标有效；不更新 OS 修饰键状态；目标卡住时文本每字符最多等 1s |
 | `syntheticPointer: auto` | B1：`InjectSyntheticPointerInput(PT_TOUCH)` + anchor | 不碰光标/前台 | 只左单击；无滚轮/键盘；目标必须处理 `WM_POINTER`；遮挡失败关闭，不借 Z 序/透明度；需 `allowedApps` |
+| `syntheticPointer: promote` | B1：无 anchor 单点合成触控，系统提升为鼠标消息 | 不碰光标/前台 | 只对普通 message 窗口；只左单击；应用是否按业务处理未验证；需 `allowedApps` |
 | `anchoredInput: cursor/cursor-clip/window` | B2/B3：临时移光标/移窗口后发消息 | 不抢前台，但动光标/窗口 | 只左单击；需 `allowedApps`；`cursor` 依赖 `BlockInput`，`cursor-clip` 用 `ClipCursor` 免提权但不阻塞键盘；B3 不改 Z 序/不做离屏截图；外部移动光标/窗口时失败关闭 |
 
 三键全 off 时零 PowerShell spawn。组合键/modifier/`foreground=true`/`deliveryMode=foreground`/`from_zoom` 一律跳过本功能；失败/未验证不自动换通道。通道矩阵、回执、错误码与实测见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。

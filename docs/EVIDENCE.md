@@ -249,23 +249,25 @@ node tests/native-dialogs.test.mjs
 ## 1.9 2026-11-21 — B2 cursor-clip、B1/B3 静默预检、Excel 探针分支
 
 命令：
-- `node evals/probe-background-input.mjs`：三轮 **两轮 11 PASS / 4 BLOCKED、最终 12 PASS / 3 BLOCKED / 0 FAIL**。
+- `node evals/probe-background-input.mjs`：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）。
+- `node evals/probe-background-input.mjs --elevated`（UAC）：**14 PASS / 0 BLOCKED / 0 FAIL**。
 - `node evals/probe-modifier-drop.mjs --excel --excel-only`：Excel 分支 **8 PASS / 1 BLOCKED / 0 FAIL**（最后一次干净轮）。
-- `node evals/probe-b2-elevated.mjs --no-uac`：**1 PASS / 1 BLOCKED / 0 FAIL**；非提权 `BlockInput=false`、`err=0`、`elevated=false`、`uiAccess=false`、session 1/1。不带 `--no-uac` 的 UAC 版本需人工批准，本轮未运行。
+- `node evals/probe-b2-elevated.mjs --no-uac`：**1 PASS / 1 BLOCKED / 0 FAIL**；非提权 `BlockInput=false`、`err=0`、`elevated=false`、`uiAccess=false`、session 1/1。独立 UAC 版本未运行；完整提权验证由 `probe-background-input --elevated` 完成。
 
 | 检查 | 结果 | 说明 |
 |---|---|---|
-| B2 严格 `BlockInput` | BLOCKED | `block_input_failed`；`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default；未移动光标 |
-| B2 `cursor-clip` | PASS | 同一目标 109–125ms 返回；`MOUSEDOWN`；`clipAnchored=true`、`clipRestored=true`、`cursorRestored=true`；不阻塞键盘 |
-| B1 synthetic touch | PASS | `TOUCHDOWN/TOUCHUP`；`cursorMoved=false` |
+| B2 严格 `BlockInput`（默认非提权） | BLOCKED | `block_input_failed`；`win32=0`、`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default；未移动光标 |
+| B2 严格 `BlockInput`（`--elevated`） | PASS | 125ms；`inputBlocked=true`、`inputUnblocked=true`、`cursorRestored=true`、`MOUSEDOWN` |
+| B2 `cursor-clip` | PASS | 109–125ms；`MOUSEDOWN`；`clipAnchored=true`、`clipRestored=true`、`cursorRestored=true`；不阻塞键盘 |
+| B1 synthetic touch | PASS | `TOUCHDOWN/TOUCHUP`；`cursorDrift=0` |
 | B1 WM_TOUCH-only | PASS | 收到 `WMTOUCH`（系统转换） |
-| B1 mouse-only 普通窗口 | BLOCKED | 未收到 `MOUSEDOWN`/`WMTOUCH`；普通窗口不外推 |
-| B1 不移动光标 | BLOCKED | 外部光标漂移 13–236px；helper 报告 `cursorMoved=false`，脏桌面无法归因 |
-| B3 window | PASS/BLOCKED | 安静轮 PASS（`windowRestored=true`、日志 `MOUSEDOWN`）；脏桌面轮 `desktop_busy`/`window_move_failed` → BLOCKED |
+| B1 mouse-only 普通窗口 | PASS | `syntheticPointer:promote` 无 anchor 单点触控被系统提升为 `MOUSEDOWN/MOUSEUP`；`cursorDrift=0` |
+| B1 不移动光标 | PASS | helper 注入窗口内 `cursorDrift=0`；外部物理漂移 348–766px 单独记录，不归因给 B1 |
+| B3 window | PASS | `windowRestored=true`、`cursorMoved=false`、日志 `MOUSEDOWN` |
 | B3 外部移动 | 修正 | 点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally` |
-| Excel 分支 | 实现 | Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；A2 保留但 E2 为空 → BLOCKED |
+| Excel 分支 | BLOCKED | Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；A2 保留但 E2 为空 |
 
-> 环境：Windows 11 x64，DPI 150%，dirty 桌面；B1/B3 的 BLOCKED 来自外部光标移动，不改写成 PASS。
+> 环境：Windows 11 x64，DPI 150%，dirty 桌面；外部物理光标漂移不再污染 B1 归因，严格 B2 用一次性 UAC 提权探针验证。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

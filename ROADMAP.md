@@ -29,7 +29,7 @@
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |
 | C15 | macOS 回归 | 待环境 | 近期证据都在 Windows；macOS 仍是历史验证 |
 | C16 | 驱动库存候补 | 待评估 | `browser_*`、`set_window_frame`、trajectory 录制/重放等 |
-| C17 | 实验性后台输入（B0/B1/B2/B3） | 已实现，默认 off；B2 cursor-clip 真机通过 | 无交互 UIA 目标的消息/合成触控/光标/窗口锚定；B0/B1/B3 在自建探针通过（B1 touch-only 收到 `WMTOUCH`）；B1 mouse-only 普通窗口未收到鼠标提升 → 普通应用不外推；严格 B2 `BlockInput` 当前会话 BLOCKED，`cursor-clip`（ClipCursor 5×5）两轮 PASS；helper 增加 `desktop_busy` 与诊断；见 [BACKGROUND-INPUT](docs/BACKGROUND-INPUT.md) |
+| C17 | 实验性后台输入（B0/B1/B2/B3） | 已实现，默认 off；真机提权轮 14/0 | 无交互 UIA 目标的消息/合成触控/光标/窗口锚定；B0/B1/B3 通过；`syntheticPointer:promote` 让普通 mouse-only 窗口收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift` 归因；严格 B2 默认非提权 BLOCKED，`--elevated`（UAC）125ms PASS；`cursor-clip`（ClipCursor 5×5）PASS；见 [BACKGROUND-INPUT](docs/BACKGROUND-INPUT.md) |
 | C18 | 经典 HMENU 菜单兜底（nativeMenus） | 已实现，默认 off；真机通过 | 驱动 `invoke_menu` 结构化拒绝后 `GetMenu` 精确路径 + `PostMessage(WM_COMMAND)`；离线 18 项 + `probe-ops` SetMenu fixture 通过 |
 | C19 | 原生 Button 触发（nativeButtonTrigger） | 已实现，默认 off；自建探针通过 | 标准 Win32/WinForms Button 唯一匹配 + `BM_CLICK`；t20 形态 1.2s、opened=1、latch 生效；t20 需显式 overlay 复跑 |
 | C20 | Excel modifier drop 真机探针 | 分支已实现；复制仍 BLOCKED | `probe-modifier-drop --excel` 检测 Excel/COM/UIA、创建临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；当前拖拽已投递但 E2 未复制 → BLOCKED，不冒充 PASS |

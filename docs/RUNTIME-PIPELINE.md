@@ -172,7 +172,7 @@ ensureDriverInfo（--version/status，进程级缓存）
 
 ### 4.6 实验性后台输入
 
-- `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对快照没有可交互 UIA 元素的目标生效（`hasNoActionableUia`）。
+- `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对快照没有可交互 UIA 元素的目标生效（`hasNoActionableUia`）。`syntheticPointer:promote` 只对 `message` 契约使用无 anchor 单点触控，pointer/touchWindow 仍走 `auto`。
 - 命中后由 `lib/backgroundInput.js` 直接返回 driver 形状回执并走 `settleAction`，**不进入 `cuaDeliver`**：避免 L2/L3 重复投递。未命中返回 null，继续原 driver 路径。
 - B0 鼠标 `PostMessage` 异步；plain key/text `SendMessageTimeout` 同步（每字符最多 1s）。B1 合成触控、B2 光标锚定（`cursor`=`BlockInput`，`cursor-clip`=`ClipCursor` 5×5）、B3 窗口锚定都返回 `unverifiable`；B1 遮挡失败关闭；B2/B3 在 helper 内 finally 还原；helper 动作前有 300ms 光标静止预检（`desktop_busy`）。
 - 拒绝/超时/未验证不自动换通道、不自动前台；回执提示先观察。投递标签见 [TOOLS](TOOLS.md) 与 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。

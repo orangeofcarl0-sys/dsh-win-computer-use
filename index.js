@@ -220,9 +220,11 @@ export const Config = z.object({
    *   auto = 对无 UIA 的 pointer/触控目标（Unity/Unreal/RegisterTouchWindow）注入
    *          WM_POINTER 左单击；不移动光标、不改变前台。目标点被遮挡时失败关闭，
    *          不提升窗口、不改透明度。只支持左单击；无滚轮/键盘/右键/双击。
+   *   promote = 对无 UIA 的普通 message 窗口注入单点合成触控（无 anchor），
+   *          由系统提升为鼠标消息；不移动光标/前台。仅单次左键；应用语义未验证。
    *   需要 allowedApps 显式包含目标应用（安全闸）；off = 零 spawn。
    */
-  syntheticPointer: z.union(['off', 'auto']).default('off'),
+  syntheticPointer: z.union(['off', 'auto', 'promote']).default('off'),
   /**
    * 实验性锚定输入（B2/B3，默认 off）：
    *   cursor = 光标锚定：临时把真实光标移到目标点，BlockInput 保护，post 消息后还原；
@@ -607,7 +609,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   return [
   {
     name: 'computer_click',
-    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。实验性 backgroundInput/syntheticPointer/anchoredInput（默认 off）可在无 UIA 目标上走插件侧消息/合成触控/光标或窗口锚定；失败不自动前台，先观察。实验性 nativeButtonTrigger（默认 off）只对能唯一匹配的标准 Win32/WinForms Button 发 BM_CLICK（未验证）；明确未匹配会回退 driver，owner_disabled/超时不回退。',
+    description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。实验性 backgroundInput/syntheticPointer/anchoredInput（默认 off）可在无 UIA 目标上走插件侧消息/合成触控/光标或窗口锚定；syntheticPointer:promote 对普通 message 窗口用无 anchor 单点合成触控（系统提升为鼠标消息，应用语义未验证）；失败不自动前台，先观察。实验性 nativeButtonTrigger（默认 off）只对能唯一匹配的标准 Win32/WinForms Button 发 BM_CLICK（未验证）；明确未匹配会回退 driver，owner_disabled/超时不回退。',
     parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),

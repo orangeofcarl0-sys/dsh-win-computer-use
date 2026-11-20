@@ -77,7 +77,7 @@
 | 键 | 类型 | 默认 | 枚举/范围 | 作用 |
 |---|---|---|---|---|
 | `backgroundInput` | string | `off` | `off`/`auto` | B0：快照没有可交互 UIA 元素时，click 走 `WM_*`/`BM_CLICK`，plain key/text 走 `WM_KEY*`/`WM_CHAR`；不移动光标/前台，未验证 |
-| `syntheticPointer` | string | `off` | `off`/`auto` | B1：对无 UIA 的 pointer/触控目标注入合成触控左单击；不移动光标/前台；遮挡失败关闭；需要 `allowedApps` 非空 |
+| `syntheticPointer` | string | `off` | `off`/`auto`/`promote` | B1：`auto` 对无 UIA 的 pointer/触控目标注入带 anchor 的合成触控左单击；`promote` 对普通 message 窗口注入无 anchor 单点触控，由系统提升为鼠标消息；不移动光标/前台；遮挡失败关闭；需要 `allowedApps` 非空 |
 | `anchoredInput` | string | `off` | `off`/`cursor`/`cursor-clip`/`window` | B2/B3：`cursor` 临时移光标 + `BlockInput`；`cursor-clip` 免提权，用 `ClipCursor` 把光标限制在目标 5×5 区域（不阻塞键盘）；`window` 临时移窗口。只左单击；需要 `allowedApps` 非空；会动光标/窗口 |
 
 三键全 `off` 时零 PowerShell spawn，行为与 0.5.8 一致。B1/B2/B3 只对“没有可交互 UIA 元素”的快照生效；有 Button/Edit/MenuItem 等仍走 driver/UIA。组合键/modifier/`foreground=true`/`deliveryMode=foreground`/`from_zoom` 一律跳过本功能。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
@@ -121,6 +121,8 @@
 | `nativeButtonTrigger: off` × click | 零 PowerShell spawn；保持 driver UIA 语义（模态触发仍可能 30s） |
 | `backgroundInput: auto` × 有可交互 UIA | 不接管；继续 driver/UIA。只有快照没有 Button/Edit/MenuItem 等可交互角色时才走插件消息通道 |
 | `syntheticPointer: auto` × `allowedApps: []` | 不接管（B1/B2/B3 的强制安全闸）；B0 不受此限制 |
+| `syntheticPointer: promote` × 普通 message 窗口 | 无 anchor 单点合成触控被系统提升为鼠标消息；探针 `MOUSEDOWN/MOUSEUP`；不移动光标/前台；应用语义未验证 |
+| `syntheticPointer: promote` × pointer/touchWindow | 不接管；pointer 契约继续 `auto` 或 driver |
 | `anchoredInput: cursor/window` × 脏桌面 | 光标/窗口被外部改动时失败关闭（`background_input_cursor_changed` / 还原失败），不抢回用户改动 |
 | `anchoredInput: cursor` × `BlockInput` 被拒 | 失败关闭并返回 `background_input_block_input_denied` + `win32_error`/`diagnostics`；不移动光标、不回退 driver。可改用 `cursor-clip` 或前台 |
 | `anchoredInput: cursor-clip` × 光标仍在移动 | 300ms 静默预检失败 → `background_input_desktop_busy`；未移动光标、未发送。停止动鼠标后重试 |

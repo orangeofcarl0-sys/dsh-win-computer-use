@@ -526,6 +526,32 @@ try {
     check('I2: B1 显式开启 → syntheticClick，不走 postMouse', calls.syn.length === 1 && calls.post.length === 0
       && b1.value.delivery.mode === 'synthetic-pointer', JSON.stringify(calls))
 
+    calls.syn.length = 0; calls.post.length = 0
+    real.clearProfileCache()
+    const promoteCfg = { ...baseCfg, backgroundInput: 'off', syntheticPointer: 'promote', allowedApps: ['Game'] }
+    const promote = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: promoteCfg,
+      client: {
+        ...client,
+        syntheticClick: async (p) => {
+          calls.syn.push(p)
+          return { ok: true, delivered: true, method: 'synthetic_touch_promote', anchorUsed: false, effect: 'unverifiable', cursorDrift: 0 }
+        },
+      },
+    })
+    check('I2b: B1 promote 普通窗口 → anchor=false + 鼠标提升文案', calls.syn.length === 1
+      && calls.syn[0].anchor === false && calls.post.length === 0
+      && promote?.value?.method === 'synthetic_touch_promote'
+      && promote?.value?.anchor_used === false
+      && /鼠标提升/.test(promote?.note || ''), JSON.stringify({ calls, value: promote?.value, note: promote?.note }))
+
+    real.clearProfileCache()
+    const promotePointer = await real.tryBackgroundClick({
+      tool: 'click', target, snap, args: {}, cfg: promoteCfg,
+      client: { ...client, probe: async () => ({ ...profile, className: 'UnityWndClass' }) },
+    })
+    check('I2c: B1 promote 不接管 pointer 契约', promotePointer === null)
+
     real.clearProfileCache()
     const occludedClient = {
       ...client,

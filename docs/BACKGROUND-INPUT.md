@@ -2,7 +2,7 @@
 
 > 目的：插件侧 Windows 后台输入（B0/B1/B2/B3）的通道矩阵、配置、回执、安全边界与实测结果。
 > 读者：要启用/排障实验输入的人；改 `lib/backgroundInput.js` 或 `tools/background-input.ps1` 的人。
-> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 真机探针最终 12 PASS / 3 BLOCKED / 0 FAIL）。
+> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 默认 14 PASS / 1 BLOCKED，`--elevated` 14 PASS / 0 BLOCKED）。
 > 相关：[WINDOWS](WINDOWS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [SECURITY](SECURITY.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 定位
@@ -47,7 +47,8 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 |---|---|---|---|---|---|---|
 | B0 message | `backgroundInput: auto` | 无 UIA 的 message 窗口 | 左/右/双击；plain key；text | lParam 客户区坐标 | `PostMessage` 鼠标；`SendMessageTimeout` key/text | B0 |
 | B0 control | `backgroundInput: auto` | 标准 `Button` 子控件 | 左单击 | 屏幕点 → 子控件 | `BM_CLICK` | B0 |
-| B1 synthetic | `syntheticPointer: auto` + `allowedApps` | 无 UIA 的 pointer/touch 窗口 | 左单击 | 虚拟屏幕物理坐标 | `InjectSyntheticPointerInput(PT_TOUCH)` | B1 |
+| B1 synthetic | `syntheticPointer: auto` + `allowedApps` | 无 UIA 的 pointer/touch 窗口 | 左单击 | 虚拟屏幕物理坐标 | `InjectSyntheticPointerInput(PT_TOUCH)` + anchor | B1 |
+| B1 promote | `syntheticPointer: promote` + `allowedApps` | 无 UIA 的普通 message 窗口 | 左单击 | 虚拟屏幕物理坐标 | 单点 `InjectSyntheticPointerInput(PT_TOUCH)`（无 anchor，系统提升为鼠标） | B1 |
 | B2 cursor | `anchoredInput: cursor` + `allowedApps` | 无 UIA 的 cursor-polling 窗口 | 左单击 | 真实光标移到目标点 | 消息 + `BlockInput` | B2 |
 | B2 cursor-clip | `anchoredInput: cursor-clip` + `allowedApps` | 无 UIA 的 cursor-polling 窗口 | 左单击 | 真实光标移到目标点，`ClipCursor` 限制 5×5 | 消息（不阻塞键盘） | B2 |
 | B3 window | `anchoredInput: window` + `allowedApps` | 无 UIA 的 cursor-polling 窗口 | 左单击 | 移动窗口使目标点落在光标下 | 消息 | B3 |
@@ -87,6 +88,8 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 - 最小化/不可见/点在桌面外/anchor 被遮挡 → 失败关闭。
 - 只支持左单击；无滚轮/键盘/右键/双击/修饰键。
 - 目标必须处理 `WM_POINTER`；不处理的目标可能只得到 `unverifiable` 或 no-op。
+- `syntheticPointer: promote`（2026-11-21 实测）：不创建 anchor，单点 `InjectSyntheticPointerInput(PT_TOUCH)`；未注册触控的普通 message 窗口收到系统提升的 `MOUSEDOWN/MOUSEUP`。只对 message 契约生效；pointer/touchWindow 仍走 `auto`。应用语义仍未验证。
+- helper 回执带 `cursorBefore`/`cursorAfter`/`cursorDrift`；探针以注入窗口内的 drift 判定 B1 是否移动光标，外部物理漂移单独记录，不再把 B1 误判为 BLOCKED。
 
 ## 7. B2：光标锚定
 
@@ -95,6 +98,7 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 - 前置：目标可见、未最小化、点在桌面、点在 `ClipCursor` 内、`BlockInput(TRUE)` 成功。
 - 保存光标 → `BlockInput(TRUE)` → `SetCursorPos` → 30ms → 消息点击 → 30ms → 还原光标 → `BlockInput(FALSE)`。
 - `BlockInput` 失败时**不移动光标**，返回 `background_input_block_input_denied`（部分会话/安全软件会拒绝）。
+- 2026-11-21 `probe-background-input --elevated`（UAC）实测：High IL helper 的 `BlockInput` 成功，125ms，`inputBlocked=true`、`inputUnblocked=true`、`cursorRestored=true`；默认非提权会话仍失败关闭（`win32=0`、`helperElevated=false`、`helperUIAccess=false`、Default 桌面）。
 - 只支持左单击；会短暂抢光标并阻塞用户输入；回执带 `input_blocked_ms` 与 `cursor_restored`。
 - `SetCursorPos` 后用 `GetCursorPos` 复核目标点；`BlockInput(false)` 失败时回执 `input_unblocked=false`，helper 在回复后退出以释放输入阻塞。
 - 还原失败不假装成功：回执 `cursor_restored=false` + `complete:false` + `warning_code=cursor_restore_failed`。
@@ -120,7 +124,7 @@ cua-driver 的 `deliveryMode=background` 覆盖 UIA 与它自己的 PostMessage 
 
 ```yaml
 backgroundInput: off       # off | auto（B0）
-syntheticPointer: off      # off | auto（B1）
+syntheticPointer: off      # off | auto | promote（B1）
 anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 ```
 
@@ -187,14 +191,15 @@ anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 
 ## 12. 测试与证据
 
-- 离线：`tests/background-input.test.mjs`（48 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由、`cursor-clip`/`desktop_busy`/诊断透传、B3 外部移动回执。
-- 真机：`evals/probe-background-input.mjs`（不加入 `npm test`）：
+- 离线：`tests/background-input.test.mjs`（50 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由、`cursor-clip`/`desktop_busy`/诊断透传、B3 外部移动回执、`syntheticPointer:promote` 路由与 pointer 契约不接管。
+- 真机：`evals/probe-background-input.mjs`（不加入 `npm test`；可加 `--elevated`）：
   - 自建原生 pointer 窗口 + 只处理 `WM_TOUCH` 的 touch-only 窗口 + 未注册触控的 mouse-only 窗口 + 隐藏 controller + cover；
-  - B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 遮挡、B1 前台不变、B3 window 实测通过；
-  - B2 严格 `BlockInput` 在当前会话被拒绝 → BLOCKED（`win32_error` 缺失/0，`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default）；同一目标改用 `cursor-clip` **PASS**（125ms，MOUSEDOWN，`clipRestored=true`、`cursorRestored=true`）；
-  - B1 mouse-only 普通窗口未收到 `MOUSEDOWN`/`WMTOUCH` → BLOCKED（普通应用不外推）；B1 光标干净轮次 0px 漂移 → PASS；脏桌面轮次外部光标漂移 13–236px → BLOCKED（helper 报告 `cursorMoved=false`）。
+  - B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B1 遮挡、B1 前台不变、B3 window 实测通过；
+  - B1 光标：helper 在注入窗口内采样 `cursorBefore/cursorAfter`，`cursorDrift=0` → PASS；外部漂移（13–766px）单独记录，不再把 B1 误判为 BLOCKED；
+  - B1 mouse-only：`syntheticPointer:promote` 的无 anchor 单点触控收到 `MOUSEDOWN/MOUSEUP` → PASS；应用语义仍未验证；
+  - B2 严格 `BlockInput`：默认非提权会话被拒 → BLOCKED（`win32=0`、`helperElevated=false`、`helperUIAccess=false`、Default 桌面）；`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`inputUnblocked=true`、`cursorRestored=true`）；`cursor-clip` 也 PASS；
   - B3 干净轮次 PASS；脏桌面/输入桌面变化时 `window_move_failed`/`desktop_busy`/`window_changed_externally` → BLOCKED；点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally`。
-  - 2026-11-21 结果：三轮（两轮 11 PASS / 4 BLOCKED、最终 **12 PASS / 3 BLOCKED / 0 FAIL**）（严格 B2、B1 光标漂移、B1 mouse-only、B3 脏桌面）；`cursor-clip` 两轮均 PASS。不把 BLOCKED 当 PASS。
+  - 2026-11-21 结果：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2）；`--elevated` **14 PASS / 0 BLOCKED / 0 FAIL**。不把 BLOCKED 当 PASS。
 - 运行：`node evals/probe-background-input.mjs`；清理只按探针 HWND/PID。
 
 ## 13. 已知限制
