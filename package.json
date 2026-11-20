@@ -1,6 +1,6 @@
 {
   "name": "dsh-win-computer-use",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Windows-first Computer Use plugin for DeepSeek Harness: deep Win32/WinUI/UIA engineering, zero-approval delivery escalation (background → foreground → bring_to_front, restoring focus), 23 tools with a dispatcher-first 2-tool surface, prompt-cache friendly.",
   "type": "module",
   "main": "index.js",

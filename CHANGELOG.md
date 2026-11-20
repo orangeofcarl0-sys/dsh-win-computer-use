@@ -1,11 +1,11 @@
 # Changelog
 
-> **版本状态（2026-11-19）**：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7，dsh 兼容基线为 **0.2.2-rc.1**。web profile 仍部署旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.7）。
+> **版本状态（2026-11-20）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 部署状态以 [PUBLISH](PUBLISH.md) 为准。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
-## 0.5.8 (未发布，2026-11-20)
+## 0.5.8 (2026-11-20)
 
-**主题**：基于 17 条真实 trajectory 的 P0/P1/P2 行为修复；不改安全边界，不 bump 版本。
+**主题**：t20 模态 30s 超时根因定位 + 插件侧 Win32 原生对话框后端；回执与测试收口。不改驱动。
 
 ### Changed
 

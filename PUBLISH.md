@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-19）：`v0.5.7` 已发布并推送 npm（`dsh-win-computer-use@0.5.7`）；`main` 为 0.5.7；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6）。
+> 状态（2026-11-20）：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6）。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -10,10 +10,10 @@
 |---|---|
 | 仓库 | `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
 | 默认分支 | `main`（单分支；旧 `v0.3` 已合并/删除） |
-| 最新发布 tag | `v0.5.7`（注解 tag） |
+| 最新发布 tag | `v0.5.8`（注解 tag） |
 | `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
-| `package.json` version | `0.5.7` |
-| npm | 已发布 `dsh-win-computer-use@0.5.7`；`npm view dsh-win-computer-use version` 复核 |
+| `package.json` version | `0.5.8` |
+| npm | 已发布 `dsh-win-computer-use@0.5.8`；`npm view dsh-win-computer-use version` 复核 |
 | 部署 | web profile 仍是旧名 `dsh-computer-use` 的 0.5.6 拷贝（2026-11-20 实测）；0.5.5 副本保留为 `dsh-computer-use.0.5.5-kept` |
 | 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
 
@@ -22,8 +22,8 @@
 | 项 | 约定 |
 |---|---|
 | 版本号 | `package.json` / `package-lock.json` 的 `version` = tag 名去掉 `v` |
-| CHANGELOG | 顶部为当前版本一节；未发布时写“0.5.8 (未发布)” |
-| tag | **注解 tag**：`git tag -a v0.5.7 -m "..."` |
+| CHANGELOG | 顶部为当前版本一节；未发布时写“0.5.9 (未发布)” |
+| tag | **注解 tag**：`git tag -a v0.5.8 -m "..."` |
 | 分支 | 只推 `main`；不再维护发布分支 |
 | 发布物 | 提交 + 注解 tag；不是工作区 |
 | 授权 | push/tag/npm/部署只在用户明说“发布”时执行 |
@@ -71,22 +71,22 @@ node -e "const f=require('./tests/docs.facts.json'); console.log(f)"
 ## 4. 发布步骤
 
 ```bash
-# 1. 版本号与 CHANGELOG（0.5.6 -> 0.5.7；package-lock 同步）
+# 1. 版本号与 CHANGELOG（0.5.7 -> 0.5.8；package-lock 同步）
 #    手动编辑 package.json / package-lock.json / CHANGELOG.md
 
 # 2. 收尾提交（中文一句话：版本 + 主题）
 git add -A
-git commit -m "0.5.7 文档体系重写 + P0/P1 边界 + dispatcher 默认 + Windows-first 更名"
+git commit -m "0.5.8 实现：Win32 原生对话框后端（nativeDialogs）"
 
 # 3. 注解 tag（标题即发布说明首行）
-git tag -a v0.5.7 -m "0.5.7：Windows-first 更名 + dispatcher 默认 + P0/P1 安全边界 + 文档体系重写"
+git tag -a v0.5.8 -m "0.5.8：t20 模态 30s 根因 + Win32 原生对话框后端 + 回执/测试收口"
 
 # 4. 推送 main 与 tag（需用户明确“发布”授权）
 git push origin main
-git push origin v0.5.7
+git push origin v0.5.8
 
 # 5. 复核
-git ls-remote --tags origin | grep v0.5.7
+git ls-remote --tags origin | grep v0.5.8
 git log --oneline -1
 ```
 
@@ -136,9 +136,9 @@ dsh --profile web --dump-config | grep dsh-win-computer-use
 - 旧版 `dsh-computer-use` 与新版可并存于 node_modules，但 profile 配置只能启用一个 id。
 - 部署后若工具未出现：先查 `--dump-config` 与宿主日志；不要先怀疑模型。
 
-## 7. npm 发布（2026-11-19 已发布 0.5.7）
+## 7. npm 发布（2026-11-20 已发布 0.5.8）
 
-> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。`dsh-win-computer-use@0.5.7` 已发布。
+> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。`dsh-win-computer-use@0.5.8` 已发布。
 
 ```bash
 npm pack --dry-run --json        # 先看实际文件清单（以输出为准）
@@ -177,6 +177,7 @@ dsh plugin --profile web add dsh-win-computer-use
 
 | 版本 | 日期 | 提交 | 主题 |
 |---|---|---|---|
+| v0.5.8 | 2026-11-20 | — | t20 模态 30s 根因 + Win32 原生对话框后端（nativeDialogs）+ 回执/测试收口 |
 | v0.5.7 | 2026-11-19 | — | S1-S4 测试体系、S4 哨兵、AC2 夹具、p01-p03/t18/t19/t20、npm 首发 |
 | v0.5.6 | 2026-09-17 | `68770fd` | 委派能力降级修复（toolFilter/scoped restrict/三级阶梯）+ 文档修正 |
 | v0.5.5 | 2026-09-17 | — | 动态工具面（已废弃） |

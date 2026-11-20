@@ -2,7 +2,7 @@
 
 > 本文件声明插件在运行时**实际**使用的权限面（DSH STORE / 人工审查依据）。
 > 变更任何 spawn、网络、环境变量、文件访问或安全承诺时，必须同步更新本文件与 `package.json` 的 `dsh.permissions`，并补测试。
-> 状态：当前实现（最后核对 2026-11-20；`0.5.7` + 0.5.8 未发布改动）。威胁模型见 [docs/SECURITY.md](docs/SECURITY.md)。
+> 状态：当前实现（最后核对 2026-11-20；`0.5.8`）。威胁模型见 [docs/SECURITY.md](docs/SECURITY.md)。
 
 ## 1. 运行时行为总览
 

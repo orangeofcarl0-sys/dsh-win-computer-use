@@ -1,6 +1,6 @@
 # ROADMAP — dsh-win-computer-use
 
-> 状态基线：`v0.5.7` 已发布（2026-11-19，npm 首发）；`package.json` 为 0.5.7，本地 `main` 含 0.5.8 未发布提交（未推送）。
+> 状态基线：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`）；`package.json` 为 0.5.8，`main` 已推送。
 > 这是个人项目路线图，不是承诺清单。**触发条件**决定何时解冻；没有触发条件的事项不排期。
 > 历史细节见 [CHANGELOG](CHANGELOG.md)；逐轮证据见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
@@ -18,11 +18,11 @@
 | 0.5.0 | 工具改进包 | verify / wait_for / clipboard / menu / hover / stop / resume；12→19 工具 |
 | 0.4.x | 无感自治 + zoom | 删除审批网关；三级投递链；`screen_zoom` 定位原语；虚拟光标主题 |
 
-## 2. 当前优先（0.5.7 收尾）
+## 2. 当前优先（0.5.8 收尾）
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C6 | web profile 部署 | 待授权 | npm 已发布 0.5.7；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.7）。见 [PUBLISH](PUBLISH.md) |
+| C6 | web profile 部署 | 待授权 | npm 已发布 0.5.8；web profile 仍是旧名 `dsh-computer-use`（2026-11-20 实测 0.5.6，非当前 0.5.8）。见 [PUBLISH](PUBLISH.md) |
 | C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
 | C13 | daemon 高完整性/清理 | 待评估 | #3607；先试非提权重启 daemon，避免 `app_launch` 子进程 High IL |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |

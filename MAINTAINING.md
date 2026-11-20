@@ -2,7 +2,7 @@
 
 > 目的：干净工作区重新开始时，这份文档 + 仓库内文档 = 足够的上下文。
 > 读者：本仓库维护者。
-> 状态：当前实现（最后核对 2026-11-20；`0.5.7` 已发布并推送 npm）。
+> 状态：当前实现（最后核对 2026-11-20；`0.5.8` 已发布并推送 npm）。
 > 唯一文档索引：[docs/README.md](docs/README.md)；版本历史：[CHANGELOG.md](CHANGELOG.md)；逐轮证据：[docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
 ## 1. 项目状态
@@ -10,7 +10,7 @@
 - **名称**：`dsh-win-computer-use`（原名 `dsh-computer-use`，2026-11-10 更名）。
 - **定位**：Windows-first Computer Use 插件，DeepSeek Harness（dsh）的桌面操作层；个人项目，MIT。
 - **仓库**：`github.com/orangeofcarl0-sys/dsh-win-computer-use`，默认分支 `main`。
-- **版本**：`v0.5.7` 已发布（2026-11-19；npm `dsh-win-computer-use@0.5.7`）；`package.json` 为 0.5.7，本地 `main` 含 0.5.8 未发布提交（未推送）。
+- **版本**：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`）；`package.json` 为 0.5.8，`main` 已推送。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
 - **测试基线**：`npm test` 28 套 / **692** 项；`npm run check` 语法 **43/43** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
@@ -158,7 +158,7 @@ cua-driver autostart kick
   - **headless 默认禁用 `credentials`**；不启用会报 `MISSING_CREDENTIAL`，这不是插件加载错误。
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
-- npm 已发布 `dsh-win-computer-use@0.5.7`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
+- npm 已发布 `dsh-win-computer-use@0.5.8`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
 - CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。**该 workflow 目前只在本地提交，尚未推送 `origin/main`、从未运行**；需要 self-hosted runner + 人工 `workflow_dispatch`。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
@@ -169,7 +169,7 @@ cua-driver autostart kick
 | # | 位置 | 现象 | 影响 | 建议 |
 |---|---|---|---|---|
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 有环境时补矩阵 |
-| G7 | 部署 | web profile 仍旧版；npm 已发布 0.5.7 | 用户看到的可能不是 main | 按 PUBLISH 部署 |
+| G7 | 部署 | web profile 仍是旧版；npm 已发布 0.5.8 | 用户看到的可能不是 main | 按 PUBLISH 部署 |
 | A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
 | A11 | 手势原语 | 无 selectText/key hold/mouse down-up；drag 无元素源 | 复杂文本选择/形状拖拽仍靠坐标 | 评估下一层原语 |
 | A17 | 私有拖拽 | Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 未自动回归 | 已知边界 | Excel 需 UIA 网格 + 保存路径；PPT 仍 BLOCKED |
@@ -181,7 +181,7 @@ cua-driver autostart kick
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | web profile 切新版（npm 0.5.7 已发布，需用户明确部署授权） |
+| P1 | web profile 切新版（npm 0.5.8 已发布，需用户明确部署授权） |
 | P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
 | P2 | daemon 提权/清理问题（#3607）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |
