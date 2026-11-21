@@ -72,11 +72,14 @@
 > `capture-only` = 0.52.13 上 `include_accessibility_tree:false` 的像素预取路径；`回执修复` = 2026-11-18 native/vision 快照 id + query 清除说明。`—` 表示报告未单列该计数。
 > 行名即驱动/模型口径：未标注的行 = **当时基线 0.23.2 + 默认模型通道**；行名含 `0.52.13` / `opencode` / `capture-only` / `回执修复` 的行按行名口径（详见 §22.1 / §22.2）。
 
-## 3. 2026-11-22 — main 推送、CI 结果与 PE 清单复核
+## 3. 2026-11-22 — main 推送/CI、PE 复核与上游 issue 跟进复跑
 
 - **CI 状态更新（取代 §21 的“本地已提交，未推送/未运行”）**：`main` 已推送至 `origin/main`（`a716633 评测探针：Excel 双引擎、WPF/Chromium、手势与跨 IL 证据`）；GitHub Actions CI run **44939474514 结论 success**（26s，2026-11-21T19:10Z，对应本地 2026-11-22）。此前 0.5.8 发布与后台输入首轮的 4 次 CI failure 已由 `ab61fc4`（Linux 平台守卫）修复，此后连续 5 次 success。
 - Windows self-hosted workflow 仍为手动 dispatch，未在 runner 上运行；不能称 Windows CI 已覆盖。
 - **PE 清单复核（只读字节扫描）**：`~/.cua-driver/packages/current/cua-driver.exe`（0.52.13，33,391,440 字节）全二进制仅一处 `requestedExecutionLevel`：`level="asInvoker" uiAccess="false"`；另有一处 `requireAdministrator` 字节命中但**不属于任何清单**（非 RT_MANIFEST 内容，正是此前误判的来源）。§29（2026-09-16，0.23.2 当时）的“清单 requireAdministrator → daemon High”不适用于 0.52.13；daemon 是否 High 取决于启动方式（autostart/交互式提权）。
+- **上游跟进：#3908 复跑（0.52.13，WinUI3 Notepad）**：`probe-winui-keys` 重跑——`hotkey` ctrl+a/alt+f（bg/fg 同）不再 4s 超时，改为 `could not find a UIA AcceleratorKey or (Ctrl+X)-style name hint (scanned 44/43 elements)`，即扫描完成但休止树中无加速器提示（提示挂在未展开的 flyout 菜单项上）；`press_key+ctrl` fg 全选 28/28、bg 无效且裸 `a` 入正文（27→28）；`alt+f` 仅 fg `press_key` 开菜单；`alt+tab` 仅 fg 切换；菜单 element 回退有效；cleanup ok、TabState restore 39 bins。已回复官方（issuecomment-7068671952）。
+- **上游跟进：#3586 `since` 差分（0.52.13，自建 WinForms 5 元素窗口）**：`since=<同 id>` → `no_change` + 续用 snapshot_id（`Rows and indices are as before; use snapshot_id s…B in element_tokens`）；窗口自变（标题+标签）后 → `diff` + `diff_counts {added:2, changed:1, removed:2}`，`+`/`~` 行用新 id、`-` 行用旧 id；未知 id → `unknown_snapshot` 全量回退。小窗口全量/差分均 ~1.3–1.4s（daemon 往返为主），大树成本收益未测；**每次响应铸造新 snapshot_id，element token 必须用最近一次响应的 id**（与插件“快照全局单例”纪律一致）。已回复官方（issuecomment-7068672419）。
+- **上游跟进：#3587 轮询不足**：以 B1 光标归因实测回复三点不足——轮询只有状态无因果（外部漂移 30–766px 无法归因用户/注入/第三方）、轮询间隙无事件（300ms `desktop_busy` 静默预检只能粗筛）、热路径成本（issuecomment-7068672870）。
 
 ## 4. 2026-11-22 — cross-IL / UIPI
 
