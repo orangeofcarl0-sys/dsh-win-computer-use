@@ -75,6 +75,7 @@
 ## 3. 2026-11-22 — main 推送/CI、PE 复核与上游 issue 跟进复跑
 
 - **CI 状态更新（取代 §21 的“本地已提交，未推送/未运行”）**：`main` 已推送至 `origin/main`（`a716633 评测探针：Excel 双引擎、WPF/Chromium、手势与跨 IL 证据`）；GitHub Actions CI run **44939474514 结论 success**（26s，2026-11-21T19:10Z，对应本地 2026-11-22）。此前 0.5.8 发布与后台输入首轮的 4 次 CI failure 已由 `ab61fc4`（Linux 平台守卫）修复，此后连续 5 次 success。
+- **CI 后续更新（2026-11-22）**：`45c8137`（文档：macOS 与 Linux 统一标注为未验证）推送后，CI run **44952223412 结论 success**（25s，2026-11-21T21:34Z）；`ab61fc4` 之后连续 6 次 success。
 - Windows self-hosted workflow 仍为手动 dispatch，未在 runner 上运行；不能称 Windows CI 已覆盖。
 - **PE 清单复核（只读字节扫描）**：`~/.cua-driver/packages/current/cua-driver.exe`（0.52.13，33,391,440 字节）全二进制仅一处 `requestedExecutionLevel`：`level="asInvoker" uiAccess="false"`；另有一处 `requireAdministrator` 字节命中但**不属于任何清单**（非 RT_MANIFEST 内容，正是此前误判的来源）。§29（2026-09-16，0.23.2 当时）的“清单 requireAdministrator → daemon High”不适用于 0.52.13；daemon 是否 High 取决于启动方式（autostart/交互式提权）。
 - **上游跟进：#3908 复跑（0.52.13，WinUI3 Notepad）**：`probe-winui-keys` 重跑——`hotkey` ctrl+a/alt+f（bg/fg 同）不再 4s 超时，改为 `could not find a UIA AcceleratorKey or (Ctrl+X)-style name hint (scanned 44/43 elements)`，即扫描完成但休止树中无加速器提示（提示挂在未展开的 flyout 菜单项上）；`press_key+ctrl` fg 全选 28/28、bg 无效且裸 `a` 入正文（27→28）；`alt+f` 仅 fg `press_key` 开菜单；`alt+tab` 仅 fg 切换；菜单 element 回退有效；cleanup ok、TabState restore 39 bins。已回复官方（issuecomment-7068671952）。
