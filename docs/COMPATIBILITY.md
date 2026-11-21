@@ -27,7 +27,7 @@
 | cua-driver | `0.52.13` | 已实测（canary） | 默认 markdown、session 归属、capture-only、原生 modifier drag |
 | cua-driver | `0.53.x` | 预期 | 按发布说明预留 `screenshot_frame`/flat window；未真机验证 |
 | Windows 10/11 x64 | 11 深度实测 | 已实测 | 前台锁、UIPI、XAML/WinUI、结构密码扫描、DPI |
-| macOS | — | 支持（历史） | 基础路径；近期未回归；需 Accessibility/Screen Recording |
+| macOS | — | 未验证 | 仅 0.1–0.2 有基础路径记录；近期未回归；需 Accessibility/Screen Recording |
 | Linux | — | 未验证 | 桌面/accessibility 栈差异大；不在承诺范围 |
 | 模型 image 输入 | 由 route 声明 | 已实测 | `native`/`screen_zoom` 要求 `inputModalities` 含 `image` |
 | 模型工具调用 | 宿主要求 | 已实测 | 没有工具调用能力的模型无法使用 |
@@ -114,7 +114,7 @@ exec.agent.session.requestHeader().config
 |---|---|---|
 | Windows 11 | 深度实测 | 前台锁、UIPI、XAML/WinUI、结构密码扫描、DPI 1:1 观测 |
 | Windows 10 | 支持 | 同上；未单独回归 |
-| macOS | 基础可用（历史） | TCC/Accessibility；近期未回归；Windows 专属行为不适用 |
+| macOS | 未验证 | 仅 0.1–0.2 有基础路径记录；TCC/Accessibility；近期未回归；Windows 专属行为不适用 |
 | Linux | 未验证 | 不在承诺范围；不要写成“已支持” |
 
 ## 7. 升级/回退

@@ -18,7 +18,7 @@
 | disposable VM | 当前无 VirtualBox/VMware/QEMU/Windows Sandbox；Windows 11 家庭版 | UAC、安装器、per-machine 注册、SmartScreen/MOTW、Protected View 不能安全测 | 一次性 VM 快照 + 测试签名包 |
 | 独立观察者 key | 没有已验证的视觉 key；`~/.dsh/.credentials.yaml` 存在但未读取 | `screen_assert` 的第二观察者无法建立 | 提供可用视觉 key / 修复观察者文本输出 |
 | 浏览器 auth/upload mock | 没有本地 mock 登录/上传服务 | `b01` 只覆盖 tabs + 表单，upload/auth 无法建立 | 本地 mock 服务 + 测试页面 |
-| Linux / macOS | 无 Linux 任务套件；macOS 近期未回归 | 不能把“能加载”当“已验收” | Linux 可选、非门禁；macOS 有环境再回归 |
+| Linux / macOS | 无 Linux 任务套件；macOS 未验证（近期未回归） | 不能把“能加载”当“已验收” | Linux 可选、非门禁；macOS 有环境再回归 |
 | 磁盘 | C: 仅 1.6GB 空闲（2026-11-21 测量，随使用波动）；TEMP 在 C: | 安装应用/VM、`Add-Type`、大截图可能失败 | 释放 C: 或明确迁移安装/缓存；不自动清理用户文件 |
 
 ## 3. 能力型

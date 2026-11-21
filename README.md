@@ -131,7 +131,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 - **`screen_zoom` 需要当前模型支持图片输入。** 小字号 JPEG 可能不可读；读文字用 `native`。
 - **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层；`real=true` 才动真实指针。
 - **`computer_menu` fail-closed。** 路径缺失/歧义/禁用/结构不匹配即失败，绝不回退像素。
-- **平台**：Windows 深度实测；macOS 基础可用（历史）；Linux 未验证。
+- **平台**：Windows 深度实测；macOS 与 Linux 未验证。
 
 逐条错误与处理见 [ERRORS](docs/ERRORS.md) 与 [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)；Windows 底层原因见 [WINDOWS](docs/WINDOWS.md)。
 
@@ -140,14 +140,14 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 | 依赖/平台 | 版本 | 状态 |
 |---|---|---|
 | Windows 11 x64 | — | ✅ 深度实测 |
-| macOS | — | ⚠️ 基础可用（历史，近期未回归） |
+| macOS | — | ◻ 未验证 |
 | Linux | — | ◻ 未验证 |
 | Node.js | `>=22.18.0` | ✅ |
 | dsh | `>=0.2.2-rc.1 <0.3.0` | ✅ 基线 `0.2.2-rc.1` |
 | cua-driver | `0.23.2` 基线 / `0.52.13` canary | ✅ 两者均实测；`0.53` 预期未验证 |
 | 模型 | 工具调用；native/zoom 需 image | ✅ |
 
-完整矩阵、驱动能力标志与升级/回退步骤见 [COMPATIBILITY](docs/COMPATIBILITY.md) 与 [DRIVER-SDK](docs/DRIVER-SDK.md)。
+macOS 与 Linux 均按未验证处理：macOS 只有 0.1–0.2 时期的基础路径记录，近期未回归；Linux 不在承诺范围。完整矩阵、驱动能力标志与升级/回退步骤见 [COMPATIBILITY](docs/COMPATIBILITY.md) 与 [DRIVER-SDK](docs/DRIVER-SDK.md)。
 
 ## 文档
 
@@ -162,7 +162,7 @@ Windows-first Computer Use plugin for the DeepSeek Harness: 23 tools (22 desktop
 - **Loop**: `screen_observe` (AX/UIA index tree, native screenshot, or vision observer) → act by `element` index or window-screenshot pixels → verify.
 - **Stance — zero-friction autonomy**: no approval prompts; background-first delivery escalates to foreground/`bring_to_front` and restores the previous foreground. The only content-level hard refusal is automated password entry (`typing` / `set_value`); `extremePatterns` adds non-blocking warning notes.
 - **Cache-friendly surface**: `surfaceMode` is either `dispatcher` (default, 2 visible / 21 hidden) or `hybrid` (7 visible / 16 hidden). The old dynamic enter/exit surface was removed.
-- **Honest boundaries**: Windows is the deep-tested target; macOS is basic; Linux is unverified. Delegation tool restriction is not available on dsh 0.2.2 (`startActivation` has no `toolFilter`), so the sub-agent may have parent-level capabilities; the receipt says so.
+- **Honest boundaries**: Windows is the deep-tested target; macOS and Linux are unverified (macOS has only 0.1–0.2-era basic-path records). Delegation tool restriction is not available on dsh 0.2.2 (`startActivation` has no `toolFilter`), so the sub-agent may have parent-level capabilities; the receipt says so.
 
 **Install**: install cua-driver (0.23.2 baseline; 0.52.13 canary tested; 0.53 expected), then `npm install dsh-win-computer-use` (or `dsh plugin add dsh-win-computer-use`); see [docs/INSTALL.md](docs/INSTALL.md). Defaults: `ttlMs: 60000`, `deliveryMode: auto`, `surfaceMode: dispatcher`; full reference in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 

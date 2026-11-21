@@ -9,7 +9,7 @@
 
 | 项 | 要求 | 说明 |
 |---|---|---|
-| 操作系统 | Windows 10/11 x64 | Windows 是深度实测目标；macOS 仅基础可用，Linux 未验证 |
+| 操作系统 | Windows 10/11 x64 | Windows 是深度实测目标；macOS 与 Linux 未验证 |
 | Node.js | `>=22.18.0` | `package.json` 的 `engines` 与 `dsh.compatibility.node` |
 | dsh | `>=0.2.2-rc.1 <0.3.0` | 兼容基线 `0.2.2-rc.1`（宿主 `0.2.2-rc.5` 亦实测可用）；宿主自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` 与 `schemastery 3.19.0` |
 | cua-driver | `0.23.2` 基线 / `0.52.13` canary | 驱动 CLI 与 daemon 必须同版本；兼容层见 [DRIVER-SDK](DRIVER-SDK.md) |
