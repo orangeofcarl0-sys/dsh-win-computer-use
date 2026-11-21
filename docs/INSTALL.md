@@ -39,7 +39,7 @@ Windows 上驱动 daemon 可能是 High IL——取决于**启动方式**而非�
 
 ## 3. 安装插件
 
-npm 已发布 **`dsh-win-computer-use@0.5.8`**：可 `npm install dsh-win-computer-use` 或 `dsh plugin add dsh-win-computer-use`；也可用下面的源码/手工方式。
+npm 已发布 **`dsh-win-computer-use@0.5.9`**：可 `npm install dsh-win-computer-use` 或 `dsh plugin add dsh-win-computer-use`；也可用下面的源码/手工方式。
 
 ### 3.1 `install.sh`（bash，推荐给已有 `profiles/web` 的环境）
 
@@ -190,7 +190,7 @@ DSH_HOME="/c/Users/<user>/.dsh" ./uninstall.sh
 | `contract version ... does not match` | CLI 与 daemon 不同版本 | 一起升级并重启 daemon |
 | 工具调用全部报 schema 错误 | 用了原始工具定义而非 `defineTool()` 返回值，或包不完整 | 这种错误通常意味着整棵插件树加载失败；用 headless 真机探针确认 |
 | `screen_observe` 没有窗口 | 图形会话/权限/目标最小化 | 打开一个普通窗口；不要用 `0×0` shell 弹窗 |
-| npm 安装失败 | 包名/版本/registry 不对 | 确认 `npm view dsh-win-computer-use version` 为 0.5.8；旧名 `dsh-computer-use` 是上游 0.3.1，不要装 |
+| npm 安装失败 | 包名/版本/registry 不对 | 确认 `npm view dsh-win-computer-use version` 为 0.5.9；旧名 `dsh-computer-use` 是上游 0.3.1，不要装 |
 | `install.sh` 报找不到 `profiles/web/node_modules` | `DSH_HOME` 不对或 profile 不存在 | 设对 `DSH_HOME`，先用 dsh 创建 web profile，或改用手动安装 |
 
 更多运行时失败见 [TROUBLESHOOTING](TROUBLESHOOTING.md) 与 [ERRORS](ERRORS.md)。

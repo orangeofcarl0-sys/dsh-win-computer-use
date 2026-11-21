@@ -1,6 +1,6 @@
 # ROADMAP — dsh-win-computer-use
 
-> 状态基线：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`，tag 在 `84225cc`）；`main` 已包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力；`package.json` 仍为 0.5.8。
+> 状态基线：`v0.5.9` 已发布（2026-11-22；npm `dsh-win-computer-use@0.5.9`，tag `v0.5.9`）；`main` = 0.5.9。
 > 这是个人项目路线图，不是承诺清单。**触发条件**决定何时解冻；没有触发条件的事项不排期。
 > 历史细节见 [CHANGELOG](CHANGELOG.md)；逐轮证据见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
@@ -8,6 +8,7 @@
 
 | 版本 | 主题 | 关键结果 |
 |---|---|---|
+| 0.5.9 | 实验后台输入 + 原生菜单/按钮兜底 + UIPI 回执映射 | B0/B1/B2/B3（默认 off）、`nativeMenus`、`nativeButtonTrigger`、UIPI 拒绝分类；发布前 18/18、live 33/33、oracle 16/17+10/10、UAC 7/7 |
 | 0.5.8 | t20 模态 30s 根因 + 原生对话框 + 回执/测试收口 | `nativeDialogs`（标准 `#32770` + `BM_CLICK`，9/9 PASS）；超时不再被前置动作吞掉；`win+r` fail-closed；`set_value` 新值回执/另存为提示；t05 副作用 oracle；评测预算语义 |
 | 0.5.7 | 工具面收敛 + 安全边界 + 更名 + dsh 0.2.2 + 驱动兼容 | `dispatcher` 默认（2 可见/21 隐藏）；`dynamic` 删除；P0 无快照/窗口绑定/`suspected_noop`；`computer_set_value`；`computer_activate`；`startActivation`；`lib/driver/`；click modifier；私有拖拽；观察回执修复 |
 | 0.5.6 | 委派降级阶梯 | `toolFilter` 被拒时只丢该约束，保住结构化输出；回执写明权限后果 |
@@ -23,7 +24,7 @@
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C6 | web profile 部署 | 0.5.8 已安装，待重启 | web profile 安装物是 `0.5.8`，不包含当前 main 的 B0-B3/nativeMenus；运行中的 web 进程需重启。要验证 HEAD 需重新部署或发布 0.5.9。见 [PUBLISH](PUBLISH.md) |
+| C6 | web profile 部署 | 0.5.9 已安装，待重启 | web profile 安装物是 `0.5.9`（含 B0-B3/nativeMenus）；运行中的 web 进程需重启。见 [PUBLISH](PUBLISH.md) |
 | C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
 | C13 | daemon 高完整性/清理 | 上游已关闭，保留观测 | #3607 已 completed；0.52.13 实测 daemon High 但 PowerShell 子进程 Medium，按实际 IL 清理 |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |

@@ -1,7 +1,7 @@
 # VERIFICATION — 当前验证矩阵
 
 > 目的：把“声称支持”变成可复现的当前证据；逐轮历史见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
-> 代码快照：`main` @ 2026-11-22（`package.json` 仍 0.5.8，npm 0.5.8 的 tag 在 `84225cc`）。main 包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力。
+> 代码快照：`main` @ 2026-11-22（`package.json` 0.5.9；npm `0.5.9`，tag `v0.5.9`）。0.5.9 起 main 与已发布版本一致。
 > 环境：Windows 11 x64 · 双物理屏 150%+100% · cua-driver **0.23.2 基线 + 0.52.13 canary**（宿主当前实测 0.52.13）· dsh 兼容基线 **0.2.2-rc.1** / 宿主 **0.2.2-rc.5** · Node 22。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；驱动层见 [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md)。
 
@@ -56,7 +56,7 @@
 | 阶段过滤 | **S1 10 / S2 5 / S3 26 / S4 17**（成员 58，唯一 41）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §26.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
-| npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.5.8`；web profile 已安装 0.5.8 并切换配置（运行中的 web 进程需重启生效）** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+| npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.5.9`；web profile 已安装 0.5.9 并切换配置（运行中的 web 进程需重启生效）** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 > 2026-11-19 复跑 `verify-runtime` 为 **18/18**。此前一次 17/18 是自动选中 `Microsoft.CmdPal.UI.exe`（AX 0 元素）；现已改为探测候选窗口，要求至少一个带可定位 frame 的元素，并排除 CmdPal/TextInputHost/PowerToys 等 shell 表面。
 
@@ -100,8 +100,8 @@ opencode / deepseek-v4.1-flash，重复请求同一前缀：
 
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
-| npm 发布 | **已发布** | `dsh-win-computer-use@0.5.8`（2026-11-20）；临时 `0.0.0-stage` 已 deprecate | 无（后续版本需重新授权） |
-| web profile 部署 | 已安装 0.5.8 | `dsh-win-computer-use@0.5.8` 已安装并写入 bundles；安装物不包含当前 main 的 B0-B3/nativeMenus，运行中的 web 进程仍可能加载旧版，需重启 | 重启 web harness 后验证 0.5.8；验证 HEAD 需重新部署或发布 0.5.9 |
+| npm 发布 | **已发布** | `dsh-win-computer-use@0.5.9`（2026-11-22）；临时 `0.0.0-stage` 已 deprecate | 无（后续版本需重新授权） |
+| web profile 部署 | 已安装 0.5.9 | `dsh-win-computer-use@0.5.9` 已安装并写入 bundles；安装物与当前 main 一致，运行中的 web 进程仍可能加载旧版，需重启 | 重启 web harness 后验证 0.5.9 |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
 | Linux | 未验证 | 桌面/accessibility 栈差异大 | 不在当前承诺范围 |
 | cua-driver 0.53 | 预期 | 只按发布说明预留 `screenshot_frame`；未真机 | 有 0.53 时跑 `probe-driver-shape` + 全量探针 |

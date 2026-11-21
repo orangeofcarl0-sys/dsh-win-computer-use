@@ -1,10 +1,10 @@
 # Changelog
 
-> **版本状态（2026-11-22）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8 + 下述未发布能力，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
+> **版本状态（2026-11-22）**：`v0.5.9` 已发布并推送 npm（`dsh-win-computer-use@0.5.9`）；`main` = 0.5.9，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.9 并切换 bundles（运行中的 web 进程需重启）。
 > 各版本条目内的测试/文件计数是**当时快照**；当前值以 `tests/docs.facts.json` 与 [VERIFICATION](VERIFICATION.md) 为准。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
-## 未发布 (2026-11-22)
+## 0.5.9 (2026-11-22)
 
 **主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）+ 经典 HMENU 菜单兜底 + UIPI 回执映射与评测证据探针（手势真值 / WPF / Chromium / 跨 IL）。不改驱动、不改变默认行为。
 
@@ -30,7 +30,7 @@
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
 - 真机探针 2026-11-21：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift=0` 归因，外部漂移（348–766px）不再误判；B3 PASS。
-- 离线 31 套 / 774 项；语法 57/57；任务元数据检查 907 项；`npm test`/`npm run check` 通过。已 push 到 `main`（CI success；截至 2026-11-22 已核 run 44952223412 / `45c8137`）；未 tag/npm publish。
+- 离线 31 套 / 774 项；语法 57/57；任务元数据检查 907 项；`npm test`/`npm run check` 通过；发布前真机 `verify-runtime` 18/18、`live-action` 33/33 步、oracle S4 16/17 PASS + t13 SKIP、S1+x1 10/10。已发布 `v0.5.9` / npm `dsh-win-computer-use@0.5.9`（2026-11-22）。
 - 评测 P2（2026-11-21）：`variants` 参数化落地（t21/t22/a11y01 × variant 1-3，AC2 **9/9 PASS**，mutation **2/2 PASS**）；新增只读 `evals/probe-platform.mjs`；虚拟桌面因无驱动原语 + `win` 组合键 fail-closed 记 BLOCKED。
 - 评测 P2（2026-11-22）：`dpi01` 真实模型跨屏点击 **pass**（3 步，双物理屏 150%+100%）；新增 `probe-common-dialogs.mjs`，Open/Save/Font/Color/Print 标准 `#32770` 后端 **6/6 PASS**。
 - `nativeMenus` 真机已 PASS：`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过；MenuStrip/WPF/WinUI 仍明确不支持。

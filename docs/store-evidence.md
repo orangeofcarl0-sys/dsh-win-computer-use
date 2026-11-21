@@ -1,7 +1,7 @@
 # store-evidence — 安装 / 启动 / 卸载证据
 
 > 用途：DSH STORE 审查要求的一次性 profile 安装、启动、卸载证据与可复现步骤。
-> 状态：当前实现（最后核对 2026-11-20；包名 `dsh-win-computer-use`，`0.5.8` 已发布 npm）。
+> 状态：当前实现（最后核对 2026-11-22；包名 `dsh-win-computer-use`，`0.5.9` 已发布 npm）。
 > 权限面详见 [PERMISSIONS](../PERMISSIONS.md)；验证报告见 [VERIFICATION](../VERIFICATION.md)；安装细节见 [INSTALL](INSTALL.md)。
 
 ## 1. 一次性 profile 步骤（在 DSH 宿主执行）
@@ -31,7 +31,7 @@ dsh plugin --profile cu-demo remove dsh-win-computer-use
 rm -rf "$DSH_HOME"
 ```
 
-> npm 已发布 **`dsh-win-computer-use@0.5.8`**；方式 A 可用 `npm view dsh-win-computer-use version` 复核。发布步骤见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §7。
+> npm 已发布 **`dsh-win-computer-use@0.5.9`**；方式 A 可用 `npm view dsh-win-computer-use version` 复核。发布步骤见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §7。
 
 ## 2. 证据（离线等价 + 真机加载）
 
@@ -152,6 +152,6 @@ node verify-runtime.mjs
 ## 6. 已知限制
 
 - headless profile 默认禁用 `credentials`；探针 patch 启用后，2026-11-12 已在 dsh 0.2.2-rc.1 上完成真机加载与 5 步只读调用（2 可见/20 隐藏，当时）。默认配置下 `MISSING_CREDENTIAL` 不是插件加载错误。
-- npm 已发布 `dsh-win-computer-use@0.5.8`；dsh-market 的 npm tarball 安装路径可用（需宿主支持）。
-- web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles（旧 `dsh-computer-use` 0.5.6 已移除，0.5.5-kept 保留备份）；运行中的 web 进程需重启生效。
+- npm 已发布 `dsh-win-computer-use@0.5.9`；dsh-market 的 npm tarball 安装路径可用（需宿主支持）。
+- web profile 已安装 `dsh-win-computer-use@0.5.9` 并切换 bundles（旧 `dsh-computer-use` 0.5.6 已移除，0.5.5-kept 保留备份）；运行中的 web 进程需重启生效。
 - macOS 与 Linux 未验证（macOS 仅 0.1–0.2 有基础路径记录）。不要把“安装成功”当成“平台已验收”。
