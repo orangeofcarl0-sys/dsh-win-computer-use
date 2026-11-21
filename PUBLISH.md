@@ -181,7 +181,7 @@ dsh plugin --profile web add dsh-win-computer-use
 
 | 版本 | 日期 | 提交 | 主题 |
 |---|---|---|---|
-| v0.5.9 | 2026-11-22 | — | 实验后台输入 B0-B3 + nativeMenus/nativeButtonTrigger + UIPI 回执映射；发布前 18/18、live 33/33、oracle 16/17+10/10、UAC 7/7 |
+| v0.5.9 | 2026-11-22 | `1505db6` | 实验后台输入 B0-B3 + nativeMenus/nativeButtonTrigger + UIPI 回执映射；发布前 18/18、live 33/33、oracle 16/17+10/10、UAC 7/7 |
 | v0.5.8 | 2026-11-20 | — | t20 模态 30s 根因 + Win32 原生对话框后端（nativeDialogs）+ 回执/测试收口 |
 | v0.5.7 | 2026-11-19 | — | S1-S4 测试体系、S4 哨兵、AC2 夹具、p01-p03/t18/t19/t20、npm 首发 |
 | v0.5.6 | 2026-09-17 | `68772fd` | 委派能力降级修复（toolFilter/scoped restrict/三级阶梯）+ 文档修正 |

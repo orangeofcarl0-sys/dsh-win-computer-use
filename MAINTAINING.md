@@ -159,7 +159,7 @@ cua-driver autostart kick
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 已发布 `dsh-win-computer-use@0.5.9`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
-- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修；此后连续 success（截至 2026-11-22 已核 run 44952223412 / `45c8137`）。
+- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修；此后连续 success（截至 2026-11-22 已核 run 44956657353 / `1505db6`）。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
 ## 6. 已知缺口
@@ -172,7 +172,7 @@ cua-driver autostart kick
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | web profile 已切 0.5.9；待重启 harness 后冒烟 |
+| P1 | web profile 已安装 0.5.9（备份 `dsh-win-computer-use.0.5.8-kept`）；当前 3080 未监听，下次启动生效；会话内冒烟待做 |
 | P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
 | P2 | daemon 提权/清理问题（#3607 上游已关闭）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |

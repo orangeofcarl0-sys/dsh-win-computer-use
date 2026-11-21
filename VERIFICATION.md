@@ -101,7 +101,7 @@ opencode / deepseek-v4.1-flash，重复请求同一前缀：
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
 | npm 发布 | **已发布** | `dsh-win-computer-use@0.5.9`（2026-11-22）；临时 `0.0.0-stage` 已 deprecate | 无（后续版本需重新授权） |
-| web profile 部署 | 已安装 0.5.9 | `dsh-win-computer-use@0.5.9` 已安装并写入 bundles；安装物与当前 main 一致，运行中的 web 进程仍可能加载旧版，需重启 | 重启 web harness 后验证 0.5.9 |
+| web profile 部署 | 已安装 0.5.9 | `dsh-win-computer-use@0.5.9` 已安装并写入 bundles；安装物与当前 main 一致；当前 3080 未监听，下次启动即加载 0.5.9 | 启动 web harness 后做会话内冒烟（`computer_do status` → 2 可见/21 隐藏） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
 | Linux | 未验证 | 桌面/accessibility 栈差异大 | 不在当前承诺范围 |
 | cua-driver 0.53 | 预期 | 只按发布说明预留 `screenshot_frame`；未真机 | 有 0.53 时跑 `probe-driver-shape` + 全量探针 |
