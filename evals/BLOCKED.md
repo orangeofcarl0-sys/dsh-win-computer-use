@@ -52,12 +52,12 @@
 
 | 项 | 具体卡点 | 现有证据 | 状态 |
 |---|---|---|---|
-| Medium → High 后台输入 | 低 IL 的 `PostMessage`/`SendInput`/UIA 可能被 UIPI 过滤；driver 可能返回 `background_uipi_blocked` | `probe-cross-il --uac`（2026-11-22，一次授权 UAC）：elevated sink RID 12288；helper 返回 `uipi`、`delivered:false`、events=0；该次运行暴露并修正 `IntegrityRank` off-by-one | ⛔ 修正后 UAC 复跑待做 |
+| Medium → High 后台输入 | 低 IL 的 `PostMessage`/`SendInput`/UIA 可能被 UIPI 过滤；driver 可能返回 `background_uipi_blocked` | `probe-cross-il --uac`（2026-11-22，一次授权 UAC）：elevated sink RID 12288/rank 2、helper medium/rank 1；helper 返回 `uipi`、`delivered:false`、events=0；`IntegrityRank` off-by-one 修正后复跑 **7 PASS / 0 BLOCKED / 0 FAIL** | 🔒 安全边界（拒绝已验证） |
 | UAC 安全桌面 | 安全桌面是隔离桌面，普通 Default 桌面进程不能可靠送输入；当前 helper 只做 `OpenInputDesktop` 检测并拒绝 | `probe-b2-elevated` 只证明提权后 `BlockInput`；不触碰 UAC 安全桌面 | 🔒 设计边界 |
 | 跨 IL 目标关闭/清理 | 非提权客户端可能关不掉 High IL 窗口；不能按进程名杀 | 精确 HWND/PID + 自关闭 timer；`probe-launch` 只测 Medium 子进程 | 🔒 安全边界 |
 | driver daemon 提权依赖 | daemon 是否 High 取决于启动方式；0.52.13 主 CLI 清单为 `asInvoker`（2026-11-22 PE 复核定论，见 [EVIDENCE §3](../docs/EVIDENCE.md)），非提权 daemon 不能驱动 High 目标 | `probe-launch` 测到 daemon High/child Medium；`probe-b2-elevated` 只测 BlockInput | 🔒 设计边界 |
 
-IntegrityRank 修正明细：阈值曾把 medium(8192) 标成 high、system(16384) 与 high 同为 rank 3；已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试通过。证据与修正叙事统一见 [EVIDENCE §4](../docs/EVIDENCE.md)；**修正后的 Medium→High 复跑是本节唯一未闭合项**。
+IntegrityRank 修正明细：阈值曾把 medium(8192) 标成 high、system(16384) 与 high 同为 rank 3；已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试通过。证据与修正叙事统一见 [EVIDENCE §4](../docs/EVIDENCE.md)；修正后的 Medium→High 复跑 **7 PASS / 0 BLOCKED / 0 FAIL**（sink RID 12288/rank 2、helper medium/rank 1），本节无未闭合项。
 
 ## 4. 证据型 / 测量边界
 

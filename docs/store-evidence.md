@@ -63,7 +63,7 @@ rm -rf "$DSH_HOME"
 
 ## 4. 打包内容
 
-> 本节以 `npm pack --dry-run --json` 的实际输出为准；新增/删除发布文件后必须同步本清单、`tests/docs.facts.json` 与 `tests/package-manifest.test.mjs`。当前基线为 **66 文件**。
+> 本节以 `npm pack --dry-run --json` 的实际输出为准；新增/删除发布文件后必须同步本清单、`tests/docs.facts.json` 与 `tests/package-manifest.test.mjs`。当前基线为 **67 文件**。
 
 ```text
 LICENSE
@@ -81,6 +81,7 @@ docs/CU-RESEARCH.md
 docs/DRIVER-SDK.md
 docs/ERRORS.md
 docs/EVIDENCE.md
+docs/FAQ.md
 docs/INSTALL.md
 docs/README.md
 docs/RUNTIME-PIPELINE.md

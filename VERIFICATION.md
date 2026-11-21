@@ -18,13 +18,13 @@
 | 手势探针 | click element/坐标的 Ctrl 到达；0.52.13 原生 modifier drag delivered；私有拖拽 3/3；from_zoom 命中 | Windows 11 | `probe-modifier` / `probe-private-drag` / `probe-from-zoom` |
 | 组合键前台 | blocker 前台时插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms | Windows 11 | `probe-combo-foreground.mjs` |
 | native freshness | WinForms 文本变化窗口未复现“AX 已变而 PNG 不变” | Windows 11 | `probe-native-freshness.mjs` |
-| 真桌面动作闭环 | **23/23**（2026-09-17 重设计后）；0.52.13 canary **33/33** | Windows 11 | `node tests/live-action.e2e.mjs 3` |
+| 真桌面动作闭环 | **23/23**（2026-09-17 重设计后）；0.52.13 canary **33/33**；2026-11-22 发布前复跑 **33/33 步**（3 轮） | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | eval oracle 双向验证（全量） | 2026-11-20 基线：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty；t13 真实网络 `ac2:none`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（P0/P1 新增） | 2026-11-21：**19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
 | eval 参数化（variant） | 2026-11-21：t21/t22/a11y01 × variant 1-3 AC2 **9/9 PASS**；mutation t22/a11y01 **2/2 PASS**（固定 variant 1） | Windows 11 | `node evals/verify-oracles.mjs --tasks t21,t22,a11y01 --variants 3` |
 | 跨屏模型任务 | 2026-11-22：dpi01 **pass**（3 步、inner 3、oracle `clicks=1`、0 dirty；wall 70s，total 33,038 tokens；plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go） | Windows 11 / 双物理屏 150%+100% | `node evals/headless-run.mjs --tasks dpi01 --isolation clean --timeout-min 8 --patch evals/headless-patch.opencode.yml` |
-| eval oracle（S1 + x1 clean 组，2026-11-15 局部复跑） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；该组后续并入 2026-11-20 全量 22/23 基线，此处保留为历史样本） | Windows 11 | `node evals/verify-oracles.mjs` |
-| eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
+| eval oracle（S1 + x1 clean 组） | 2026-11-15：**10/10**；2026-11-22 发布前复跑 **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1） | Windows 11 | `node evals/verify-oracles.mjs --tasks t01,t03,t04,t05,t06,t07,t09,t10,wa2,x1` |
+| eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS）。2026-11-22 发布前复跑 `--stage S4`：**16/17 PASS + t13 SKIP**（0 FAIL/ENV/dirty） | Windows 11 | `node evals/verify-oracles.mjs --stage S4` |
 | S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
 | S3 导航/对话框 | 2026-11-20 题面修改后：t19/t20 AC2 **2/2 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t19,t20` |
 | 安全运行时探针 | 2026-11-20：**13/13 PASS**（密码拒绝、TTL 过期、stop/resume、驱动错误恢复；root 由 import.meta.url 推导） | Windows 11 | `node evals/probe-safety-runtime.mjs` |
@@ -35,7 +35,7 @@
 | 手势真实性 | 2026-11-22：`probe-gesture-truth` private **PASS**（down/move/up + Ctrl）；driver 原生 drag 只有 down/up、无中间 move → **BLOCKED**（不冒充完整手势） | Windows 11 / 0.52.13 | `node evals/probe-gesture-truth.mjs` |
 | WPF 模态 | 2026-11-22：`probe-wpf-dialog` **7 PASS / 0 BLOCKED**；class=`HwndWrapper[...]`、owner 主窗口 disabled、UIA 5 元素、capture-only 可用、native scan=null | Windows 11 / 0.52.13 | `node evals/probe-wpf-dialog.mjs` |
 | Chromium 文件/打印 | 2026-11-22：页面加载 PASS；合成 click 未弹出 file chooser、Ctrl+P 无可识别 print 窗口 → **2 BLOCKED** | Windows 11 / Chrome 157 | `node evals/probe-chromium-dialogs.mjs --browser chrome` |
-| 跨 IL / UIPI | 2026-11-22：只读分类器 PASS；一次授权 UAC 的 elevated sink 返回 `uipi`/`delivered:false`/events=0；该次运行暴露 `IntegrityRank` off-by-one，已修正，修正后 UAC 复跑待做 | Windows 11 / 0.52.13 | `node evals/probe-cross-il.mjs --no-uac`；`--uac` |
+| 跨 IL / UIPI | 2026-11-22：只读分类器 PASS；授权 UAC 的 elevated sink 返回 `uipi`/`delivered:false`/events=0；`IntegrityRank` off-by-one 修正后复跑 **7 PASS / 0 BLOCKED / 0 FAIL**（sink RID 12288/rank 2；helper medium/rank 1） | Windows 11 / 0.52.13 | `node evals/probe-cross-il.mjs --no-uac`；`--uac` |
 | 实验性后台输入 | 2026-11-21：默认 `probe-background-input` **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` **PASS**；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper `cursorDrift=0` 归因，外部漂移不再误判；B3 PASS | Windows 11 | `node evals/probe-background-input.mjs [--elevated]`；`node tests/background-input.test.mjs` |
 | 原语矩阵探针 | 2026-11-21：**13 PASS / 0 BLOCKED**；double/right/key/hover/verify/wait_for/activate/app_list 均有 marker/回读；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu + 专用 marker） | Windows 11 | `node evals/probe-ops.mjs` |
 | 原生 Button 触发 | 2026-11-21：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms Delete + MessageBox：原生触发 1.2s、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 | Windows 11 | `node evals/probe-native-button.mjs`；`node tests/native-button-trigger.test.mjs` |

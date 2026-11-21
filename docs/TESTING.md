@@ -40,7 +40,7 @@
 | 手势真实性 | S2/S4 | `node evals/probe-gesture-truth.mjs` | private PASS；driver move BLOCKED（2026-11-22） | WinForms 记录 down/move/up + Ctrl：private 路径完整；driver 原生 drag 只看到 down/up、无中间 move，记 BLOCKED |
 | WPF 模态 | S3 | `node evals/probe-wpf-dialog.mjs` | 7 PASS / 0 BLOCKED（2026-11-22） | WPF 模态 class=`HwndWrapper[...]`、owner 主窗口 disabled、UIA 5 元素、capture-only 可用、native scan=null |
 | Chromium 文件/打印 | S3 | `node evals/probe-chromium-dialogs.mjs --browser chrome` | 1 PASS / 2 BLOCKED（2026-11-22） | 页面可加载；合成 click 未弹出 file chooser；Ctrl+P 未产生可识别 print 窗口 → BLOCKED |
-| 跨 IL / UIPI | S3/S4 | `node evals/probe-cross-il.mjs --no-uac`；`--uac`（一次授权） | 只读 PASS；UAC 部分（2026-11-22） | 高 IL sink/拒绝有证据；该次运行暴露并修正 `IntegrityRank` off-by-one，修正后 UAC 复跑待做 |
+| 跨 IL / UIPI | S3/S4 | `node evals/probe-cross-il.mjs --no-uac`；`--uac`（一次授权） | 只读 PASS；UAC 复跑 **7 PASS**（2026-11-22） | 高 IL sink/拒绝有证据（sink RID 12288/rank 2；helper medium/rank 1；`uipi`/0 events）；`IntegrityRank` off-by-one 修正后复跑 7 PASS / 0 BLOCKED / 0 FAIL |
 | 原生 Button 触发 | S3 | `node evals/probe-native-button.mjs` | 4 PASS / 0 BLOCKED（2026-11-21） | 自建 WinForms Delete + MessageBox：原生触发 1.2s 返回、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 |
 | 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs`（可加 `--elevated`） | 默认 14 PASS / 1 BLOCKED；提权 14 PASS / 0 BLOCKED（2026-11-21） | 自建 native message/pointer/touch-only/mouse-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B3 window 通过；B1 光标用 helper 注入窗口内 `cursorDrift=0` 判定，外部漂移不再污染；严格 B2 非提权 `BlockInput` 被拒 → BLOCKED，`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；0 FAIL |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 37 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13/t21 按原因 SKIP |
@@ -367,7 +367,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | gesture truth | 2026-11-22：private **PASS**（down/move/up + Control）；driver 原生只有 down/up、无 move → **BLOCKED** |
 | WPF 模态 | 2026-11-22：probe-wpf-dialog **7/7 PASS**（HwndWrapper、owner-disabled、UIA 5 元素、capture-only 可用、native scan=null） |
 | Chromium 对话框 | 2026-11-22：页面加载 PASS；file chooser/print preview **2 BLOCKED**（合成 click 未弹出、Ctrl+P 无可识别窗口） |
-| 跨 IL / UIPI | 2026-11-22：只读分类器 PASS；一次授权 UAC 返回 `uipi`/0 events；暴露并修正 `IntegrityRank` off-by-one；修正后 UAC 复跑待做 |
+| 跨 IL / UIPI | 2026-11-22：只读分类器 PASS；一次授权 UAC 返回 `uipi`/0 events；`IntegrityRank` off-by-one 修正后复跑 **7 PASS / 0 BLOCKED / 0 FAIL**（sink RID 12288/rank 2；helper medium/rank 1） |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 
 ## 11. P2 设计与未闭合

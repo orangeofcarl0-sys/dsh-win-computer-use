@@ -55,7 +55,7 @@
 | 硬保证 | `allowedApps` 生效时拒绝 | `config.plumbing`、sec02 |
 | 硬保证 | stop/resume 锁存 | `tools.smoke`、`probe-safety-runtime`、sec03 |
 | 硬保证 | 快照 TTL/stale 拒绝 | `posture.smoke`、`probe-safety-runtime`、sec04 |
-| 硬保证 | 安全桌面/UIPI 拒绝 | `background-input.test`（分类器）、`probe-cross-il`（UAC 一次：拒绝/0 events；修正后 UAC 复跑待做）；安全桌面不可自动化 |
+| 硬保证 | 安全桌面/UIPI 拒绝 | `background-input.test`（分类器）、`probe-cross-il`（UAC 一次：拒绝/0 events；修正后复跑 7 PASS / 0 BLOCKED）；安全桌面不可自动化 |
 | 硬保证 | 原生对话框同 pid/不自动 Yes-No | `probe-native-dialog`、`native-dialogs.test` |
 | 硬保证 | 后台输入 fail-closed | `probe-background-input`、`background-input.test` |
 | 硬保证 | eval 只关 owned HWND/PID | `eval-safety`、`notepad-tabs.test` |

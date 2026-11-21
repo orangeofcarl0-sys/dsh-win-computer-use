@@ -82,6 +82,7 @@
 - **上游跟进：#3586 `since` 差分（0.52.13，自建 WinForms 5 元素窗口）**：`since=<同 id>` → `no_change` + 续用 snapshot_id（`Rows and indices are as before; use snapshot_id s…B in element_tokens`）；窗口自变（标题+标签）后 → `diff` + `diff_counts {added:2, changed:1, removed:2}`，`+`/`~` 行用新 id、`-` 行用旧 id；未知 id → `unknown_snapshot` 全量回退。小窗口全量/差分均 ~1.3–1.4s（daemon 往返为主），大树成本收益未测；**每次响应铸造新 snapshot_id，element token 必须用最近一次响应的 id**（与插件“快照全局单例”纪律一致）。已回复官方（issuecomment-7068672419）。
 - **上游跟进：#3586 大树成本复测（0.52.13，授权后追加）**：合成 WinForms 50/250/600 控件三点 + PowerPoint fixture（`t12-replica.pptx` TEMP 副本，`Open/Close-TestAppWindow` 全流程，closed=true）——**`since` 的 no_change 路径不跳过树遍历**：全量与差分墙钟在每个尺度一致（600 控件两路均 ~6.5s；PowerPoint 321 元素两路均 ~1.7s），成本随**控件数**而非投影数线性增长（600 个被投影过滤的静态 Label 仍付全额 walk）。结论：`since` 省的是响应载荷（稳定编号 + 一行 `tree_diff`），不省 walk；要真正免 walk 需驱动侧增量维护的 per-window revision（回到 issue 的 revision-id 半边）。已回复官方（issuecomment-7068746700）。
 - **上游跟进：#3587 轮询不足**：以 B1 光标归因实测回复三点不足——轮询只有状态无因果（外部漂移 30–766px 无法归因用户/注入/第三方）、轮询间隙无事件（300ms `desktop_busy` 静默预检只能粗筛）、热路径成本（issuecomment-7068672870）。
+- **发布前检查（2026-11-22，0.5.9 候选）**：`verify-runtime` **18/18**；`live-action.e2e 3` **33/33 步**（3 轮；测试窗口按精确 HWND 关闭）；`verify-oracles --stage S4` **16/17 PASS + t13 SKIP**（0 FAIL，t13 真实网络 `ac2:none`）；S1+x1 clean 组 **10/10 PASS**；`npm pack` **67 文件**（无 tests/evals/node_modules/.dsh-test）；`npm run check` 907 项、`npm test` 全过。
 
 ## 4. 2026-11-22 — cross-IL / UIPI
 
@@ -91,6 +92,8 @@
 - `node evals/probe-cross-il.mjs --uac`（一次授权 UAC）：elevated sink RID **12288**；helper 返回 `{"ok":false,"code":"uipi","delivered":false}`，sink events=0；sink 通过 stop 文件自关闭。
 
 关键发现：该次 UAC 运行暴露 `tools/background-input.ps1` 的 `IntegrityRank` 阈值 **off-by-one**：medium(8192) 被标成 high，system(16384) 与 high 都落到 rank 3。已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试仍通过。**修正后的 UAC 复跑尚未做**；跨 IL 真实 Medium→High 证据仍按部分/BLOCKED 记录。UAC 安全桌面不在本探针范围，仍不可自动化。
+
+- **修正后复跑（2026-11-22，取代上句“复跑尚未做”）**：`probe-cross-il --uac` → **7 PASS / 0 BLOCKED / 0 FAIL**；elevated sink RID **12288**（`integrityRank=2`），helper `medium` RID 8192（`currentIntegrityRank=1`、`helperElevated=false`）；插件分类 `uipi`；`postMouse` → `{"ok":false,"code":"uipi","delivered":false}`、sink events=0；sink 自关闭 `closed=true`。
 
 ## 5. 2026-11-22 — Chromium 文件选择器/打印预览
 

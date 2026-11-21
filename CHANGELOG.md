@@ -48,7 +48,7 @@
 - **sidecar 生命周期**：子进程 generation 隔离，旧 `exit` 不再误杀新进程；ready 后非 JSON 立即 `bad_response`；长文本按长度缩放超时。
 - **B3 外部改动判定**：不再只在请求位置与原点不同时检测；请求位置=原位置时也会识别外部移动；点击后窗口被外部移动时不还原，返回 `ok:true` + `warning_code=window_changed_externally`，不再和用户抢窗口。探针把 `desktop_busy`/`window_changed_externally`/`window_not_movable` 归为 BLOCKED。
 - **B2 失败诊断**：`block_input_failed` 现在带 `win32_error` 和 `diagnostics`；严格 B2 仍 fail-closed，不自动回退；`cursor-clip` 是独立的免提权通道，默认 off。
-- **IntegrityRank off-by-one**（2026-11-22）：`tools/background-input.ps1` 的 RID 阈值修正——medium 8192 曾被误标为 high，system/high 曾同为 rank 3；现映射 `0x1000=low / 0x2000=medium / 0x3000=high / 0x4000=system`。修正后 Medium→High UAC 复跑**待做**。
+- **IntegrityRank off-by-one**（2026-11-22）：`tools/background-input.ps1` 的 RID 阈值修正——medium 8192 曾被误标为 high，system/high 曾同为 rank 3；现映射 `0x1000=low / 0x2000=medium / 0x3000=high / 0x4000=system`。修正后 Medium→High UAC 复跑 **7 PASS / 0 BLOCKED / 0 FAIL**（sink RID 12288/rank 2；helper medium/rank 1；`uipi`/0 events）。
 - **UIPI fail-closed 离线断言**：`tests/background-input.test.mjs` 新增 G5b（`background_uipi_blocked → deliveryFailure='uipi'`）与 I6b（高 IL profile 使 `tryBackgroundClick/Type/Key` 返回 null），并清理 profile 缓存污染。
 
 ## 0.5.8 (2026-11-20)

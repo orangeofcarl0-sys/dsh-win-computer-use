@@ -89,7 +89,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 
 - 私有路径**不支持 `from_zoom`**（驱动 zoom 的真实 padding/scale 没有复刻，手算会重蹈 A7）；明确报 `[private_drag_zoom_unsupported]`。
 - 需要快照的 `screenOrigin`/截图尺寸；query 只读视图没有动作快照；报 `[private_drag_no_frame]`。
-- UIPI：中完整性 helper 不能向高完整性目标注入，SendInput 失败时回执明确失败；不要假成功。完整性等级映射 `0=low / 1=medium / 2=high / 3=system`（off-by-one 已修正；修正后 UAC 复跑待做，见 [EVIDENCE](EVIDENCE.md) §4 与 [BLOCKED §3.3](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)）。
+- UIPI：中完整性 helper 不能向高完整性目标注入，SendInput 失败时回执明确失败；不要假成功。完整性等级映射 `0=low / 1=medium / 2=high / 3=system`（off-by-one 已修正；修正后 UAC 复跑 **7 PASS / 0 BLOCKED**，sink RID 12288/rank 2、helper medium/rank 1，见 [EVIDENCE](EVIDENCE.md) §4 与 [BLOCKED §3.3](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)）。
 - 不自动重试：drag 非幂等；只有前台校验失败（未发送输入）才可让模型 activate 后重试一次。
 - 已验证：`probe-private-drag` WinForms **3/3** 在 down/move/up 三个点读到 `Shift, Control`，drop 后 `stuckModifiers` 为空；Explorer Ctrl+drag 复制已回归。手势真值探针显示 0.52.13 原生 drag 在 WinForms fixture 上只有 down/up、无中间 move 证据（[EVIDENCE](EVIDENCE.md) §7）；Excel 边框拖拽仍未启动（[EVIDENCE](EVIDENCE.md) §8，BLOCKED）；PPT 未纳入自动回归。
 - **从标题栏拖动=移动窗口**：会改变 `windowOrigin`，不是点击/落点证明；回执会提示“起点在标题栏”并清空快照（实测轨迹里模型曾把 `screenOrigin` 变化误当坐标生效，见 [EVIDENCE](EVIDENCE.md) §20.2）。

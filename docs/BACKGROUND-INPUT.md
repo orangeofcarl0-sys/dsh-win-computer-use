@@ -2,7 +2,7 @@
 
 > 目的：插件侧 Windows 后台输入（B0/B1/B2/B3）的通道矩阵、配置、回执、安全边界与实测结果。
 > 读者：要启用/排障实验输入的人；改 `lib/backgroundInput.js` 或 `tools/background-input.ps1` 的人。
-> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 默认 14 PASS / 1 BLOCKED、`--elevated` 14 PASS / 0 BLOCKED；2026-11-22 修正 IntegrityRank off-by-one，修正后 UAC 复跑待做）。
+> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 默认 14 PASS / 1 BLOCKED、`--elevated` 14 PASS / 0 BLOCKED；2026-11-22 修正 IntegrityRank off-by-one，修正后 UAC 复跑 **7 PASS / 0 BLOCKED**）。
 > 相关：[WINDOWS](WINDOWS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [SECURITY](SECURITY.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 定位
@@ -157,7 +157,7 @@ anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 |---|---|
 | `background_input_occluded` | 目标点被遮挡/不在目标窗口；未发送 |
 | `background_input_anchor_blocked` | 合成触控 anchor 被 topmost 窗口遮挡；未注入 |
-| `background_input_uipi` | 完整性/session 不匹配；未发送。rank 映射 `0=low / 1=medium / 2=high / 3=system`；2026-11-22 修正了 off-by-one（medium 曾误标为 high），**修正后 UAC 复跑待做**（证据见 [EVIDENCE](EVIDENCE.md) §4） |
+| `background_input_uipi` | 完整性/session 不匹配；未发送。rank 映射 `0=low / 1=medium / 2=high / 3=system`；2026-11-22 修正了 off-by-one（medium 曾误标为 high），修正后 UAC 复跑 **7 PASS / 0 BLOCKED / 0 FAIL**（sink RID 12288/rank 2、helper medium/rank 1；证据见 [EVIDENCE](EVIDENCE.md) §4） |
 | `background_input_secure_desktop` | 非 Default 输入桌面；未发送 |
 | `background_input_clip_cursor` | `ClipCursor` 不允许目标点 |
 | `background_input_window_not_movable` | 最小化/最大化/全屏/拒绝移动 |
