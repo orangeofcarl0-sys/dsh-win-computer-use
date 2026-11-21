@@ -78,6 +78,7 @@ const bg = await import(pathToFileURL(join(work, 'lib', 'backgroundInput.js')).h
 const snapMod = await import(pathToFileURL(join(work, 'lib', 'snapshot.js')).href)
 const driver = await import(pathToFileURL(join(work, 'lib', 'cua.js')).href)
 const real = await import(pathToFileURL(join(process.cwd(), 'lib', 'backgroundInput.js')).href)
+const realCua = await import(pathToFileURL(join(process.cwd(), 'lib', 'cua.js')).href)
 
 const { check, state: checkState } = makeChecks()
 
@@ -231,6 +232,9 @@ try {
     check('G5: 安全桌面/高完整性 → secure/uipi',
       real.classifyTarget({ snap: mkSnap(), profile: { ...baseProfile, secureDesktop: true } }) === 'secure'
       && real.classifyTarget({ snap: mkSnap(), profile: { ...baseProfile, integrityRank: 2, currentIntegrityRank: 1 } }) === 'uipi')
+    check('G5b: background_uipi_blocked → deliveryFailure=uipi（不冒充未验证）',
+      realCua.deliveryFailure({ effect: 'unverifiable', escalation: { reason: 'background_uipi_blocked' } }) === 'uipi'
+      && realCua.isUipiBlocked({ code: 'background_uipi_blocked' }) === true)
     const pt = real.screenPointOfTarget({ x: 10, y: 20 }, mkSnap())
     check('G6: 截图坐标 → 屏幕物理像素（含 scale）', pt.x === 120 && pt.y === 240, JSON.stringify(pt))
     check('G7: VK 映射', real.virtualKeyOf('return').vk === 13
@@ -604,6 +608,15 @@ try {
     const md = await real.tryBackgroundClick({ tool: 'click', target, snap, args: {}, cfg: baseCfg, extra: { modifier: ['ctrl'] }, client })
     check('I6: foreground/modifier 不接管', fg === null && md === null)
 
+    real.clearProfileCache()
+    const highClient = { ...client, probe: async () => ({ ...profile, integrityRank: 2, currentIntegrityRank: 1 }) }
+    const uipiClick = await real.tryBackgroundClick({ tool: 'click', target, snap, args: {}, cfg: baseCfg, client: highClient })
+    const uipiType = await real.tryBackgroundType({ args: { text: 'abc' }, snap, cfg: baseCfg, client: highClient })
+    const uipiKey = await real.tryBackgroundKey({ args: { key: 'return' }, snap, cfg: baseCfg, client: highClient })
+    check('I6b: 高 IL 目标 → B0/B1/B2/B3 路由全部不接管',
+      uipiClick === null && uipiType === null && uipiKey === null)
+
+    real.clearProfileCache()
     const typeClient = { ...client, postText: async () => ({ ok: true, delivered: true, method: 'wm_char', verified: false }) }
     const ty = await real.tryBackgroundType({ args: { text: 'abc' }, snap, cfg: baseCfg, client: typeClient })
     const keyClient = { ...client, postKey: async () => ({ ok: true, delivered: true, method: 'wm_key', focusedHwnd: 1 }) }

@@ -77,7 +77,7 @@
 
 | 类别 | 内容 | 测试方式 |
 |---|---|---|
-| **硬保证** | 密码 element 拒绝、`allowedApps` 生效时拒绝、`stop/resume` 锁存、快照 TTL/stale 拒绝、安全桌面/UIPI 拒绝、原生对话框同 pid/不自动 Yes-No、后台输入 fail-closed、eval 只关 owned HWND/PID | 离线/真机探针 + `sec01`–`sec04` 任务级契约；`require_tools` 强制实际尝试 |
+| **硬保证** | 密码 element 拒绝、`allowedApps` 生效时拒绝、`stop/resume` 锁存、快照 TTL/stale 拒绝、分类器/helper 对安全桌面/UIPI 拒绝、原生对话框同 pid/不自动 Yes-No、后台输入 fail-closed、eval 只关 owned HWND/PID | 离线/真机探针 + `sec01`–`sec04` 任务级契约；`require_tools` 强制实际尝试。UIPI 跨 IL 真机证据仍待 `probe-cross-il`；UAC 安全桌面不可自动化 |
 | **非承诺** | prompt injection、危险词拦截、剪贴板/截图脱敏、沙箱、UAC 自动化 | **不作为插件 pass/fail**；需要时另做模型记分卡，且不得把“模型未拒绝”记成插件缺陷 |
 | **偏置** | `allowedApps` 内破坏性动作可能成功；`allowedApps` 默认关闭；`stop` 是唯一硬停止 | 断言回执真实、`stop` 可阻止、文档不宣称“插件会拦截危险动作”；不断言“必须拒绝” |
 

@@ -9,8 +9,8 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **31 套 / 772 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **53/53 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **31 套 / 774 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 语法/安装脚本 | **57/57 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id）；2026-11-22 在 0.52.13 复跑 **18/18**，副屏 Firefox 窗口 `screenOrigin={x:2560,y:0,w:2560,h:1440}` | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -32,6 +32,10 @@
 | 模态超时根因探针 | 2026-11-20：**AX 树 0 元素 @1s/5s/15s**；同 pid 主窗口同样 0；capture-only 1.5s；驱动 click/key/bring 阻塞；原生 `WM_COMMAND`/`BM_CLICK` 关闭成功；`timeout_ms` 重试**证伪** | Windows 11 / 0.52.13 | `node evals/probe-modal-timeout.mjs`；`node evals/probe-modal-escapes.mjs` |
 | 原生对话框后端 | 2026-11-20：`probe-native-dialog` **9 PASS / 0 BLOCKED / 0 FAIL**；UIA trigger 打开 MessageBox → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 | Windows 11 / 0.52.13 | `node evals/probe-native-dialog.mjs`；`node tests/native-dialogs.test.mjs` |
 | 常见对话框后端 | 2026-11-22：`probe-common-dialogs` **6 PASS / 0 BLOCKED / 0 FAIL**；Open/Save/Font/Color/Print 均为标准 `#32770`，`modal=owner-disabled`，Cancel `BM_CLICK` 后 state result=Cancel | Windows 11 / 0.52.13 | `node evals/probe-common-dialogs.mjs` |
+| 手势真实性 | 2026-11-22：`probe-gesture-truth` private **PASS**（down/move/up + Ctrl）；driver 原生 drag 只有 down/up、无中间 move → **BLOCKED**（不冒充完整手势） | Windows 11 / 0.52.13 | `node evals/probe-gesture-truth.mjs` |
+| WPF 模态 | 2026-11-22：`probe-wpf-dialog` **7 PASS / 0 BLOCKED**；class=`HwndWrapper[...]`、owner 主窗口 disabled、UIA 5 元素、capture-only 可用、native scan=null | Windows 11 / 0.52.13 | `node evals/probe-wpf-dialog.mjs` |
+| Chromium 文件/打印 | 2026-11-22：页面加载 PASS；合成 click 未弹出 file chooser、Ctrl+P 无可识别 print 窗口 → **2 BLOCKED** | Windows 11 / Chrome 157 | `node evals/probe-chromium-dialogs.mjs --browser chrome` |
+| 跨 IL / UIPI | 2026-11-22：只读分类器 PASS；一次授权 UAC 的 elevated sink 返回 `uipi`/`delivered:false`/events=0；该次运行暴露 `IntegrityRank` off-by-one，已修正，修正后 UAC 复跑待做 | Windows 11 / 0.52.13 | `node evals/probe-cross-il.mjs --no-uac`；`--uac` |
 | 实验性后台输入 | 2026-11-21：默认 `probe-background-input` **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` **PASS**；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper `cursorDrift=0` 归因，外部漂移不再误判；B3 PASS | Windows 11 | `node evals/probe-background-input.mjs [--elevated]`；`node tests/background-input.test.mjs` |
 | 原语矩阵探针 | 2026-11-21：**13 PASS / 0 BLOCKED**；double/right/key/hover/verify/wait_for/activate/app_list 均有 marker/回读；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu + 专用 marker） | Windows 11 | `node evals/probe-ops.mjs` |
 | 原生 Button 触发 | 2026-11-21：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms Delete + MessageBox：原生触发 1.2s、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 | Windows 11 | `node evals/probe-native-button.mjs`；`node tests/native-button-trigger.test.mjs` |
@@ -131,8 +135,8 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 
 判据：
 
-- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **772**。
-- `npm run check` 退出码 0：语法 **53/53** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **774**。
+- `npm run check` 退出码 0：语法 **57/57** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。

@@ -481,9 +481,12 @@ public static class DshInput
             IntPtr sub = GetSidSubAuthority(sid, (uint)(count - 1));
             if (sub == IntPtr.Zero) return 99;
             int rid = Marshal.ReadInt32(sub);
-            if (rid >= 0x3000) return 3;
-            if (rid >= 0x2000) return 2;
-            if (rid >= 0x1000) return 1;
+            // SID RID: 0x1000 low, 0x2000 medium, 0x3000 high, 0x4000 system.
+            // 0=low, 1=medium, 2=high, 3=system.
+            if (rid >= 0x4000) return 3;
+            if (rid >= 0x3000) return 2;
+            if (rid >= 0x2000) return 1;
+            if (rid >= 0x1000) return 0;
             return 0;
         }
         catch

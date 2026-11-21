@@ -23,10 +23,21 @@ import { join, dirname, basename } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
+import { cuaDriverCapabilities } from '../lib/cua.js'
+import { capabilitySummary } from '../lib/driver/capabilities.js'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const work = mkdtempSync(join(tmpdir(), 's4-drag-'))
 const skipExplorer = process.argv.includes('--excel-only')
+const engineArg = (() => {
+  const i = process.argv.indexOf('--engine')
+  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : 'both'
+})()
+const excelEngines = engineArg === 'both' ? ['private', 'native'] : [engineArg]
+if (!excelEngines.every((e) => ['private', 'native'].includes(e))) {
+  console.error(`invalid --engine: ${engineArg} (expected private|native|both)`)
+  process.exit(2)
+}
 const sandbox = join(work, 'sandbox')
 const destDir = join(sandbox, 'dest')
 mkdirSync(sandbox, { recursive: true })
@@ -100,6 +111,8 @@ $r = switch ($Action) {
     }
   }
   'geometry' { Get-S4ExcelCellPoints -Path $Path -Hwnd $Hwnd }
+  'selection' { Get-S4ExcelSelection -Hwnd $Hwnd }
+  'cursor' { Get-S4CursorState }
   'cells' { Get-S4XlsxCells -Path $Path }
   default { [ordered]@{ ok = $false; reason = 'unknown action' } }
 }
@@ -115,7 +128,9 @@ const services = {
 }
 const registered = new Map()
 const ctx = { get: (n) => services[n], logger: { info() {}, error() {} }, tools: { register(d) { registered.set(d.name, d); return () => registered.delete(d.name) } }, toolsRuntime: null }
-plugin.apply(ctx, { ttlMs: 60000, maxElements: 400, deliveryMode: 'auto', nativeImage: 'auto', passwordScan: 'off' })
+plugin.apply(ctx, { ttlMs: 60000, maxElements: 400, deliveryMode: 'auto', nativeImage: 'auto', passwordScan: 'off', dragEngine: 'auto' })
+const driverCaps = await cuaDriverCapabilities().catch(() => null)
+console.log('driver caps:', capabilitySummary(driverCaps))
 const defs = new Map(mod.toolDefinitions().map((d) => [d.name, d]))
 const agent = { options: { provider: 'p', model: 'm' }, session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } }
 async function call(name, args = {}) {
@@ -270,31 +285,32 @@ function findCellByAddress(els, address) {
   return els.find((e) => re.test(String(e.label || '').trim()) || re.test(String(e.name || '').trim()))
 }
 
-async function runExcel() {
-  const excelState = join(excelWork, 'excel-state.json')
-  const xlsx = join(excelWork, 'drag-grid.xlsx')
+async function runExcel(engine = 'native', withCtrl = true) {
+  const p = `[${engine}${withCtrl ? '+ctrl' : '-ctrl'}] `
+  const excelState = join(excelWork, `excel-state-${engine}-${withCtrl ? 'ctrl' : 'nomod'}.json`)
+  const xlsx = join(excelWork, `drag-grid-${engine}-${withCtrl ? 'ctrl' : 'nomod'}-${Date.now()}.xlsx`)
   const found = jsonLine(runPs(excelHelperPath, ['find', '', '', '', '0']))
   if (!found?.ok) {
-    blocked('Excel installed', found?.reason || 'EXCEL.EXE not found')
+    blocked(`${p}Excel installed`, found?.reason || 'EXCEL.EXE not found')
     return
   }
-  pass('Excel installed', true, found.exe)
+  pass(`${p}Excel installed`, true, found.exe)
 
   const made = jsonLine(runPs(excelHelperPath, ['make', xlsx, payload, '', '0'], { timeout: 60000 }))
   if (!made?.ok) {
-    blocked('Excel 测试工作簿创建', made?.reason || 'Excel COM create failed')
+    blocked(`${p}Excel 测试工作簿创建`, made?.reason || 'Excel COM create failed')
     return
   }
-  pass('Excel 测试工作簿创建', true, xlsx)
+  pass(`${p}Excel 测试工作簿创建`, true, xlsx)
   runPs(excelHelperPath, ['unblock', xlsx, '', '', '0'])
 
   const opened = jsonLine(runPs(excelHelperPath, ['open', xlsx, '', excelState, '0'], { timeout: 60000 }))
   if (!opened?.ok || !Number(opened.hwnd)) {
-    blocked('Excel 窗口打开', opened?.reason || 'no new Excel HWND')
+    blocked(`${p}Excel 窗口打开`, opened?.reason || 'no new Excel HWND')
     return
   }
   const hwnd = Number(opened.hwnd)
-  pass('Excel 窗口打开', hwnd > 0, `hwnd=${hwnd} title=${opened.title || ''} pid=${opened.pid || 0}`)
+  pass(`${p}Excel 窗口打开`, hwnd > 0, `hwnd=${hwnd} title=${opened.title || ''} pid=${opened.pid || 0}`)
 
   try {
     await call('computer_activate', { window_id: hwnd })
@@ -311,75 +327,152 @@ async function runExcel() {
     let b2 = findCellByAddress(els, 'B2') || findCell(els, 'B2')
     let a3 = findCellByAddress(els, 'A3') || findCell(els, 'A3')
     let usedUia = Boolean(a2?.x !== undefined && a2?.y !== undefined && e2?.x !== undefined && e2?.y !== undefined)
-    let geom = null
-    if (!usedUia) {
-      geom = jsonLine(runPs(excelHelperPath, ['geometry', xlsx, '', '', String(hwnd)], { timeout: 30000 }))
-      if (geom?.ok && geom.points?.A2 && geom.points?.E2) {
-        a2 = geom.points.A2
-        e2 = geom.points.E2
-        usedUia = false
-      }
+    const uiaA2 = a2
+    // Always try COM edge geometry: Excel starts a drag from the border, and
+    // UIA DataItem x/y are not guaranteed to be the border (or even a center).
+    const geom = jsonLine(runPs(excelHelperPath, ['geometry', xlsx, '', '', String(hwnd)], { timeout: 30000 }))
+    const org = obs?.screenOrigin
+    const sw = Number(obs?.screenshotWidth)
+    const sh = Number(obs?.screenshotHeight)
+    const sx = org && sw > 0 && Number(org.width) > 0 ? Number(org.width) / sw : 1
+    const sy = org && sh > 0 && Number(org.height) > 0 ? Number(org.height) / sh : 1
+    const geomOk = Boolean(geom?.ok && geom.points?.A2 && geom.points?.E2
+      && Number.isFinite(Number(geom.points.A2.borderX)))
+    const comYMismatch = Boolean(geomOk && uiaA2
+      && Math.abs(Number(geom.points.A2.y) - Number(uiaA2.y)) > 12)
+    if (geomOk && org && !comYMismatch) {
+      a2 = geom.points.A2
+      e2 = geom.points.E2
+      usedUia = false
+    } else if (comYMismatch) {
+      record(`${p}Excel COM border geometry`, 'BLOCKED',
+        `COM/UIA y mismatch: com=${geom.points.A2.y} uia=${uiaA2.y}; using UIA border inference`)
+    } else {
+      const why = geom?.reason || (org ? 'borderX missing' : 'screenOrigin missing')
+      record(`${p}Excel COM border geometry`, 'BLOCKED', why)
     }
     if (!a2 || !e2) {
       const interesting = els.filter((e) => /DataItem|Cell|Grid|Table|S4-DRAG|^[A-Z]+[0-9]+$/i.test(`${e.role} ${e.label} ${e.name} ${e.value}`))
       console.log('excel cell candidates:', JSON.stringify(interesting.slice(0, 80).map((e) => ({
         i: e.index, r: e.role, l: e.label, n: e.name, v: e.value, x: e.x, y: e.y,
       }))))
-      blocked('Excel A2/E2 几何', `uia=${usedUia} geom=${JSON.stringify(geom)} elements=${els.length}`)
+      blocked(`${p}Excel A2/E2 几何`, `uia=${usedUia} geom=${JSON.stringify(geom)} elements=${els.length}`)
       return
     }
     if (!usedUia && geom?.window) {
       const w = geom.window
       const inside = (p) => p.x >= w.left - 2 && p.x <= w.right + 2 && p.y >= w.top - 2 && p.y <= w.bottom + 2
       if (!inside(a2) || !inside(e2)) {
-        blocked('Excel A2/E2 几何', `COM 坐标落在窗口外 window=${JSON.stringify(w)} A2=${JSON.stringify(a2)} E2=${JSON.stringify(e2)}`)
+        blocked(`${p}Excel A2/E2 几何`, `COM 坐标落在窗口外 window=${JSON.stringify(w)} A2=${JSON.stringify(a2)} E2=${JSON.stringify(e2)}`)
         return
       }
     }
-    const org = obs?.screenOrigin
     if (!usedUia && (!org || !Number.isFinite(Number(org.x)))) {
-      blocked('Excel 坐标原点', 'screen_observe 未返回 screenOrigin，无法把 COM 屏幕坐标换成窗口坐标')
+      blocked(`${p}Excel 坐标原点`, 'screen_observe 未返回 screenOrigin，无法把 COM 屏幕坐标换成窗口坐标')
       return
     }
-    if (usedUia && a2.index !== undefined) {
+    if (uiaA2?.index !== undefined) {
       // Excel starts a move/copy only from the border of a selected cell. Select
       // A2 first, then re-observe so the drag uses a fresh snapshot.
-      const selected = await call('computer_click', { element: Number(a2.index) })
-      pass('Excel A2 选中', selected?.ok === true, `ok=${selected?.ok} result=${String(selected?.result || '').slice(0, 120)}`)
+      const selected = await call('computer_click', { element: Number(uiaA2.index) })
+      pass(`${p}Excel A2 点击`, selected?.ok === true, `ok=${selected?.ok} result=${String(selected?.result || '').slice(0, 120)}`)
       await delay(300)
-      const obsSel = await call('screen_observe', { window_id: hwnd, mode: 'native' })
-      const selEls = obsSel?.elements || []
-      a2 = findCellByAddress(selEls, 'A2') || a2
-      e2 = findCellByAddress(selEls, 'E2') || e2
-      b2 = findCellByAddress(selEls, 'B2') || b2
-      a3 = findCellByAddress(selEls, 'A3') || a3
+      await call('screen_observe', { window_id: hwnd, mode: 'native' })
+    } else if (!usedUia && org) {
+      const clickX = Math.round((Number(a2.x) - Number(org.x)) / sx)
+      const clickY = Math.round((Number(a2.y) - Number(org.y)) / sy)
+      const selected = await call('computer_click', { x: clickX, y: clickY })
+      pass(`${p}Excel A2 点击`, selected?.ok === true, `x=${clickX} y=${clickY} result=${String(selected?.result || '').slice(0, 120)}`)
+      await delay(300)
+      await call('screen_observe', { window_id: hwnd, mode: 'native' })
     }
-    const from = usedUia ? { x: Number(a2.x), y: Number(a2.y) } : { x: Number(a2.x) - Number(org.x), y: Number(a2.y) - Number(org.y) }
-    const to = usedUia ? { x: Number(e2.x), y: Number(e2.y) } : { x: Number(e2.x) - Number(org.x), y: Number(e2.y) - Number(org.y) }
+    let sel = jsonLine(runPs(excelHelperPath, ['selection', '', '', '', String(hwnd)]))
+    let selOk = sel?.ok && (sel.cellSelected === true
+      || /(^|\$)[A-Z]*\$?2/i.test(String(sel.address || ''))
+      || /(^|\$)[A-Z]*\$?2/i.test(String(sel.focusedName || '')))
+    if (!selOk && org) {
+      // Element click may focus the formula bar instead of the cell; retry with
+      // the measured A2 center before declaring selection unavailable.
+      const retryX = usedUia ? Number(uiaA2?.x ?? a2.x) : Math.round((Number(a2.x) - Number(org.x)) / sx)
+      const retryY = usedUia ? Number(uiaA2?.y ?? a2.y) : Math.round((Number(a2.y) - Number(org.y)) / sy)
+      await call('computer_click', { x: retryX, y: retryY })
+      await delay(300)
+      await call('screen_observe', { window_id: hwnd, mode: 'native' })
+      sel = jsonLine(runPs(excelHelperPath, ['selection', '', '', '', String(hwnd)]))
+      selOk = sel?.ok && (sel.cellSelected === true
+        || /(^|\$)[A-Z]*\$?2/i.test(String(sel.address || ''))
+        || /(^|\$)[A-Z]*\$?2/i.test(String(sel.focusedName || '')))
+    }
+    if (sel?.ok && selOk) pass(`${p}Excel A2 selected`, true, `address=${sel.address} cell=${sel.cellName} cellSelected=${sel.cellSelected} focused=${sel.focusedName}`)
+    else record(`${p}Excel A2 selected`, 'BLOCKED', sel?.reason || `no A2 selection proof (${JSON.stringify(sel)})`)
+
+    let from = usedUia
+      ? { x: Number(uiaA2?.x ?? a2.x), y: Number(uiaA2?.y ?? a2.y) }
+      : { x: Math.round((Number(a2.borderX) - Number(org.x)) / sx) - 1, y: Math.round((Number(a2.y) - Number(org.y)) / sy) }
+    let to = usedUia
+      ? { x: Number(e2.x), y: Number(e2.y) }
+      : { x: Math.round((Number(e2.x) - Number(org.x)) / sx), y: Math.round((Number(e2.y) - Number(org.y)) / sy) }
+    let coordSource = usedUia ? 'uia-center' : 'com-border'
     if (usedUia) {
       // Excel only starts a cell move/copy when the drag begins on the cell
       // border, not in the middle (middle = range selection). Use the A/B
       // border; fall back to half a standard column when B2 is not exposed.
       const b2x = Number(b2?.x)
-      // One pixel inside the right border of A2 (the border hit zone is narrow;
-      // the exact midpoint can land on B2's side or the gridline).
       from.x = Number.isFinite(b2x) ? Math.round((Number(a2.x) + b2x) / 2) - 1 : Number(a2.x) + 51
       from.y = Number(a2.y)
     }
-    pass('Excel A2/E2 几何', true, `source=${usedUia ? 'uia' : 'com'} from=${JSON.stringify(from)} E2=${JSON.stringify(to)}`)
+    const a2rect = sel?.rects?.A2
+    const e2rect = sel?.rects?.E2
+    if (org && a2rect?.width > 0 && e2rect?.width > 0) {
+      from = {
+        x: Math.round((Number(a2rect.right) - Number(org.x)) / sx) - 1,
+        y: Math.round(((Number(a2rect.top) + Number(a2rect.height) / 2) - Number(org.y)) / sy),
+      }
+      to = {
+        x: Math.round(((Number(e2rect.left) + Number(e2rect.width) / 2) - Number(org.x)) / sx),
+        y: Math.round(((Number(e2rect.top) + Number(e2rect.height) / 2) - Number(org.y)) / sy),
+      }
+      coordSource = 'uia-rect'
+    }
+    pass(`${p}Excel A2/E2 几何`, true, `source=${coordSource} from=${JSON.stringify(from)} E2=${JSON.stringify(to)} scale=${sx.toFixed(3)}x${sy.toFixed(3)}`)
 
     // Let Excel see the pointer dwell on the cell border (4-way arrow) before
     // the drag; otherwise it may treat the gesture as a range selection.
-    if (usedUia && org && Number.isFinite(Number(org.x))) {
-      await call('computer_hover', { real: true, x: Number(org.x) + from.x, y: Number(org.y) + from.y })
+    if (org && Number.isFinite(Number(org.x))) {
+      const hoverX = Math.round(Number(org.x) + from.x * sx)
+      const hoverY = Math.round(Number(org.y) + from.y * sy)
+      const hover = await call('computer_hover', { real: true, x: hoverX, y: hoverY })
+      pass(`${p}Excel hover`, hover?.ok === true, `x=${hoverX} y=${hoverY} result=${String(hover?.result || '').slice(0, 80)}`)
+      const cur = jsonLine(runPs(excelHelperPath, ['cursor', '', '', '', '0']))
+      pass(`${p}Excel cursor at border`, cur?.ok === true
+        && Math.abs(Number(cur.x) - hoverX) <= 3 && Math.abs(Number(cur.y) - hoverY) <= 3,
+      `cursor=${JSON.stringify(cur)} expected=${hoverX},${hoverY}`)
       await delay(400)
     }
 
-    const drag = await call('computer_drag', {
+    const dragArgs = {
       from_x: from.x, from_y: from.y, to_x: to.x, to_y: to.y,
-      modifier: ['ctrl'], steps: 30, duration_ms: 800,
-    })
-    pass('Excel ctrl+drag 投递', drag?.ok === true, `ok=${drag?.ok} result=${String(drag?.result || '').slice(0, 160)}`)
+      steps: 30, duration_ms: 800,
+    }
+    if (withCtrl) dragArgs.modifier = ['ctrl']
+    if (engine === 'private') dragArgs.dwell_ms = 1
+    if (process.env.S4_DEBUG_DRAG) {
+      const capsBefore = await cuaDriverCapabilities().catch(() => null)
+      console.log('caps before drag:', capabilitySummary(capsBefore), 'args=', JSON.stringify(dragArgs))
+    }
+    const drag = await call('computer_drag', dragArgs)
+    const dragText = String(drag?.result || '')
+    const privateRoute = drag?.engine === 'private_sendinput' || /私有 SendInput|private_sendinput/.test(dragText)
+    const nativeRoute = drag?.engine === 'driver_native' || /原生 modifier 拖拽|driver_native/.test(dragText)
+    const routeOk = engine === 'private' ? privateRoute : (withCtrl ? nativeRoute : true)
+    pass(`${p}Excel ctrl+drag 投递`, drag?.ok === true, `ok=${drag?.ok} result=${dragText.slice(0, 160)}`)
+    if (!routeOk) {
+      record(`${p}Excel drag engine route`, 'BLOCKED',
+        `requested=${engine} private=${privateRoute} native=${nativeRoute} result=${dragText.slice(0, 160)}`)
+    }
+    const curAfter = jsonLine(runPs(excelHelperPath, ['cursor', '', '', '', '0']))
+    pass(`${p}Excel Ctrl released`, curAfter?.ctrl !== true,
+      `ctrl=${curAfter?.ctrl} cursor=${curAfter?.x},${curAfter?.y}`)
     await delay(1200)
 
     // The private drag restores the pre-drag foreground; bring Excel back before
@@ -392,11 +485,11 @@ async function runExcel() {
     const saved = await call('computer_key', { key: 'ctrl+s' })
     console.log('excel save result:', String(saved?.result || '').slice(0, 500))
     if (saved?.ok === true) {
-      pass('Excel ctrl+s 保存', true, `result=${String(saved?.result || '').slice(0, 160)}`)
+      pass(`${p}Excel ctrl+s 保存`, true, `result=${String(saved?.result || '').slice(0, 160)}`)
     } else if (/foreground_unavailable/.test(String(saved?.result || ''))) {
-      blocked('Excel ctrl+s 保存', `前台切换被 Windows 拒绝（环境）：${String(saved?.result || '').slice(0, 200)}`)
+      blocked(`${p}Excel ctrl+s 保存`, `前台切换被 Windows 拒绝（环境）：${String(saved?.result || '').slice(0, 200)}`)
     } else {
-      pass('Excel ctrl+s 保存', false, `ok=${saved?.ok} result=${String(saved?.result || '').slice(0, 160)}`)
+      pass(`${p}Excel ctrl+s 保存`, false, `ok=${saved?.ok} result=${String(saved?.result || '').slice(0, 160)}`)
     }
     await delay(1500)
 
@@ -407,38 +500,47 @@ async function runExcel() {
       await delay(500)
     }
     if (!cells?.ok) {
-      blocked('Excel OOXML 读取', cells?.reason || 'Read-XlsxManifest failed')
+      blocked(`${p}Excel OOXML 读取`, cells?.reason || 'Read-XlsxManifest failed')
       return
     }
     const a2v = String(cells.cells?.A2 ?? '')
     const e2v = String(cells.cells?.E2 ?? '')
     if (a2v === payload && e2v === payload) {
-      pass('Excel ctrl+drag 复制单元格', true, `A2=${a2v} E2=${e2v} source_kept=true`)
+      pass(`${p}Excel ctrl+drag 复制单元格`, true, `A2=${a2v} E2=${e2v} source_kept=true`)
     } else if (a2v === '' && e2v === payload) {
-      pass('Excel ctrl+drag 复制单元格', false, `A2 被清空、E2=${e2v}：Ctrl 未生效，实际是移动`)
+      pass(`${p}Excel ctrl+drag 复制单元格`, false, `A2 被清空、E2=${e2v}：Ctrl 未生效，实际是移动`)
     } else {
-      blocked('Excel ctrl+drag 复制单元格', `A2=${JSON.stringify(a2v)} E2=${JSON.stringify(e2v)}（可能是对话框/保护视图）`)
+      blocked(`${p}Excel ctrl+drag 复制单元格`, `A2=${JSON.stringify(a2v)} E2=${JSON.stringify(e2v)}（可能是对话框/保护视图）`)
     }
   } finally {
     const closed = jsonLine(runPs(excelHelperPath, ['close', '', '', excelState, '0'], { timeout: 30000 }))
     if (closed?.closed) {
-      record('Excel 关闭测试工作簿', 'PASS', 'exact HWND closed')
+      record(`${p}Excel 关闭测试工作簿`, 'PASS', 'exact HWND closed')
     } else {
       // Last resort for a test-owned workbook: verify the PID's command line
       // contains this temp xlsx, then terminate that exact PID. Never kill by
       // process name; a user's Excel instance never has this temp path.
       const forced = jsonLine(runPs(excelHelperPath, ['force-close', xlsx, '', excelState, '0'], { timeout: 30000 }))
-      if (forced?.ok) record('Excel 关闭测试工作簿', 'PASS', `HWND close failed (${closed?.reason || 'unknown'}); ${forced.reason}`)
-      else record('Excel 关闭测试工作簿', 'LEFT_OVER', `HWND close failed: ${closed?.reason || 'unknown'}; force-close: ${forced?.reason || 'unknown'}`)
+      if (forced?.ok) record(`${p}Excel 关闭测试工作簿`, 'PASS', `HWND close failed (${closed?.reason || 'unknown'}); ${forced.reason}`)
+      else record(`${p}Excel 关闭测试工作簿`, 'LEFT_OVER', `HWND close failed: ${closed?.reason || 'unknown'}; force-close: ${forced?.reason || 'unknown'}`)
     }
   }
 }
 
 if (process.argv.includes('--excel')) {
-  try {
-    await runExcel()
-  } catch (err) {
-    pass('Excel probe completed', false, String(err?.message || err).slice(0, 300))
+  for (const engine of excelEngines) {
+    try {
+      await runExcel(engine, true)
+    } catch (err) {
+      pass(`[${engine}+ctrl] Excel probe completed`, false, String(err?.message || err).slice(0, 300))
+    }
+  }
+  if (excelEngines.includes('private')) {
+    try {
+      await runExcel('private', false)
+    } catch (err) {
+      pass('[private-ctrl] Excel probe completed', false, String(err?.message || err).slice(0, 300))
+    }
   }
 }
 if (excelWork && !process.env.S4_KEEP) {

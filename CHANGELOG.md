@@ -24,7 +24,7 @@
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
 - 真机探针 2026-11-21：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift=0` 归因，外部漂移（348–766px）不再误判；B3 PASS。
-- 离线 31 套 / 772 项；语法 53/53；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
+- 离线 31 套 / 772 项；语法 57/57；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
 - 评测 P2（2026-11-21）：`variants` 参数化落地（t21/t22/a11y01 × variant 1-3，AC2 **9/9 PASS**，mutation **2/2 PASS**）；新增只读 `evals/probe-platform.mjs`；虚拟桌面因无驱动原语 + `win` 组合键 fail-closed 记 BLOCKED。
 - 评测 P2（2026-11-22）：`dpi01` 真实模型跨屏点击 **pass**（3 步，双物理屏 150%+100%）；新增 `probe-common-dialogs.mjs`，Open/Save/Font/Color/Print 标准 `#32770` 后端 **6/6 PASS**。
 - `nativeMenus` 真机已 PASS：`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过；MenuStrip/WPF/WinUI 仍明确不支持。
@@ -58,7 +58,7 @@
 - **标题栏拖拽语义**：观察时缓存 `titleBarRect`；`computer_drag` 起点命中标题栏时回执明确“移动窗口、不是点击/落点证据”并清空快照；描述同步。
 - **eval 预算语义**：`evals/lib/run.mjs` 修 `timedOut` 与 `close` 竞争；`headless-run` 增加 `budgetExhausted`/`noFinal`，预算耗尽记 `verdict=timeout`；`ac6-summary`/`ab-summary` 同步。
 - **t20 模态 30s 超时根因定位**：新增 `evals/probe-modal-timeout.mjs` / `probe-modal-escapes.mjs`。实测 MessageBox 打开期间同 pid 的 AX 树在 **1s/5s/15s** 预算下均为 0 元素（capture-only 1.5s 成功）；驱动的 `click`/`press_key`/`bring_to_front` 阻塞到模态关闭；原生 `WM_COMMAND`/`BM_CLICK` 可 ~1s 关闭。`timeout_ms` 调大**不是**修复；驱动根因保持 BLOCKED，不盲改 observe 默认。
-- **原生 Win32 对话框后端（私有实现，Windows）**：新增 `nativeDialogs: auto|off`（默认 auto）。UIA 树为空且目标是同 pid 标准 `#32772` 模态对话框时，`screen_observe` 通过 Win32 子控件枚举返回 `native-dialog` 按钮；`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证），只支持单次左键，不自动选择 Yes/No。触发模态的 UIA click 仍可能 30s；本后端消除模态内按钮的重复 30s。
+- **原生 Win32 对话框后端（私有实现，Windows）**：新增 `nativeDialogs: auto|off`（默认 auto）。UIA 树为空且目标是同 pid 标准 `#32770` 模态对话框时，`screen_observe` 通过 Win32 子控件枚举返回 `native-dialog` 按钮；`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证），只支持单次左键，不自动选择 Yes/No。触发模态的 UIA click 仍可能 30s；本后端消除模态内按钮的重复 30s。
 - **模态超时回执修正**：不再建议 `Escape=No` / `Enter=默认` / `foreground 普通键` 作为快速路径（实测在模态中同样 30–60s，Escape 在 Yes/No 无效）；改为“等待 5–10s → screen_observe（capture/ax）确认延迟成功 → 必要时按加速键只发一次”。守门断言在 `tests/delivery.failures.mjs`。
 - **题面**：t20 允许 Tab/Enter/Escape 选择对话框按钮并强调始终回到 `S4-T20-DIALOG`；t19 明确允许 Notepad 另存为。
 - **COMMON**：真实模型运行统一要求显式指定任务窗口，不依赖无目标“最前窗口”，不跟随无关前台窗口。

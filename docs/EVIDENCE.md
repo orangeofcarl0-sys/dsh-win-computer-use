@@ -343,25 +343,69 @@ node tests/native-dialogs.test.mjs
 
 环境：Windows 11 x64；Excel 16.0.14334.21048；不调用模型。
 
-命令：`node evals/probe-modifier-drop.mjs --excel --excel-only`
+命令：`node evals/probe-modifier-drop.mjs --excel --excel-only --engine both`
 
-结果：**PASS 8/9，BLOCKED 1，FAIL 0，LEFT_OVER 0**。
+结果：**PASS 36/42，BLOCKED 6，FAIL 0，LEFT_OVER 0**（private+ctrl / native+ctrl / private 无 Ctrl 三轮，fresh workbook）。
 
 | 检查 | 结果 | 说明 |
 |---|---|---|
-| Excel 安装/工作簿/窗口 | PASS | 临时 xlsx，精确 HWND，关闭无残留 |
-| A2 选中 | PASS | UIA DataItem |
-| A2/E2 几何 | PASS | UIA A2 x=94、B2 x=198、E2 x=510，同行 y=378 |
-| Ctrl+drag 投递 | PASS | private SendInput foreground，回执 ok=true |
+| 驱动能力 | PASS | 0.52.13 modern，`native-drag=on` |
+| A2 选中 | PASS | UIA `SelectionItemPattern`：`cell="A" 2`、`cellSelected=true`（不再只断言点击 ok） |
+| A2/E2 几何 | PASS | UIA rect：A2 right=146、E2 center=511，y=379；COM border 在部分 Excel 实例不可用，回退 UIA rect |
+| engine=private | PASS | 回执 route=private_sendinput；Ctrl 在 drop 后释放（cursor ctrl=false） |
+| engine=native | PASS | 回执 route=driver_native（0.52.13 原生 drag） |
 | Ctrl+S | PASS | 前台激活后投递 |
-| A2→E2 复制 | **BLOCKED** | A2 保留、E2 为空 |
+| A2→E2 复制 | **BLOCKED** | 所有三轮 A2 保留、E2 为空 |
 
 根因排查：
 
-- Excel COM：`CellDragAndDrop=true`、`EnableFillHandle=false`；拖放开关没有关闭。
-- 起点尝试：A2/B2 边框 x=144/145/146/147/148、A2 中心 x=94；均无移动。
-- 不带 Ctrl 的拖拽：同样 A2 不动、E2 为空，说明**拖拽没有启动**，不是 Ctrl 丢失。
-- 因此不是“Ctrl 没按住”，也不是“目标格写错”；更像 Excel 不接受当前合成拖拽路径/需要真实指针的 OLE drag loop，或边框命中区仍未命中。保持 BLOCKED，等待专用桌面/真实指针验证。
+- Excel `CellDragAndDrop=true`、`EnableFillHandle=false`；拖放开关没有关闭。
+- A2 已由 UIA SelectionItemPattern 证明选中；光标在 border 起点（146,379）。
+- private SendInput、driver 原生 drag、以及 private **不带 Ctrl** 三轮都没有让 A2 移动或复制。
+- 因此不是“Ctrl 没按住”、不是“A2 没选中”、也不是“目标格写错”；更像 Excel 不接受当前合成拖拽路径/需要真实指针的 OLE drag loop。保持 BLOCKED，等待专用桌面/真实指针验证。
+
+## 1.15 2026-11-22 — gesture truth（driver vs private）
+
+命令：`node evals/probe-gesture-truth.mjs`
+
+环境：Windows 11 x64，双屏，cua-driver 0.52.13；WinForms Button 目标记录 `MouseDown/MouseMove/MouseUp` + `ModifierKeys`。
+
+| 引擎 | 结果 | 事件 |
+|---|---|---|
+| private SendInput（`dwell_ms:1` + ctrl） | **PASS** | down/move/up 均带 Control；route=private_sendinput |
+| driver 原生（ctrl） | **BLOCKED** | 只有 down/up，`move=null`；route=driver_native；不冒充完整手势 |
+
+结论：私有路径确实产生完整 down/move/up；0.52.13 原生 drag 在本 fixture 上没有中间 move 证据。该结论不外推到所有驱动版本。
+
+## 1.16 2026-11-22 — WPF 模态探针
+
+命令：`node evals/probe-wpf-dialog.mjs`
+
+结果：**7 PASS / 0 BLOCKED / 0 FAIL**。
+
+- WPF 主窗口 UIA 10 元素；模态 class=`HwndWrapper[DefaultDomain;...]`，owner=主窗口，`ownerEnabled=false`，`lastPopup=modal`。
+- 模态 UIA @1s/@5s 均为 5 元素；capture-only 成功（14,100B）；`scanNativeDialog=null`（不是 `#32770`）。
+- 说明：WPF 模态的 UIA provider 在本机可读，不需要 native-dialog 兜底；但不能外推到 WPF 自绘/复杂控件。
+
+## 1.17 2026-11-22 — Chromium 文件选择器/打印预览
+
+命令：`node evals/probe-chromium-dialogs.mjs --browser chrome`
+
+结果：**1 PASS / 2 BLOCKED / 0 FAIL**。
+
+- Chrome 157 以临时 `--user-data-dir` 打开本地页面；窗口/UIA 正常（15 个 chrome 控件），页面标题 `S4-CHROMIUM-DIALOGS`。
+- 页面内容 AX 未暴露 `<input type=file>` 元素；按截图坐标（110,328）合成 click 后**没有新顶层窗口**，Space/Enter 也未打开选择器 → file chooser BLOCKED。
+- `Ctrl+P` 后没有可识别的 print 窗口/标题 → print preview BLOCKED。
+- 未关闭用户浏览器；只关闭/核验临时 profile 的测试进程。
+
+## 1.18 2026-11-22 — cross-IL / UIPI
+
+命令：
+
+- `node evals/probe-cross-il.mjs --no-uac`：**2 PASS / 1 BLOCKED**（当前进程 RID 8192=medium；分类器 high→uipi；真机跨 IL 需 `--uac`）。
+- `node evals/probe-cross-il.mjs --uac`（一次授权 UAC）：elevated sink RID **12288**；helper 返回 `{"ok":false,"code":"uipi","delivered":false}`，sink events=0；sink 通过 stop 文件自关闭。
+
+关键发现：该次 UAC 运行暴露 `tools/background-input.ps1` 的 `IntegrityRank` 阈值 **off-by-one**：medium(8192) 被标成 high，system(16384) 与 high 都落到 rank 3。已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试仍通过。**修正后的 UAC 复跑尚未做**；跨 IL 真实 Medium→High 证据仍按部分/BLOCKED 记录。UAC 安全桌面不在本探针范围，仍不可自动化。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

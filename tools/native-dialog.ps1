@@ -38,9 +38,15 @@ public static class S4DlgNative {
   [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int index);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
 }
 "@
+
+  try { [void][S4DlgNative]::SetProcessDpiAwarenessContext([IntPtr](-4)) } catch {
+    try { [void][S4DlgNative]::SetProcessDPIAware() } catch { }
+  }
 
   function Get-WinText([IntPtr]$h) {
     $len = 0

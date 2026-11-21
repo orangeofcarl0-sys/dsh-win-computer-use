@@ -157,7 +157,7 @@ anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 |---|---|
 | `background_input_occluded` | 目标点被遮挡/不在目标窗口；未发送 |
 | `background_input_anchor_blocked` | 合成触控 anchor 被 topmost 窗口遮挡；未注入 |
-| `background_input_uipi` | 完整性/session 不匹配；未发送 |
+| `background_input_uipi` | 完整性/session 不匹配；未发送。rank 映射 `0=low / 1=medium / 2=high / 3=system`；2026-11-22 修正了 off-by-one（medium 曾误标为 high） |
 | `background_input_secure_desktop` | 非 Default 输入桌面；未发送 |
 | `background_input_clip_cursor` | `ClipCursor` 不允许目标点 |
 | `background_input_window_not_movable` | 最小化/最大化/全屏/拒绝移动 |

@@ -118,10 +118,10 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 ## 能力边界
 
 - **委派不是沙箱。** `computer_task` 走宿主 `startActivation`；dsh 0.2.2 没有 `toolFilter`，子 agent 可能拥有与父会话同级能力。回执会写明；需要严格限制时用宿主 Agent Preset。
-- **`app_launch` 的窗口可能需要人工收尾。** 驱动以管理员运行，启动的应用继承 High IL；非提权客户端可能关不掉。测试/自动化优先操作已在运行的普通应用。
+- **`app_launch` 的窗口可能需要人工收尾。** daemon 可能是 High IL，但子进程完整性取决于驱动版本/启动路径：0.52.13 实测 daemon High、`powershell.exe` 子进程 Medium。非提权客户端可能关不掉 High IL 子窗口；测试/自动化优先操作已在运行的普通应用。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
 - **Explorer 文件项的单选要用 `foreground=true`。** 后台坐标点击会走 UIA Invoke，等于“打开”，会弹出 Notepad/Photos/PDF。
-- **`computer_drag` 的 `modifier`/`dwell_ms` 走私有 SendInput helper。** 原子手势、修饰键持有到 drop、失败路径释放；不支持 `from_zoom`。无 modifier 的 drag 仍走驱动。
+- **`computer_drag` 的 modifier 在驱动支持 `dragModifier` 时走原生；旧驱动/`dragEngine:private` 或 `dwell_ms>0` 走私有 SendInput helper。** 私有路径是原子手势、修饰键持有到 drop、失败路径释放；不支持 `from_zoom`。无 modifier 的 drag 默认走驱动。
 - **`screen_zoom` 需要当前模型支持图片输入。** 小字号 JPEG 可能不可读；读文字用 `native`。
 - **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层；`real=true` 才动真实指针。
 - **`computer_menu` fail-closed。** 路径缺失/歧义/禁用/结构不匹配即失败，绝不回退像素。

@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-22：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 53/53 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-22：`npm test` 31 套 / **774 项检查**；`npm run check` 语法 57/57 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -19,7 +19,7 @@
 | 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|---|
 | 语法/安装脚本 | S1 | `npm run check` | 46 JS（含 lib/driver、eval runner、tasks.check、background-input、nativeMenus）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
-| 离线单元/契约 | S1 | `npm test` | 31 套 / 772 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
+| 离线单元/契约 | S1 | `npm test` | 31 套 / 774 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
 | 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
 | from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -37,6 +37,10 @@
 | 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
 | 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
 | 常见对话框后端 | S3 | `node evals/probe-common-dialogs.mjs` | 6 PASS / 0 BLOCKED | WinForms Open/Save/Font/Color/Print：标准 `#32770`、`modal=owner-disabled`、Cancel `BM_CLICK`、state result=Cancel；不覆盖 WPF/WinUI/自定义 shell 对话框 |
+| 手势真实性 | S2/S4 | `node evals/probe-gesture-truth.mjs` | private PASS；driver move BLOCKED | WinForms 记录 down/move/up + Ctrl：private 路径完整；driver 原生 drag 只看到 down/up、无中间 move，记 BLOCKED |
+| WPF 模态 | S3 | `node evals/probe-wpf-dialog.mjs` | 7 PASS / 0 BLOCKED | WPF 模态 class=`HwndWrapper[...]`、owner 主窗口 disabled、UIA 5 元素、capture-only 可用、native scan=null |
+| Chromium 文件/打印 | S3 | `node evals/probe-chromium-dialogs.mjs --browser chrome` | 1 PASS / 2 BLOCKED | 页面可加载；合成 click 未弹出 file chooser；Ctrl+P 未产生可识别 print 窗口 → BLOCKED |
+| 跨 IL / UIPI | S3/S4 | `node evals/probe-cross-il.mjs --no-uac`；`--uac`（一次授权） | 只读 PASS；UAC 部分 | 高 IL sink/拒绝有证据；该次运行暴露并修正 `IntegrityRank` off-by-one，修正后 UAC 复跑待做 |
 | 原生 Button 触发 | S3 | `node evals/probe-native-button.mjs` | 4 PASS / 0 BLOCKED | 自建 WinForms Delete + MessageBox：原生触发 1.2s 返回、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 |
 | 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs`（可加 `--elevated`） | 默认 14 PASS / 1 BLOCKED；提权 14 PASS / 0 BLOCKED | 自建 native message/pointer/touch-only/mouse-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B3 window 通过；B1 光标用 helper 注入窗口内 `cursorDrift=0` 判定，外部漂移不再污染；严格 B2 非提权 `BlockInput` 被拒 → BLOCKED，`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；0 FAIL |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 37 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13/t21 按原因 SKIP |
@@ -53,7 +57,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31/772、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31/774、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / dpi01 / p01 / p02 / p03（5） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
@@ -98,7 +102,7 @@
 | `native-menus.test.mjs` | 18 | 经典 HMENU 兜底：off 零调用；驱动拒绝后才回退；confirmed/unverifiable/effect 缺失/超时不回退；no_hmenu/timeout；resolve/invoke/base64/超时/非零退出；resolved hwnd/stage/诊断 |
 | `native-button-trigger.test.mjs` | 12 | 原生 Button 触发：off 零调用；Button 命中不走 driver；非 Button/坐标/多击/modifier/foreground 不触发；pre-delivery 回退；owner_disabled/timeout/latch 不回退 |
 
-合计 **772** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
+合计 **774** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
 
 ### 3.1 共享脚手架
 
@@ -331,8 +335,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 31 套 / 772 ✅ / 0 ❌ |
-| 语法 | 53/53 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 离线 | 31 套 / 774 ✅ / 0 ❌ |
+| 语法 | 57/57 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
@@ -348,6 +352,10 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | P0/P1 新增模型 smoke | 2026-11-21：t21 **1/1 pass**（16 步，19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察）；term01 **1 次 8min timeout**（模型打开 Notepad 而非控制台）；两者 AC2 均 PASS，cleanup 恢复 TabState |
 | 跨屏模型跑 | 2026-11-22：dpi01 **1/1 pass**（3 步，inner 3，oracle clicks=1，0 dirty；plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go/deepseek-v4.1-flash；wall 70s，total 33,038 tokens） |
 | 常见对话框 | 2026-11-22：probe-common-dialogs **6/6 PASS**（Open/Save/Font/Color/Print；标准 `#32770`、`modal=owner-disabled`、Cancel `BM_CLICK`） |
+| gesture truth | 2026-11-22：private **PASS**（down/move/up + Control）；driver 原生只有 down/up、无 move → **BLOCKED** |
+| WPF 模态 | 2026-11-22：probe-wpf-dialog **7/7 PASS**（HwndWrapper、owner-disabled、UIA 5 元素、capture-only 可用、native scan=null） |
+| Chromium 对话框 | 2026-11-22：页面加载 PASS；file chooser/print preview **2 BLOCKED**（合成 click 未弹出、Ctrl+P 无可识别窗口） |
+| 跨 IL / UIPI | 2026-11-22：只读分类器 PASS；一次授权 UAC 返回 `uipi`/0 events；暴露并修正 `IntegrityRank` off-by-one；修正后 UAC 复跑待做 |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 
 ## 11. P2 设计与未闭合
@@ -355,6 +363,6 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 - **参数化（已实现，3 条任务）**：`variants: N` + `evals/variants/<id>.json` 是唯一数据源；runner 通过 `S4_VARIANT` 传给 setup/oracle/simulate/cleanup，prompt 用 `{{key}}` 渲染。`headless-run --variants N` 与 `verify-oracles --variants N` 对声明任务跑 1..N；未声明任务只跑 variant 1。当前 t21（Calculator 除法）、t22（PPT 标题/副标题）、a11y01（键盘-only 文本）各 3 个 variant；mutation 固定 variant 1（case 按 variant 1 编写）。仍以 41 条任务为分母，variant 用于统计功效而非新增任务数。
 - **可访问性**：`a11y01` 已实现键盘-only + UIA 名称 + 3 个输入 variant；高对比度/Narrator 全量验收仍未做。
 - **Linux**：仅 Ubuntu CI 跑 `npm run check` / `npm test`；`probe-platform.mjs` 在非 Windows 只报 BLOCKED。无 Linux 任务套件，`verify-runtime` 可选；Linux 不作为发布门禁，文档不写“已支持”。
-- **Windows 专项**：`probe-display` 已记录 2 屏/混合 DPI；`dpi01` AC2 已过，**真实模型跨屏点击 2026-11-22 PASS**（3 步，oracle clicks=1，0 dirty，plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go）；`probe-common-dialogs` 对 Open/Save/Font/Color/Print 标准 `#32770` **6/6 PASS**；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
+- **Windows 专项**：`probe-display` 已记录 2 屏/混合 DPI；`dpi01` AC2 已过，**真实模型跨屏点击 2026-11-22 PASS**（3 步，oracle clicks=1，0 dirty，plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go）；`probe-common-dialogs` 对 Open/Save/Font/Color/Print 标准 `#32770` **6/6 PASS**；`probe-wpf-dialog` WPF 模态 **7/7 PASS**（UIA 可读、native scan=null）；`probe-gesture-truth` private PASS、driver 中间 move BLOCKED；Chromium file chooser/print preview 仍 BLOCKED；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
 
 > 逐轮时间线、工具计数、失败模式见 [EVIDENCE](EVIDENCE.md)；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；当前矩阵见 [VERIFICATION](../VERIFICATION.md)。

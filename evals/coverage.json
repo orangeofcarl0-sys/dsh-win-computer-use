@@ -183,7 +183,8 @@
       "test:background-input.test"
     ],
     "uipi": [
-      "test:background-input.test"
+      "test:background-input.test",
+      "probe:probe-cross-il"
     ],
     "nativeDialog": [
       "probe:probe-native-dialog",

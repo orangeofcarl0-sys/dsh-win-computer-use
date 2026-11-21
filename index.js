@@ -692,7 +692,7 @@ function actionToolDefs(ctx, cfg, wrap) {
 
   {
     name: 'computer_drag',
-    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。modifier 非空时走私有 SendInput 前台拖拽：原子手势、修饰键持有到 drop、失败路径释放；私有路径不支持 from_zoom（明确报错），无 modifier 仍走 driver。button 支持 left/right/middle；dwell_ms 用于 Explorer 弹簧文件夹/拖放悬停。从标题栏拖动会移动窗口（改变 window origin），不是点击/落点证明；需要点击效果时不要用 drag 代替 click。',
+    description: '拖拽：在快照窗口内从 (from_x,from_y) 拖到 (to_x,to_y)，坐标为窗口本地截图像素。来自 screen_zoom 的起终点都加 from_zoom=true，由驱动换算。steps 控制中间移动事件数（1-200，默认 20）。modifier 在驱动支持 dragModifier 时走 driver 原生；旧驱动/显式 dragEngine=private 时走私有 SendInput（原子手势、修饰键持有到 drop、失败路径释放）。dwell_ms>0 强制私有，且私有路径不支持 from_zoom。button 支持 left/right/middle；dwell_ms 用于 Explorer 弹簧文件夹/拖放悬停。从标题栏拖动会移动窗口（改变 window origin），不是点击/落点证明；需要点击效果时不要用 drag 代替 click。',
     parameters: {
       from_x: { type: 'integer', required: true, description: '起点 x（截图像素；from_zoom=true 时为 zoom 图坐标）。' },
       from_y: { type: 'integer', required: true, description: '起点 y。' },
@@ -707,7 +707,7 @@ function actionToolDefs(ctx, cfg, wrap) {
       ...SNAPSHOT_ID_PARAM,
       ...FOREGROUND_PARAM,
     },
-    output: OUT(),
+    output: OUT({ engine: { type: 'string' } }),
     execute: wrap('computer_drag', (args, cfg2) => drag(args, cfg2)),
   },
 

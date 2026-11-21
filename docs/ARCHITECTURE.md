@@ -62,7 +62,7 @@ flowchart LR
 | `lib/actions.js` | `click`、`doubleClick`、`rightClick`、`typeText`、`setValue`、`key`、`scroll`、`drag`、`wait`、`listApps`、`launchApp`、`activate` | 动作实现；快照/窗口解析；目标回显；投递；回执 | cua / human / receipt / snapshot / engine / privateDrag / nativeDialogs |
 | `lib/human.js` | `glideCursor`、`humanClick`、`resolveClickTarget`、`screenPointOf`、`windowLocalOf`、`describeClickTarget`、`nearestEntry` | 虚拟光标滑行（auto/human/off）；element_token / 像素点击；坐标适配；目标回显 | cua / snapshot |
 | `lib/privateDrag.js` | `privateDrag`、`stopPrivateDrag` | 持久 PowerShell helper 的 stdin/stdout JSON 封装；惰性启动、串行队列、超时/崩溃恢复、空闲退出 | `tools/private-drag.ps1` |
-| `lib/nativeDialogs.js` | `scanNativeDialog`、`clickNativeDialog`、`IS_WINDOWS` | Windows 标准 `#32772` 模态对话框的 Win32 子控件扫描（Button/Static）与 `BM_CLICK`；失败/超时回退 UIA | `tools/native-dialog.ps1` |
+| `lib/nativeDialogs.js` | `scanNativeDialog`、`clickNativeDialog`、`IS_WINDOWS` | Windows 标准 `#32770` 模态对话框的 Win32 子控件扫描（Button/Static）与 `BM_CLICK`；失败/超时回退 UIA | `tools/native-dialog.ps1` |
 | `lib/nativeMenus.js` | `resolveNativeMenu`、`invokeNativeMenu`、`tryNativeMenu`、`IS_WINDOWS` | 经典 Win32 HMENU 的只读路径解析与 `PostMessage(WM_COMMAND)`；只在驱动结构化拒绝后兜底；默认 off | `tools/native-menu.ps1` |
 | `lib/nativeButtonTrigger.js` | `tryNativeButtonClick`、`resetNativeButtonTrigger`、`IS_WINDOWS` | 标准 Win32/WinForms Button 的唯一匹配与 `BM_CLICK`；默认 off；10s latch；pre-delivery 回退 driver，unknown 不回退 | `tools/native-button.ps1` |
 | `lib/backgroundInput.js` | `tryBackgroundClick`、`tryBackgroundType`、`tryBackgroundKey`、`stopBackgroundInput`、`createBackgroundInputClient` | 实验性无 UIA 目标后台输入（B0 消息/控件、B1 合成触控、B2 光标锚定、B3 窗口锚定）；默认 off；失败关闭、不自动升级 | `tools/background-input.ps1` |
@@ -244,7 +244,7 @@ flowchart TD
   F --> H["check_permissions（只读，30s 缓存）"]
   G --> H
   H --> I["get_window_state(include_screenshot?, max_elements, query?)"]
-  I -->|失败| X["native-dialog 扫描（同 pid #32772 模态对话框）"]
+  I -->|失败| X["native-dialog 扫描（同 pid #32770 模态对话框）"]
   X -->|找到按钮| O2["native-dialog：Win32 按钮树（BM_CLICK）"]
   X -->|否| J["get_desktop_state → desktop-visual 降级"]
   I -->|树空| X
@@ -432,7 +432,7 @@ stateDiagram-v2
 | # | 位置 | 现象 | 影响 | 方向 |
 |---|---|---|---|---|
 | A7 | `lib/actions.js` 像素路径 | 驱动 0.23.2 在混合 DPI 下像素点击落点有实测偏差（三种语义假设均有反例） | 像素点击 best-effort；element 路径不受影响 | 等上游修复；文档已降级表述 |
-| A8 | `computer_drag` schema/payload | 0.23.2 的 drag `modifier` 不读取；插件改为 **modifier/dwell_ms 走私有 SendInput helper**，无 modifier 仍走 driver；0.39+ 原生可用 | 私有路径不支持 `from_zoom`（明确报错）；`modifier` 是原子手势，不做失败后重试 | WinForms 探针通过；Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 仍 BLOCKED |
+| A8 | `computer_drag` schema/payload | 0.23.2 的 drag `modifier` 不读取；0.39+ 驱动原生支持 modifier，插件优先原生；`dragEngine:private`/旧驱动/`dwell_ms>0` 走私有 SendInput helper，无 modifier 仍走 driver | 私有路径不支持 `from_zoom`（明确报错）；`modifier` 是原子手势，不做失败后重试 | WinForms 探针通过；Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 仍 BLOCKED |
 | A10 | native observe | `probe-native-freshness` 在 WinForms 文本变化窗口未复现“AX 已变而 PNG hash 不变”；t11 轨迹里的陈旧感可能是特定应用/去重路径 | 不能把一次轨迹现象当成普适缓存 bug | 保留探针；若后续在 Paint/Office 复现，再按 `force`/去重键定位 |
 | A11 | 手势原语 | 无 `selectText`、`key hold`、`mouse_down/up`；drag 无元素源 | PowerPoint 文本选择/格式、Paint 自由笔迹、PPT 形状拖拽仍靠坐标；t17 的单行 PDF 句子已用三击 + Ctrl+C 覆盖 | 评估 selectText/key hold/down-up；drag 支持 from_element |
 | A12 | 前台手势 | foreground 动作结束恢复原前台；多步画布/格式操作要反复 activate | t11 用 activate+画布焦点 click 后通过；t15 文件单选用 foreground=true 后不再误开应用 | 保持“显式 activate + 焦点 click + foreground 单选”的题面纪律，暂不新增 keep-foreground 原语 |
@@ -448,7 +448,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：31 套、772 项检查（2026-11-21；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：31 套、774 项检查（2026-11-22；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 41 条任务，S1 10 / S2 5 / S3 26 / S4 17（成员 58，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）；t21/t22/a11y01 通过 `variants/<id>.json` 支持 `--variants` 参数化。
 - 反向证据：`evals/oracle-mutation.mjs` 对 37 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。

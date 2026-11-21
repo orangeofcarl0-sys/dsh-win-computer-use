@@ -4,13 +4,115 @@
 # the drag/click itself is still performed by the plugin.
 
 Add-Type -TypeDefinition @'
+using System;
 using System.Runtime.InteropServices;
 public static class S4ExcelDpi {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+  [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
+  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
+  [DllImport("oleacc.dll")]
+  public static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint dwId, ref Guid riid,
+    [MarshalAs(UnmanagedType.IUnknown)] out object ppvObject);
 }
 '@ -ErrorAction SilentlyContinue
 
 try { [void][S4ExcelDpi]::SetProcessDPIAware() } catch { }
+
+function Get-S4ExcelApp {
+  param([int]$Hwnd = 0)
+  $app = $null
+  try { $app = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application') } catch { $app = $null }
+  if ($app) { return $app }
+  if ($Hwnd -le 0) { return $null }
+  try {
+    $iid = [Guid]'00020400-0000-0000-C000-000000000046'  # IID_IDispatch
+    $obj = $null
+    $hr = [S4ExcelDpi]::AccessibleObjectFromWindow([IntPtr]$Hwnd, 0xFFFFFFF0, [ref]$iid, [ref]$obj)
+    if ($hr -eq 0 -and $obj) { return $obj }
+  } catch { }
+  return $null
+}
+
+function Get-S4ExcelSelection {
+  param([int]$Hwnd = 0)
+  $app = Get-S4ExcelApp -Hwnd $Hwnd
+  $address = ''
+  $ready = $false
+  $cut = ''
+  $pv = -1
+  $comOk = [bool]$app
+  if ($app) {
+    try {
+      $sel = $app.Selection
+      try { $address = [string]$sel.Address() } catch {
+        try { $address = [string]$sel.Address($false, $false) } catch { $address = '' }
+      }
+      try { $ready = [bool]$app.Ready } catch { }
+      try { $cut = [string]$app.CutCopyMode } catch { }
+      try { $pv = [int]$app.ProtectedViewWindows.Count } catch { }
+    } catch { }
+    finally { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($app) } catch { } }
+  }
+  # UIA fallback works even when Excel is not in the ROT / COM is unavailable:
+  # the focused DataItem name is usually `"A" 2` after a cell click.
+  $focusedName = ''
+  $selected = $false
+  $cellName = ''
+  $cellSelected = $false
+  $rects = [ordered]@{}
+  try {
+    Add-Type -AssemblyName UIAutomationClient
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Hwnd)
+    $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+    if ($focused) {
+      try { $focusedName = [string]$focused.Current.Name } catch { }
+      try {
+        $pattern = $focused.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+        $selected = [bool]$pattern.Current.IsSelected
+      } catch { }
+    }
+    if ($root) {
+      $wanted = [ordered]@{ A2 = @('"A" 2', 'A2', 'A 2'); B2 = @('"B" 2', 'B2', 'B 2'); E2 = @('"E" 2', 'E2', 'E 2') }
+      foreach ($key in $wanted.Keys) {
+        foreach ($name in @($wanted[$key])) {
+          $cond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::NameProperty, $name)
+          $cell = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+          if (-not $cell) { continue }
+          try {
+            $r = $cell.Current.BoundingRectangle
+            $rects[$key] = [ordered]@{
+              left = [double]$r.Left; top = [double]$r.Top
+              width = [double]$r.Width; height = [double]$r.Height
+              right = [double]$r.Right; bottom = [double]$r.Bottom
+            }
+          } catch { }
+          if ($key -eq 'A2') {
+            $cellName = $name
+            try {
+              $p2 = $cell.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+              $cellSelected = [bool]$p2.Current.IsSelected
+            } catch { }
+          }
+          break
+        }
+      }
+    }
+  } catch { }
+  return [ordered]@{
+    ok = $true; com = $comOk; address = $address; focusedName = $focusedName; selected = $selected
+    cellName = $cellName; cellSelected = $cellSelected; rects = $rects
+    ready = $ready; cutCopyMode = $cut; protectedView = $pv
+  }
+}
+
+function Get-S4CursorState {
+  $p = New-Object S4ExcelDpi+POINT
+  $ok = [S4ExcelDpi]::GetCursorPos([ref]$p)
+  $ctrl = ([S4ExcelDpi]::GetAsyncKeyState(0x11) -band 0x8000) -ne 0
+  return [ordered]@{ ok = [bool]$ok; x = [int]$p.X; y = [int]$p.Y; ctrl = [bool]$ctrl }
+}
 
 function Find-S4ExcelExe {
   $keys = @(
@@ -65,11 +167,9 @@ function New-S4DragWorkbook {
 
 function Get-S4ExcelCellPoints {
   param([string]$Path, [int]$Hwnd, [string[]]$Cells = @('A2', 'E2'))
-  $app = $null
-  try {
-    $app = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
-  } catch {
-    return [ordered]@{ ok = $false; reason = 'GetActiveObject(Excel.Application) failed: ' + $_.Exception.Message }
+  $app = Get-S4ExcelApp -Hwnd $Hwnd
+  if (-not $app) {
+    return [ordered]@{ ok = $false; reason = 'Excel COM unavailable (GetActiveObject + AccessibleObjectFromWindow failed)' }
   }
   try {
     $full = [IO.Path]::GetFullPath($Path)
@@ -97,6 +197,8 @@ function Get-S4ExcelCellPoints {
       $r = $ws.Range($c)
       $px = [double]$win.PointsToScreenPixelsX([double]$r.Left + ([double]$r.Width / 2.0))
       $py = [double]$win.PointsToScreenPixelsY([double]$r.Top + ([double]$r.Height / 2.0))
+      $bx = [double]$win.PointsToScreenPixelsX([double]$r.Left + [double]$r.Width)
+      $by = [double]$win.PointsToScreenPixelsY([double]$r.Top + [double]$r.Height)
       # Some Office builds return client-relative pixels. If the value is outside
       # the screen window rect but inside its size, add the window origin.
       if ($rectOk) {
@@ -104,10 +206,14 @@ function Get-S4ExcelCellPoints {
         $h = [int]$rect.B - [int]$rect.T
         if ($px -ge 0 -and $px -le $w -and ($px -lt $rect.L -or $px -gt $rect.R)) { $px = $px + $rect.L }
         if ($py -ge 0 -and $py -le $h -and ($py -lt $rect.T -or $py -gt $rect.B)) { $py = $py + $rect.T }
+        if ($bx -ge 0 -and $bx -le $w -and ($bx -lt $rect.L -or $bx -gt $rect.R)) { $bx = $bx + $rect.L }
+        if ($by -ge 0 -and $by -le $h -and ($by -lt $rect.T -or $by -gt $rect.B)) { $by = $by + $rect.T }
       }
       $points[$c] = [ordered]@{
         x = [int][Math]::Round($px)
         y = [int][Math]::Round($py)
+        borderX = [int][Math]::Round($bx)
+        borderY = [int][Math]::Round($by)
         left = [double]$r.Left
         top = [double]$r.Top
         width = [double]$r.Width

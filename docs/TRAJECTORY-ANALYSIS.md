@@ -365,7 +365,7 @@
 
 旧回执把 `Escape=取消(No)`、`Enter=默认按钮`、`foreground=true 普通键` 当成快速路径；实测这些在模态期间同样 30–60s 阻塞，Escape 在 Yes/No 上无效。现已改为：
 
-- 先等待 5–10s，再用 `screen_observe`（capture/ax 均可）确认“超时是否其实是延迟成功”；
+- 先等待 5–10s，再用 `screen_observe`（ax/native/vision；capture-only 尚未作为独立模式暴露）确认“超时是否其实是延迟成功”；
 - 若仍需操作，按对话框按钮的加速键只发一次，并接受回执可能延迟/失败；
 - 不连按 Escape/Tab/Enter，不连续换键，不在对话框上后台坐标点击。
 

@@ -126,7 +126,7 @@
 - **Explorer 文件项单选请用 `foreground=true`**：后台坐标点击可能走 UIA Invoke 直接打开文件。
 - `double_click` 不参与重复点击抑制；`click`/`right_click` 参与。
 - 回执：`ok:false` 表示拒绝/未送达；`ok:true` 仍可能 `effect:unverifiable`，需 observe/verify 复核。
-- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先等待 5–10s，再 `screen_observe`（capture/ax）确认是否“延迟成功”，用新顶层 `window_id` 重新观察；不要连续重试像素/zoom/drag、换键或 activate（模态期间 UIA 树可能持续 0 元素）。Escape 在 Yes/No 上通常无效；必要时按对话框加速键只发一次。根因见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。
+- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先等待 5–10s，再 `screen_observe`（ax/native/vision；capture-only 尚未作为独立模式暴露）确认是否“延迟成功”，用新顶层 `window_id` 重新观察；不要连续重试像素/zoom/drag、换键或 activate（模态期间 UIA 树可能持续 0 元素）。Escape 在 Yes/No 上通常无效；必要时按对话框加速键只发一次。根因见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。
 
 ### 4.2 `computer_type`
 
@@ -194,7 +194,8 @@
 | `foreground` | boolean | 否 | `false` | 前台投递 |
 
 - 无 `modifier`、无 `dwell_ms`：走驱动 drag（保留 driver 的 zoom/后台路径）。
-- `modifier` 非空或 `dwell_ms > 0`：走私有 SendInput helper（`tools/private-drag.ps1`）；原子手势、修饰键持有到 drop、失败路径释放、恢复原前台。
+- `modifier` 在驱动支持 `dragModifier` 时走 driver 原生；旧驱动/`dragEngine:private` 时走私有 SendInput helper（`tools/private-drag.ps1`）。
+- `dwell_ms > 0` 强制私有 SendInput helper；私有路径是原子手势、修饰键持有到 drop、失败路径释放、恢复原前台。
 - 私有路径**不支持 `from_zoom`**（`[private_drag_zoom_unsupported]`），且需要快照的 `screenOrigin`/截图尺寸（缺失报 `[private_drag_no_frame]`）。
 - `duration_ms=0` 是合法值，不会被 truthiness 丢弃；`steps`/`dwell_ms` 越界会被拒绝。
 - 拖拽非幂等：不自动重试；只有前台校验失败（未发送输入）才可 activate 后重试一次。
@@ -219,7 +220,7 @@
 | `bring_to_front` | boolean | 否 | `false` | 启动后前置 |
 | `creates_new_instance` | boolean | 否 | `false` | Windows 驱动当前为 no-op |
 
-- 驱动以管理员运行，启动的应用继承 High IL；非提权客户端可能关不掉（UIPI）。任务结束提示用户手动关闭；**不要按进程名杀**。
+- 驱动 daemon 可能是 High IL（取决于启动方式），但 `app_launch` 子进程不保证继承：0.52.13 实测 PowerShell 子进程为 Medium。非提权客户端可能关不掉 High IL 子窗口（UIPI）。任务结束提示用户手动关闭；**不要按进程名杀**。
 - 启动成功即 `ok:true`；前置失败只写“启动成功，但前置未确认”，并返回 `window_id`。
 - 输出 `pid`/`window_id`（没有可见主窗时为 null）。
 

@@ -95,7 +95,7 @@
 | 输入回读不一致 | 部分写入/错字/焦点丢失 | 回执只报长度；修正后 `inputUnconfirmed` 解除；保存意图被拦 |
 | 保存对话框反复出现 | 文件名框旧值被隐藏/点错按钮 | 观察输入框 `值="..."`；点“保存”前确认路径 |
 | 另存为文件名变成旧值+新值 | `computer_type` 是追加输入，不是覆盖 | 预填字段优先 `computer_set_value`；`ctrl+a` 在 WinUI 对话框可能不可用 |
-| 点击后 30s 超时、对话框卡住 | 模态期间该进程 UIA provider 不服务跨进程请求；驱动 click/press_key/bring_to_front 阻塞到模态关闭 | 回执是“结果未知”：先等待 5–10s，再 observe（capture/ax）确认是否延迟成功；用新顶层 `window_id` 重新观察；不要连续重试/换键/activate，Escape 在 Yes/No 无效；根因见 EVIDENCE §1.4 |
+| 点击后 30s 超时、对话框卡住 | 模态期间该进程 UIA provider 不服务跨进程请求；驱动 click/press_key/bring_to_front 阻塞到模态关闭 | 回执是“结果未知”：先等待 5–10s，再 observe（ax/native/vision；capture-only 尚未作为独立模式暴露）确认是否延迟成功；用新顶层 `window_id` 重新观察；不要连续重试/换键/activate，Escape 在 Yes/No 无效；根因见 EVIDENCE §1.4 |
 | 菜单 `effect:unverifiable` | 菜单可能已开/未开 | 不要重复点同一项；先 observe 看弹出菜单 |
 | `app_launch` 后关不掉 | 子进程可能为 High IL + UIPI；0.52.13 的 PowerShell 实测为 Medium，不能一律假定 | 先读子进程 IL；高完整性窗口提示用户手动关闭，不要按进程名杀 |
 

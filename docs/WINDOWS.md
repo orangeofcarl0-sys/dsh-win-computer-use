@@ -2,16 +2,16 @@
 
 > 目的：Windows 10/11 上的完整性级别、前台锁、输入通道、坐标/DPI、私有拖拽、密码扫描与清理规则。
 > 读者：Windows 用户、排障者、维护者。
-> 状态：当前实现（最后核对 2026-11-20；真机环境 Windows 11 x64 · DPI 150% · cua-driver 0.23.2 基线 + 0.52.13 canary · dsh 0.2.2-rc.1）。
+> 状态：当前实现（最后核对 2026-11-22；真机环境 Windows 11 x64 · 双屏 150%+100% · cua-driver 0.52.13 · dsh 0.2.2-rc.5）。
 > 相关：[TROUBLESHOOTING](TROUBLESHOOTING.md) · [COMPATIBILITY](COMPATIBILITY.md) · [DRIVER-SDK](DRIVER-SDK.md) · [EVIDENCE](EVIDENCE.md)。
 
 ## 1. 前置与完整性级别
 
 | 项 | 事实 | 后果 |
 |---|---|---|
-| `cua-driver.exe` | 二进制清单 `requireAdministrator`，daemon 以 High IL 运行 | 插件以固定 argv spawn 它；驱动自身可能需要 UAC/已提升的 daemon |
+| `cua-driver.exe` | 0.52.13 主二进制提取到的 manifest 是 `asInvoker`（需 PE 资源复核）；daemon 是否 High 取决于启动方式（autostart/交互式提权），不是主 CLI 清单强制 | 插件以固定 argv spawn CLI；非提权 daemon 不能驱动 High IL 目标 |
 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；0.52.13 实测 daemon 为 High，但 `powershell.exe` 子进程为 Medium（`S-1-16-8192`） | 不要一律假定 High；先读实际进程 IL，再决定能否由非提权客户端关闭 |
-| 对照：同一 shell 直接 `Start-Process notepad` | Medium IL | High IL 来自驱动链，不是“启动方式随便造成的” |
+| 对照：同一 shell 直接 `Start-Process notepad` | Medium IL | High IL 来自 daemon 启动方式/驱动链，不是“app_launch 必然继承” |
 | 驱动操作自己启动的 High IL 窗口 | 实测可行（提权记事本 `computer_type` 成功且 `effect:confirmed`） | “管理员窗口一律不可操作”不成立；要按目标与通道分别判断 |
 | WinUI/XAML 目标关闭 | `alt+f4` 可能撞 UIA 加速器超时（#3908）；`invoke_menu` 可能 `menu_path_unavailable` | 连驱动侧关闭通道也可能断，只能人工收尾 |
 
@@ -71,7 +71,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 **模态点击 30s 超时（2026-11-20 根因已定位）**：MessageBox 打开期间，该进程的 UIA provider 不服务跨进程 UIA/COM 请求——同 pid 的主窗口和对话框 AX 树在 **1s/5s/15s** 预算下都是 0 元素（capture-only 仍可读）；驱动的 `click`/`press_key`/`bring_to_front` 会阻塞到模态关闭，30s 只是 transport 上限。因此：
 
 - 不要重复点击/按键/activate，也不要把 `timeout_ms` 调大当成修复（已证伪）；
-- 先等待 5–10s，再 `screen_observe`（capture/ax 均可）确认是否“延迟成功”；
+- 先等待 5–10s，再 `screen_observe`（ax/native/vision；capture-only 尚未作为独立模式暴露）确认是否“延迟成功”；
 - 若仍在，按对话框按钮的加速键（Alt+字母）只发一次；`Escape` 在 Yes/No 上通常无效，`Enter`/foreground 键也可能 60s 阻塞；
 - 原生 Win32 `WM_COMMAND`/`BM_CLICK` 可在 ~1s 关闭标准对话框。插件已提供**私有原生对话框后端**：`nativeDialogs:auto` 时，UIA 树为 0 且目标是同 pid 标准 `#32770` 模态对话框，`screen_observe` 返回 `mode:native-dialog` 按钮，`computer_click(element=编号)` 走 `BM_CLICK`（异步/未验证）。只覆盖标准 Button，不自动选择 Yes/No；触发模态的 UIA click 仍可能 30s。`nativeDialogs:off` 完全禁用（零 PowerShell spawn）。详见 [TOOLS](TOOLS.md) §3.1/§4.1 与 [EVIDENCE §1.5](EVIDENCE.md)。
 
@@ -92,6 +92,7 @@ L1 background（UIA Invoke / PostMessage，不抢焦点）
 - 私有路径**不支持 `from_zoom`**（驱动 zoom 的真实 padding/scale 没有复刻，手算会重蹈 A7）；明确报 `[private_drag_zoom_unsupported]`。
 - 需要快照的 `screenOrigin`/截图尺寸；query 只读视图没有动作快照；报 `[private_drag_no_frame]`。
 - UIPI：中完整性 helper 不能向高完整性目标注入，SendInput 失败时回执明确失败；不要假成功。
+- 完整性等级映射：`0=low / 1=medium / 2=high / 3=system`。2026-11-22 修正了 `tools/background-input.ps1` 的 off-by-one（此前 medium 被标成 high、system 与 high 同为 3）；修正后 UAC 复跑仍待做。
 - 不自动重试：drag 非幂等；只有前台校验失败（未发送输入）才可让模型 activate 后重试一次。
 - 已验证：WinForms 探针 `probe-private-drag` **3/3** 在 down/move/up 三个点读到 `Shift, Control`，drop 后 `stuckModifiers` 为空。Explorer Ctrl+drag 复制、Excel 工作表标签 Ctrl+drag、PPT Shift 约束尚未纳入自动回归，作为下一轮真机项。
 - 0.39+ 驱动支持原生 modifier drag；`dragEngine: auto` 优先原生，`private` 强制 helper；`dwell_ms` 始终私有。原生失败不自动重拖。
