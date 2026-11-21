@@ -3,6 +3,9 @@
 - **stages: S3**
 - **tier: core**
 - **ac2: full**
+- **app: explorer**
+- **hotspot: uia-element**
+- **requires: explorer**
 - tools: screen_observe / computer_key / computer_type / computer_click
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t19\`
 - oracle: `nav\target.txt` exists with exact content `NAV-OK`

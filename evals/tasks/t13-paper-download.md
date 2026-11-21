@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: none**
+- **app: browser**
+- **hotspot: browser**
+- **requires: browser,network**
 - tools: screen_observe / computer_click / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t13\` (state only; download goes to user's default Downloads)
 - oracle: new PDF in user Downloads with SHA-256 == setup-captured NeurIPS 2017 hash

@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: smoke**（冒烟组：已验证 14-18 步/4-5 分钟）
+- **app: notepad**
+- **hotspot: uia-element**
+- **requires: notepad**
 - tools: screen_observe / computer_click(最大化按钮) 或 perform_action
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t07\`
 - oracle: setup 记录的 workfile.txt HWND 的 GetWindowPlacement.showCmd == SW_SHOWMAXIMIZED(3)

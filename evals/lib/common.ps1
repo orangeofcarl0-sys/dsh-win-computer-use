@@ -19,6 +19,17 @@ function Get-TaskDir {
   return (Join-Path $env:USERPROFILE (Join-Path '.dsh\s4-evals' $Script:S4TaskId))
 }
 
+function Get-IsolationMode {
+  # clean | dirty; legacy "notepad" is normalized to clean by the runner.
+  $m = ([string]$env:S4_ISOLATION).Trim().ToLowerInvariant()
+  if ($m -eq 'dirty') { return 'dirty' }
+  return 'clean'
+}
+
+function Test-IsolationDirty {
+  return ((Get-IsolationMode) -eq 'dirty')
+}
+
 function Add-Check {
   # returns an ordered check entry: Add-Check 'name' $true 'detail'
   param([string]$Name, [bool]$Ok, [string]$Detail = '')
@@ -1353,6 +1364,7 @@ function Close-TestBrowserWindow {
 try { . (Join-Path $PSScriptRoot 'image.ps1') } catch { }
 try { . (Join-Path $PSScriptRoot 'office.ps1') } catch { }
 try { . (Join-Path $PSScriptRoot 'sentinel.ps1') } catch { }
+try { . (Join-Path $PSScriptRoot 'security-fixture.ps1') } catch { }
 
 function Get-S4Sha256([string]$Path) {
   if (-not (Test-Path $Path)) { return '' }

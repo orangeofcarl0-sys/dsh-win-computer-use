@@ -13,7 +13,7 @@
 - **版本**：`v0.5.8` 已发布（2026-11-20；npm `dsh-win-computer-use@0.5.8`，tag `84225cc`）；`main` 已包含未发布的 B0-B3（含 `cursor-clip`）/nativeMenus/nativeButtonTrigger；`package.json` 仍为 0.5.8。
 - **工具面**：23 工具 = 22 桌面能力 + 1 dispatcher；默认 `dispatcher` 可见 2 / 隐藏 21；`hybrid` 可见 7 / 隐藏 16。
 - **安全姿态**：无感自治——零审批、零打断；凭据硬保护是唯一内容级硬拒绝；极危只注记。
-- **测试基线**：`npm test` 31 套 / **772** 项；`npm run check` 语法 **49/49** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
+- **测试基线**：`npm test` 31 套 / **772** 项；`npm run check` 语法 **50/50** + 文档/任务一致性；`verify-runtime` **18/18**（0.23.2 与 0.52.13 均通过）。
 
 ## 2. 环境
 

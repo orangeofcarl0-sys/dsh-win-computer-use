@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: smoke**（冒烟组：日常回归必跑）
+- **app: notepad**
+- **hotspot: uia-element**
+- **requires: notepad**
 - tools: screen_observe / computer_type / computer_key / computer_verify
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t01\`
 - oracle: 目标文件存在 + 内容逐字匹配（CRLF 归一）

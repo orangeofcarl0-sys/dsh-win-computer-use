@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: core**（核心组：多文档协调——基线暴露的最大能力缺口，最该留的回归项）
+- **app: notepad**
+- **hotspot: multi-app**
+- **requires: notepad**
 - tools: 多窗口 screen_observe / computer_clipboard / computer_type / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t10\`
 - oracle: a.txt == b 原文 且 b.txt == a 原文（CRLF 归一）

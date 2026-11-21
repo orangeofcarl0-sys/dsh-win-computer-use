@@ -11,8 +11,11 @@
 | Excel modifier drop | `probe-modifier-drop.mjs --excel --excel-only`（2026-11-21）：已实现 Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何（`"A" 2`/`"E" 2`）、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；拖拽已投递（private SendInput/foreground），A2 保留但 E2 仍为空 → BLOCKED。PPT 无分支 | Explorer Ctrl+drop 已回归；Excel/PPT 的 modifier drop 仍无自动 PASS | 在专用桌面确认 Excel 单元格边框拖拽的命中点/手势（当前从 A2 右边框/下边框均未复制）；否则保持 BLOCKED |
 | 独立观察者 / `screen_assert` | 无任务；需要 ZHIPU key 或 dsv4fv 文本输出修复 | 自绘/canvas 的“独立裁决”仍靠 oracle 文件，不是第二观察者 | 提供可用视觉 key 或修复文本输出 |
 | `selectText` / key hold / mouse down-up / drag-from-element | 工具面不存在这些原语 | 复杂文本选择/形状拖拽仍靠坐标 | 驱动/插件新增原语后再测 |
-| 多显示器 | `get_screen_size` 只暴露主屏 | 跨屏坐标/落点未验证 | 驱动暴露多屏枚举 |
-| macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证 | 不能把“能加载”当“已验收” | 有环境时跑离线 + `verify-runtime` |
+| 多显示器 | `probe-display.mjs`（2026-11-21）实际枚举到 2 屏：`1707x1067@0,0` + `2560x1440@2560,0`；`dpi01` AC2 已 PASS（第二屏 fixture setup/oracle/simulate/cleanup） | 真实模型跨屏点击尚未跑；`get_screen_size` 仍只暴露主屏 | 用 `dpi01 --isolation clean` 做一次模型真跑；若落点失败，保持 BLOCKED |
+| UAC / 安装器 / Protected View | 没有任务；`probe-b2-elevated` 只证明提权后 BlockInput，不是 UAC 自动化 | 安装器、per-machine 注册、SmartScreen/MOTW、Office Protected View 未验证 | 一次性 VM 快照 + 测试签名包；无 VM 保持 BLOCKED，不在宿主执行 |
+| 原生对话框（Open/Save/Print/Font/Color） | `probe-native-dialog` 只覆盖 MessageBox；`nativeDialogs` 泛化到标准 `#32770` 但未逐个验证 | 文件选择/打印/字体/颜色对话框可能无正确落点 | 扩展 `probe-native-dialog`，失败保持 BLOCKED |
+| IME / Electron / Terminal / Settings / 媒体 | 无任务；VS Code/VLC 当前未安装；IME composition 明确不支持 | 中文组合输入、Electron/WebView2、WSL/终端、系统设置、VLC 未验证 | 有环境时补 probe/任务；缺失应用 setup 记 ENV，不伪造 PASS |
+| macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证 | 不能把“能加载”当“已验收” | Linux 仅可选举措；有环境时跑离线 + `verify-runtime` |
 
 ## 2. 已知边界（不是阻塞，但不计入 pass）
 

@@ -22,7 +22,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import { homedir } from 'node:os'
+import { homedir, release } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { runProcess } from './lib/run.mjs'
 
@@ -46,6 +46,12 @@ const stageFilter = stagesArg && stagesArg !== 'all'
   ? stagesArg.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
   : []
 const tierArg = val('tier', (tasksArg || stagesArg) ? 'all' : 'smoke')
+const isolationArg = val('isolation', '')
+const isolationFilter = isolationArg && isolationArg !== 'all' ? isolationArg.toLowerCase() : ''
+if (isolationFilter && !['clean', 'dirty'].includes(isolationFilter)) {
+  console.error(`invalid --isolation: ${isolationArg} (expected clean|dirty)`)
+  process.exit(2)
+}
 const timeoutMin = Math.max(1, Number(val('timeout-min', '10')) || 10)
 const repeats = Math.max(1, Number(val('repeats', '1')) || 1)
 const patch = path.resolve(REPO, val('patch', path.join('evals', 'headless-patch.yml')))
@@ -72,6 +78,26 @@ function field(md, name) {
 
 function parseStages(value) {
   return value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+}
+
+function parseList(value) {
+  return String(value || '').split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+function normalizeIsolation(value) {
+  const v = String(value || 'notepad').toLowerCase()
+  return v === 'notepad' ? 'clean' : v
+}
+
+function supportsIsolation(raw, mode) {
+  const v = normalizeIsolation(raw)
+  return v === 'both' || v === mode
+}
+
+function effectiveIsolation(raw) {
+  if (isolationFilter) return isolationFilter
+  const v = normalizeIsolation(raw)
+  return v === 'both' ? 'clean' : v
 }
 
 /** 从 overlay 读取 agent-default-model 的 provider/model（不读取任何密钥）。 */
@@ -103,17 +129,28 @@ function discover() {
     const group = /^wa/.test(id) ? 'waa' : 'authored'
     const tier = field(md, 'tier') || 'core'
     // isolation: dirty = 真实脏桌面任务，不要求/不触碰 Notepad TabState；
-    // 缺省按 notepad 处理，保持现有 clean/fail-closed 任务不变。
+    // clean/notepad = 任务沙箱；both = 两种模式都支持。缺省按 clean 处理。
     const isolation = field(md, 'isolation') || 'notepad'
+    const isolationEffective = effectiveIsolation(isolation)
     const stages = parseStages(field(md, 'stages') || field(md, 'stage'))
     const ac2 = field(md, 'ac2') || 'full'
     const requireTool = field(md, 'require_tool')
+    const requireTools = parseList(field(md, 'require_tools'))
+    if (requireTool && !requireTools.includes(requireTool)) requireTools.unshift(requireTool)
+    const apps = parseList(field(md, 'app'))
+    const hotspot = field(md, 'hotspot')
+    const requires = parseList(field(md, 'requires'))
+    const security = parseList(field(md, 'security'))
+    const securityExpect = field(md, 'security_expect')
+    const taskPatchRaw = field(md, 'patch')
+    const taskPatch = taskPatchRaw ? path.resolve(REPO, taskPatchRaw) : patch
+    if (isolationFilter && !supportsIsolation(isolation, isolationFilter)) continue
     if (stageFilter.length && !stages.some((s) => stageFilter.includes(s))) continue
     if (tierArg !== 'all' && tier !== tierArg) continue
     const m = md.match(/<<<PROMPT\n([\s\S]*?)\nPROMPT>>>/)
     if (!m) throw new Error(`task ${id}: no <<<PROMPT block`)
     const taskDir = path.join(homedir(), '.dsh', 's4-evals', id)
-    out.push({ id, group, tier, isolation, stages, ac2, requireTool, prompt: m[1].replaceAll('{task_dir}', taskDir), taskDir })
+    out.push({ id, group, tier, isolation, isolationEffective, stages, ac2, requireTool, requireTools, apps, hotspot, requires, security, securityExpect, patch: taskPatch, prompt: m[1].replaceAll('{task_dir}', taskDir), taskDir })
   }
   return out
 }
@@ -123,14 +160,18 @@ function run(cmd, cmdArgs, opts = {}) {
   return runProcess(cmd, cmdArgs, { cwd: REPO, env: ENV, ...opts })
 }
 
-async function ps(kind, id) {
-  const r = await run(PS, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, kind, `${id}.ps1`), id], { timeoutMs: 120000 })
+async function ps(kind, id, isolation = 'clean') {
+  const started = Date.now()
+  const r = await run(PS, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, kind, `${id}.ps1`), id], {
+    timeoutMs: 120000,
+    env: { ...ENV, S4_ISOLATION: isolation },
+  })
   let json = null
   for (const line of r.stdout.split(/\r?\n/)) {
     if (!line.trim().startsWith('{')) continue
     try { json = JSON.parse(line) } catch {}
   }
-  return { code: r.code, json, stderr: r.stderr }
+  return { code: r.code, json, stderr: r.stderr, durMs: Date.now() - started }
 }
 
 /**
@@ -209,14 +250,23 @@ function analyze(events) {
 async function runOne(task) {
   const rec = {
     id: task.id, group: task.group, tier: task.tier,
-    stages: task.stages, isolation: task.isolation, ac2: task.ac2,
-    requireTool: task.requireTool || null, requireToolUsed: null,
+    stages: task.stages, isolation: task.isolation,
+    isolationTask: task.isolation, isolationEffective: task.isolationEffective,
+    apps: task.apps, hotspot: task.hotspot, requires: task.requires,
+    security: task.security, securityExpect: task.securityExpect || null,
+    patch: task.patch,
+    ac2: task.ac2,
+    requireTool: task.requireTool || null,
+    requireTools: task.requireTools,
+    requireToolUsed: null, requireToolsUsed: null,
     verdict: 'error', steps: 0, innerSteps: 0, toolErrors: 0, unverified: 0,
     tokens: null, timedOut: false, budgetExhausted: false, noFinal: false,
     wallMs: 0, turn: null, final: '', oracle: null,
     setup: null, cleanup: null, dirty: false, notes: [],
+    setupMs: 0, initialCleanupMs: 0, oracleMs: 0, cleanupMs: 0,
   }
-  const cl0 = await ps('cleanup', task.id)
+  const cl0 = await ps('cleanup', task.id, task.isolationEffective)
+  rec.initialCleanupMs = cl0.durMs
   if (cl0.code !== 0 || cl0.json?.ok === false) {
     rec.notes.push(`initial cleanup failed: ${cl0.code} ${JSON.stringify(cl0.json?.checks || []).slice(0, 200)}`)
   }
@@ -225,16 +275,20 @@ async function runOne(task) {
     rec.notes.push('initial cleanup dirty: ' + JSON.stringify(cl0.json?.checks || []).slice(0, 200))
   }
   // 上一轮 eval 的 TabState bins 会让下一轮 Notepad 恢复旧标签（t19 r2 实证）。
-  // marker 存在时只清 eval 写入的 bins；用户备份不受影响。
-  const tclear = clearEvalTabState()
-  if (tclear.removed > 0) rec.notes.push(`tabstate clear-eval removed=${tclear.removed}`)
-  const su = await ps('setup', task.id)
+  // 只有 clean 模式才清；dirty 模式不碰用户 Notepad 会话。
+  if (task.isolationEffective === 'clean') {
+    const tclear = clearEvalTabState()
+    if (tclear.removed > 0) rec.notes.push(`tabstate clear-eval removed=${tclear.removed}`)
+  }
+  const su = await ps('setup', task.id, task.isolationEffective)
+  rec.setupMs = su.durMs
   rec.setup = su.json || { code: su.code }
   if (su.code !== 0) {
     const envBlocked = su.code === 2 || Boolean(su.json?.envError)
     rec.envError = envBlocked ? String(su.json?.envError || 'setup env blocked').slice(0, 300) : null
     rec.notes.push('setup: ' + String(su.json?.envError || su.stderr || su.code).slice(0, 300))
-    const cl = await ps('cleanup', task.id)
+    const cl = await ps('cleanup', task.id, task.isolationEffective)
+    rec.cleanupMs = cl.durMs
     rec.cleanup = cl.json || { code: cl.code }
     if (cl.json?.dirty) {
       rec.dirty = true
@@ -250,7 +304,7 @@ async function runOne(task) {
   rec.trajectory = trajFile
   const runStarted = Date.now()
   const dr = await run(process.execPath, [
-    DSH_ENTRY, '--profile', 'headless', '--patch', patch,
+    DSH_ENTRY, '--profile', 'headless', '--patch', task.patch,
     '--permission-mode', 'read-only', '--approval-policy', 'never', '--json',
     COMMON + task.prompt,
   ], {
@@ -274,14 +328,20 @@ async function runOne(task) {
   rec.turn = a.turn
   rec.final = a.final.slice(0, 400)
   rec.calls = a.calls
-  if (task.requireTool) {
+  if (task.requireTools.length) {
     // dispatcher 模式下隐藏工具记为 `computer_do:computer_task`；直接调用记为原名。
-    rec.requireToolUsed = a.calls.some((c) => c === task.requireTool || c.endsWith(':' + task.requireTool))
-    if (!rec.requireToolUsed) rec.notes.push(`required tool not called: ${task.requireTool}`)
+    rec.requireToolsUsed = Object.fromEntries(task.requireTools.map((t) => [
+      t,
+      a.calls.some((c) => c === t || c.endsWith(':' + t)),
+    ]))
+    const missing = task.requireTools.filter((t) => !rec.requireToolsUsed[t])
+    if (missing.length) rec.notes.push(`required tools not called: ${missing.join(',')}`)
+    rec.requireToolUsed = task.requireTool ? rec.requireToolsUsed[task.requireTool] : null
   }
   if (dr.code === 'SPAWN_ERR') {
     rec.notes.push('dsh spawn: ' + dr.stderr.slice(0, 300))
-    const cl = await ps('cleanup', task.id)
+    const cl = await ps('cleanup', task.id, task.isolationEffective)
+    rec.cleanupMs = cl.durMs
     rec.cleanup = cl.json || { code: cl.code }
     if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after spawn failure') }
     rec.verdict = 'error'
@@ -291,14 +351,16 @@ async function runOne(task) {
     rec.notes.push(dr.timedOut
       ? `timeout ${timeoutMin}min; oracle skipped`
       : `wall clock reached ${Math.round(rec.wallMs / 1000)}s with no final; treated as budget exhausted; oracle skipped`)
-    const cl = await ps('cleanup', task.id)
+    const cl = await ps('cleanup', task.id, task.isolationEffective)
+    rec.cleanupMs = cl.durMs
     rec.cleanup = cl.json || { code: cl.code }
     if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after budget exhaustion') }
     rec.verdict = 'timeout'
     return rec
   }
 
-  const orc = await ps('oracle', task.id)
+  const orc = await ps('oracle', task.id, task.isolationEffective)
+  rec.oracleMs = orc.durMs
   rec.oracle = orc.json || { code: orc.code }
   if (orc.code === 2 || orc.json?.envError) {
     rec.envError = String(orc.json?.envError || 'oracle env blocked').slice(0, 300)
@@ -306,11 +368,15 @@ async function runOne(task) {
   } else {
     rec.verdict = orc.code === 0 ? 'pass' : orc.code === 1 ? 'fail' : 'error'
   }
-  if (rec.verdict === 'pass' && task.requireTool && rec.requireToolUsed === false) {
-    rec.verdict = 'fail'
-    rec.notes.push(`oracle passed but required tool was not called: ${task.requireTool}`)
+  if (rec.verdict === 'pass' && task.requireTools.length) {
+    const missing = task.requireTools.filter((t) => !rec.requireToolsUsed?.[t])
+    if (missing.length) {
+      rec.verdict = 'fail'
+      rec.notes.push(`oracle passed but required tools were not called: ${missing.join(',')}`)
+    }
   }
-  const cl1 = await ps('cleanup', task.id)
+  const cl1 = await ps('cleanup', task.id, task.isolationEffective)
+  rec.cleanupMs = cl1.durMs
   rec.cleanup = cl1.json || { code: cl1.code }
   if (cl1.code !== 0 || cl1.json?.ok === false) {
     rec.notes.push(`cleanup failed: ${cl1.code}`)
@@ -342,14 +408,14 @@ if (!fs.existsSync(patch)) {
   process.exit(1)
 }
 
-console.log(`headless eval: ${tasks.length} tasks, stage=${stagesArg || 'all'}, tier=${tierArg}, repeats=${repeats}, timeout=${timeoutMin}min`)
+console.log(`headless eval: ${tasks.length} tasks, stage=${stagesArg || 'all'}, tier=${tierArg}, isolation=${isolationFilter || 'mixed'}, repeats=${repeats}, timeout=${timeoutMin}min`)
 console.log(`dsh=${DSH_ENTRY}`)
 console.log(`logs=${logDir}`)
 
-// TabState 隔离只对 Notepad 任务需要：否则 Win11 Notepad 会把上一个任务的
-// seed/draft/workfile 恢复进下一个任务的窗口。全 dirty 任务不碰 Notepad，
+// TabState 隔离只对 clean 任务需要：否则 Win11 Notepad 会把上一个任务的
+// seed/draft/workfile 恢复进下一个任务的窗口。dirty 任务不碰 Notepad，
 // 允许用户保持现有 Notepad 标签，不备份/不清空用户 TabState。
-const needsTabState = tasks.some((t) => t.isolation !== 'dirty')
+const needsTabState = tasks.some((t) => t.isolationEffective === 'clean')
 let tb = { json: { ok: true, skipped: true } }
 if (needsTabState) {
   tb = await tabState('backup')
@@ -396,11 +462,22 @@ const summary = {
   stage: stagesArg || null,
   stageFilter,
   tier: tierArg,
+  isolation: isolationFilter || 'mixed',
+  isolationFilter: isolationFilter || null,
   timeoutMin,
   repeats,
   patchPath: patch,
   patchSha256,
   modelRoute: readModelRoute(patch),
+  env: {
+    platform: process.platform,
+    release: release(),
+    arch: process.arch,
+    node: process.version,
+    powershell: PS,
+    temp: TEMP,
+    dshEntry: DSH_ENTRY,
+  },
   tabState: { backup: tb.json, restore: tr.json },
   runs,
 }

@@ -32,15 +32,41 @@ const tasksArg = (() => {
   const i = args.indexOf('--tasks')
   return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : ''
 })()
+const isolationArg = (() => {
+  const i = args.indexOf('--isolation')
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : ''
+})()
+const isolationFilter = isolationArg && isolationArg !== 'all' ? isolationArg.toLowerCase() : ''
+if (isolationFilter && !['clean', 'dirty'].includes(isolationFilter)) {
+  console.error(`invalid --isolation: ${isolationArg} (expected clean|dirty)`)
+  process.exit(2)
+}
+
+function normalizeIsolation(value) {
+  const v = String(value || 'notepad').toLowerCase()
+  return v === 'notepad' ? 'clean' : v
+}
+function supportsIsolation(raw, mode) {
+  const v = normalizeIsolation(raw)
+  return v === 'both' || v === mode
+}
+function effectiveIsolation(raw) {
+  if (isolationFilter) return isolationFilter
+  const v = normalizeIsolation(raw)
+  return v === 'both' ? 'clean' : v
+}
 
 const MUTABLE = new Set([
   't01', 't03', 't05', 't06', 't09', 't10', 't11', 't12', 't14', 't15',
-  't16', 't17', 't18', 't19', 't20', 'p01', 'p02', 'p03', 'wa2', 'x1',
+  't16', 't17', 't18', 't19', 't20', 't22', 't23', 'w01', 'w02',
+  'sec01', 'sec02', 'sec03', 'sec04', 'rec01', 'combo01', 'dpi01',
+  'p01', 'p02', 'p03', 'wa2', 'x1',
 ])
 const SKIPPED = new Map([
   ['t04', 'live GUI state (Calculator display), no artifact to mutate'],
   ['t07', 'live GUI state (window placement), no artifact to mutate'],
   ['t13', 'ac2:none (real network task)'],
+  ['t21', 'live GUI state (Calculator display), no artifact to mutate'],
 ])
 
 const taskFiles = readdirSync(join(root, 'tasks')).filter((f) => f.endsWith('.md'))
@@ -50,9 +76,12 @@ const taskMeta = new Map(taskFiles.map((f) => {
   const isolation = (/^\s*-\s*\*\*isolation:\s*([^*\n]+?)\s*\*\*/m.exec(md) || /^\s*-\s*isolation:\s*([^\n]+)/m.exec(md) || [])[1]?.trim() || 'notepad'
   return [id, { id, isolation }]
 }))
-const ids = [...MUTABLE].filter((id) => !tasksArg || tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase())).sort()
+const ids = [...MUTABLE]
+  .filter((id) => !tasksArg || tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase()))
+  .filter((id) => !isolationFilter || supportsIsolation(taskMeta.get(id)?.isolation, isolationFilter))
+  .sort()
 if (!ids.length) {
-  console.error(`oracle-mutation: no mutable tasks matched (tasks=${tasksArg || 'all'})`)
+  console.error(`oracle-mutation: no mutable tasks matched (tasks=${tasksArg || 'all'}, isolation=${isolationArg || 'all'})`)
   process.exit(2)
 }
 for (const id of SKIPPED.keys()) {
@@ -60,7 +89,7 @@ for (const id of SKIPPED.keys()) {
     console.log(`SKIP ${id}: ${SKIPPED.get(id)}`)
   }
 }
-const needsTabState = ids.some((id) => taskMeta.get(id)?.isolation !== 'dirty')
+const needsTabState = ids.some((id) => effectiveIsolation(taskMeta.get(id)?.isolation) === 'clean')
 const STAMP = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const LOG_DIR = join(root, 'mutation-runs', STAMP)
 mkdirSync(LOG_DIR, { recursive: true })
@@ -75,12 +104,12 @@ function killTree(pid) {
   })
 }
 
-function runPsArgs(script, argv, timeoutMs = 120000) {
+function runPsArgs(script, argv, timeoutMs = 120000, extraEnv = {}) {
   return new Promise((resolve) => {
     const started = Date.now()
     const p = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...argv], {
       cwd: root,
-      env: ENV,
+      env: { ...ENV, ...extraEnv },
       windowsHide: true,
     })
     let out = ''
@@ -105,7 +134,8 @@ function runPsArgs(script, argv, timeoutMs = 120000) {
 }
 
 function runPs(script, id, timeoutMs = 120000) {
-  return runPsArgs(script, [id], timeoutMs)
+  const mode = effectiveIsolation(taskMeta.get(id)?.isolation)
+  return runPsArgs(script, [id], timeoutMs, { S4_ISOLATION: mode })
 }
 
 function parseJson(out) {

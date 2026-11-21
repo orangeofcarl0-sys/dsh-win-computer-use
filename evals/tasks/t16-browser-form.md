@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: browser**
+- **hotspot: browser**
+- **requires: browser,node**
 - tools: screen_observe / screen_zoom / computer_click / computer_type / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t16\`
 - oracle: local form server result.json exact fields

@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: explorer**
+- **hotspot: uia-element**
+- **requires: explorer**
 - tools: screen_observe / computer_click / computer_key / computer_type
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t15\`
 - oracle: exact file-system tree + unchanged file contents

@@ -32,6 +32,29 @@ const stageArg = (() => {
 const stageFilter = stageArg && stageArg !== 'all'
   ? stageArg.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
   : []
+const isolationArg = (() => {
+  const i = args.indexOf('--isolation')
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : ''
+})()
+const isolationFilter = isolationArg && isolationArg !== 'all' ? isolationArg.toLowerCase() : ''
+if (isolationFilter && !['clean', 'dirty'].includes(isolationFilter)) {
+  console.error(`invalid --isolation: ${isolationArg} (expected clean|dirty)`)
+  process.exit(2)
+}
+
+function normalizeIsolation(value) {
+  const v = String(value || 'notepad').toLowerCase()
+  return v === 'notepad' ? 'clean' : v
+}
+function supportsIsolation(raw, mode) {
+  const v = normalizeIsolation(raw)
+  return v === 'both' || v === mode
+}
+function effectiveIsolation(raw) {
+  if (isolationFilter) return isolationFilter
+  const v = normalizeIsolation(raw)
+  return v === 'both' ? 'clean' : v
+}
 
 /** 读取任务 md 的 `- **name: value**` 或 `- name: value` 字段。 */
 function field(md, name) {
@@ -53,12 +76,13 @@ const taskMeta = new Map(taskFiles.map((f) => {
 const ORACLE_IDS = [...taskMeta.keys()]
   .filter((id) => !tasksArg || tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase()))
   .filter((id) => !stageFilter.length || taskMeta.get(id).stages.some((s) => stageFilter.includes(s)))
+  .filter((id) => !isolationFilter || supportsIsolation(taskMeta.get(id).isolation, isolationFilter))
   .sort()
 if (!ORACLE_IDS.length) {
-  console.error(`verify-oracles: no tasks matched (stage=${stageArg || 'all'}, tasks=${tasksArg || 'all'})`)
+  console.error(`verify-oracles: no tasks matched (stage=${stageArg || 'all'}, tasks=${tasksArg || 'all'}, isolation=${isolationArg || 'all'})`)
   process.exit(2)
 }
-const needsTabState = ORACLE_IDS.some((id) => taskMeta.get(id)?.isolation !== 'dirty')
+const needsTabState = ORACLE_IDS.some((id) => effectiveIsolation(taskMeta.get(id)?.isolation) === 'clean')
 const POWERSHELL = process.env.S4_POWERSHELL || 'powershell.exe'
 const STAMP = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const LOG_DIR = join(root, 'verify-runs', STAMP)
@@ -74,12 +98,12 @@ function killTree(pid) {
   })
 }
 
-function runPsArgs(script, args, timeoutMs = 120000) {
+function runPsArgs(script, args, timeoutMs = 120000, extraEnv = {}) {
   return new Promise((resolve) => {
     const started = Date.now()
     const p = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args], {
       cwd: root,
-      env: ENV,
+      env: { ...ENV, ...extraEnv },
       windowsHide: true,
     })
     let out = ''
@@ -104,7 +128,8 @@ function runPsArgs(script, args, timeoutMs = 120000) {
 }
 
 function runPs(script, id, timeoutMs = 120000) {
-  return runPsArgs(script, [id], timeoutMs)
+  const mode = effectiveIsolation(taskMeta.get(id)?.isolation)
+  return runPsArgs(script, [id], timeoutMs, { S4_ISOLATION: mode })
 }
 
 function parseJson(out) {
@@ -226,7 +251,9 @@ if (needsTabState) {
 }
 try {
   writeFileSync(join(LOG_DIR, 'summary.json'), JSON.stringify({
-    startedAt: STAMP, stage: stageArg || null, stageFilter, tabState: { backup: tbJson, restore: trJson }, results,
+    startedAt: STAMP, stage: stageArg || null, stageFilter,
+    isolation: isolationFilter || 'mixed',
+    tabState: { backup: tbJson, restore: trJson }, results,
   }, null, 2))
 } catch { /* 忽略 */ }
 

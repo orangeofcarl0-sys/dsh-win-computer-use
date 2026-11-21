@@ -2,6 +2,9 @@
 
 - **stages: S3**
 - **tier: core**
+- **app: notepad**
+- **hotspot: multi-app**
+- **requires: notepad**
 - **require_tool: computer_task**
 - 用途：验证 `computer_task` 子 agent 委派通道端到端可用（PLAN-context-budget F 的真机补验）。
 - oracle: 目标文件存在 + 内容逐字匹配（与 t01 同判定，但**执行路径由子 agent 完成**）

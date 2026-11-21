@@ -83,7 +83,7 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| S1-S4 任务集 23 条 | ✅ 已落地 | S1 9 / S2 4 / S3 10 / S4 8（成员 31，可重叠）；含 x1 委派通道；oracle 见 [TESTING](docs/TESTING.md) |
+| S1-S4 任务集 35 条 | ✅ 已落地 | S1 10 / S2 5 / S3 20 / S4 14（成员 49，可重叠）；含 x1 委派通道；oracle 见 [TESTING](docs/TESTING.md) |
 | S2 像素任务 | ✅ 已补 | p01 无坐标点击、p02 像素 token、p03 screen_zoom；2026-11-20 opencode image 路由 3/3 pass（6/11/8 步）；text-only 路由未验证 |
 | S4 用户状态 | ✅ 已补 | t11-t18 全部加 sentinel 窗口/身份/文件校验；cleanup 只关测试自建对象 |
 | S4 真实用户窗口 | 未做 | sentinel 是测试自建 decoy；真实用户窗口/未保存文档的保留仍靠 cleanup 约束 |

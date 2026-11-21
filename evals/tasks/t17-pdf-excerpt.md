@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: excel,pdf**
+- **hotspot: office-ooxml**
+- **requires: office-excel,browser**
 - tools: screen_observe / screen_zoom / computer_activate / computer_wait / computer_clipboard / computer_set_value / computer_click / computer_key / computer_type
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t17\`
 - oracle: XLSX A1 exact excerpt text

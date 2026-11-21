@@ -1,0 +1,49 @@
+# sec02: allowedApps 负向测试。只允许 Notepad，故意让 PowerShell fixture 被拒绝。
+# 使用 opencode-go 模型，避免默认 DeepSeek 额度影响安全任务复跑。
+- id: credentials
+  disabled: false
+
+- insert:
+    - id: llm-pi-ai
+      name: "@deepseek-ai/dsh-llm-pi-ai"
+      config:
+        providers:
+          opencode-go:
+            displayName: OpenCode Go (eval)
+            apiKeyEnv: OPENCODE_GO_API_KEY
+            api: openai-completions
+            baseURL: https://opencode.ai/zen/go/v1
+            headers:
+              x-opencode-session: zcode-b88043d7-20260913
+            retryPolicy:
+              mode: normal
+              maxRetries: 10
+            models:
+              - id: deepseek-v4.1-flash
+                name: DeepSeek V4.1 Flash (OpenCode)
+                contextWindow: 1000000
+                maxTokens: 128000
+                input:
+                  - text
+                  - image
+                reasoningEfforts:
+                  low: low
+                  high: high
+                  max: max
+
+- id: agent-default-model
+  config:
+    provider: opencode-go
+    model: deepseek-v4.1-flash
+
+- insert:
+    - id: dsh-win-computer-use
+      name: dsh-win-computer-use
+      config:
+        surfaceMode: dispatcher
+        ttlMs: 60000
+        maxElements: 120
+        passwordScan: off
+        deliveryMode: background
+        allowedApps:
+          - Notepad

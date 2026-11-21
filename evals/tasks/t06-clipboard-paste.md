@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: core**（核心组：剪贴板是插件级能力，值得独立覆盖）
+- **app: notepad**
+- **hotspot: uia-element**
+- **requires: notepad**
 - tools: computer_clipboard 或 ctrl+v / computer_key / computer_type
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t06\`
 - oracle: 目标文件内容 == 剪贴板预置原值

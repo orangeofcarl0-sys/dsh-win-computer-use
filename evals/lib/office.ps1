@@ -99,7 +99,15 @@ function Read-PptxManifest([string]$Path) {
           text = (($txt -join '') -replace '\s+', ' ').Trim()
         }
       }
-      $slides += [ordered]@{ name = $e.FullName; texts = $texts; shapes = $shapes }
+      $notesTexts = @()
+      $num = [regex]::Match($e.FullName, 'slide([0-9]+)\.xml$').Groups[1].Value
+      if ($num) {
+        $notes = Read-S4Xml $zip ("ppt/notesSlides/notesSlide" + $num + ".xml")
+        if ($notes) {
+          foreach ($t in @($notes.SelectNodes("//*[local-name()='t']"))) { $notesTexts += [string]$t.InnerText }
+        }
+      }
+      $slides += [ordered]@{ name = $e.FullName; texts = $texts; notes = $notesTexts; shapes = $shapes }
     }
     return [ordered]@{
       slideCount = $slideEntries.Count
@@ -191,6 +199,72 @@ function Read-XlsxManifest([string]$Path) {
   }
 }
 
+function Read-DocxManifest([string]$Path) {
+  $zip = Open-S4Zip $Path
+  try {
+    $doc = Read-S4Xml $zip 'word/document.xml'
+    if (-not $doc) { throw 'word/document.xml missing' }
+    $paras = @()
+    foreach ($p in @($doc.SelectNodes("//*[local-name()='body']/*[local-name()='p']"))) {
+      $runs = @()
+      foreach ($r in @($p.SelectNodes(".//*[local-name()='r']"))) {
+        $txt = @()
+        foreach ($t in @($r.SelectNodes(".//*[local-name()='t']"))) { $txt += [string]$t.InnerText }
+        $runs += [ordered]@{
+          text = ($txt -join '')
+          bold = [bool]$r.SelectSingleNode(".//*[local-name()='rPr']/*[local-name()='b']")
+          italic = [bool]$r.SelectSingleNode(".//*[local-name()='rPr']/*[local-name()='i']")
+        }
+      }
+      $styleNode = $p.SelectSingleNode(".//*[local-name()='pPr']/*[local-name()='pStyle']")
+      $paras += [ordered]@{
+        style = Get-S4Attr $styleNode 'val'
+        text = (($runs | ForEach-Object { $_.text }) -join '')
+        runs = $runs
+      }
+    }
+    $tables = @()
+    foreach ($tbl in @($doc.SelectNodes("//*[local-name()='tbl']"))) {
+      $rows = @()
+      foreach ($tr in @($tbl.SelectNodes("./*[local-name()='tr']"))) {
+        $cells = @()
+        foreach ($tc in @($tr.SelectNodes("./*[local-name()='tc']"))) {
+          $txt = @()
+          foreach ($t in @($tc.SelectNodes(".//*[local-name()='t']"))) { $txt += [string]$t.InnerText }
+          $cells += ($txt -join '')
+        }
+        $rows += ,@($cells)
+      }
+      $tables += ,@($rows)
+    }
+    $headers = @()
+    foreach ($e in @($zip.Entries | Where-Object { $_.FullName -match '^word/header[0-9]+\.xml$' } | Sort-Object FullName)) {
+      $h = Read-S4Xml $zip $e.FullName
+      if (-not $h) { continue }
+      $txt = @()
+      foreach ($t in @($h.SelectNodes("//*[local-name()='t']"))) { $txt += [string]$t.InnerText }
+      $headers += ($txt -join '')
+    }
+    $footers = @()
+    foreach ($e in @($zip.Entries | Where-Object { $_.FullName -match '^word/footer[0-9]+\.xml$' } | Sort-Object FullName)) {
+      $f = Read-S4Xml $zip $e.FullName
+      if (-not $f) { continue }
+      $txt = @()
+      foreach ($t in @($f.SelectNodes("//*[local-name()='t']"))) { $txt += [string]$t.InnerText }
+      $footers += ($txt -join '')
+    }
+    return [ordered]@{
+      paragraphs = $paras
+      tables = $tables
+      headers = $headers
+      footers = $footers
+      text = (($paras | ForEach-Object { $_.text }) -join "`n")
+    }
+  } finally {
+    $zip.Dispose()
+  }
+}
+
 function Set-S4ZipText($Zip, [string]$Name, [string]$Text) {
   $entry = $Zip.GetEntry($Name)
   if (-not $entry) { throw "zip entry missing: $Name" }
@@ -208,16 +282,16 @@ function Remove-S4ZipEntry($Zip, [string]$Name) {
   if ($entry) { $entry.Delete() }
 }
 
-function Get-S4BarPlaceholderXml {
+function Get-S4BarPlaceholderXml([string]$Prefix = 'S4 Bar') {
   # Three visible gray rectangles at the exact target geometry. The model only
   # needs to recolor/label them; this avoids a 20-minute Insert>Shapes hunt.
   $template = @'
 <p:sp><p:nvSpPr><p:cNvPr id="__ID__" name="__NAME__"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="__X__" y="__Y__"/><a:ext cx="__W__" cy="__H__"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="7F7F7F"/></a:solidFill></a:ln></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>
 '@
   $bars = @(
-    @(101, 'S4 Bar Q1', 571500, 1857375),
-    @(102, 'S4 Bar Q2', 3429000, 1857375),
-    @(103, 'S4 Bar Q3', 6286500, 1857375)
+    @(101, "$Prefix Q1", 571500, 1857375),
+    @(102, "$Prefix Q2", 3429000, 1857375),
+    @(103, "$Prefix Q3", 6286500, 1857375)
   )
   $parts = @()
   foreach ($b in $bars) {
@@ -226,7 +300,13 @@ function Get-S4BarPlaceholderXml {
   return ($parts -join '')
 }
 
-function New-S4WidescreenPptxSeed([string]$Path) {
+function New-S4WidescreenPptxSeed {
+  param(
+    [Parameter(Mandatory=$true)][string]$Path,
+    [string]$Title = 'S4 PPT REPLICA',
+    [string]$Subtitle = 'Dirty Desktop Test',
+    [string]$BarPrefix = 'S4 Bar'
+  )
   # PowerPoint's built-in WidescreenPresentation.potx is a 16:9 template, but it
   # contains 8 sample slides. Copy it, switch the package content type from
   # template to presentation, and prune everything except slide 1 so the task
@@ -342,8 +422,8 @@ function New-S4WidescreenPptxSeed([string]$Path) {
       if ($kept -lt 2) { throw "slide1 title/subtitle placeholders missing (kept=$kept)" }
       $texts = @($slideDoc.SelectNodes("//*[local-name()='t']"))
       if ($texts.Count -lt 2) { throw 'slide1 title/subtitle text nodes missing' }
-      $texts[0].InnerText = 'S4 PPT REPLICA'
-      $texts[1].InnerText = 'Dirty Desktop Test'
+      $texts[0].InnerText = $Title
+      $texts[1].InnerText = $Subtitle
       $slideSw = New-Object IO.StringWriter
       $slideSettings = New-Object System.Xml.XmlWriterSettings
       $slideSettings.Encoding = New-Object Text.UTF8Encoding($false)
@@ -357,7 +437,7 @@ function New-S4WidescreenPptxSeed([string]$Path) {
       $slide1 = [regex]::Replace($slide1, '<p:bg>[\s\S]*?</p:bg>', '')
       $whiteBg = '<p:bg><p:bgPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>'
       $slide1 = $slide1.Replace('<p:spTree>', $whiteBg + '<p:spTree>')
-      $slide1 = $slide1.Replace('</p:spTree>', ((Get-S4BarPlaceholderXml) + '</p:spTree>'))
+      $slide1 = $slide1.Replace('</p:spTree>', ((Get-S4BarPlaceholderXml $BarPrefix) + '</p:spTree>'))
       Set-S4ZipText $zip 'ppt/slides/slide1.xml' $slide1
 
       Set-S4ZipText $zip '[Content_Types].xml' $ct
@@ -375,12 +455,12 @@ function New-S4WidescreenPptxSeed([string]$Path) {
     if ([math]::Abs($ratio - 1.7778) -gt 0.04) {
       return [ordered]@{ ok = $false; reason = "seed not 16:9: $($m.slideWidthIn)x$($m.slideHeightIn)" }
     }
-    $barNames = @($m.slides[0].shapes | Where-Object { [string]$_.name -match '^S4 Bar Q[123]$' })
+    $barNames = @($m.slides[0].shapes | Where-Object { [string]$_.name -match ('^' + [regex]::Escape($BarPrefix) + ' Q[123]$') })
     if ($barNames.Count -ne 3) {
       return [ordered]@{ ok = $false; reason = "seed bars missing: found $($barNames.Count)/3" }
     }
     $seedText = (($m.slides[0].texts -join ' ') -replace '\s+', ' ').Trim()
-    foreach ($needle in @('S4 PPT REPLICA', 'Dirty Desktop Test')) {
+    foreach ($needle in @($Title, $Subtitle)) {
       if ($seedText.IndexOf($needle, [StringComparison]::Ordinal) -lt 0) {
         return [ordered]@{ ok = $false; reason = "seed text missing: $needle" }
       }

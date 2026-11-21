@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: core**（核心组：覆盖“另存为对话框 + 编码下拉”这一已识别重灾区）
+- **app: notepad**
+- **hotspot: uia-element**
+- **requires: notepad**
 - tools: computer_key(ctrl+shift+s) / 另存为对话框 / computer_type / computer_menu
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t05\`
 - oracle: 文件存在 + 无 UTF-8 BOM（前 3 字节 != EF BB BF）+ 非 ASCII 字节存在 + ANSI 读回内容逐字匹配

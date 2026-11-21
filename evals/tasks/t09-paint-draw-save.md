@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: core**（核心组：图形应用表面，多步 canvas 操作）
+- **app: paint**
+- **hotspot: pixel-zoom**
+- **requires: paint**
 - tools: screen_observe / computer_click / 画布尺寸对话框 / 填充工具 / 另存为
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t09\`
 - oracle: PNG 存在 + 尺寸 == 200×150 + ≥90% 像素为纯红(R>240, G<15, B<15)

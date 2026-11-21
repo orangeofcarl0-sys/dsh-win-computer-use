@@ -3,6 +3,9 @@
 - **stages: S2**
 - **tier: core**
 - **ac2: full**
+- **app: canvas,browser**
+- **hotspot: pixel-zoom**
+- **requires: browser,node**
 - tools: screen_observe / screen_zoom / computer_click
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\p03\`
 - oracle: canvas click cell == D3（16x16 小目标）

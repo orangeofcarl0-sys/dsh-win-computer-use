@@ -2,8 +2,8 @@
 
 > 目的：定义 S1-S4 测试阶段、任务成员、oracle 契约、runner、verdict 语义与 dirty 规则；逐轮运行结果见 [docs/EVIDENCE.md](../docs/EVIDENCE.md)。
 > 读者：维护者/评测者。`evals/` **不进入 npm 发布包**。
-> 状态：内部开发手册（最后核对 2026-11-20）。
-> 相关：[TESTING](../docs/TESTING.md) · [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md) · [WINDOWS](../docs/WINDOWS.md)。
+> 状态：内部开发手册（最后核对 2026-11-21）。新增 P0：t21/t22/t23、w01/w02、sec01–sec04、rec01、combo01。
+> 相关：[TESTING](../docs/TESTING.md) · [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md) · [WINDOWS](../docs/WINDOWS.md) · [COVERAGE](COVERAGE.md)。
 
 > **命名说明（2026-11-19）**：本文的 S1-S4 是**测试阶段**，S4 只表示 Dirty 阶段。旧文档里的 `S4` 指 0.5.4 的整套评测系统，已全局改称 `eval`；旧 `S2` 是像素定位修订，`S3a`/`S3b` 是视觉断言/观察者工作流，均改为描述性名称。`S4_*` 环境变量、`~/.dsh/s4-evals/` 与 `S4 Bar` 等 fixture 字符串是冻结兼容名，不代表新阶段。
 
@@ -11,17 +11,17 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 30 套 / 748；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/wa2（9） |
-| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / p01 / p02 / p03（4） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框覆盖 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20（10） |
-| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11-t18（8） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 30 套 / 748；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
+| **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / dpi01 / p01 / p02 / p03（5） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20/t22/t23/w01/w02/sec01–sec04/rec01/combo01（20） |
+| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18 + t23/sec01–sec04/combo01（14） |
 
-**阶段是成员标签，可重叠**：`S1 9 / S2 4 / S3 10 / S4 8`，成员合计 **31**，唯一任务 **23**。t11 = S2+S4；t12-t18 = S3+S4（t18 也含 S3）；x1 = S3。
+**阶段是成员标签，可重叠**：`S1 10 / S2 5 / S3 20 / S4 14`，成员合计 **49**，唯一任务 **35**。t11 = S2+S4；t12–t18 = S3+S4；t23/sec01–sec04/combo01 也含 S4；x1 = S3。
 
 边界必须明确：
 
 - **S2 的 p01-p03 需要 image 能力**（native/zoom/vision）；text-only 路由会失败，不写 ENV。
-- **S4 已给 t11-t18 加 sentinel**：setup 打开测试自建的最小化窗口 + sentinel 文件，oracle 断言窗口/身份/文件未变；cleanup 只关测试自建对象。
+- **S4 已给 t11-t18 / t23 / sec01–sec04 / combo01 加 sentinel**：setup 打开测试自建的最小化窗口 + sentinel 文件，oracle 断言窗口/身份/文件未变；cleanup 只关测试自建对象。`isolation: both` 的任务在 clean 模式不建 sentinel，在 dirty 模式建。
 - **t13 仍是真实网络下载，`ac2:none`**；t18 是本地 HTTP 下载，`ac2:full`，覆盖下载链路的正向验证。
 - S3 的 t12-t18 同时是 dirty 任务；S3 测覆盖面，S4 测脏桌面执行，两者是不同维度。
 
@@ -38,6 +38,7 @@
 | t09 | Paint 填充纯红并保存 | S1 | core | notepad | full | 不杀 mspaint |
 | t10 | 两 Notepad 文档内容互换 | S1 | core | notepad | full | 双文件 state |
 | t11 | Paint 鼠绘复刻 | S2, S4 | core | dirty | full | PNG ROI mask |
+| dpi01 | 第二屏窗口点击 | S2 | core | clean | full | 第二屏 fixture；无第二屏 ENV |
 | t12 | PPT 16:9 布局复刻 | S3, S4 | core | dirty | full | PPTX fixture simulate |
 | t13 | 论文下载 + SHA-256 | S3, S4 | core | dirty | none | 真实网络；只删新增匹配 PDF |
 | t14 | Excel 表格 + 原生柱状图 | S3, S4 | core | dirty | full | XLSX fixture simulate |
@@ -47,6 +48,17 @@
 | t18 | 本地 PDF 下载 | S3, S4 | core | dirty | full | 本地 HTTP + hash-pinned fixture |
 | t19 | Explorer 地址栏导航 | S3 | core | notepad | full | 从用户目录导航到沙箱；允许 Notepad 另存为（不证明 Explorer 新建） |
 | t20 | 对话框取消/确认链 | S3 | core | notepad | full | WinForms confirm/cancel；允许 Tab/Enter/Escape 选择按钮 |
+| t21 | Calculator 除法 | S1 | smoke | clean | full | 第二条 Calculator；UIA 结果 19753 |
+| t22 | PPT 标题/副标题编辑 | S3 | core | clean | full | 第二条 PowerPoint；seed 可参数化 |
+| t23 | 三按钮/嵌套对话框 | S3, S4 | core | both | full | 第二条 WinForms；clean/dirty 双模式 |
+| w01 | Word 编辑并原地保存 | S3 | core | clean | full | DOCX XML oracle |
+| w02 | Word Save As 新路径 | S3 | core | clean | full | 源 seed hash 不变 |
+| sec01 | 密码框硬拒绝 | S3, S4 | core | both | full | 密码长度 0 + 普通框正向控制 |
+| sec02 | allowedApps 拒绝 | S3, S4 | core | both | full | Notepad 允许 + PowerShell fixture 拒绝 |
+| sec03 | stop/resume 锁存 | S3, S4 | core | both | full | Click 计数恰为 1 |
+| sec04 | 快照 TTL 拒绝 | S3, S4 | core | both | full | 正向控制 + 过期点击计数 0 |
+| rec01 | 从 draft 恢复 | S3 | core | clean | full | 应用关闭后重开并保存 final.txt |
+| combo01 | PDF→Excel→PPT | S3, S4 | core | dirty | full | 三应用链；A1=42 + PPT 文本 |
 | p01 | 无坐标 canvas 目标点击 | S2 | core | notepad | full | 红圆/格子 C2 |
 | p02 | 像素 token 读取输入 | S2 | core | notepad | full | canvas code P02-7K9 |
 | p03 | screen_zoom 小目标点击 | S2 | core | notepad | full | D3 / from_zoom |
@@ -57,21 +69,23 @@
 
 ```text
 evals/
-  tasks/            23 个任务 md（id = 文件名前缀）
-  setup/            23 个 setup.ps1
-  oracle/           23 个 oracle.ps1
-  cleanup/          23 个 cleanup.ps1
-  simulate/         22 个 simulate.ps1（t13 仍 ac2:none）
-  fixtures/         t12/t14/t17/t18 成功态夹具（测试输入，不是测量产物）
+  tasks/            35 个任务 md（id = 文件名前缀）
+  setup/            35 个 setup.ps1
+  oracle/           35 个 oracle.ps1
+  cleanup/          35 个 cleanup.ps1
+  simulate/         34 个 simulate.ps1（t13 仍 ac2:none）
+  fixtures/         t12/t14/t17/t18/combo01 成功态夹具（测试输入，不是测量产物）
   mutate/           release.ps1 + apply.ps1（oracle 变异，不是任务）
-  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / form-server.mjs / cdp.mjs / run.mjs
-  headless-run.mjs  当前 runner（--stage / --tasks / --tier）
+  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / security-fixture.ps1 / env-info.ps1 / form-server.mjs / cdp.mjs / run.mjs
+  headless-run.mjs  当前 runner（--stage / --tasks / --tier / --isolation）
   verify-oracles.mjs  AC2 双向验证
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
   ac6-summary.mjs   per-task token/步数汇总
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs
   probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-background-input 是实验性后台输入
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
+  headless-patch.sec02.yml / headless-patch.sec04.yml  安全负向任务的 allowedApps / ttlMs overlay
+  COVERAGE.md / coverage.json  热点覆盖矩阵（10+恢复）
   RETIRED.md        退役任务/runner 台账
   BLOCKED.md        未覆盖/无法证明的能力（不计入 pass）
   headless-runs/    运行产物（gitignore）
@@ -160,6 +174,7 @@ node evals/oracle-mutation.mjs --tasks t01,t16,t20
 # 真机探针（自建窗口；不需要模型）
 node evals/probe-ops.mjs
 node evals/probe-launch.mjs
+node evals/probe-display.mjs          # 只读 monitor/DPI/virtual screen；单屏 BLOCKED
 node evals/probe-modifier-drop.mjs
 # t20 模态根因：AX 预算/阻塞矩阵（~75s）与原生 Win32 逃逸路径（~3min；--trigger-only 只跑触发侧）
 node evals/probe-modal-timeout.mjs

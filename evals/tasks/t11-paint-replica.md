@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: paint**
+- **hotspot: pixel-zoom**
+- **requires: paint,browser**
 - tools: screen_observe / screen_zoom / computer_click / computer_drag / computer_key / computer_activate
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t11\`
 - oracle: PNG 800x600 + white ratio + red/blue/black mask bbox/coverage tolerance

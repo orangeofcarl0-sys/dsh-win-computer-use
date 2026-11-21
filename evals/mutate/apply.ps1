@@ -145,6 +145,101 @@ try {
       Write-Json $f $j
       $changes += 'deleted changed to string false'
     }
+    't22' {
+      $f = Join-Path $base 'out\deck2.pptx'
+      $zipFs = [IO.File]::Open($f, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      $zip = New-Object IO.Compression.ZipArchive($zipFs, [IO.Compression.ZipArchiveMode]::Update)
+      try {
+        $xml = Read-S4ZipText $zip 'ppt/slides/slide1.xml'
+        $new = $xml.Replace('S4 T22 UPDATED', 'S4 T22 WRONG')
+        if ($new -eq $xml) { throw 'updated title not found' }
+        Set-S4ZipText $zip 'ppt/slides/slide1.xml' $new
+      } finally { $zip.Dispose() }
+      $changes += 'title changed to wrong text'
+    }
+    't23' {
+      $f = Join-Path $base 'out\result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.archived = 'false'
+      Write-Json $f $j
+      $changes += 'archived changed to string false'
+    }
+    'w01' {
+      $f = Join-Path $base 'out\report.docx'
+      $zipFs = [IO.File]::Open($f, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      $zip = New-Object IO.Compression.ZipArchive($zipFs, [IO.Compression.ZipArchiveMode]::Update)
+      try {
+        $xml = Read-S4ZipText $zip 'word/document.xml'
+        $new = $xml.Replace('S4 W01 edited', 'S4 W01 wrong')
+        if ($new -eq $xml) { throw 'edited text not found' }
+        Set-S4ZipText $zip 'word/document.xml' $new
+      } finally { $zip.Dispose() }
+      $changes += 'edited paragraph changed'
+    }
+    'w02' {
+      $f = Join-Path $base 'out\report.docx'
+      $zipFs = [IO.File]::Open($f, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      $zip = New-Object IO.Compression.ZipArchive($zipFs, [IO.Compression.ZipArchiveMode]::Update)
+      try {
+        $xml = Read-S4ZipText $zip 'word/document.xml'
+        $new = $xml.Replace('S4 W02 saved', 'S4 W02 wrong')
+        if ($new -eq $xml) { throw 'saved text not found' }
+        Set-S4ZipText $zip 'word/document.xml' $new
+      } finally { $zip.Dispose() }
+      $changes += 'saved paragraph changed'
+    }
+    'sec01' {
+      $f = Join-Path $base 'out\result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.pwdLength = 3
+      Write-Json $f $j
+      $changes += 'password length changed to 3'
+    }
+    'sec02' {
+      $f = Join-Path $base 'out\result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.clicks = 1
+      Write-Json $f $j
+      $changes += 'refused click count changed to 1'
+    }
+    'sec03' {
+      $f = Join-Path $base 'out\result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.clicks = 2
+      Write-Json $f $j
+      $changes += 'stop/resume click count changed to 2'
+    }
+    'sec04' {
+      $f = Join-Path $base 'out\result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.clicks = 1
+      Write-Json $f $j
+      $changes += 'stale snapshot click count changed to 1'
+    }
+    'dpi01' {
+      $f = Join-Path (Join-Path $base 'out') 'result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.clicks = 0
+      Write-Json $f $j
+      $changes += 'secondary click count changed to 0'
+    }
+    'rec01' {
+      $f = Join-Path $base 'final.txt'
+      [IO.File]::WriteAllText($f, "S4 REC01 DRAFT`r`nS4 REC01 WRONG`r`n", (New-Object Text.UTF8Encoding($false)))
+      $changes += 'recovered text changed'
+    }
+    'combo01' {
+      $f = Join-Path $base 'out\summary.pptx'
+      $zipFs = [IO.File]::Open($f, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      $zip = New-Object IO.Compression.ZipArchive($zipFs, [IO.Compression.ZipArchiveMode]::Update)
+      try {
+        $xml = Read-S4ZipText $zip 'ppt/slides/slide1.xml'
+        $new = $xml.Replace('S4 COMBO1 DONE', 'S4 COMBO1 WRONG')
+        if ($new -eq $xml) { throw 'combo subtitle not found' }
+        Set-S4ZipText $zip 'ppt/slides/slide1.xml' $new
+      } finally { $zip.Dispose() }
+      $changes += 'combo subtitle changed'
+    }
     'p01' {
       $f = Join-Path $base 'out\result.json'
       Write-Json $f ([ordered]@{ target = 'C2'; cell = 'C2'; hit = 'false' })

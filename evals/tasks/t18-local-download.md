@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: browser,pdf**
+- **hotspot: browser**
+- **requires: browser,node**
 - tools: screen_observe / computer_click / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t18\` (state only; download goes to user's default Downloads)
 - oracle: new PDF in user Downloads with SHA-256 == the fixture hash

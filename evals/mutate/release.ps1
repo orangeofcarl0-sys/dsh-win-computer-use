@@ -29,6 +29,15 @@ try {
     't12' { Close-One (Join-Path $base 'ppt.json') 'app' }
     't14' { Close-One (Join-Path $base 'excel.json') 'app' }
     't17' { Close-One (Join-Path $base 'excel.json') 'app' }
+    't22' { Close-One (Join-Path $base 'ppt.json') 'app' }
+    'w01' { Close-One (Join-Path $base 'word.json') 'app' }
+    'w02' { Close-One (Join-Path $base 'word.json') 'app' }
+    'sec02' { Close-One (Join-Path $base 'test-notepad.json') 'notepad' }
+    'sec04' { Close-One (Join-Path $base 'test-notepad.json') 'notepad' }
+    'combo01' {
+      Close-One (Join-Path $base 'ppt.json') 'app'
+      Close-One (Join-Path $base 'excel.json') 'app'
+    }
     default { }
   }
   [ordered]@{ ok = (-not $fail); reason = $fail; closed = @($closed) } | ConvertTo-Json -Compress -Depth 4

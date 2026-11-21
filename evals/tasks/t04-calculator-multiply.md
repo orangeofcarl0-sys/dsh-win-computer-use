@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: smoke**（冒烟组：单窗口、判定面稳定）
+- **app: calculator**
+- **hotspot: uia-element**
+- **requires: calculator**
 - tools: screen_observe / computer_click / computer_type / computer_key
 - sandbox: 无文件产物
 - oracle: 从 setup 记录的 owned Calculator HWND 读显示值 == 7006652（千分位剥除）；用户已有计算器时 setup ENV

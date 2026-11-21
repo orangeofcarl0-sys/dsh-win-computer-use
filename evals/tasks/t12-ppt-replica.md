@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: powerpoint**
+- **hotspot: office-ooxml**
+- **requires: office-powerpoint,browser**
 - tools: screen_observe / screen_zoom / computer_click / computer_type / computer_key / computer_activate
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t12\`
 - oracle: PPTX XML (slide count/size, text, shape colors/positions); no Office/COM

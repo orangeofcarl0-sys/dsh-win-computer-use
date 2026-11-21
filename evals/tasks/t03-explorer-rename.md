@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: core**（核心组：低频跑，重要的文件管理能力）
+- **app: explorer**
+- **hotspot: uia-element**
+- **requires: explorer**
 - tools: screen_observe / computer_key(F2) 或右键菜单 / computer_type
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t03\`
 - oracle: 旧名不存在 + 新名存在 + 内容不变 + `keep.txt` 未变 + 无多余文件/双扩展名

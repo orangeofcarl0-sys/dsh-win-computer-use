@@ -1,0 +1,72 @@
+{
+  "majorApps": [
+    "notepad",
+    "explorer",
+    "paint",
+    "calculator",
+    "powerpoint",
+    "excel",
+    "browser",
+    "pdf",
+    "winforms",
+    "canvas",
+    "word"
+  ],
+  "hotspots": {
+    "uia-element": {
+      "positive": ["t01", "t03", "t04", "t05", "t06", "t07", "t15", "t19", "wa2"],
+      "negative": ["test:action-bounds"]
+    },
+    "pixel-zoom": {
+      "positive": ["p01", "p02", "p03", "t09", "t11"],
+      "negative": ["test:observe.coords"]
+    },
+    "native-dialog": {
+      "positive": ["t20", "probe:probe-native-dialog"],
+      "negative": ["test:native-dialogs.test"]
+    },
+    "office-ooxml": {
+      "positive": ["t12", "t14", "t17"],
+      "negative": ["eval:oracle-mutation"]
+    },
+    "browser": {
+      "positive": ["t13", "t16", "t18"],
+      "negative": ["test:action-bounds"]
+    },
+    "multi-app": {
+      "positive": ["t10", "t17"],
+      "negative": ["eval:oracle-mutation"]
+    },
+    "dirty-desktop": {
+      "positive": ["t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18"],
+      "negative": ["test:eval-safety"]
+    },
+    "security-semantics": {
+      "positive": ["test:posture.smoke", "probe:probe-safety-runtime"],
+      "negative": ["test:eval-safety"]
+    },
+    "recovery": {
+      "positive": ["rec01"],
+      "negative": ["test:eval-safety"]
+    },
+    "background-input": {
+      "positive": ["probe:probe-background-input"],
+      "negative": ["test:background-input.test"]
+    },
+    "windows-specific": {
+      "positive": ["dpi01", "probe:probe-display", "probe:probe-launch", "probe:probe-b2-elevated"],
+      "negative": ["test:background-input.test"]
+    }
+  },
+  "security": {
+    "password": ["test:posture.smoke", "probe:probe-safety-runtime"],
+    "allowedApps": ["test:config.plumbing"],
+    "stop": ["test:tools.smoke", "probe:probe-safety-runtime"],
+    "snapshotTtl": ["test:posture.smoke", "probe:probe-safety-runtime"],
+    "secureDesktop": ["test:background-input.test"],
+    "uipi": ["test:background-input.test"],
+    "nativeDialog": ["probe:probe-native-dialog", "test:native-dialogs.test"],
+    "backgroundInput": ["probe:probe-background-input", "test:background-input.test"],
+    "evalOwnership": ["test:eval-safety", "test:notepad-tabs.test"]
+  }
+}

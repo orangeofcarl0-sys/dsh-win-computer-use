@@ -3,6 +3,9 @@
 - **stages: S3**
 - **tier: core**
 - **ac2: full**
+- **app: winforms**
+- **hotspot: native-dialog**
+- **requires: powershell**
 - tools: screen_observe / computer_click / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t20\`
 - oracle: result.json has cancelled>=1, confirmed>=1, deleted=true

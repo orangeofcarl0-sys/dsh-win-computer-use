@@ -235,5 +235,37 @@ check('ES43: 新探针不按进程名/镜像杀窗口', !/Stop-Process\s+-Name|t
 check('ES44: t19/t20 清理模型自开的测试 Notepad', /Close-OrphanTestNotepads/.test(taskSrc('t19', 'cleanup'))
   && /Close-OrphanTestNotepads/.test(taskSrc('t20', 'cleanup')))
 
+// 2026-11-21: new P0 tasks still obey ownership and both-mode sentinel rules.
+for (const id of ['t22', 'w01', 'w02', 'combo01']) {
+  const setup = taskSrc(id, 'setup')
+  const cleanup = taskSrc(id, 'cleanup')
+  check(`ES45: ${id} uses state-scoped app Open/Close`, /Open-TestAppWindow/.test(setup)
+    && /Close-TestAppWindow/.test(cleanup))
+}
+for (const id of ['t23', 'sec01', 'sec02', 'sec03', 'sec04']) {
+  const md = readFileSync(join(evals, 'tasks', `${id}-${({ t23: 'dialog-nested', sec01: 'password-refusal', sec02: 'allowedapps-refusal', sec03: 'stop-resume', sec04: 'snapshot-ttl' })[id]}.md`), 'utf8')
+  check(`ES46: ${id} declares isolation both`, /\*\*isolation:\s*both\*\*/.test(md))
+}
+for (const id of ['sec01', 'sec02', 'sec03', 'sec04', 'dpi01']) {
+  const setup = taskSrc(id, 'setup')
+  const cleanup = taskSrc(id, 'cleanup')
+  check(`ES47: ${id} uses test-owned security fixture`, /Initialize-SecurityTask/.test(setup)
+    && /Close-SecurityTask/.test(cleanup))
+}
+for (const id of ['sec02', 'sec04']) {
+  check(`ES48: ${id} uses Notepad state helpers`, /Open-TestNotepad/.test(taskSrc(id, 'setup'))
+    && /Close-TestNotepad/.test(taskSrc(id, 'cleanup')))
+}
+check('ES49: combo01 uses sentinel + three app state helpers',
+  /Open-TestSentinel/.test(taskSrc('combo01', 'setup'))
+  && /Open-TestAppWindow/.test(taskSrc('combo01', 'setup'))
+  && /Open-TestBrowserWindow/.test(taskSrc('combo01', 'setup'))
+  && /Close-TestSentinel/.test(taskSrc('combo01', 'cleanup'))
+  && /Close-TestAppWindow/.test(taskSrc('combo01', 'cleanup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('combo01', 'cleanup')))
+check('ES50: security fixture uses only state-scoped app opener',
+  /Open-TestAppWindow/.test(readFileSync(join(evals, 'lib', 'security-fixture.ps1'), 'utf8'))
+  && !/Stop-Process\s+-Name|taskkill\s+\/IM/i.test(readFileSync(join(evals, 'lib', 'security-fixture.ps1'), 'utf8')))
+
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

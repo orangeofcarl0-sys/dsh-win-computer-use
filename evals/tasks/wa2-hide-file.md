@@ -2,6 +2,9 @@
 
 - **stages: S1**
 - **tier: smoke**（冒烟组：WAA 溯源代表项，已预置到决策点）
+- **app: explorer**
+- **hotspot: uia-element**
+- **requires: explorer**
 - waaId: `e27984c7-968c-48d7-b2c3-6e45cdcc5249-WOS`（file_explorer, WindowsAgentArena MIT）
 - 原 instruction: "Set the file "secret.txt" in the Documents folder as hidden."
 - 原判定: is_file_hidden（Python）；本仓库判定: PS 重写（attributes 含 Hidden 位）

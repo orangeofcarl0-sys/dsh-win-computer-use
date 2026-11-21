@@ -4,6 +4,9 @@
 - **tier: core**
 - **isolation: dirty**
 - **ac2: full**
+- **app: excel**
+- **hotspot: office-ooxml**
+- **requires: office-excel**
 - tools: screen_observe / computer_activate / computer_wait / computer_clipboard / computer_set_value / computer_click / computer_type / computer_key
 - sandbox: `%USERPROFILE%\.dsh\s4-evals\t14\`
 - oracle: XLSX XML cell values + native bar chart part; no Office/COM
