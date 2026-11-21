@@ -81,7 +81,7 @@ evals/
   simulate/         39 个 simulate.ps1（t13 仍 ac2:none）
   fixtures/         t12/t14/t17/t18/combo01 成功态夹具（测试输入，不是测量产物）
   mutate/           release.ps1 + apply.ps1（oracle 变异，不是任务）
-  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / security-fixture.ps1 / env-info.ps1 / form-server.mjs / cdp.mjs / run.mjs
+  lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / security-fixture.ps1 / env-info.ps1 / win-gaps.ps1 / form-server.mjs / cdp.mjs / run.mjs
   headless-run.mjs  当前 runner（--stage / --tasks / --tier / --isolation）
   verify-oracles.mjs  AC2 双向验证
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
@@ -180,6 +180,7 @@ node evals/oracle-mutation.mjs --tasks t01,t16,t20
 node evals/probe-ops.mjs
 node evals/probe-launch.mjs
 node evals/probe-display.mjs          # 只读 monitor/DPI/virtual screen；单屏 BLOCKED
+node evals/probe-win-gaps.mjs         # 只读 VS Code/VLC/Settings/WSL/CJK 语言清单
 node evals/probe-modifier-drop.mjs
 # t20 模态根因：AX 预算/阻塞矩阵（~75s）与原生 Win32 逃逸路径（~3min；--trigger-only 只跑触发侧）
 node evals/probe-modal-timeout.mjs

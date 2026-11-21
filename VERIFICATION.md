@@ -10,7 +10,7 @@
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
 | 离线测试 | **31 套 / 772 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **50/50 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 语法/安装脚本 | **51/51 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -42,7 +42,7 @@
 | AC6 成本工具 | 2026-11-20：t01/t05 各 5 轮全 pass；t01 steps 中位 12/p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24/p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 | Windows 11 / opencode-go | `node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json` |
 | S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §3.1 |
 | S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §5.3 |
-| P0 模型 smoke（新增） | 2026-11-21：t21 **1/1 pass**（16 步，oracle 19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察，未完成 allow.txt 正向控制；AC2 已 PASS，cleanup 关闭测试 Notepad 并恢复 TabState） | Windows 11 / opencode-go | `node evals/headless-run.mjs --tasks t21 --isolation clean`；`--tasks sec02 --isolation clean` |
+| P0/P1 模型 smoke（新增） | 2026-11-21：t21 **1/1 pass**（16 步，oracle 19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察）；term01 **1 次 8min timeout**（模型打开 Notepad 而非控制台）；两者 AC2 已 PASS，cleanup 关闭测试 Notepad 并恢复 TabState | Windows 11 / opencode-go | `node evals/headless-run.mjs --tasks t21 --isolation clean`；`--tasks sec02 --isolation clean`；`--tasks term01 --isolation clean` |
 | P0 判定绑定 | 2026-11-19 `t03/t04/t05/t07/x1` oracle **5/5 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t03,t04,t05,t07,x1` |
 | headless eval smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.3 |
 | 阶段过滤 | **S1 10 / S2 5 / S3 25 / S4 17**（成员 57，唯一 40）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
@@ -128,7 +128,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 判据：
 
 - `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **772**。
-- `npm run check` 退出码 0：语法 **50/50** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm run check` 退出码 0：语法 **51/51** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。

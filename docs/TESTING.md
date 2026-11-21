@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-21：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 50/50 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-21：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 51/51 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -24,6 +24,7 @@
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
 | from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
 | 显示/DPI 清单 | S2 | `node evals/probe-display.mjs` | 1 项 | 枚举 monitor count/DPI/virtual screen；单屏 BLOCKED，不改显示设置 |
+| Windows 缺口清单 | S3 | `node evals/probe-win-gaps.mjs` | 1 项 | 只读 VS Code/VLC/Settings/WSL/CJK 语言；缺失记 BLOCKED |
 | modifier 手势 | S2 | `node evals/probe-modifier.mjs` | 3 项 | click element/坐标的 Ctrl 到达；0.23.2 driver drag modifier 不进入目标；0.52.13 原生 delivered |
 | 组合键前台 | S4 | `node evals/probe-combo-foreground.mjs` | 1 项 | blocker 前台时插件 `key()` 自动前台目标并把 Ctrl+V 送进 WinForms |
 | 安全运行时 | S1/S4 | `node evals/probe-safety-runtime.mjs` | 13 项 | 密码拒绝、TTL 过期、stop/resume 锁存、驱动错误恢复 |
@@ -329,7 +330,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 项 | 值 |
 |---|---|
 | 离线 | 31 套 / 772 ✅ / 0 ❌ |
-| 语法 | 50/50 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 语法 | 51/51 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
@@ -342,7 +343,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 模型真跑（上一轮/修复前） | 上一轮 t19 40/56、t20 27/25、t05 21/13；修复前 t19/t20 各 1 pass/1 预算耗尽（35/56、17/33），p01/p02/p03 6/11/8；保留为历史 |
 | AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24 / p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 |
 | P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
-| P0/P1 新增模型 smoke | 2026-11-21：t21 **1/1 pass**（16 步，19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察；AC2 已 PASS，cleanup 恢复 TabState） |
+| P0/P1 新增模型 smoke | 2026-11-21：t21 **1/1 pass**（16 步，19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察）；term01 **1 次 8min timeout**（模型打开 Notepad 而非控制台）；两者 AC2 均 PASS，cleanup 恢复 TabState |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 
 ## 11. P2 设计与未闭合
