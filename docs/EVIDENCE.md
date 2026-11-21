@@ -339,6 +339,30 @@ node tests/native-dialogs.test.mjs
 
 说明：该探针只证明**标准 Win32 `#32770` 常见对话框的后端**；`screen_observe` 的完整插件集成路径由 `probe-native-dialog` 的 MessageBox 场景 9/9 覆盖。WPF/WinUI/自定义 shell 对话框不在本次证据内。
 
+## 1.14 2026-11-22 — Excel modifier drop 复测（仍 BLOCKED）
+
+环境：Windows 11 x64；Excel 16.0.14334.21048；不调用模型。
+
+命令：`node evals/probe-modifier-drop.mjs --excel --excel-only`
+
+结果：**PASS 8/9，BLOCKED 1，FAIL 0，LEFT_OVER 0**。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| Excel 安装/工作簿/窗口 | PASS | 临时 xlsx，精确 HWND，关闭无残留 |
+| A2 选中 | PASS | UIA DataItem |
+| A2/E2 几何 | PASS | UIA A2 x=94、B2 x=198、E2 x=510，同行 y=378 |
+| Ctrl+drag 投递 | PASS | private SendInput foreground，回执 ok=true |
+| Ctrl+S | PASS | 前台激活后投递 |
+| A2→E2 复制 | **BLOCKED** | A2 保留、E2 为空 |
+
+根因排查：
+
+- Excel COM：`CellDragAndDrop=true`、`EnableFillHandle=false`；拖放开关没有关闭。
+- 起点尝试：A2/B2 边框 x=144/145/146/147/148、A2 中心 x=94；均无移动。
+- 不带 Ctrl 的拖拽：同样 A2 不动、E2 为空，说明**拖拽没有启动**，不是 Ctrl 丢失。
+- 因此不是“Ctrl 没按住”，也不是“目标格写错”；更像 Excel 不接受当前合成拖拽路径/需要真实指针的 OLE drag loop，或边框命中区仍未命中。保持 BLOCKED，等待专用桌面/真实指针验证。
+
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
 环境：dsh 0.2.2-rc.1，Windows 11 x64，DPI 150%，dirty 桌面；驱动/模型见各段。`inner steps` 为 dsh 内部步数；`errors / unverified` 为工具错误/未验证计数。

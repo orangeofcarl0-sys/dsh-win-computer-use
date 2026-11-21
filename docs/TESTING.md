@@ -32,7 +32,7 @@
 | 私有拖拽 | S2 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
 | 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 13 PASS / 0 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu/menu-count，专用 `menu:0x4D4B` marker）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked` |
 | app 启动/收尾 | S1/S4 | `node evals/probe-launch.mjs` | 7 项 | app_launch pid/window、子进程 IL 实测、驱动侧 alt+F4/关闭按钮、基线窗口保留 |
-| modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs`（可加 `--excel --excel-only`） | 5 项 + Excel 分支 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支已实现 UIA `DataItem` 几何/Ctrl+drag/Ctrl+S/OOXML 校验，但当前 E2 未复制 → BLOCKED。`--strict-blocked` 时 BLOCKED 为 exit 2 |
+| modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs`（可加 `--excel --excel-only`） | 5 项 + Excel 分支 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支已实现 UIA `DataItem` 几何/Ctrl+drag/Ctrl+S/OOXML 校验；2026-11-22 复跑：`CellDragAndDrop=true`，边框 144–148/中心/不带 Ctrl 均投递成功但 A2 不动、E2 为空 → 拖拽未启动，仍 BLOCKED。`--strict-blocked` 时 BLOCKED 为 exit 2 |
 | 模态根因 | S3 | `node evals/probe-modal-timeout.mjs` | 10 PASS / 13 BLOCKED | MessageBox 期间 AX 树 0@1s/5s/15s、capture 1.5s、驱动 click/key/bring 阻塞、原生 WM_COMMAND 关闭、触发 click 随模态关闭返回 |
 | 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
 | 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
