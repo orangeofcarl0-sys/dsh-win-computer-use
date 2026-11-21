@@ -19,7 +19,7 @@
 | 独立观察者 key | 没有已验证的视觉 key；`~/.dsh/.credentials.yaml` 存在但未读取 | `screen_assert` 的第二观察者无法建立 | 提供可用视觉 key / 修复观察者文本输出 |
 | 浏览器 auth/upload mock | 没有本地 mock 登录/上传服务 | `b01` 只覆盖 tabs + 表单，upload/auth 无法建立 | 本地 mock 服务 + 测试页面 |
 | Linux / macOS | 无 Linux 任务套件；macOS 近期未回归 | 不能把“能加载”当“已验收” | Linux 可选、非门禁；macOS 有环境再回归 |
-| 磁盘 | C: 仅 1.6GB 空闲；TEMP 在 C: | 安装应用/VM、`Add-Type`、大截图可能失败 | 释放 C: 或明确迁移安装/缓存；不自动清理用户文件 |
+| 磁盘 | C: 仅 1.6GB 空闲（2026-11-21 测量，随使用波动）；TEMP 在 C: | 安装应用/VM、`Add-Type`、大截图可能失败 | 释放 C: 或明确迁移安装/缓存；不自动清理用户文件 |
 
 ## 3. 能力型
 
@@ -52,10 +52,12 @@
 
 | 项 | 具体卡点 | 现有证据 | 状态 |
 |---|---|---|---|
-| Medium → High 后台输入 | 低 IL 的 `PostMessage`/`SendInput`/UIA 可能被 UIPI 过滤；driver 可能返回 `background_uipi_blocked`，但插件此前没有显式映射 | `probe-cross-il --uac`（2026-11-22，一次授权 UAC）：elevated sink RID 12288；helper 返回 `uipi`、`delivered:false`、events=0；该次运行暴露 `IntegrityRank` 阈值 off-by-one（medium 被标成 high、system 被标成 high），已修正为 0=low/1=medium/2=high/3=system；修正后的 UAC 复跑尚未做 | ⛔ 证据缺口（拒绝行为有证据，修正后 Medium→High 标签待复跑） |
+| Medium → High 后台输入 | 低 IL 的 `PostMessage`/`SendInput`/UIA 可能被 UIPI 过滤；driver 可能返回 `background_uipi_blocked` | `probe-cross-il --uac`（2026-11-22，一次授权 UAC）：elevated sink RID 12288；helper 返回 `uipi`、`delivered:false`、events=0；该次运行暴露并修正 `IntegrityRank` off-by-one | ⛔ 修正后 UAC 复跑待做 |
 | UAC 安全桌面 | 安全桌面是隔离桌面，普通 Default 桌面进程不能可靠送输入；当前 helper 只做 `OpenInputDesktop` 检测并拒绝 | `probe-b2-elevated` 只证明提权后 `BlockInput`；不触碰 UAC 安全桌面 | 🔒 设计边界 |
 | 跨 IL 目标关闭/清理 | 非提权客户端可能关不掉 High IL 窗口；不能按进程名杀 | 精确 HWND/PID + 自关闭 timer；`probe-launch` 只测 Medium 子进程 | 🔒 安全边界 |
-| driver daemon 提权依赖 | daemon 是否 High 取决于启动方式；0.52.13 主 CLI manifest 提取为 `asInvoker`（需 PE 资源复核），非提权 daemon 不能驱动 High 目标 | `probe-launch` 测到 daemon High/child Medium；`probe-b2-elevated` 只测 BlockInput | 🔒 设计边界 |
+| driver daemon 提权依赖 | daemon 是否 High 取决于启动方式；0.52.13 主 CLI 清单为 `asInvoker`（2026-11-22 PE 复核定论，见 [EVIDENCE §3](../docs/EVIDENCE.md)），非提权 daemon 不能驱动 High 目标 | `probe-launch` 测到 daemon High/child Medium；`probe-b2-elevated` 只测 BlockInput | 🔒 设计边界 |
+
+IntegrityRank 修正明细：阈值曾把 medium(8192) 标成 high、system(16384) 与 high 同为 rank 3；已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试通过。证据与修正叙事统一见 [EVIDENCE §4](../docs/EVIDENCE.md)；**修正后的 Medium→High 复跑是本节唯一未闭合项**。
 
 ## 4. 证据型 / 测量边界
 

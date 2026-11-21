@@ -152,7 +152,7 @@
 | t01 r1 / r2 | 7 / 12 | 4 / 7 | 3 / 5 | 1.33 / 1.40 | 0 / 2 | 3 / 2 | 93 / 163s | 7,494 / 11,043 | 2,119 / 4,654 | 84,608 / 173,696 | 94,221 / 189,393 | 均 pass |
 | t05 r1 / r4 | 12 / 43 | 5 / 19 | 7 / 24 | 0.71 / 0.79 | 1 / 6 | 3 / 14 | 120 / 431s | 11,169 / 39,869 | 2,097 / 9,382 | 142,336 / 1,199,872 | 155,602 / 1,249,123 | 均 pass |
 
-两个 t19/t20 二轮的 `wallMs` 都是 **720,0xx ms**，正好落在 `--timeout-min 12` 边界，且没有 `final`/`turn_end`；应归因为**时间预算耗尽**，不是稳定的任务失败率。`headless-run` 当前把 `timedOut` 记为 false（进程关闭与超时计时器竞争），报告语义需要修。
+两个 t19/t20 二轮的 `wallMs` 都是 **720,0xx ms**，正好落在 `--timeout-min 12` 边界，且没有 `final`/`turn_end`；应归因为**时间预算耗尽**，不是稳定的任务失败率。`headless-run` 当时把 `timedOut` 记为 false（进程关闭与超时计时器竞争）；该报告语义已在后续修复——`budgetExhausted`/`noFinal` 分开记录、预算耗尽记 `verdict=timeout`（验证见 §11.8）——本段保留为当时观察。
 
 ### 11.2 t19：地址栏可靠，创建文件是薄弱环节
 
@@ -326,7 +326,7 @@
 | t19 r1 未用 set_value | 模型策略 | 题面已允许 Save As；可在 t19 Notes 明确“优先 app_launch Notepad + set_value 完整路径”，但会降低 Explorer 新建覆盖，需选一个目标 |
 | t20 候选提示仍会后台点击 | 模型策略 | 回执已说“不要后台坐标点击”；若仍反复，可评估在对话框窗口上直接拒绝 background 点击（需要更细的模态识别） |
 | AC6 t11/t14/t15 5 轮 | **未做** | 不伪造中位数；等空闲桌面/额度 |
-| WinForms menu、Excel/PPT、A11、多屏、macOS/Linux、t13 | **外部阻塞** | 保持 `eval/BLOCKED.md`；不计 pass |
+| WinForms menu、Excel/PPT、A11、多屏、macOS/Linux、t13 | **外部阻塞** | 保持 `evals/BLOCKED.md`；不计 pass |
 
 本轮结论：**P0 超时透传/候选回执、win fail-closed、t05 另存为修复均已落地并有真实轨迹支撑；t20 驱动根因和 t19 Explorer 新建方差仍未闭合**。
 

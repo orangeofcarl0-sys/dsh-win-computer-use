@@ -3,15 +3,15 @@
 > **Windows-first Computer Use for DeepSeek Harness。**
 > 深度 Win32 / WinUI / UIA 工程 · 零审批三级投递 · 23 个工具，默认 2 个稳定入口。
 
-[![Release](https://img.shields.io/badge/release-0.5.8-blue)]()
+[![Release](https://img.shields.io/badge/release-0.5.8-blue)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/releases)
 [![npm](https://img.shields.io/badge/npm-dsh--win--computer--use-CB3837)](https://www.npmjs.com/package/dsh-win-computer-use)
-[![main](https://img.shields.io/badge/main-unreleased-blue)]()
-[![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.2--rc.1-green)]()
-[![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)]()
+[![main](https://img.shields.io/badge/main-unreleased-blue)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/commits/main)
+[![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.2--rc.1-green)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/docs/COMPATIBILITY.md)
+[![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/docs/WINDOWS.md)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-21）**：npm 最新为 `dsh-win-computer-use@0.5.8`（tag `84225cc`）；`main` 已包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力，`package.json` 仍为 0.5.8。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 安装的是 0.5.8（运行中的 web 进程需重启），不包含当前 main——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-22）**：npm 最新为 `dsh-win-computer-use@0.5.8`（tag `84225cc`）；`main` 已包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力与 UIPI 回执映射，`package.json` 仍为 0.5.8。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 安装的是 0.5.8（运行中的 web 进程需重启），不包含当前 main——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 
@@ -60,7 +60,13 @@
 
 ### 2. 安装插件
 
-npm 已发布 `dsh-win-computer-use@0.5.8`：可 `npm install dsh-win-computer-use` 或 `dsh plugin add dsh-win-computer-use`；也可继续用 `install.sh`（bash，已有 `profiles/web`）或手动 junction + `cordis.patch.yml`。完整步骤、`DSH_HOME` 规则、headless/隔离 profile 与卸载见 [INSTALL](docs/INSTALL.md)。
+npm 已发布 `dsh-win-computer-use@0.5.8`，三种方式任选：
+
+- npm：`npm install dsh-win-computer-use`；
+- dsh：`dsh plugin add dsh-win-computer-use`；
+- 脚本/手动：`install.sh`（bash，已有 `profiles/web`）或手动 junction + `cordis.patch.yml`。
+
+完整步骤、`DSH_HOME` 规则、headless/隔离 profile 与卸载见 [INSTALL](docs/INSTALL.md)。
 
 ### 3. 第一次观察
 
@@ -111,14 +117,14 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 > PTC / `run_code` 模式下，SDK 只绑定**直接可见**的工具；隐藏工具不会出现在 SDK 里，仍需 `tools.computer_do({action:'call', tool, args})` 路由（例如 `tools.computer_task` 为 undefined 是预期行为）。
 
-**为什么不用动态 enter/exit：** 旧的 `dynamic` 模式会在会话中途注册/注销工具。实测（2026-11-09，opencode / deepseek-v4.1-flash）tools 数组一变，缓存首击只剩 **0%–18%**；稳定 dispatcher 的重复请求命中 **99.5%**，首次 tool_call 后 **92.1%**，第二次后 **85.4%**。因此 `dynamic` 已彻底删除，只保留两种稳定工具面。证据见 [EVIDENCE](docs/EVIDENCE.md) §8。
+**为什么不用动态 enter/exit：** 旧的 `dynamic` 模式会在会话中途注册/注销工具，tools 数组一变缓存首击只剩 **0%–18%**，稳定工具面则保持高命中；因此 `dynamic` 已彻底删除，只保留两种稳定工具面。A/B 数字见 [EVIDENCE](docs/EVIDENCE.md) §27。
 
 **取舍**：`hybrid` 让高频动作少一层 JSON 包装，但可见面从 2 变 7；`dispatcher` 的 catalog 调用本身也占一步。复杂参数（如 `computer_verify` 的 `expect` JSON）建议先 `catalog` 看签名，必要时在 system prompt 里给一个示例。
 
 ## 能力边界
 
 - **委派不是沙箱。** `computer_task` 走宿主 `startActivation`；dsh 0.2.2 没有 `toolFilter`，子 agent 可能拥有与父会话同级能力。回执会写明；需要严格限制时用宿主 Agent Preset。
-- **`app_launch` 的窗口可能需要人工收尾。** daemon 可能是 High IL，但子进程完整性取决于驱动版本/启动路径：0.52.13 实测 daemon High、`powershell.exe` 子进程 Medium。非提权客户端可能关不掉 High IL 子窗口；测试/自动化优先操作已在运行的普通应用。
+- **`app_launch` 的窗口可能需要人工收尾。** daemon/子进程完整性取决于驱动版本与启动路径（0.52.13 实测 daemon High、PowerShell 子进程 Medium）；非提权客户端可能关不掉 High IL 子窗口；测试/自动化优先操作已在运行的普通应用。事实矩阵见 [WINDOWS §1](docs/WINDOWS.md)。
 - **像素点击是 best-effort。** 混合 DPI 下驱动 0.23.2 的像素落点存在实测偏差；element 路径是可靠主路径。
 - **Explorer 文件项的单选要用 `foreground=true`。** 后台坐标点击会走 UIA Invoke，等于“打开”，会弹出 Notepad/Photos/PDF。
 - **`computer_drag` 的 modifier 在驱动支持 `dragModifier` 时走原生；旧驱动/`dragEngine:private` 或 `dwell_ms>0` 走私有 SendInput helper。** 私有路径是原子手势、修饰键持有到 drop、失败路径释放；不支持 `from_zoom`。无 modifier 的 drag 默认走驱动。
@@ -145,18 +151,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 
 ## 文档
 
-**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。常用入口：
-
-| 文档 | 内容 |
-|---|---|
-| [INSTALL](docs/INSTALL.md) | 安装、升级、卸载、首跑自检 |
-| [TOOLS](docs/TOOLS.md) | 23 个工具的参数、默认值、前置、回执、示例 |
-| [CONFIGURATION](docs/CONFIGURATION.md) | 30 个配置键、环境变量、交互、陷阱 |
-| [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | 错误码总表 / 按症状排障 |
-| [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md) | 威胁模型 / 权限声明 |
-| [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md) | 内部结构与运行时链路 |
-| [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md) | 测试体系 / 当前验证矩阵 |
-| [EVIDENCE](docs/EVIDENCE.md) | 按日期的运行证据与失败样本 |
+**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。快速入口：[INSTALL](docs/INSTALL.md)（安装/升级/卸载）· [TOOLS](docs/TOOLS.md)（23 个工具）· [CONFIGURATION](docs/CONFIGURATION.md)（30 个配置键）· [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)（错误码/排障）· [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md)（安全/权限）· [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md)（内部结构）· [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md)（测试/当前验证矩阵）· [EVIDENCE](docs/EVIDENCE.md)（按日期的运行证据与失败样本）。
 
 开发与验证命令见 [TESTING](docs/TESTING.md)；维护者环境、硬知识与发布检查见 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 与 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 

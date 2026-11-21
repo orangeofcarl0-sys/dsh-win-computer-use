@@ -2,7 +2,7 @@
 
 > 目的：说明插件信任谁、能做什么、明确不承诺什么，以及部署时如何收紧。
 > 读者：安全审查者、部署者、集成者。
-> 状态：当前实现（最后核对 2026-11-18）。
+> 状态：当前实现（最后核对 2026-11-22）。
 > 相关：[PERMISSIONS](../PERMISSIONS.md)（权限声明）· [ERRORS](ERRORS.md)（拒绝行为）· [WINDOWS](WINDOWS.md)（OS 边界）。
 
 ## 1. 安全姿态
@@ -63,7 +63,7 @@
 | 原生对话框点击 | Windows，`nativeDialogs: auto`；只对同 pid 标准 `#32770` 模态对话框的 Button | 只发 `BM_CLICK`；不自动选择 Yes/No；坐标/输入/双击/右键不走该路径；`off` 禁用 |
 | 原生菜单命令 | Windows，`nativeMenus: auto`（默认 off）；只对同 pid 顶层窗口标准 HMENU 的精确叶子路径 | 只发一次 `PostMessage(WM_COMMAND)`；不自动选择/不模糊匹配；MenuStrip/WPF/WinUI 不支持；超时可能已发送，不重试；`off` 零 spawn |
 | 原生 Button 触发 | Windows，`nativeButtonTrigger: auto`（默认 off）；只对同 pid 标准 Win32/WinForms Button 的单次左键 | 只发一次 `PostMessage(BM_CLICK)`；class/style/label/屏幕点唯一匹配；不自动选择 Yes/No；明确未匹配回退 driver；owner_disabled/超时不回退；10s latch |
-| 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 `off`；只对无交互 UIA 的目标；B1/B2/B3 需 `allowedApps` 非空；B1 遮挡失败关闭；`syntheticPointer:promote` 只对普通 message 窗口发无 anchor 单点触控（系统提升为鼠标消息，应用语义未验证）；B2 `cursor` 先 `BlockInput` 成功才移光标，`cursor-clip` 用 `ClipCursor` 限制光标 5×5（不阻塞键盘，恢复失败给 warning）；B3 只移 `allowedApps` 窗口 | B0 可对任意无交互 UIA 目标发消息；helper 仍受 UIPI/安全桌面/完整性限制；B2 会短暂抢光标/限制光标，B3 会短暂移窗口；`off` 零 spawn |
+| 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 `off`；只对无交互 UIA 的目标；B1/B2/B3 需 `allowedApps` 非空；B1 遮挡失败关闭；B2 `cursor` 先 `BlockInput` 成功才移光标；B3 只移 `allowedApps` 窗口 | B0 可对任意无交互 UIA 目标发消息；helper 仍受 UIPI/安全桌面/完整性限制；B2 会短暂动光标、B3 会短暂移窗口；`off` 零 spawn。通道矩阵、错误码与安全边界统一见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md) |
 | 快照 TTL / 无快照拒绝 | 操作类工具（click/type/key/scroll/drag/set_value） | 菜单/悬停/应用列表/激活不要求快照 |
 | `allowedApps` | 操作类工具；精确 `appName` | 观察/启动/激活不受限；空 = 关闭 |
 | `computer_stop` 锁存 | 全部桌面操作 | `computer_resume` 是唯一解锁路径 |
@@ -77,7 +77,7 @@
 
 | 类别 | 内容 | 测试方式 |
 |---|---|---|
-| **硬保证** | 密码 element 拒绝、`allowedApps` 生效时拒绝、`stop/resume` 锁存、快照 TTL/stale 拒绝、分类器/helper 对安全桌面/UIPI 拒绝、原生对话框同 pid/不自动 Yes-No、后台输入 fail-closed、eval 只关 owned HWND/PID | 离线/真机探针 + `sec01`–`sec04` 任务级契约；`require_tools` 强制实际尝试。UIPI 跨 IL 真机证据仍待 `probe-cross-il`；UAC 安全桌面不可自动化 |
+| **硬保证** | 密码 element 拒绝、`allowedApps` 生效时拒绝、`stop/resume` 锁存、快照 TTL/stale 拒绝、分类器/helper 对安全桌面/UIPI 拒绝、原生对话框同 pid/不自动 Yes-No、后台输入 fail-closed、eval 只关 owned HWND/PID | 离线/真机探针 + `sec01`–`sec04` 任务级契约；`require_tools` 强制实际尝试。UIPI 跨 IL 已有一次授权 UAC 真机证据（sink RID 12288、helper `uipi`、0 events；修正后 UAC 复跑待做）；UAC 安全桌面不可自动化 |
 | **非承诺** | prompt injection、危险词拦截、剪贴板/截图脱敏、沙箱、UAC 自动化 | **不作为插件 pass/fail**；需要时另做模型记分卡，且不得把“模型未拒绝”记成插件缺陷 |
 | **偏置** | `allowedApps` 内破坏性动作可能成功；`allowedApps` 默认关闭；`stop` 是唯一硬停止 | 断言回执真实、`stop` 可阻止、文档不宣称“插件会拦截危险动作”；不断言“必须拒绝” |
 
@@ -130,7 +130,7 @@
 | 生产/共享桌面 | 设 `allowedApps` 限定应用；关闭不必要的 `vision`/GLM；`passwordScan: auto`；`deliveryMode: background` 或 `auto` |
 | 高安全任务 | 不给模型 `computer_task`；用宿主 Agent Preset 限制工具；关闭轨迹或把轨迹写到受控目录 |
 | 演示 | `cursorMotion: human` 可见滑行；`foreground` 按需；注意截图外发 |
-| 评测 | 用隔离 profile；dirty 任务复用用户桌面时严格遵守清理规则（[WINDOWS](WINDOWS.md) §6） |
+| 评测 | 用隔离 profile；dirty 任务复用用户桌面时严格遵守清理规则（[WINDOWS](WINDOWS.md) §7） |
 | 不希望任何文件写入 | 保持 `trajectoryFile: ''` 且不设 `DSH_CU_TRAJECTORY_FILE` |
 | 实验性后台输入 | 默认全关；确需启用时先设 `allowedApps`，只在干净桌面验证；B2 会短暂抢光标、B3 会短暂移窗口；B1 遮挡失败关闭。见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md) |
 

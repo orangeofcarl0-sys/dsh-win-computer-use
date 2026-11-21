@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-20）：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8；web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles（运行中的 web 进程需重启）。
+> 状态（2026-11-22）：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 在 0.5.8 之上还包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger/UIPI 回执映射（见 [CHANGELOG](CHANGELOG.md) 未发布段，发布 0.5.9 前须并入）；web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles（运行中的 web 进程需重启）。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -47,8 +47,11 @@ node verify-runtime.mjs
 # 4. 真桌面动作闭环（23/23；会打开临时记事本，残留标签人工关闭）
 node tests/live-action.e2e.mjs 3
 
-# 5. eval oracle 双向验证（S1 + x1 clean 组 10/10；S4 dirty 组 SKIP 不是 PASS）
+# 5a. eval oracle 双向验证（S4 dirty 组；SKIP 不是 PASS）
 node evals/verify-oracles.mjs --stage S4
+
+# 5b. eval oracle（S1 + x1 clean 组，10/10）
+node evals/verify-oracles.mjs
 
 # 6. 打包面（以实际输出为准；确认没有 node_modules/.dsh-test/tests/evals）
 npm pack --dry-run --json
@@ -72,22 +75,22 @@ node -e "const f=require('./tests/docs.facts.json'); console.log(f)"
 ## 4. 发布步骤
 
 ```bash
-# 1. 版本号与 CHANGELOG（0.5.7 -> 0.5.8；package-lock 同步）
+# 1. 版本号与 CHANGELOG（<旧版本> -> <新版本>；package-lock 同步）
 #    手动编辑 package.json / package-lock.json / CHANGELOG.md
 
 # 2. 收尾提交（中文一句话：版本 + 主题）
 git add -A
-git commit -m "0.5.8 实现：Win32 原生对话框后端（nativeDialogs）"
+git commit -m "<新版本> 实现：<本版主题>"
 
 # 3. 注解 tag（标题即发布说明首行）
-git tag -a v0.5.8 -m "0.5.8：t20 模态 30s 根因 + Win32 原生对话框后端 + 回执/测试收口"
+git tag -a v<新版本> -m "<新版本>：<本版发布说明首行>"
 
 # 4. 推送 main 与 tag（需用户明确“发布”授权）
 git push origin main
-git push origin v0.5.8
+git push origin v<新版本>
 
 # 5. 复核
-git ls-remote --tags origin | grep v0.5.8
+git ls-remote --tags origin | grep v<新版本>
 git log --oneline -1
 ```
 

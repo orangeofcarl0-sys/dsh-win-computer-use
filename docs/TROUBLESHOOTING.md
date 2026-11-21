@@ -2,7 +2,7 @@
 
 > 目的：按失败阶段定位问题，而不是凭错误文本猜。错误码定义见 [ERRORS](ERRORS.md)，Windows 底层原因见 [WINDOWS](WINDOWS.md)。
 > 读者：使用者、排障者。
-> 状态：当前实现（最后核对 2026-11-18）。
+> 状态：当前实现（最后核对 2026-11-22）。
 > 相关：[INSTALL](INSTALL.md) · [CONFIGURATION](CONFIGURATION.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 决策树
@@ -95,7 +95,7 @@
 | 输入回读不一致 | 部分写入/错字/焦点丢失 | 回执只报长度；修正后 `inputUnconfirmed` 解除；保存意图被拦 |
 | 保存对话框反复出现 | 文件名框旧值被隐藏/点错按钮 | 观察输入框 `值="..."`；点“保存”前确认路径 |
 | 另存为文件名变成旧值+新值 | `computer_type` 是追加输入，不是覆盖 | 预填字段优先 `computer_set_value`；`ctrl+a` 在 WinUI 对话框可能不可用 |
-| 点击后 30s 超时、对话框卡住 | 模态期间该进程 UIA provider 不服务跨进程请求；驱动 click/press_key/bring_to_front 阻塞到模态关闭 | 回执是“结果未知”：先等待 5–10s，再 observe（ax/native/vision；capture-only 尚未作为独立模式暴露）确认是否延迟成功；用新顶层 `window_id` 重新观察；不要连续重试/换键/activate，Escape 在 Yes/No 无效；根因见 EVIDENCE §1.4 |
+| 点击后 30s 超时、对话框卡住 | 模态期间该进程 UIA provider 不服务跨进程请求；驱动 click/press_key/bring_to_front 阻塞到模态关闭 | 回执是“结果未知”：先等待 5–10s，再 observe 确认是否延迟成功；不要连续重试/换键/activate。完整操作指引见 [WINDOWS §6.1](WINDOWS.md)；根因见 [EVIDENCE §18](EVIDENCE.md#18-2026-11-20--t20-模态-30s-超时根因探针) |
 | 菜单 `effect:unverifiable` | 菜单可能已开/未开 | 不要重复点同一项；先 observe 看弹出菜单 |
 | `app_launch` 后关不掉 | 子进程可能为 High IL + UIPI；0.52.13 的 PowerShell 实测为 Medium，不能一律假定 | 先读子进程 IL；高完整性窗口提示用户手动关闭，不要按进程名杀 |
 
@@ -116,13 +116,7 @@
 
 ## 9. 评测与清理
 
-| 现象 | 常见原因 | 处理 |
-|---|---|---|
-| setup fail closed | 已有用户 Notepad/标签，或新窗口恢复 TabState | 不要杀进程；按提示保存/关闭用户标签；TabState 备份/恢复 |
-| cleanup `dirty` | 无法证明测试窗口归属/有残留对话框 | 记录 leftover；人工检查；不要把 dirty 当 pass |
-| 测试窗口关不掉 | Win11 Notepad 单进程多标签/UIPI | 按 HWND/标签证明归属；WM_CLOSE 只兜底；绝不按进程名杀 |
-| `Add-Type` 找不到 `C:\Windows\TEMP\*.cs` | `TEMP` 指向系统目录 | 跑 eval 前把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` |
-| 截图断言 0B | 选中 `0×0` shell 弹窗 | 选择窗口要求 `bounds > 0`；排除驱动自身窗口 |
+eval 排障（setup fail-closed、cleanup `dirty`、`Add-Type` 找不到 TEMP 下的 `*.cs`、TabState 备份/恢复）统一见 [evals/README §4](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/README.md)；窗口/标签清理规则的权威版本见 [WINDOWS §7](WINDOWS.md)。共同底线：按 HWND/标签证明归属，绝不按进程名杀；**不要把 `dirty` 当 pass**。
 
 ## 10. 需要更多证据时
 

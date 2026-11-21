@@ -1,7 +1,7 @@
 # RETIRED — 退役任务与 runner
 
 > 目的：给“为什么现在只有 23 条任务”一个可查的答案，避免旧 ID 在脚本示例、注释和文档里继续悬空。
-> 状态：2026-11-20。当前任务集见 [README](README.md) 与 `evals/tasks/`。
+> 状态：2026-11-22。当前任务集见 [README](README.md) 与 `evals/tasks/`。
 
 ## 1. 退役任务
 

@@ -2,7 +2,7 @@
 
 > 目的：用少量高风险热点代替“能力 × 应用”完整矩阵；说明每个热点的正向/负向证据、缺口与下一步。
 > 读者：维护者、评测者。机器可读版本见 [coverage.json](coverage.json)；任务总表见 [README](README.md)。
-> 状态：2026-11-21 建立；与任务元数据 `app` / `hotspot` / `security` / `isolation` 同步。
+> 状态：2026-11-21 建立，2026-11-22 复核；与任务元数据 `app` / `hotspot` / `security` / `isolation` 同步。
 
 ## 1. 规则
 
@@ -14,20 +14,22 @@
 
 ## 2. 热点表
 
-| 热点 | 正向证据 | 负向证据 | 当前判断 | 下一步 |
+| 热点 | 正向证据 | 负向证据 | 当前判断（口径见下） | 下一步 |
 |---|---|---|---|---|
-| `uia-element` | t01/t03/t04/t05/t06/t07/t15/t19/t21/wa2 | `action-bounds` | 强 | Word/Office 元素路径 |
-| `pixel-zoom` | p01–p03/t09/t11 | `observe.coords` | 强 | DPI/多屏、目标尺寸阶梯 |
-| `native-dialog` | t20、`probe-native-dialog`、`probe-common-dialogs` | `native-dialogs.test` | 强（常见对话框后端 PASS） | WPF/WinUI/自定义 shell 对话框 |
-| `office-ooxml` | t12/t14/t17/t22/w01/w02 | `oracle-mutation` | 强 | 公式/图表、notes/track changes |
-| `browser` | t13/t16/t18/b01 | `action-bounds` | 中 | tab/upload/auth/print |
-| `multi-app` | t10/t17/combo01/combo02 | `oracle-mutation` | 中 | 更多工具链 |
-| `dirty-desktop` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03 | `eval-safety` | 强 | 每任务 clean/dirty 可选 |
-| `recovery` | rec01/rec02/rec03 | `eval-safety` | 中 | 崩溃/窗口被移走 |
-| `security-semantics` | sec01–sec04、`posture.smoke`、`probe-safety-runtime` | `eval-safety` | 契约强、任务级强 | 更多负向组合 |
-| `background-input` | `probe-background-input` | `background-input.test` | 探针强、任务级无 | no-UIA 任务、空 allowedApps 负向 |
-| `windows-specific` | dpi01/term01、`probe-display`、`probe-launch`、`probe-b2-elevated` | `background-input.test` | 中（跨屏模型 PASS） | 虚拟桌面 BLOCKED；UAC/IME/Electron 见 BLOCKED |
-| `accessibility` | a11y01（3 个 variant） | `eval-safety` | 中 | 高对比度/Narrator |
+| `uia-element` | t01/t03/t04/t05/t06/t07/t15/t19/t21/wa2 | `action-bounds` | 强 · 2026-11-21 | Word/Office 元素路径 |
+| `pixel-zoom` | p01–p03/t09/t11 | `observe.coords` | 强 · 2026-11-19 | DPI/多屏、目标尺寸阶梯 |
+| `native-dialog` | t20、`probe-native-dialog`、`probe-common-dialogs` | `native-dialogs.test` | 强 · 2026-11-22 | WPF/WinUI/自定义 shell 对话框 |
+| `office-ooxml` | t12/t14/t17/t22/w01/w02 | `oracle-mutation` | 强 · 2026-11-21 | 公式/图表、notes/track changes |
+| `browser` | t13/t16/t18/b01 | `action-bounds` | 中 · 2026-11-21 | tab/upload/auth/print |
+| `multi-app` | t10/t17/combo01/combo02 | `oracle-mutation` | 中 · 2026-11-21 | 更多工具链 |
+| `dirty-desktop` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03 | `eval-safety` | 强 · 2026-11-21 | 每任务 clean/dirty 可选 |
+| `recovery` | rec01/rec02/rec03 | `eval-safety` | 中 · 2026-11-21 | 崩溃/窗口被移走 |
+| `security-semantics` | sec01–sec04、`posture.smoke`、`probe-safety-runtime` | `eval-safety` | 强 · 2026-11-21 | 更多负向组合 |
+| `background-input` | `probe-background-input` | `background-input.test` | 中 · 2026-11-21 | 任务级 no-UIA 目标、空 allowedApps 负向 |
+| `windows-specific` | dpi01/term01、`probe-display`、`probe-launch`、`probe-b2-elevated` | `background-input.test` | 中 · 2026-11-22 | 虚拟桌面 BLOCKED；UAC/IME/Electron 见 BLOCKED |
+| `accessibility` | a11y01（3 个 variant） | `eval-safety` | 中 · 2026-11-21 | 高对比度/Narrator |
+
+判断口径（只允许 弱/中/强）：**强** = 真机任务/探针的正向+负向证据齐且无已知能力缺口；**中** = 有证据但有未闭合缺口或覆盖面窄；**弱** = 仅离线证据（当前无弱行）。日期 = 支撑该判断的最新证据运行日；缺口明细见 [BLOCKED](BLOCKED.md)，逐轮证据见 [EVIDENCE](../docs/EVIDENCE.md)。
 
 ## 3. 主要应用计数
 
@@ -53,7 +55,7 @@
 | 硬保证 | `allowedApps` 生效时拒绝 | `config.plumbing`、sec02 |
 | 硬保证 | stop/resume 锁存 | `tools.smoke`、`probe-safety-runtime`、sec03 |
 | 硬保证 | 快照 TTL/stale 拒绝 | `posture.smoke`、`probe-safety-runtime`、sec04 |
-| 硬保证 | 安全桌面/UIPI 拒绝 | `background-input.test`（分类器）、`probe-cross-il`（UAC 一次：拒绝/0 events；rank 修正后复跑待做）；安全桌面不可自动化 |
+| 硬保证 | 安全桌面/UIPI 拒绝 | `background-input.test`（分类器）、`probe-cross-il`（UAC 一次：拒绝/0 events；修正后 UAC 复跑待做）；安全桌面不可自动化 |
 | 硬保证 | 原生对话框同 pid/不自动 Yes-No | `probe-native-dialog`、`native-dialogs.test` |
 | 硬保证 | 后台输入 fail-closed | `probe-background-input`、`background-input.test` |
 | 硬保证 | eval 只关 owned HWND/PID | `eval-safety`、`notepad-tabs.test` |

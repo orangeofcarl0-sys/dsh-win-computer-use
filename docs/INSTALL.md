@@ -2,7 +2,7 @@
 
 > 目的：从零装好 `cua-driver` 与 `dsh-win-computer-use`，完成第一次观察，并知道如何升级/回退/卸载。
 > 读者：首次使用者、部署维护者。
-> 状态：当前实现（最后核对 2026-11-18）。安装脚本的实际行为与 npm 发布状态以本文为准。
+> 状态：当前实现（最后核对 2026-11-22）。安装脚本的实际行为与 npm 发布状态以本文为准。
 > 相关：[README](../README.md) · [CONFIGURATION](CONFIGURATION.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md) · [store-evidence](store-evidence.md)。
 
 ## 1. 前置
@@ -11,7 +11,7 @@
 |---|---|---|
 | 操作系统 | Windows 10/11 x64 | Windows 是深度实测目标；macOS 仅基础可用，Linux 未验证 |
 | Node.js | `>=22.18.0` | `package.json` 的 `engines` 与 `dsh.compatibility.node` |
-| dsh | `>=0.2.2-rc.1 <0.3.0` | 实测基线 `0.2.2-rc.1`；宿主自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` 与 `schemastery 3.19.0` |
+| dsh | `>=0.2.2-rc.1 <0.3.0` | 兼容基线 `0.2.2-rc.1`（宿主 `0.2.2-rc.5` 亦实测可用）；宿主自带 `@deepseek-ai/dsh-tools 0.2.2-rc.1` 与 `schemastery 3.19.0` |
 | cua-driver | `0.23.2` 基线 / `0.52.13` canary | 驱动 CLI 与 daemon 必须同版本；兼容层见 [DRIVER-SDK](DRIVER-SDK.md) |
 | 图形会话 | 有可见窗口 | 无窗口时 `screen_observe` 会返回候选为空；headless 环境不适合桌面动作 |
 | 模型 | 支持工具调用 | `native`/`screen_zoom` 还要求当前模型声明 image 输入 |
@@ -33,7 +33,7 @@ cua-driver status
 cua-driver doctor
 ```
 
-Windows 上驱动 daemon 可能是 High IL（取决于启动方式；0.52.13 主 CLI 的 manifest 提取为 `asInvoker`，需 PE 资源复核）；`app_launch` 子进程的完整性级别取决于驱动版本与启动路径（0.52.13 实测 PowerShell 为 Medium），详见 [WINDOWS](WINDOWS.md) §1。
+Windows 上驱动 daemon 可能是 High IL——取决于**启动方式**而非主 CLI 清单（0.52.13 清单为 `asInvoker`，2026-11-22 PE 复核定论）；`app_launch` 子进程的完整性级别取决于驱动版本与启动路径。事实矩阵统一见 [WINDOWS](WINDOWS.md) §1。
 
 > 驱动 CLI 与 daemon 版本不一致时，调用会报 `contract version X does not match SDK Y`。两者一起升级，再重启 daemon；不要在只升级一侧后继续排障。
 
@@ -147,7 +147,7 @@ node verify-runtime.mjs
 | 插件包内 `cordis.patch.yml` | bundle 默认值 | 低 |
 | `--patch <file>` | 一次性 overlay（评测/探针） | 最高（按加载顺序覆盖） |
 
-完整 24 键说明见 [CONFIGURATION](CONFIGURATION.md)。只改 `surfaceMode` 等少量键时，保留其余默认值即可。
+完整 30 键说明见 [CONFIGURATION](CONFIGURATION.md)。只改 `surfaceMode` 等少量键时，保留其余默认值即可。
 
 ## 6. 升级
 

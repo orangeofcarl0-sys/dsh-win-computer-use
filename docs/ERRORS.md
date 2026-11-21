@@ -2,7 +2,7 @@
 
 > 目的：把回执里的拒绝码、驱动码、投递码、传输错误统一成一张可查表：`ok`、快照影响、模型下一步、人工处理。
 > 读者：使用者、排障者、维护者。
-> 状态：当前实现（最后核对 2026-11-18；由 `npm run docs:check` 校验方括号码覆盖）。
+> 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验方括号码覆盖）。
 > 相关：[TROUBLESHOOTING](TROUBLESHOOTING.md) · [TOOLS](TOOLS.md) · [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 
 ## 1. 怎么读回执
@@ -34,7 +34,7 @@
 
 ### 2.1 实验性后台输入
 
-这些码来自 `lib/backgroundInput.js`/`tools/background-input.ps1`，只在 `backgroundInput`/`syntheticPointer`/`anchoredInput` 启用且目标没有可交互 UIA 元素时出现。全部 `ok:false`、不消费快照、不自动换通道。
+这些码来自 `lib/backgroundInput.js`/`tools/background-input.ps1`，只在 `backgroundInput`/`syntheticPointer`/`anchoredInput` 启用且目标没有可交互 UIA 元素时出现。全部 `ok:false`、不消费快照、不自动换通道。下表是快速索引；**完整含义、回执字段与安全边界见 [BACKGROUND-INPUT §10](BACKGROUND-INPUT.md)**。
 
 | 代码 | 含义 | 模型下一步 |
 |---|---|---|
@@ -120,7 +120,7 @@
 | kind | 含义 | 上层行为 |
 |---|---|---|
 | `spawn` | 找不到/无法启动驱动 | 结构化错误 + `CUA_DRIVER_BIN` 指引 |
-| `timeout` | 超过 `CUA_CALL_TIMEOUT_MS`（默认 30s） | 结构化超时；不自动重试。click 超时后回执提示“结果未知”：先等待 5–10s，再 observe（ax/native/vision；capture-only 尚未作为独立模式暴露）确认是否延迟成功；模态期间 UIA 树可能持续 0 元素，不要连续重试/换键/activate。根因见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。type 超时提示可能已部分写入 |
+| `timeout` | 超过 `CUA_CALL_TIMEOUT_MS`（默认 30s） | 结构化超时；不自动重试。click 超时后回执提示“结果未知”：先等待 5–10s，再 observe 确认是否延迟成功；模态期间 UIA 树可能持续 0 元素，不要连续重试/换键/activate，完整操作指引见 [WINDOWS §6.1](WINDOWS.md)；根因见 [EVIDENCE §18](EVIDENCE.md#18-2026-11-20--t20-模态-30s-超时根因探针)。type 超时提示可能已部分写入 |
 | `exit` | 非零退出且非 JSON | 原样报错 |
 | `structured` | 非零退出 + JSON 拒绝 | 动作类当回执值；观察类抛错走降级 |
 | `nonjson` | 退出 0 但 stdout 非 JSON | 原样报错 |

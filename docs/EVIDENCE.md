@@ -12,400 +12,7 @@
 4. **日期是运行日期**，不是文档修改日期；环境列写驱动/模型/宿主版本。
 5. **“当时”标注**：数字随版本变化（如隐藏工具数），历史记录保留当时值并标“当时”。
 6. **标签变更（2026-11-19）**：旧 `S4` 改称 `eval`；旧 `S2` 改称“像素定位修订”；`S3a`/`S3b` 改称“视觉断言协议”/“独立观察者”。只改标签，不改日期、命令、结果与 run id。
-
-## 1.1 2026-11-20 — P1/P2 测试收口
-
-环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；opencode-go/deepseek-v4.1-flash；默认 deepseek-official/deepseek-flash（本次 `QUOTA` 402）。
-
-- **AC2 全量**：`node evals/verify-oracles.mjs` → **22/23 PASS + t13 SKIP**；0 FAIL/ENV/dirty（`evals/verify-runs/2026-11-19T17-19-58`）。
-- **oracle mutation**：三批 7+6+6 = **19/19**；t04/t07 live GUI、t13 ac2:none 按原因 SKIP。所有变异产物被 oracle exit 1 拒绝；t18 变异 PDF 按精确路径删除。
-- **probe-ops**：11 PASS + 1 BLOCKED。`computer_menu` 在自建 WinForms 原生 HMENU 上仍返回 `menu_path_unavailable` / `window_id ... invalid`，未伪造成 PASS。
-- **probe-launch**：7/7。daemon `S-1-16-12288`，但 `app_launch('powershell.exe')` 子进程为 `S-1-16-8192`；驱动侧 alt+F4 关闭，无残留；基线窗口未动。旧“app_launch 子进程一律 High IL”断言按实测改写。
-- **probe-modifier-drop**：5/5。Explorer Ctrl+drag 复制、普通 drag 移动、`GetAsyncKeyState` 与 private-drag 回执均无卡键。
-- **probe-safety-runtime 13/13；probe-scroll 3/3**（已改为 `import.meta.url` 推导根目录，加 120s 自关 Timer 与子进程身份清理）。
-- **真跑**：默认 overlay 在 t19/t20 第一步即 `QUOTA` 402（ENV，不是任务失败）；opencode overlay：t19 **pass 35 步**、t20 **pass 17 步**（首轮）；第二轮 t19 **fail 56 步**、t20 **fail 33 步**（方差样本）。t20 第二轮失败时 Confirm 模态未关，cleanup 曾记 dirty；已加“先关 owned 模态 + 精确 PID/start 兜底”，合成模态复测 cleanup dirty=false。
-- **S2 图像真跑**：p01 **pass 6 步**、p02 **pass 11 步**、p03 **pass 8 步**（opencode text+image；oracle 分别命中 C2 / P02-7K9 / D3）。
-- **轨迹细节**：逐轮 observe/action、错误、重复调用与模型行为见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §11；本节只保留结果摘要。
-- **TabState 事件**：首轮 opencode t19/t20 结束时，模型自开的测试 Notepad（`target.txt`，modified）阻止 restore；按精确 HWND/pid/start + 允许标签 `target.txt` 关闭并丢弃，`tabstate.ps1 restore` 恢复 28 个用户 bin。t19/t20 cleanup 已加 `Close-OrphanTestNotepads` 防复发。
-- **CI**：ubuntu 加 `npm ci` + `npm test`；新增手动 Windows self-hosted workflow（`verify-runtime` exit 2 视为 ENV；可选 probes）。**本地已提交，未推送/未运行**；在 runner 就绪前不能称 Windows CI 已覆盖。
-- **AC6**：`headless-run` 落 `tokens`/`modelRoute`；`ac6-summary` 汇总 t01/t05 各 5 轮（opencode-go/deepseek-v4.1-flash）：
-  - t01：5/5 pass；steps 中位 12 / p90 15（p90Unstable，n=5<8）；wall 114s；input 8,906 / output 2,119 / cacheRead 126,976 / total 145,003 / billable 10,731。
-  - t05：5/5 pass；steps 中位 24 / p90 47（p90Unstable）；wall 224s；input 21,811 / output 3,182 / cacheRead 405,888 / total 430,881 / billable 24,993。
-  - t11/t14/t15 的 5 轮未跑（成本/桌面时间），不把 t01/t05 的数字外推到长任务。
-
-## 1.2 2026-11-20 — 轨迹修复复跑（t20/t19/t05）
-
-环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；opencode-go/deepseek-v4.1-flash；交互式桌面，TabState backup/restore 成功（31 bins）。
-
-### 1.2.1 汇总
-
-| 运行 | verdict | steps / inner | wall | errors / unverified | input | output | cacheRead | total | timeout/budget |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---|
-| t20 r1 | **pass** | 30 / 27 | 595s | 5 / 6 | 27,501 | 9,471 | 499,712 | 536,684 | false / false |
-| t20 r2 | **pass** | 28 / 25 | 618s | 7 / 2 | 17,164 | 6,302 | 402,176 | 425,642 | false / false |
-| t19 r1 | **pass** | 41 / 40 | 387s | 0 / 11 | 47,350 | 7,121 | 1,166,976 | 1,221,447 | false / false |
-| t19 r2 | **pass** | 60 / 56 | 595s | 2 / 15 | 65,036 | 12,592 | 2,336,896 | 2,424,636 | false / false |
-| t05 r1 | **pass** | 22 / 21 | 185s | 0 / 7 | 21,348 | 4,320 | 346,624 | 385,860 | false / false |
-| t05 r2 | **pass** | 17 / 13 | 121s | 0 / 4 | 14,606 | 2,079 | 218,240 | 234,925 | false / false |
-
-- 全部 `dirty=false`、`noFinal=false`；t20/t19/t05 的 oracle 均通过（t20 `cancelled=1 confirmed=1 deleted=true`；t19 `target.txt` 内容精确 `NAV-OK`；t05 ANSI 无 BOM、含非 ASCII、内容匹配）。
-- 命令：`node evals/headless-run.mjs --tasks t20|t19|t05 --repeats 2 --timeout-min 12 --patch evals/headless-patch.opencode.yml --report evals/headless-runs/fix-<task>.json`。
-
-### 1.2.2 t20：超时仍在，但模型能按新回执改走键盘
-
-- r1：2 次 `cua-driver click timeout after 30000ms`、1 次 `bring_to_front timeout`、1 次 `move_cursor timeout`、1 次 `press_key timeout`（合计 5 次 / 150.1s，占 549s 的 27.3%）；模型在 click 超时回执后 `screen_observe` 新顶层对话框，并用 `Escape`/`Tab`/`Enter` 完成两次选择，最终 pass。
-- r2：3 次 click、2 次 bring_to_front、1 次 move_cursor、3 次 press_key 超时（合计 9 次 / 270.2s，占 610s 的 44.3%）；同样通过 `Escape`/`Tab`/`Enter`/`Space` 完成，最终 pass。
-- 对照：修复前同任务第二轮 33 步、709s、无 final，按预算耗尽记 fail；本轮两轮均 25–27 inner、595/618s、有 final。超时次数并未消失（驱动/UIA 等待模态的根因仍在），但模型不再进入“像素/zoom/drag 10+ 步”死循环。
-- 题面改动：允许 Tab/Enter/Escape 选择按钮；强调始终回到 `S4-T20-DIALOG`。
-
-### 1.2.3 t19：两轮均 pass，r2 的 56 inner 不再撞预算
-
-- r1：41 steps / 40 inner / 387s，0 工具错误；`set_value` 2 次（含完整路径），`computer_key` 的 `ctrl+l`/`enter` 正常。
-- r2：60 steps / 56 inner / 595s，2 工具错误；仍出现 `win+r`：当前实现把它降级为单键 `win`，打开 Start/SearchHost（不是 CmdPal；CmdPal 只在候选列表中标记 `[shell]`，未被选中），随后 12 步绕路；最终用 Notepad 另存为写入 `target.txt`，oracle 精确内容通过。
-- 对照：修复前 r2 为 56 inner、708s、无 final（预算耗尽）；本轮同为 56 inner 但 595s 完成，说明题面明确允许 Notepad 另存为后，模型不再在“Explorer 新建”上耗到预算边界。
-- 注意：t19 的 pass 不证明 Explorer 新建路径；oracle 只验文件，provenance 仍在 Notes 中明确为 out of scope。
-
-### 1.2.4 t05：`set_value` 覆盖生效，步数从 43 降到 21/13
-
-- r1/r2 都只调用 `computer_set_value` 写文件名（len=12，`out-ansi.txt`），**零 `computer_type`**；oracle 的 ANSI/BOM/内容检查全部通过。
-- 对照：修复前 r4 用 `computer_type` 追加路径，43 inner、431s、1.25M total；本轮 21/13 inner、185/121s、0.39M/0.23M total。直接原因是 `set_value` 的 ValuePattern 覆盖写入；当时回执仍显示旧值，模型多 observe 一次（本轮修复已改为“旧值→新值”回显，未复跑验证）。
-
-### 1.2.5 结论
-
-- P0（t20 题面、预填字段 set_value）与 P1（click/key 超时回执、menu 归一化、shell 过滤、runner 预算语义）在本轮真实模型样本中均有可观察收益：
-  - t20 2/2 pass（修复前 1/2，且失败为预算耗尽）；
-  - t19 2/2 pass（修复前 1/2，且失败为预算耗尽）；
-  - t05 2/2 pass，步数显著下降。
-- 未消除的边界：t20 的 30s 驱动超时仍会发生，单轮仍接近 10 分钟；t19 r2 仍有 56 inner / 2.4M total 的高方差。它们是驱动/任务复杂度问题，不是本轮回执/题面回归。
-
-## 1.3 2026-11-20 — P0/P1 复跑（t20/t19/t05）
-
-环境：Windows 11 x64，DPI 150%，cua-driver 0.52.13，dsh 0.2.2-rc.1；opencode-go/deepseek-v4.1-flash；12min 预算。
-
-### 1.3.1 汇总
-
-| 运行 | verdict | steps / inner | wall | errors / unverified | input | output | cacheRead | total |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| t20 r1 | **pass** | 30 / 27 | 626s | 9 / 1 | 28,234 | 8,920 | 484,096 | 521,250 |
-| t20 r2 | **pass** | 27 / 25 | 601s | 10 / 0 | 19,358 | 8,738 | 412,544 | 440,640 |
-| t19 r1 | **pass** | 71 / 70 | 652s | 0 / 25 | 65,571 | 12,646 | 2,873,600 | 2,951,817 |
-| t19 r2 | **pass** | 49 / 48 | 454s | 2 / 13 | 54,567 | 9,591 | 1,639,040 | 1,703,198 |
-| t05 r1 | **pass** | 10 / 10 | 86s | 0 / 3 | 11,012 | 1,671 | 117,120 | 129,803 |
-| t05 r2 | **pass** | 16 / 15 | 106s | 0 / 5 | 14,027 | 1,983 | 211,840 | 227,850 |
-
-全部 `timeout=false`、`budgetExhausted=false`、`dirty=false`。
-
-### 1.3.2 t20：超时仍多，但不再隐藏；候选/键盘回执真实生效
-
-- r1：`bring_to_front` 2 次、`click` 4 次、`press_key` 4 次 30s 超时；`move_cursor` 为 **3000ms** 超时（per-call 生效）。回执出现 **8 次**“同 pid 的更高层窗口”候选，**1 次**“前置激活超时，本次点击未发送”。最终 pass。
-- r2：`bring_to_front` 4 次、`click` 6 次、`press_key` 2 次 30s 超时；`move_cursor` 3s；候选 9 次、前置超时 1 次。最终 pass。
-- 对比上一轮：wall 595/618s → **626/601s**，基本持平；total tokens 536k/426k → 521k/441k。改善是“超时/前置失败被如实暴露”，不是消除驱动根因；`targetGone` 未触发（对话框在 500ms 检查时仍在列表）。
-- 关键：`move_cursor timeout after 3000ms` 证明 per-call 超时已生效，单次动作不再因装饰性移动白等 30s。
-
-### 1.3.3 t19：`win+r` 归零，但 r1 明显回归
-
-- r1：71 steps / 70 inner / 652s / 2.95M total；`computer_click` 22、`computer_key` 26、`computer_type` 10、`screen_observe` 58；**零 `win+r`**，地址栏提示命中 7 次；没有 `computer_set_value`，最终仍 pass。
-- r2：49 / 48 / 454s / 1.70M；`activate` 10、`click` 6、`key` 16、`type` 8、`set_value` 2；地址栏提示 3 次；`win+r` 零；`tabstate clear-eval removed=3`。
-- 对比上一轮：r1 40→**70** inner（回归），r2 56→**48**（改善）；两轮仍 pass。`win` fail-closed 消除了 Start/Search 12 步绕路，但 r1 把探索成本转移到 Explorer 新建/重命名路径上；不能写“t19 已优化”。
-- 题面/回执：t19 prompt 明确禁止 Win+R；地址栏 `SuggestionsList` 提示被模型读取（7/3 次）。
-
-### 1.3.4 t05：`set_value` 新值回执 + 目录提示显著降本
-
-- r1：10 inner / 86s / 129,803 total；`set_value` 2 次，**零 `computer_type`**；`另存为提示` 命中 2 次、`新值=` 1 次；oracle 含 `no stray out-ansi.txt in src=true`，没有先写错目录。
-- r2：15 inner / 106s / 227,850；`set_value` 2 次、`type` 0；`另存为提示` 3 次、`新值=` 1 次；同样无 stray。
-- 对比上一轮：21/13 inner、185/121s、0.39M/0.23M → **10/15 inner、86/106s、0.13M/0.23M**。r1 达到计划目标（10–12）；r2 略高于上一轮但仍远低于修复前 43。
-- 关键：模型在 `set_value` 回执看到新值后不再回读；`另存为提示` 让 r1 直接填完整路径/确认目录，没有产生 `src\out-ansi.txt`。
-
-### 1.3.5 结论
-
-- P0 超时语义：**行为正确性提升**（嵌套超时/前置失败不再被吞，候选窗口与键盘回执可见），但 t20 驱动根因未消除，wall 基本持平。
-- P0 win fail-closed：`win+r` 从每轮多次降为 **0**；t19 总成本未稳定下降（r1 回归、r2 改善），需继续观察。
-- P0 另存为：t05 **10/15 inner、86/106s**，零 `type` 追加、零 `src` 残留；这是本轮最确定的收益。
-- P1 地址栏提示/新值回执/clear-eval 均有轨迹命中；t19 r1 的 70 inner 是新的高方差样本，不作为“稳定通过”。
-
-## 1.4 2026-11-20 — t20 模态 30s 超时根因探针
-
-环境：Windows 11 x64，DPI 150%，cua-driver **0.52.13**；无模型（直接驱动调用）。
-命令：
-
-```bash
-node evals/probe-modal-timeout.mjs
-node evals/probe-modal-escapes.mjs            # 约 3 分钟；--trigger-only 只跑触发侧
-```
-
-探针自建 WinForms `S4-MODAL-PROBE`，点 `Delete` 弹出 `MessageBox(YesNo)`（与 t20 同形态），逐项测量。结果：
-
-| 观测 | 结果 |
-|---|---|
-| 基线 AX 树（模态前） | **6 元素 / 1.6s** |
-| 模态期间 `get_window_state` 默认 1000ms | **0 元素 / 3.0s**，`truncation_reason=timeout` |
-| 同调用 `timeout_ms=5000` | **0 元素 / 6.9–7.4s** |
-| 同调用 `timeout_ms=15000` | **0 元素 / 17–18s** |
-| 同 pid 主窗口 `timeout_ms=5000` | **0 元素 / 7.0s**（整个进程，不只对话框） |
-| capture-only（`include_accessibility_tree:false`） | **成功 / 1.5–1.9s / PNG 16KB** |
-| `bring_to_front`（8s 上限） | timeout |
-| `press_key` background / foreground（8s 上限） | timeout |
-| 坐标 `click` background（8s 上限） | timeout |
-| 原生 `WM_COMMAND(IDNO/IDYES)` 或 `GetDlgItem+BM_CLICK` | **对话框关闭**；`cancelled/confirmed` 状态正确 |
-| 原生 `PostMessage(WM_KEYDOWN, VK_ESCAPE)` | 无效（Yes/No 对话框没有 Cancel 按钮） |
-| 驱动 `press_key` Escape background（60s） | timeout，对话框未关 |
-| 驱动 `hotkey` Alt+N foreground（60s） | 一次 20.3s 关闭但回执为失败；另一次 60s timeout 未关（不稳定） |
-| 原生 `EnumChildWindows` 找 `Button` + `BM_CLICK` 点 Delete | **~1.2s 返回**，模态 4s 内出现，无 30s 阻塞 |
-| 触发模态的 element click 返回时间 | 探针先跑 ~75s 的其他测试；原生关闭模态后 click 立即返回（总计 74.6s），证明它被模态生命周期卡住 |
-
-结论：
-
-1. **UI 线程没有死**：MessageBox 的模态循环仍会抽 Win32 消息，`WM_COMMAND`/`BM_CLICK` 能立即关闭对话框。问题不是“窗口无响应”。
-2. **UIA provider 在模态期间不服务跨进程 UIA/COM 请求**：同 pid 的主窗口和 MessageBox 都返回 0 元素；把预算从 1s 提到 5s/15s 仍为 0。因此 **`timeout_ms` 重试不是修复**，`observe` 不应据此改默认。
-3. **驱动的动作层依赖 UIA/前台激活**：`click` 的 element token 走 UIA Invoke，背景像素点击先做 UIA hit-test；`bring_to_front`/`press_key` 也在模态期间阻塞。30s 是插件的传输层上限，不是驱动的内部超时；模态关闭后，挂起的 element click 会返回。
-4. **原生 Win32 标准控件路径不受影响**：`EnumChildWindows` + `BM_CLICK` / 控件 ID 的 `WM_COMMAND` 可在 ~1s 内完成“触发 + 关闭”。这是一条可行的 Windows-only 快速路径，但它绕过驱动的 UIA 动作层，属于新能力，需单独的安全边界与产品决策；本轮**未**把它加入插件。
-5. 因此 t20 的 30s 超时根因是**驱动/UIA 等待模态**，不是插件重试策略；插件侧调参不能消除。当前 t20 仍 2/2 pass，但每轮仍有多次 30s 超时。
-
-回执修正（本轮）：
-
-- click/key 超时不再建议“Escape=取消 / Enter=默认按钮 / foreground 键”作为快速路径（实测 Escape 在 Yes/No 上无效，foreground 键 60s 仍阻塞）。
-- 改为：先等待 5–10s，再用 `screen_observe`（capture/ax 均可）确认“超时是否其实是延迟成功”；若仍需操作，按对话框按钮的加速键只发一次，并接受回执可能延迟/失败。
-- 守门：`tests/delivery.failures.mjs` 的 `D-timeout-click` / `D-timeout-key` 断言包含 `capture`、`Escape 在 Yes/No`、`5–10s`、`加速键`。
-
-## 1.5 2026-11-20 — 私有 Win32 原生对话框后端
-
-环境：Windows 11 x64，DPI 150%，cua-driver 0.52.13。实现：`nativeDialogs:auto`（默认）+ `tools/native-dialog.ps1` + `lib/nativeDialogs.js`。
-
-真机命令：
-
-```bash
-node evals/probe-native-dialog.mjs
-node tests/native-dialogs.test.mjs
-```
-
-结果：
-
-- `probe-native-dialog` **9 PASS / 0 BLOCKED / 0 FAIL**：
-  - 插件 UIA element click 打开 `S4-NATIVE-DIALOG-CONFIRM`（触发调用挂起，正是 t20 路径）；
-  - `screen_observe(window_id=dialog)` → `mode=native-dialog`，2 个按钮（是/否），坐标在对话框本地空间（rect 同源）；
-  - `computer_double_click` / `computer_key` 明确拒绝；
-  - `computer_click(element=No)` → 原生消息 `BM_CLICK`，对话框关闭，state `cancelled=1`；
-  - 之前挂起的 UIA trigger 在对话框关闭后返回（ok=true / unverifiable）。
-- 离线 `tests/native-dialogs.test.mjs` **18/18**：空 AX→native 合成按钮；native click 不走驱动；坐标/键盘/滚动/双击/右键拒绝；`nativeDialogs:off`/非模态回退；点击失败不消费；allowedApps/snapshot_id/UIA 复核；sidecar JSON/base64/超时。
-- 覆盖范围：同 pid 顶层标准 `#32770` 模态对话框 + 标准 `Button`；只发 `BM_CLICK`；不自动选择 Yes/No。
-- 未覆盖：触发模态的 UIA click 仍可能 30s；WPF/WinUI/自定义对话框、Edit 输入、modifier/double/right/from_zoom 不走该后端。驱动/UIA 根因仍见 §1.4，`evals/BLOCKED.md` 保持“部分 BLOCKED”。
-
-## 1.6 2026-11-20 — 实验性后台输入（B0/B1/B2/B3）真机探针
-
-命令：`node evals/probe-background-input.mjs`（自建原生 message/pointer 窗口 + 隐藏 controller + cover；不加入 `npm test`）。
-
-结果：干净轮次 **10 PASS / 1 BLOCKED / 0 FAIL**；脏桌面轮次 **8 PASS / 3 BLOCKED / 0 FAIL**（B1 光标漂移、B3 fail-closed；均不冒充 PASS）。
-
-| 检查 | 结果 | 说明 |
-|---|---|---|
-| 自建窗口 | PASS | native pointer 窗口，`touchWindow=true`，clientOrigin/rect 可读 |
-| B0 posted click | PASS | 指针窗口收到 `MOUSEDOWN/MOUSEUP`；side_effects.cursorMoved=false |
-| B0 posted text | PASS | `WM_CHAR` 5 字符收到（`CHAR:112/114/111/98/101`） |
-| B0 posted key | PASS | `KEYDOWN:65` 收到；`FocusOrTarget` 未发到无关窗口 |
-| B1 synthetic touch | PASS | pointer 窗口收到 `TOUCHDOWN/TOUCHUP`；anchorUsed=true |
-| B1 遮挡 | PASS | cover 覆盖后返回 `occluded`，未注入、未提升窗口 |
-| B1 光标 | PASS | 最终一轮漂移 0px；helper `cursorMoved=false`。早期脏桌面轮次漂移 30–751px 时记 BLOCKED，不冒充 PASS |
-| B2 cursor | BLOCKED | 当前会话 `BlockInput(TRUE)` 返回 false；实现失败关闭，未移动光标 |
-| B3 window | PASS | 窗口移到光标下点击后还原；窗口 rect 与光标检查通过 |
-
-结论：
-
-- B0 消息/文本/按键、B1 合成触控、B1 遮挡失败关闭、B3 窗口锚定均有端到端证据。
-- B2 在当前会话不可用（`BlockInput` 被拒），记 BLOCKED；B1 的“不移动光标”在最终干净轮次通过，但脏桌面外部光标移动仍可能使其 BLOCKED。
-- 离线新增 `tests/background-input.test.mjs`（32 项）；`npm test` 29 套 / 724 项；语法 45/45；默认三键 off。
-
-## 1.7 2026-11-20 — 后台输入硬化与 WM_TOUCH-only 探针
-
-命令：`node evals/probe-background-input.mjs`（新增只处理 `WM_TOUCH` 的 touch-only 窗口；不加入 `npm test`）。
-
-结果：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；B2 仍因 `BlockInput` 被拒记 BLOCKED。
-
-新增/变化的证据：
-
-| 检查 | 结果 | 说明 |
-|---|---|---|
-| B1 WM_TOUCH-only 目标 | PASS | 只处理 `WM_TOUCH` 的窗口收到 `WMTOUCH`；合成 pointer 被系统转换 |
-| B1 不改变前台 | PASS | 注入前后 `probe.foreground` 不变；`side_effects.foregroundChanged=false` |
-| B1 incomplete/回执字段 | 离线 | `complete=false` + `warning_code` 进入插件结构化回执 |
-| B2 正路径断言 | 修正 | 探针改读 `state.wndLog` + `MOUSEDOWN`；当前会话仍 `BlockInput` 被拒 → BLOCKED |
-| B0/B3 清理 | 离线 | down/up/KEYUP 失败补发并标 partial；B3 有界轮询 + 还原校验 |
-| nativeMenus 真机 | PASS | `probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count，专用 `menu:0x4D4B` marker 出现；离线 18 项通过；MenuStrip/WPF/WinUI 明确 `no_hmenu` |
-| 离线 | 42 + 18 项 | `npm test` 31 套 / 764 项 |
-
-## 1.8 2026-11-21 — nativeMenu 真机通过 + 原生 Button 触发探针
-
-命令：
-- `node evals/probe-ops.mjs`：**13 PASS / 0 BLOCKED / 0 FAIL**；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 `GetMenu`/menu-count，`menu:0x4D4B` marker）。
-- `node evals/probe-native-button.mjs`：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms `Delete` + MessageBox。
-
-| 检查 | 结果 | 说明 |
-|---|---|---|
-| 原生 Button 触发 | PASS | `nativeButtonTrigger:auto` 点击 1.2s 返回；`opened=1`；driver UIA 对照 30s |
-| 模态出现/关闭 | PASS | MessageBox `Confirm` 出现；native-dialog 点 `否(N)`，`cancelled=1` |
-| 10s latch | PASS | 重新 observe 后再次点同一 Delete，被 `native_button_latched` 拒绝；`opened` 仍 1 |
-| HMENU 真机 | PASS | fixture 的 `window_id` 即 HWND；`GetMenu` 可读；`WM_COMMAND` commandId 到达 |
-| 离线 | 42 + 18 + 12 项 | `npm test` 31 套 / 764 项 |
-
-## 1.9 2026-11-21 — B2 cursor-clip、B1/B3 静默预检、Excel 探针分支
-
-命令：
-- `node evals/probe-background-input.mjs`：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）。
-- `node evals/probe-background-input.mjs --elevated`（UAC）：**14 PASS / 0 BLOCKED / 0 FAIL**。
-- `node evals/probe-modifier-drop.mjs --excel --excel-only`：Excel 分支 **8 PASS / 1 BLOCKED / 0 FAIL**（最后一次干净轮）。
-- `node evals/probe-b2-elevated.mjs --no-uac`：**1 PASS / 1 BLOCKED / 0 FAIL**；非提权 `BlockInput=false`、`err=0`、`elevated=false`、`uiAccess=false`、session 1/1。独立 UAC 版本未运行；完整提权验证由 `probe-background-input --elevated` 完成。
-
-| 检查 | 结果 | 说明 |
-|---|---|---|
-| B2 严格 `BlockInput`（默认非提权） | BLOCKED | `block_input_failed`；`win32=0`、`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default；未移动光标 |
-| B2 严格 `BlockInput`（`--elevated`） | PASS | 125ms；`inputBlocked=true`、`inputUnblocked=true`、`cursorRestored=true`、`MOUSEDOWN` |
-| B2 `cursor-clip` | PASS | 109–125ms；`MOUSEDOWN`；`clipAnchored=true`、`clipRestored=true`、`cursorRestored=true`；不阻塞键盘 |
-| B1 synthetic touch | PASS | `TOUCHDOWN/TOUCHUP`；`cursorDrift=0` |
-| B1 WM_TOUCH-only | PASS | 收到 `WMTOUCH`（系统转换） |
-| B1 mouse-only 普通窗口 | PASS | `syntheticPointer:promote` 无 anchor 单点触控被系统提升为 `MOUSEDOWN/MOUSEUP`；`cursorDrift=0` |
-| B1 不移动光标 | PASS | helper 注入窗口内 `cursorDrift=0`；外部物理漂移 348–766px 单独记录，不归因给 B1 |
-| B3 window | PASS | `windowRestored=true`、`cursorMoved=false`、日志 `MOUSEDOWN` |
-| B3 外部移动 | 修正 | 点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally` |
-| Excel 分支 | BLOCKED | Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；A2 保留但 E2 为空 |
-
-> 环境：Windows 11 x64，DPI 150%，dirty 桌面；外部物理光标漂移不再污染 B1 归因，严格 B2 用一次性 UAC 提权探针验证。
-
-## 1.10 2026-11-21 — P2 参数化 variant 与平台探针
-
-环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；不调用模型（仅 setup/simulate/oracle/cleanup 与只读探针）。
-
-命令与结果：
-
-- `node evals/verify-oracles.mjs --tasks t21,a11y01 --variants 3`：**6/6 PASS**（t21/t22 各 3 个 variant；每条 setup → empty-fail → simulate → oracle×2 → cleanup）。
-- `node evals/verify-oracles.mjs --tasks t22 --variants 3`：**3/3 PASS**（PowerPoint seed/目标文本随 variant 变化）。
-- `node evals/oracle-mutation.mjs --tasks t22,a11y01`：**2/2 PASS**（错误标题、未提交均被 exit 1 拒绝；mutation 固定 variant 1）。
-- `node evals/probe-platform.mjs`：**PASS**（win32 + PowerShell 5.1.26100 + 41 条任务定义）；未在非 Windows 运行，Linux 仍为可选、非门禁。
-
-| 检查 | 结果 | 说明 |
-|---|---|---|
-| t21 Calculator 除法 variant 1-3 | PASS | expression/expected 来自同一 `variants/t21.json`；oracle 校验 state.variant |
-| t22 PowerPoint 标题/副标题 variant 1-3 | PASS | seed 与目标文本随 variant 变化；旧 seed 标题消失 |
-| a11y01 键盘-only variant 1-3 | PASS | 输入文本随 variant 变化；仍不依赖鼠标坐标 |
-| 平台套件探针 | PASS | 只读；非 Windows 返回 BLOCKED（exit 2 仅 `--strict-blocked`） |
-| TabState | 恢复 | 每次 AC2 前 backup 39 bins，结束后 restore；0 dirty/残留 |
-
-> 说明：variant 值只来自 `evals/variants/<id>.json`，prompt 用 `{{key}}` 渲染；oracle 不硬编码 expected。非参数化任务在 `--variants 3` 下仍只跑 variant 1。
-
-## 1.11 2026-11-22 — dpi01 真实模型跨屏点击
-
-环境：Windows 11 x64；双**物理**屏：AUO B160QANAA.L 2560×1600 @150%（逻辑 1707×1067，主屏）+ AOC Q27B30S3 2560×1440 @100%（副屏，原点 x=2560）；dsh **0.2.2-rc.5**；headless profile 插件 **0.5.8**；cua-driver **0.52.13**；opencode-go / deepseek-v4.1-flash。
-
-命令：
-
-- `node evals/headless-run.mjs --tasks dpi01 --isolation clean --timeout-min 8 --patch evals/headless-patch.opencode.yml`
-
-结果：**pass**。
-
-| 项 | 值 |
-|---|---|
-| steps / inner | 3 / 3 |
-| calls | `screen_observe` → `computer_do:computer_click` → `screen_observe` |
-| wall | 70s |
-| tokens | input 8,716 / output 1,154 / cacheRead 23,168 / total 33,038 |
-| oracle | `secondary monitor click landed=true`，`clicks=1` |
-| cleanup | `ok=true`，0 dirty |
-| TabState | backup 39 bins → restore 成功 |
-| 错误 | toolErrors=0；unverified=1（收尾观察回执，不影响 oracle） |
-
-说明：fixture 位于副屏 `x=2560+100, y=100`；模型没有移动窗口，点击落在副屏按钮上。该结果只证明**当前双屏/混合 DPI 环境下**该任务可通过；不外推到所有多屏拓扑。
-
-## 1.12 2026-11-22 — verify-runtime 0.52.13 复跑
-
-环境：Windows 11 x64；双物理屏（主屏 150% / 副屏 100%）；cua-driver **0.52.13**（daemon running，permission mode standard）；不调用模型。
-
-命令：`node verify-runtime.mjs`
-
-结果：**18/18 通过**。自动选择副屏上的可见 Firefox 窗口做只读观察；`screenOrigin={x:2560,y:0,width:2560,height:1440}`，`coordinateSpace=window-screenshot-px`；native 直读 1,164,346B PNG + attachments 落盘；text-only route 对 native 明确拒绝；vision 无 key 时优雅降级；`screen_zoom` 1×1 JPEG。全程未点击/输入用户窗口，未修改桌面。
-
-## 1.13 2026-11-22 — 常见原生对话框后端
-
-环境：Windows 11 x64；不调用模型；只使用自建 WinForms fixture 与 `lib/nativeDialogs.js` 的 scan/click 后端。
-
-命令：`node evals/probe-common-dialogs.mjs`
-
-结果：**6 PASS / 0 BLOCKED / 0 FAIL**（fixture + 5 个对话框）。
-
-| 对话框 | class / modal | 按钮（截取） | 结果 |
-|---|---|---|---|
-| Open | `#32770` / owner-disabled | 打开(&O) \| 取消 \| 帮助(&H) | Cancel `BM_CLICK`，state result=Cancel |
-| Save | `#32770` / owner-disabled | 保存(&S) \| 取消 \| 帮助(&H) | 同上 |
-| Font | `#32770` / owner-disabled | 确定 \| 取消 \| 应用(&A) \| 帮助(&H) | 同上 |
-| Color | `#32770` / owner-disabled | 确定 \| 取消 \| 帮助(&H) | 同上 |
-| Print | `#32770` / owner-disabled | 确定 \| 取消 \| 帮助(&H) | 同上（本机有 2 个打印机） |
-
-说明：该探针只证明**标准 Win32 `#32770` 常见对话框的后端**；`screen_observe` 的完整插件集成路径由 `probe-native-dialog` 的 MessageBox 场景 9/9 覆盖。WPF/WinUI/自定义 shell 对话框不在本次证据内。
-
-## 1.14 2026-11-22 — Excel modifier drop 复测（仍 BLOCKED）
-
-环境：Windows 11 x64；Excel 16.0.14334.21048；不调用模型。
-
-命令：`node evals/probe-modifier-drop.mjs --excel --excel-only --engine both`
-
-结果：**PASS 36/42，BLOCKED 6，FAIL 0，LEFT_OVER 0**（private+ctrl / native+ctrl / private 无 Ctrl 三轮，fresh workbook）。
-
-| 检查 | 结果 | 说明 |
-|---|---|---|
-| 驱动能力 | PASS | 0.52.13 modern，`native-drag=on` |
-| A2 选中 | PASS | UIA `SelectionItemPattern`：`cell="A" 2`、`cellSelected=true`（不再只断言点击 ok） |
-| A2/E2 几何 | PASS | UIA rect：A2 right=146、E2 center=511，y=379；COM border 在部分 Excel 实例不可用，回退 UIA rect |
-| engine=private | PASS | 回执 route=private_sendinput；Ctrl 在 drop 后释放（cursor ctrl=false） |
-| engine=native | PASS | 回执 route=driver_native（0.52.13 原生 drag） |
-| Ctrl+S | PASS | 前台激活后投递 |
-| A2→E2 复制 | **BLOCKED** | 所有三轮 A2 保留、E2 为空 |
-
-根因排查：
-
-- Excel `CellDragAndDrop=true`、`EnableFillHandle=false`；拖放开关没有关闭。
-- A2 已由 UIA SelectionItemPattern 证明选中；光标在 border 起点（146,379）。
-- private SendInput、driver 原生 drag、以及 private **不带 Ctrl** 三轮都没有让 A2 移动或复制。
-- 因此不是“Ctrl 没按住”、不是“A2 没选中”、也不是“目标格写错”；更像 Excel 不接受当前合成拖拽路径/需要真实指针的 OLE drag loop。保持 BLOCKED，等待专用桌面/真实指针验证。
-
-## 1.15 2026-11-22 — gesture truth（driver vs private）
-
-命令：`node evals/probe-gesture-truth.mjs`
-
-环境：Windows 11 x64，双屏，cua-driver 0.52.13；WinForms Button 目标记录 `MouseDown/MouseMove/MouseUp` + `ModifierKeys`。
-
-| 引擎 | 结果 | 事件 |
-|---|---|---|
-| private SendInput（`dwell_ms:1` + ctrl） | **PASS** | down/move/up 均带 Control；route=private_sendinput |
-| driver 原生（ctrl） | **BLOCKED** | 只有 down/up，`move=null`；route=driver_native；不冒充完整手势 |
-
-结论：私有路径确实产生完整 down/move/up；0.52.13 原生 drag 在本 fixture 上没有中间 move 证据。该结论不外推到所有驱动版本。
-
-## 1.16 2026-11-22 — WPF 模态探针
-
-命令：`node evals/probe-wpf-dialog.mjs`
-
-结果：**7 PASS / 0 BLOCKED / 0 FAIL**。
-
-- WPF 主窗口 UIA 10 元素；模态 class=`HwndWrapper[DefaultDomain;...]`，owner=主窗口，`ownerEnabled=false`，`lastPopup=modal`。
-- 模态 UIA @1s/@5s 均为 5 元素；capture-only 成功（14,100B）；`scanNativeDialog=null`（不是 `#32770`）。
-- 说明：WPF 模态的 UIA provider 在本机可读，不需要 native-dialog 兜底；但不能外推到 WPF 自绘/复杂控件。
-
-## 1.17 2026-11-22 — Chromium 文件选择器/打印预览
-
-命令：`node evals/probe-chromium-dialogs.mjs --browser chrome`
-
-结果：**1 PASS / 2 BLOCKED / 0 FAIL**。
-
-- Chrome 157 以临时 `--user-data-dir` 打开本地页面；窗口/UIA 正常（15 个 chrome 控件），页面标题 `S4-CHROMIUM-DIALOGS`。
-- 页面内容 AX 未暴露 `<input type=file>` 元素；按截图坐标（110,328）合成 click 后**没有新顶层窗口**，Space/Enter 也未打开选择器 → file chooser BLOCKED。
-- `Ctrl+P` 后没有可识别的 print 窗口/标题 → print preview BLOCKED。
-- 未关闭用户浏览器；只关闭/核验临时 profile 的测试进程。
-
-## 1.18 2026-11-22 — cross-IL / UIPI
-
-命令：
-
-- `node evals/probe-cross-il.mjs --no-uac`：**2 PASS / 1 BLOCKED**（当前进程 RID 8192=medium；分类器 high→uipi；真机跨 IL 需 `--uac`）。
-- `node evals/probe-cross-il.mjs --uac`（一次授权 UAC）：elevated sink RID **12288**；helper 返回 `{"ok":false,"code":"uipi","delivered":false}`，sink events=0；sink 通过 stop 文件自关闭。
-
-关键发现：该次 UAC 运行暴露 `tools/background-input.ps1` 的 `IntegrityRank` 阈值 **off-by-one**：medium(8192) 被标成 high，system(16384) 与 high 都落到 rank 3。已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试仍通过。**修正后的 UAC 复跑尚未做**；跨 IL 真实 Medium→High 证据仍按部分/BLOCKED 记录。UAC 安全桌面不在本探针范围，仍不可自动化。
+7. **结构重组（2026-11-22）**：本文件从「§1.1–§1.18 + §3–§12」双层结构扁平化为**单一倒序时间线**；仅调整标题层级与编号，历史条目内容不改写、不删除。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 
@@ -449,7 +56,7 @@ node tests/native-dialogs.test.mjs
 | t17 新题面 r2 | **pass 53** | 51 | 16 | 13 | 0 | 0 | 9 | 2 | 11 / 12 | 323s |
 | t17 新题面 r3 | **pass 48** | 47 | 10 | 5 | 0 | 0 | 11 | 7 | 4 / 7 | 294s |
 | t14 指针回归 | **pass 42** | 40 | 10 | 5 | 2 | 0 | 7 | 2 | 3 / 17 | 240s |
-| t17 指针回归 | **pass 42** | 41 | 17 | 11 | 0 | 0 | 0 | 5 | 3 / 13 | 260s |
+| t17 指针回归 | **pass 42** | 41 | 17 | 11 | 0 | 0 | 0 | 0 | 5 | 3 / 13 | 260s |
 | t14 0.52.13 canary r1 | **pass 53** | 52 | 23 | 8 | 1 | 0 | 10 | 3 | 5 / 18 | 273s |
 | t14 0.52.13 canary r2 | fail 64 | 61 | 22 | 10 | 1 | 0 | 9 | 4 | 3 / 14 | 356s |
 | t14 0.52.13 canary r3 | **pass 51** | 50 | 21 | 10 | 1 | 0 | 8 | 3 | 2 / 16 | 315s |
@@ -463,10 +70,411 @@ node tests/native-dialogs.test.mjs
 | t14 capture-only r2 | fail 64 | — | 21 | 6 | 6 | 0 | 5 | 2 | 11 / 27 | 970s |
 
 > `capture-only` = 0.52.13 上 `include_accessibility_tree:false` 的像素预取路径；`回执修复` = 2026-11-18 native/vision 快照 id + query 清除说明。`—` 表示报告未单列该计数。
+> 行名即驱动/模型口径：未标注的行 = **当时基线 0.23.2 + 默认模型通道**；行名含 `0.52.13` / `opencode` / `capture-only` / `回执修复` 的行按行名口径（详见 §22.1 / §22.2）。
 
-## 3. 2026-11-18
+## 3. 2026-11-22 — main 推送、CI 结果与 PE 清单复核
 
-### 3.1 观察回执修复后的 t11/t12
+- **CI 状态更新（取代 §21 的“本地已提交，未推送/未运行”）**：`main` 已推送至 `origin/main`（`a716633 评测探针：Excel 双引擎、WPF/Chromium、手势与跨 IL 证据`）；GitHub Actions CI run **44939474514 结论 success**（26s，2026-11-21T19:10Z，对应本地 2026-11-22）。此前 0.5.8 发布与后台输入首轮的 4 次 CI failure 已由 `ab61fc4`（Linux 平台守卫）修复，此后连续 5 次 success。
+- Windows self-hosted workflow 仍为手动 dispatch，未在 runner 上运行；不能称 Windows CI 已覆盖。
+- **PE 清单复核（只读字节扫描）**：`~/.cua-driver/packages/current/cua-driver.exe`（0.52.13，33,391,440 字节）全二进制仅一处 `requestedExecutionLevel`：`level="asInvoker" uiAccess="false"`；另有一处 `requireAdministrator` 字节命中但**不属于任何清单**（非 RT_MANIFEST 内容，正是此前误判的来源）。§29（2026-09-16，0.23.2 当时）的“清单 requireAdministrator → daemon High”不适用于 0.52.13；daemon 是否 High 取决于启动方式（autostart/交互式提权）。
+
+## 4. 2026-11-22 — cross-IL / UIPI
+
+命令：
+
+- `node evals/probe-cross-il.mjs --no-uac`：**2 PASS / 1 BLOCKED**（当前进程 RID 8192=medium；分类器 high→uipi；真机跨 IL 需 `--uac`）。
+- `node evals/probe-cross-il.mjs --uac`（一次授权 UAC）：elevated sink RID **12288**；helper 返回 `{"ok":false,"code":"uipi","delivered":false}`，sink events=0；sink 通过 stop 文件自关闭。
+
+关键发现：该次 UAC 运行暴露 `tools/background-input.ps1` 的 `IntegrityRank` 阈值 **off-by-one**：medium(8192) 被标成 high，system(16384) 与 high 都落到 rank 3。已修正为 `0=low / 1=medium / 2=high / 3=system`，离线分类器测试仍通过。**修正后的 UAC 复跑尚未做**；跨 IL 真实 Medium→High 证据仍按部分/BLOCKED 记录。UAC 安全桌面不在本探针范围，仍不可自动化。
+
+## 5. 2026-11-22 — Chromium 文件选择器/打印预览
+
+命令：`node evals/probe-chromium-dialogs.mjs --browser chrome`
+
+结果：**1 PASS / 2 BLOCKED / 0 FAIL**。
+
+- Chrome 157 以临时 `--user-data-dir` 打开本地页面；窗口/UIA 正常（15 个 chrome 控件），页面标题 `S4-CHROMIUM-DIALOGS`。
+- 页面内容 AX 未暴露 `<input type=file>` 元素；按截图坐标（110,328）合成 click 后**没有新顶层窗口**，Space/Enter 也未打开选择器 → file chooser BLOCKED。
+- `Ctrl+P` 后没有可识别的 print 窗口/标题 → print preview BLOCKED。
+- 未关闭用户浏览器；只关闭/核验临时 profile 的测试进程。
+
+## 6. 2026-11-22 — WPF 模态探针
+
+命令：`node evals/probe-wpf-dialog.mjs`
+
+结果：**7 PASS / 0 BLOCKED / 0 FAIL**。
+
+- WPF 主窗口 UIA 10 元素；模态 class=`HwndWrapper[DefaultDomain;...]`，owner=主窗口，`ownerEnabled=false`，`lastPopup=modal`。
+- 模态 UIA @1s/@5s 均为 5 元素；capture-only 成功（14,100B）；`scanNativeDialog=null`（不是 `#32770`）。
+- 说明：WPF 模态的 UIA provider 在本机可读，不需要 native-dialog 兜底；但不能外推到 WPF 自绘/复杂控件。
+
+## 7. 2026-11-22 — gesture truth（driver vs private）
+
+命令：`node evals/probe-gesture-truth.mjs`
+
+环境：Windows 11 x64，双屏，cua-driver 0.52.13；WinForms Button 目标记录 `MouseDown/MouseMove/MouseUp` + `ModifierKeys`。
+
+| 引擎 | 结果 | 事件 |
+|---|---|---|
+| private SendInput（`dwell_ms:1` + ctrl） | **PASS** | down/move/up 均带 Control；route=private_sendinput |
+| driver 原生（ctrl） | **BLOCKED** | 只有 down/up，`move=null`；route=driver_native；不冒充完整手势 |
+
+结论：私有路径确实产生完整 down/move/up；0.52.13 原生 drag 在本 fixture 上没有中间 move 证据。该结论不外推到所有驱动版本。
+
+## 8. 2026-11-22 — Excel modifier drop 复测（仍 BLOCKED）
+
+环境：Windows 11 x64；Excel 16.0.14334.21048；不调用模型。
+
+命令：`node evals/probe-modifier-drop.mjs --excel --excel-only --engine both`
+
+结果：**PASS 36/42，BLOCKED 6，FAIL 0，LEFT_OVER 0**（private+ctrl / native+ctrl / private 无 Ctrl 三轮，fresh workbook）。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| 驱动能力 | PASS | 0.52.13 modern，`native-drag=on` |
+| A2 选中 | PASS | UIA `SelectionItemPattern`：`cell="A" 2`、`cellSelected=true`（不再只断言点击 ok） |
+| A2/E2 几何 | PASS | UIA rect：A2 right=146、E2 center=511，y=379；COM border 在部分 Excel 实例不可用，回退 UIA rect |
+| engine=private | PASS | 回执 route=private_sendinput；Ctrl 在 drop 后释放（cursor ctrl=false） |
+| engine=native | PASS | 回执 route=driver_native（0.52.13 原生 drag） |
+| Ctrl+S | PASS | 前台激活后投递 |
+| A2→E2 复制 | **BLOCKED** | 所有三轮 A2 保留、E2 为空 |
+
+根因排查：
+
+- Excel `CellDragAndDrop=true`、`EnableFillHandle=false`；拖放开关没有关闭。
+- A2 已由 UIA SelectionItemPattern 证明选中；光标在 border 起点（146,379）。
+- private SendInput、driver 原生 drag、以及 private **不带 Ctrl** 三轮都没有让 A2 移动或复制。
+- 因此不是“Ctrl 没按住”、不是“A2 没选中”、也不是“目标格写错”；更像 Excel 不接受当前合成拖拽路径/需要真实指针的 OLE drag loop。保持 BLOCKED，等待专用桌面/真实指针验证。
+
+## 9. 2026-11-22 — 常见原生对话框后端
+
+环境：Windows 11 x64；不调用模型；只使用自建 WinForms fixture 与 `lib/nativeDialogs.js` 的 scan/click 后端。
+
+命令：`node evals/probe-common-dialogs.mjs`
+
+结果：**6 PASS / 0 BLOCKED / 0 FAIL**（fixture + 5 个对话框）。
+
+| 对话框 | class / modal | 按钮（截取） | 结果 |
+|---|---|---|---|
+| Open | `#32770` / owner-disabled | 打开(&O) \| 取消 \| 帮助(&H) | Cancel `BM_CLICK`，state result=Cancel |
+| Save | `#32770` / owner-disabled | 保存(&S) \| 取消 \| 帮助(&H) | 同上 |
+| Font | `#32770` / owner-disabled | 确定 \| 取消 \| 应用(&A) \| 帮助(&H) | 同上 |
+| Color | `#32770` / owner-disabled | 确定 \| 取消 \| 帮助(&H) | 同上 |
+| Print | `#32770` / owner-disabled | 确定 \| 取消 \| 帮助(&H) | 同上（本机有 2 个打印机） |
+
+说明：该探针只证明**标准 Win32 `#32770` 常见对话框的后端**；`screen_observe` 的完整插件集成路径由 `probe-native-dialog` 的 MessageBox 场景 9/9 覆盖。WPF/WinUI/自定义 shell 对话框不在本次证据内。
+
+## 10. 2026-11-22 — verify-runtime 0.52.13 复跑
+
+环境：Windows 11 x64；双物理屏（主屏 150% / 副屏 100%）；cua-driver **0.52.13**（daemon running，permission mode standard）；不调用模型。
+
+命令：`node verify-runtime.mjs`
+
+结果：**18/18 通过**。自动选择副屏上的可见 Firefox 窗口做只读观察；`screenOrigin={x:2560,y:0,width:2560,height:1440}`，`coordinateSpace=window-screenshot-px`；native 直读 1,164,346B PNG + attachments 落盘；text-only route 对 native 明确拒绝；vision 无 key 时优雅降级；`screen_zoom` 1×1 JPEG。全程未点击/输入用户窗口，未修改桌面。
+
+## 11. 2026-11-22 — dpi01 真实模型跨屏点击
+
+环境：Windows 11 x64；双**物理**屏：AUO B160QANAA.L 2560×1600 @150%（逻辑 1707×1067，主屏）+ AOC Q27B30S3 2560×1440 @100%（副屏，原点 x=2560）；dsh **0.2.2-rc.5**；headless profile 插件 **0.5.8**；cua-driver **0.52.13**；opencode-go / deepseek-v4.1-flash。
+
+命令：
+
+- `node evals/headless-run.mjs --tasks dpi01 --isolation clean --timeout-min 8 --patch evals/headless-patch.opencode.yml`
+
+结果：**pass**。
+
+| 项 | 值 |
+|---|---|
+| steps / inner | 3 / 3 |
+| calls | `screen_observe` → `computer_do:computer_click` → `screen_observe` |
+| wall | 70s |
+| tokens | input 8,716 / output 1,154 / cacheRead 23,168 / total 33,038 |
+| oracle | `secondary monitor click landed=true`，`clicks=1` |
+| cleanup | `ok=true`，0 dirty |
+| TabState | backup 39 bins → restore 成功 |
+| 错误 | toolErrors=0；unverified=1（收尾观察回执，不影响 oracle） |
+
+说明：fixture 位于副屏 `x=2560+100, y=100`；模型没有移动窗口，点击落在副屏按钮上。该结果只证明**当前双屏/混合 DPI 环境下**该任务可通过；不外推到所有多屏拓扑。
+
+## 12. 2026-11-21 — P2 参数化 variant 与平台探针
+
+环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；不调用模型（仅 setup/simulate/oracle/cleanup 与只读探针）。
+
+命令与结果：
+
+- `node evals/verify-oracles.mjs --tasks t21,a11y01 --variants 3`：**6/6 PASS**（t21/t22 各 3 个 variant；每条 setup → empty-fail → simulate → oracle×2 → cleanup）。
+- `node evals/verify-oracles.mjs --tasks t22 --variants 3`：**3/3 PASS**（PowerPoint seed/目标文本随 variant 变化）。
+- `node evals/oracle-mutation.mjs --tasks t22,a11y01`：**2/2 PASS**（错误标题、未提交均被 exit 1 拒绝；mutation 固定 variant 1）。
+- `node evals/probe-platform.mjs`：**PASS**（win32 + PowerShell 5.1.26100 + 41 条任务定义）；未在非 Windows 运行，Linux 仍为可选、非门禁。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| t21 Calculator 除法 variant 1-3 | PASS | expression/expected 来自同一 `variants/t21.json`；oracle 校验 state.variant |
+| t22 PowerPoint 标题/副标题 variant 1-3 | PASS | seed 与目标文本随 variant 变化；旧 seed 标题消失 |
+| a11y01 键盘-only variant 1-3 | PASS | 输入文本随 variant 变化；仍不依赖鼠标坐标 |
+| 平台套件探针 | PASS | 只读；非 Windows 返回 BLOCKED（exit 2 仅 `--strict-blocked`） |
+| TabState | 恢复 | 每次 AC2 前 backup 39 bins，结束后 restore；0 dirty/残留 |
+
+> 说明：variant 值只来自 `evals/variants/<id>.json`，prompt 用 `{{key}}` 渲染；oracle 不硬编码 expected。非参数化任务在 `--variants 3` 下仍只跑 variant 1。
+
+## 13. 2026-11-21 — B2 cursor-clip、B1/B3 静默预检、Excel 探针分支
+
+命令：
+- `node evals/probe-background-input.mjs`：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）。
+- `node evals/probe-background-input.mjs --elevated`（UAC）：**14 PASS / 0 BLOCKED / 0 FAIL**。
+- `node evals/probe-modifier-drop.mjs --excel --excel-only`：Excel 分支 **8 PASS / 1 BLOCKED / 0 FAIL**（最后一次干净轮）。
+- `node evals/probe-b2-elevated.mjs --no-uac`：**1 PASS / 1 BLOCKED / 0 FAIL**；非提权 `BlockInput=false`、`err=0`、`elevated=false`、`uiAccess=false`、session 1/1。独立 UAC 版本未运行；完整提权验证由 `probe-background-input --elevated` 完成。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| B2 严格 `BlockInput`（默认非提权） | BLOCKED | `block_input_failed`；`win32=0`、`helperElevated=false`、`helperUIAccess=false`、session 1/1、desktop=Default；未移动光标 |
+| B2 严格 `BlockInput`（`--elevated`） | PASS | 125ms；`inputBlocked=true`、`inputUnblocked=true`、`cursorRestored=true`、`MOUSEDOWN` |
+| B2 `cursor-clip` | PASS | 109–125ms；`MOUSEDOWN`；`clipAnchored=true`、`clipRestored=true`、`cursorRestored=true`；不阻塞键盘 |
+| B1 synthetic touch | PASS | `TOUCHDOWN/TOUCHUP`；`cursorDrift=0` |
+| B1 WM_TOUCH-only | PASS | 收到 `WMTOUCH`（系统转换） |
+| B1 mouse-only 普通窗口 | PASS | `syntheticPointer:promote` 无 anchor 单点触控被系统提升为 `MOUSEDOWN/MOUSEUP`；`cursorDrift=0` |
+| B1 不移动光标 | PASS | helper 注入窗口内 `cursorDrift=0`；外部物理漂移 348–766px 单独记录，不归因给 B1 |
+| B3 window | PASS | `windowRestored=true`、`cursorMoved=false`、日志 `MOUSEDOWN` |
+| B3 外部移动 | 修正 | 点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally` |
+| Excel 分支 | BLOCKED | Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；A2 保留但 E2 为空 |
+
+> 环境：Windows 11 x64，DPI 150%，dirty 桌面；外部物理光标漂移不再污染 B1 归因，严格 B2 用一次性 UAC 提权探针验证。
+
+## 14. 2026-11-21 — nativeMenu 真机通过 + 原生 Button 触发探针
+
+命令：
+- `node evals/probe-ops.mjs`：**13 PASS / 0 BLOCKED / 0 FAIL**；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 `GetMenu`/menu-count，`menu:0x4D4B` marker）。
+- `node evals/probe-native-button.mjs`：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms `Delete` + MessageBox。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| 原生 Button 触发 | PASS | `nativeButtonTrigger:auto` 点击 1.2s 返回；`opened=1`；driver UIA 对照 30s |
+| 模态出现/关闭 | PASS | MessageBox `Confirm` 出现；native-dialog 点 `否(N)`，`cancelled=1` |
+| 10s latch | PASS | 重新 observe 后再次点同一 Delete，被 `native_button_latched` 拒绝；`opened` 仍 1 |
+| HMENU 真机 | PASS | fixture 的 `window_id` 即 HWND；`GetMenu` 可读；`WM_COMMAND` commandId 到达 |
+| 离线 | 42 + 18 + 12 项 | `npm test` 31 套 / 764 项 |
+
+## 15. 2026-11-20 — 后台输入硬化与 WM_TOUCH-only 探针
+
+命令：`node evals/probe-background-input.mjs`（新增只处理 `WM_TOUCH` 的 touch-only 窗口；不加入 `npm test`）。
+
+结果：干净轮次 **12 PASS / 1 BLOCKED / 0 FAIL**；B2 仍因 `BlockInput` 被拒记 BLOCKED。
+
+新增/变化的证据：
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| B1 WM_TOUCH-only 目标 | PASS | 只处理 `WM_TOUCH` 的窗口收到 `WMTOUCH`；合成 pointer 被系统转换 |
+| B1 不改变前台 | PASS | 注入前后 `probe.foreground` 不变；`side_effects.foregroundChanged=false` |
+| B1 incomplete/回执字段 | 离线 | `complete=false` + `warning_code` 进入插件结构化回执 |
+| B2 正路径断言 | 修正 | 探针改读 `state.wndLog` + `MOUSEDOWN`；当前会话仍 `BlockInput` 被拒 → BLOCKED |
+| B0/B3 清理 | 离线 | down/up/KEYUP 失败补发并标 partial；B3 有界轮询 + 还原校验 |
+| nativeMenus 真机 | PASS | `probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count，专用 `menu:0x4D4B` marker 出现；离线 18 项通过；MenuStrip/WPF/WinUI 明确 `no_hmenu` |
+| 离线 | 42 + 18 项 | `npm test` 31 套 / 764 项 |
+
+## 16. 2026-11-20 — 实验性后台输入（B0/B1/B2/B3）真机探针
+
+命令：`node evals/probe-background-input.mjs`（自建原生 message/pointer 窗口 + 隐藏 controller + cover；不加入 `npm test`）。
+
+结果：干净轮次 **10 PASS / 1 BLOCKED / 0 FAIL**；脏桌面轮次 **8 PASS / 3 BLOCKED / 0 FAIL**（B1 光标漂移、B3 fail-closed；均不冒充 PASS）。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| 自建窗口 | PASS | native pointer 窗口，`touchWindow=true`，clientOrigin/rect 可读 |
+| B0 posted click | PASS | 指针窗口收到 `MOUSEDOWN/MOUSEUP`；side_effects.cursorMoved=false |
+| B0 posted text | PASS | `WM_CHAR` 5 字符收到（`CHAR:112/114/111/98/101`） |
+| B0 posted key | PASS | `KEYDOWN:65` 收到；`FocusOrTarget` 未发到无关窗口 |
+| B1 synthetic touch | PASS | pointer 窗口收到 `TOUCHDOWN/TOUCHUP`；anchorUsed=true |
+| B1 遮挡 | PASS | cover 覆盖后返回 `occluded`，未注入、未提升窗口 |
+| B1 光标 | PASS | 最终一轮漂移 0px；helper `cursorMoved=false`。早期脏桌面轮次漂移 30–751px 时记 BLOCKED，不冒充 PASS |
+| B2 cursor | BLOCKED | 当前会话 `BlockInput(TRUE)` 返回 false；实现失败关闭，未移动光标 |
+| B3 window | PASS | 窗口移到光标下点击后还原；窗口 rect 与光标检查通过 |
+
+结论：
+
+- B0 消息/文本/按键、B1 合成触控、B1 遮挡失败关闭、B3 窗口锚定均有端到端证据。
+- B2 在当前会话不可用（`BlockInput` 被拒），记 BLOCKED；B1 的“不移动光标”在最终干净轮次通过，但脏桌面外部光标移动仍可能使其 BLOCKED。
+- 离线新增 `tests/background-input.test.mjs`（32 项）；`npm test` 29 套 / 724 项；语法 45/45；默认三键 off。
+
+## 17. 2026-11-20 — 私有 Win32 原生对话框后端
+
+环境：Windows 11 x64，DPI 150%，cua-driver 0.52.13。实现：`nativeDialogs:auto`（默认）+ `tools/native-dialog.ps1` + `lib/nativeDialogs.js`。
+
+真机命令：
+
+```bash
+node evals/probe-native-dialog.mjs
+node tests/native-dialogs.test.mjs
+```
+
+结果：
+
+- `probe-native-dialog` **9 PASS / 0 BLOCKED / 0 FAIL**：
+  - 插件 UIA element click 打开 `S4-NATIVE-DIALOG-CONFIRM`（触发调用挂起，正是 t20 路径）；
+  - `screen_observe(window_id=dialog)` → `mode=native-dialog`，2 个按钮（是/否），坐标在对话框本地空间（rect 同源）；
+  - `computer_double_click` / `computer_key` 明确拒绝；
+  - `computer_click(element=No)` → 原生消息 `BM_CLICK`，对话框关闭，state `cancelled=1`；
+  - 之前挂起的 UIA trigger 在对话框关闭后返回（ok=true / unverifiable）。
+- 离线 `tests/native-dialogs.test.mjs` **18/18**：空 AX→native 合成按钮；native click 不走驱动；坐标/键盘/滚动/双击/右键拒绝；`nativeDialogs:off`/非模态回退；点击失败不消费；allowedApps/snapshot_id/UIA 复核；sidecar JSON/base64/超时。
+- 覆盖范围：同 pid 顶层标准 `#32770` 模态对话框 + 标准 `Button`；只发 `BM_CLICK`；不自动选择 Yes/No。
+- 未覆盖：触发模态的 UIA click 仍可能 30s；WPF/WinUI/自定义对话框、Edit 输入、modifier/double/right/from_zoom 不走该后端。驱动/UIA 根因仍见 §18，`evals/BLOCKED.md` 保持“部分 BLOCKED”。
+
+## 18. 2026-11-20 — t20 模态 30s 超时根因探针
+
+环境：Windows 11 x64，DPI 150%，cua-driver **0.52.13**；无模型（直接驱动调用）。
+命令：
+
+```bash
+node evals/probe-modal-timeout.mjs
+node evals/probe-modal-escapes.mjs            # 约 3 分钟；--trigger-only 只跑触发侧
+```
+
+探针自建 WinForms `S4-MODAL-PROBE`，点 `Delete` 弹出 `MessageBox(YesNo)`（与 t20 同形态），逐项测量。结果：
+
+| 观测 | 结果 |
+|---|---|
+| 基线 AX 树（模态前） | **6 元素 / 1.6s** |
+| 模态期间 `get_window_state` 默认 1000ms | **0 元素 / 3.0s**，`truncation_reason=timeout` |
+| 同调用 `timeout_ms=5000` | **0 元素 / 6.9–7.4s** |
+| 同调用 `timeout_ms=15000` | **0 元素 / 17–18s** |
+| 同 pid 主窗口 `timeout_ms=5000` | **0 元素 / 7.0s**（整个进程，不只对话框） |
+| capture-only（`include_accessibility_tree:false`） | **成功 / 1.5–1.9s / PNG 16KB** |
+| `bring_to_front`（8s 上限） | timeout |
+| `press_key` background / foreground（8s 上限） | timeout |
+| 坐标 `click` background（8s 上限） | timeout |
+| 原生 `WM_COMMAND(IDNO/IDYES)` 或 `GetDlgItem+BM_CLICK` | **对话框关闭**；`cancelled/confirmed` 状态正确 |
+| 原生 `PostMessage(WM_KEYDOWN, VK_ESCAPE)` | 无效（Yes/No 对话框没有 Cancel 按钮） |
+| 驱动 `press_key` Escape background（60s） | timeout，对话框未关 |
+| 驱动 `hotkey` Alt+N foreground（60s） | 一次 20.3s 关闭但回执为失败；另一次 60s timeout 未关（不稳定） |
+| 原生 `EnumChildWindows` 找 `Button` + `BM_CLICK` 点 Delete | **~1.2s 返回**，模态 4s 内出现，无 30s 阻塞 |
+| 触发模态的 element click 返回时间 | 探针先跑 ~75s 的其他测试；原生关闭模态后 click 立即返回（总计 74.6s），证明它被模态生命周期卡住 |
+
+结论：
+
+1. **UI 线程没有死**：MessageBox 的模态循环仍会抽 Win32 消息，`WM_COMMAND`/`BM_CLICK` 能立即关闭对话框。问题不是“窗口无响应”。
+2. **UIA provider 在模态期间不服务跨进程 UIA/COM 请求**：同 pid 的主窗口和 MessageBox 都返回 0 元素；把预算从 1s 提到 5s/15s 仍为 0。因此 **`timeout_ms` 重试不是修复**，`observe` 不应据此改默认。
+3. **驱动的动作层依赖 UIA/前台激活**：`click` 的 element token 走 UIA Invoke，背景像素点击先做 UIA hit-test；`bring_to_front`/`press_key` 也在模态期间阻塞。30s 是插件的传输层上限，不是驱动的内部超时；模态关闭后，挂起的 element click 会返回。
+4. **原生 Win32 标准控件路径不受影响**：`EnumChildWindows` + `BM_CLICK` / 控件 ID 的 `WM_COMMAND` 可在 ~1s 内完成“触发 + 关闭”。这是一条可行的 Windows-only 快速路径，但它绕过驱动的 UIA 动作层，属于新能力，需单独的安全边界与产品决策；本轮**未**把它加入插件。
+5. 因此 t20 的 30s 超时根因是**驱动/UIA 等待模态**，不是插件重试策略；插件侧调参不能消除。当前 t20 仍 2/2 pass，但每轮仍有多次 30s 超时。
+
+回执修正（本轮）：
+
+- click/key 超时不再建议“Escape=取消 / Enter=默认按钮 / foreground 键”作为快速路径（实测 Escape 在 Yes/No 上无效，foreground 键 60s 仍阻塞）。
+- 改为：先等待 5–10s，再用 `screen_observe`（capture/ax 均可）确认“超时是否其实是延迟成功”；若仍需操作，按对话框按钮的加速键只发一次，并接受回执可能延迟/失败。
+- 守门：`tests/delivery.failures.mjs` 的 `D-timeout-click` / `D-timeout-key` 断言包含 `capture`、`Escape 在 Yes/No`、`5–10s`、`加速键`。
+
+## 19. 2026-11-20 — P0/P1 复跑（t20/t19/t05）
+
+环境：Windows 11 x64，DPI 150%，cua-driver 0.52.13，dsh 0.2.2-rc.1；opencode-go/deepseek-v4.1-flash；12min 预算。
+
+### 19.1 汇总
+
+| 运行 | verdict | steps / inner | wall | errors / unverified | input | output | cacheRead | total |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| t20 r1 | **pass** | 30 / 27 | 626s | 9 / 1 | 28,234 | 8,920 | 484,096 | 521,250 |
+| t20 r2 | **pass** | 27 / 25 | 601s | 10 / 0 | 19,358 | 8,738 | 412,544 | 440,640 |
+| t19 r1 | **pass** | 71 / 70 | 652s | 0 / 25 | 65,571 | 12,646 | 2,873,600 | 2,951,817 |
+| t19 r2 | **pass** | 49 / 48 | 454s | 2 / 13 | 54,567 | 9,591 | 1,639,040 | 1,703,198 |
+| t05 r1 | **pass** | 10 / 10 | 86s | 0 / 3 | 11,012 | 1,671 | 117,120 | 129,803 |
+| t05 r2 | **pass** | 16 / 15 | 106s | 0 / 5 | 14,027 | 1,983 | 211,840 | 227,850 |
+
+全部 `timeout=false`、`budgetExhausted=false`、`dirty=false`。
+
+### 19.2 t20：超时仍多，但不再隐藏；候选/键盘回执真实生效
+
+- r1：`bring_to_front` 2 次、`click` 4 次、`press_key` 4 次 30s 超时；`move_cursor` 为 **3000ms** 超时（per-call 生效）。回执出现 **8 次**“同 pid 的更高层窗口”候选，**1 次**“前置激活超时，本次点击未发送”。最终 pass。
+- r2：`bring_to_front` 4 次、`click` 6 次、`press_key` 2 次 30s 超时；`move_cursor` 3s；候选 9 次、前置超时 1 次。最终 pass。
+- 对比上一轮：wall 595/618s → **626/601s**，基本持平；total tokens 536k/426k → 521k/441k。改善是“超时/前置失败被如实暴露”，不是消除驱动根因；`targetGone` 未触发（对话框在 500ms 检查时仍在列表）。
+- 关键：`move_cursor timeout after 3000ms` 证明 per-call 超时已生效，单次动作不再因装饰性移动白等 30s。
+
+### 19.3 t19：`win+r` 归零，但 r1 明显回归
+
+- r1：71 steps / 70 inner / 652s / 2.95M total；`computer_click` 22、`computer_key` 26、`computer_type` 10、`screen_observe` 58；**零 `win+r`**，地址栏提示命中 7 次；没有 `computer_set_value`，最终仍 pass。
+- r2：49 / 48 / 454s / 1.70M；`activate` 10、`click` 6、`key` 16、`type` 8、`set_value` 2；地址栏提示 3 次；`win+r` 零；`tabstate clear-eval removed=3`。
+- 对比上一轮：r1 40→**70** inner（回归），r2 56→**48**（改善）；两轮仍 pass。`win` fail-closed 消除了 Start/Search 12 步绕路，但 r1 把探索成本转移到 Explorer 新建/重命名路径上；不能写“t19 已优化”。
+- 题面/回执：t19 prompt 明确禁止 Win+R；地址栏 `SuggestionsList` 提示被模型读取（7/3 次）。
+
+### 19.4 t05：`set_value` 新值回执 + 目录提示显著降本
+
+- r1：10 inner / 86s / 129,803 total；`set_value` 2 次，**零 `computer_type`**；`另存为提示` 命中 2 次、`新值=` 1 次；oracle 含 `no stray out-ansi.txt in src=true`，没有先写错目录。
+- r2：15 inner / 106s / 227,850；`set_value` 2 次、`type` 0；`另存为提示` 3 次、`新值=` 1 次；同样无 stray。
+- 对比上一轮：21/13 inner、185/121s、0.39M/0.23M → **10/15 inner、86/106s、0.13M/0.23M**。r1 达到计划目标（10–12）；r2 略高于上一轮但仍远低于修复前 43。
+- 关键：模型在 `set_value` 回执看到新值后不再回读；`另存为提示` 让 r1 直接填完整路径/确认目录，没有产生 `src\out-ansi.txt`。
+
+### 19.5 结论
+
+- P0 超时语义：**行为正确性提升**（嵌套超时/前置失败不再被吞，候选窗口与键盘回执可见），但 t20 驱动根因未消除，wall 基本持平。
+- P0 win fail-closed：`win+r` 从每轮多次降为 **0**；t19 总成本未稳定下降（r1 回归、r2 改善），需继续观察。
+- P0 另存为：t05 **10/15 inner、86/106s**，零 `type` 追加、零 `src` 残留；这是本轮最确定的收益。
+- P1 地址栏提示/新值回执/clear-eval 均有轨迹命中；t19 r1 的 70 inner 是新的高方差样本，不作为“稳定通过”。
+
+## 20. 2026-11-20 — 轨迹修复复跑（t20/t19/t05）
+
+环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；opencode-go/deepseek-v4.1-flash；交互式桌面，TabState backup/restore 成功（31 bins）。
+
+### 20.1 汇总
+
+| 运行 | verdict | steps / inner | wall | errors / unverified | input | output | cacheRead | total | timeout/budget |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| t20 r1 | **pass** | 30 / 27 | 595s | 5 / 6 | 27,501 | 9,471 | 499,712 | 536,684 | false / false |
+| t20 r2 | **pass** | 28 / 25 | 618s | 7 / 2 | 17,164 | 6,302 | 402,176 | 425,642 | false / false |
+| t19 r1 | **pass** | 41 / 40 | 387s | 0 / 11 | 47,350 | 7,121 | 1,166,976 | 1,221,447 | false / false |
+| t19 r2 | **pass** | 60 / 56 | 595s | 2 / 15 | 65,036 | 12,592 | 2,336,896 | 2,424,636 | false / false |
+| t05 r1 | **pass** | 22 / 21 | 185s | 0 / 7 | 21,348 | 4,320 | 346,624 | 385,860 | false / false |
+| t05 r2 | **pass** | 17 / 13 | 121s | 0 / 4 | 14,606 | 2,079 | 218,240 | 234,925 | false / false |
+
+- 全部 `dirty=false`、`noFinal=false`；t20/t19/t05 的 oracle 均通过（t20 `cancelled=1 confirmed=1 deleted=true`；t19 `target.txt` 内容精确 `NAV-OK`；t05 ANSI 无 BOM、含非 ASCII、内容匹配）。
+- 命令：`node evals/headless-run.mjs --tasks t20|t19|t05 --repeats 2 --timeout-min 12 --patch evals/headless-patch.opencode.yml --report evals/headless-runs/fix-<task>.json`。
+
+### 20.2 t20：超时仍在，但模型能按新回执改走键盘
+
+- r1：2 次 `cua-driver click timeout after 30000ms`、1 次 `bring_to_front timeout`、1 次 `move_cursor timeout`、1 次 `press_key timeout`（合计 5 次 / 150.1s，占 549s 的 27.3%）；模型在 click 超时回执后 `screen_observe` 新顶层对话框，并用 `Escape`/`Tab`/`Enter` 完成两次选择，最终 pass。
+- r2：3 次 click、2 次 bring_to_front、1 次 move_cursor、3 次 press_key 超时（合计 9 次 / 270.2s，占 610s 的 44.3%）；同样通过 `Escape`/`Tab`/`Enter`/`Space` 完成，最终 pass。
+- 对照：修复前同任务第二轮 33 步、709s、无 final，按预算耗尽记 fail；本轮两轮均 25–27 inner、595/618s、有 final。超时次数并未消失（驱动/UIA 等待模态的根因仍在），但模型不再进入“像素/zoom/drag 10+ 步”死循环。
+- 题面改动：允许 Tab/Enter/Escape 选择按钮；强调始终回到 `S4-T20-DIALOG`。
+
+### 20.3 t19：两轮均 pass，r2 的 56 inner 不再撞预算
+
+- r1：41 steps / 40 inner / 387s，0 工具错误；`set_value` 2 次（含完整路径），`computer_key` 的 `ctrl+l`/`enter` 正常。
+- r2：60 steps / 56 inner / 595s，2 工具错误；仍出现 `win+r`：当前实现把它降级为单键 `win`，打开 Start/SearchHost（不是 CmdPal；CmdPal 只在候选列表中标记 `[shell]`，未被选中），随后 12 步绕路；最终用 Notepad 另存为写入 `target.txt`，oracle 精确内容通过。
+- 对照：修复前 r2 为 56 inner、708s、无 final（预算耗尽）；本轮同为 56 inner 但 595s 完成，说明题面明确允许 Notepad 另存为后，模型不再在“Explorer 新建”上耗到预算边界。
+- 注意：t19 的 pass 不证明 Explorer 新建路径；oracle 只验文件，provenance 仍在 Notes 中明确为 out of scope。
+
+### 20.4 t05：`set_value` 覆盖生效，步数从 43 降到 21/13
+
+- r1/r2 都只调用 `computer_set_value` 写文件名（len=12，`out-ansi.txt`），**零 `computer_type`**；oracle 的 ANSI/BOM/内容检查全部通过。
+- 对照：修复前 r4 用 `computer_type` 追加路径，43 inner、431s、1.25M total；本轮 21/13 inner、185/121s、0.39M/0.23M total。直接原因是 `set_value` 的 ValuePattern 覆盖写入；当时回执仍显示旧值，模型多 observe 一次（本轮修复已改为“旧值→新值”回显，未复跑验证）。
+
+### 20.5 结论
+
+- P0（t20 题面、预填字段 set_value）与 P1（click/key 超时回执、menu 归一化、shell 过滤、runner 预算语义）在本轮真实模型样本中均有可观察收益：
+  - t20 2/2 pass（修复前 1/2，且失败为预算耗尽）；
+  - t19 2/2 pass（修复前 1/2，且失败为预算耗尽）；
+  - t05 2/2 pass，步数显著下降。
+- 未消除的边界：t20 的 30s 驱动超时仍会发生，单轮仍接近 10 分钟；t19 r2 仍有 56 inner / 2.4M total 的高方差。它们是驱动/任务复杂度问题，不是本轮回执/题面回归。
+
+## 21. 2026-11-20 — P1/P2 测试收口
+
+环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；opencode-go/deepseek-v4.1-flash；默认 deepseek-official/deepseek-flash（本次 `QUOTA` 402）。
+
+- **AC2 全量**：`node evals/verify-oracles.mjs` → **22/23 PASS + t13 SKIP**；0 FAIL/ENV/dirty（`evals/verify-runs/2026-11-19T17-19-58`）。
+- **oracle mutation**：三批 7+6+6 = **19/19**；t04/t07 live GUI、t13 ac2:none 按原因 SKIP。所有变异产物被 oracle exit 1 拒绝；t18 变异 PDF 按精确路径删除。
+- **probe-ops**：11 PASS + 1 BLOCKED。`computer_menu` 在自建 WinForms 原生 HMENU 上仍返回 `menu_path_unavailable` / `window_id ... invalid`，未伪造成 PASS。
+- **probe-launch**：7/7。daemon `S-1-16-12288`，但 `app_launch('powershell.exe')` 子进程为 `S-1-16-8192`；驱动侧 alt+F4 关闭，无残留；基线窗口未动。旧“app_launch 子进程一律 High IL”断言按实测改写。
+- **probe-modifier-drop**：5/5。Explorer Ctrl+drag 复制、普通 drag 移动、`GetAsyncKeyState` 与 private-drag 回执均无卡键。
+- **probe-safety-runtime 13/13；probe-scroll 3/3**（已改为 `import.meta.url` 推导根目录，加 120s 自关 Timer 与子进程身份清理）。
+- **真跑**：默认 overlay 在 t19/t20 第一步即 `QUOTA` 402（ENV，不是任务失败）；opencode overlay：t19 **pass 35 步**、t20 **pass 17 步**（首轮）；第二轮 t19 **fail 56 步**、t20 **fail 33 步**（方差样本）。t20 第二轮失败时 Confirm 模态未关，cleanup 曾记 dirty；已加“先关 owned 模态 + 精确 PID/start 兜底”，合成模态复测 cleanup dirty=false。
+- **S2 图像真跑**：p01 **pass 6 步**、p02 **pass 11 步**、p03 **pass 8 步**（opencode text+image；oracle 分别命中 C2 / P02-7K9 / D3）。
+- **轨迹细节**：逐轮 observe/action、错误、重复调用与模型行为见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md) §11；本节只保留结果摘要。
+- **TabState 事件**：首轮 opencode t19/t20 结束时，模型自开的测试 Notepad（`target.txt`，modified）阻止 restore；按精确 HWND/pid/start + 允许标签 `target.txt` 关闭并丢弃，`tabstate.ps1 restore` 恢复 28 个用户 bin。t19/t20 cleanup 已加 `Close-OrphanTestNotepads` 防复发。
+- **CI**：ubuntu 加 `npm ci` + `npm test`；新增手动 Windows self-hosted workflow（`verify-runtime` exit 2 视为 ENV；可选 probes）。当时本地已提交、未推送；后续推送与 CI 结果见 §3。
+- **AC6**：`headless-run` 落 `tokens`/`modelRoute`；`ac6-summary` 汇总 t01/t05 各 5 轮（opencode-go/deepseek-v4.1-flash）：
+  - t01：5/5 pass；steps 中位 12 / p90 15（p90Unstable，n=5<8）；wall 114s；input 8,906 / output 2,119 / cacheRead 126,976 / total 145,003 / billable 10,731。
+  - t05：5/5 pass；steps 中位 24 / p90 47（p90Unstable）；wall 224s；input 21,811 / output 3,182 / cacheRead 405,888 / total 430,881 / billable 24,993。
+  - t11/t14/t15 的 5 轮未跑（成本/桌面时间），不把 t01/t05 的数字外推到长任务。
+
+## 22. 2026-11-18
+
+### 22.1 观察回执修复后的 t11/t12
 
 环境：cua-driver 0.52.13、opencode-go / deepseek-v4.1-flash、dirty 桌面；`node evals/headless-run.mjs --tasks t11,t12 --repeats 1 --timeout-min 35 --patch evals/headless-patch.opencode.yml`。
 
@@ -475,10 +483,10 @@ node tests/native-dialogs.test.mjs
 | t11 Paint | pass | 70 | 1000s | 3 | 31 | 22/22 | `snapshot_expired` 1、`window_target_not_found` 1、保存后标题观察失败 2；`snapshot_mismatch` 0 |
 | t12 PowerPoint | pass | 100 | 1781s | 3 | 44 | 13/13 | `snapshot_expired` 2、query 后 `snapshot_missing` 1、前台锁；`snapshot_mismatch` 0 |
 
-- 3.1 之前同题面 capture-only：t11 76 步 pass（1224s、3 errors、24 unverified、oracle 22/22）；t12 98 步 pass（1378s、6 errors、44 unverified、oracle 13/13）。两条轨迹均无 `screenshot_context_missing`/`stale_element_token`。
+- 22.1 之前同题面 capture-only：t11 76 步 pass（1224s、3 errors、24 unverified、oracle 22/22）；t12 98 步 pass（1378s、6 errors、44 unverified、oracle 13/13）。两条轨迹均无 `screenshot_context_missing`/`stale_element_token`。
 - 回执修复的直接效果：native/vision 文本回显 `快照 s...；全局单例`；跨窗口旧 id 的 `snapshot_mismatch` 从 2 次降到 0。t12 的 1 次 query 后 `snapshot_missing` 是模型未读“旧动作快照已清除”提示，fail-closed 正常。
 
-### 3.2 0.52.13 canary 探针
+### 22.2 0.52.13 canary 探针
 
 | 探针/检查 | 结果 |
 |---|---|
@@ -491,16 +499,16 @@ node tests/native-dialogs.test.mjs
 | `probe-from-zoom` | 请求 160×100 → 返回 224×140，图中心点击命中 |
 | `probe-native-freshness` | WinForms 文本变化窗口未复现“AX 已变而 PNG 不变” |
 
-### 3.3 其他任务
+### 22.3 其他任务
 
 - t17 capture-only **29 步 pass**（A1 exact、0 假成功；2 errors 均为 1 步恢复）。
 - t14 capture-only **76 步 pass**；**64 步 fail**（单元格全 false、图表 title/categories true；Paste 未落，非兼容错误）。
 - t15 capture-only **55 步 pass / 52 步 fail**（fail 轮未用 Ctrl+click，文件未移动；非兼容错误）。
 - 同轮 t11 **77 步 / capture-only 76 步**、t12 **112 步 / capture-only 98 步** 均有通过样本。
 
-## 4. 2026-11-17
+## 23. 2026-11-17
 
-### 4.1 手势/画布/白底轮
+### 23.1 手势/画布/白底轮
 
 | 任务 | 轮次 | 结果 | 步数 | 关键点 |
 |---|---|---|---:|---|
@@ -510,7 +518,7 @@ node tests/native-dialogs.test.mjs
 | t14 | 旧题面 | **2/2 pass** | 141/71 | 24 格/barChart/标题/Sales/Month categories 全 true |
 | t17 | 旧题面 | **2/2 pass** | 89/63 | A1 exact；三击句子 + Ctrl+C；测试 Firefox 标签单独 Ctrl+W |
 
-### 4.2 第七轮（输入真实性与前台语义）
+### 23.2 第七轮（输入真实性与前台语义）
 
 | 任务 | 结果 | 步数 | 关键点 |
 |---|---|---|---:|
@@ -525,7 +533,7 @@ node tests/native-dialogs.test.mjs
 - `probe-private-drag`：3/3；真实插件 `computer_drag(modifier=["ctrl","shift"], dwell_ms=120)` → 持久 helper；WinForms down/move/up 均读到 `Shift, Control`，`sent=30`、`foregroundRestored=true`、无卡键。
 - t14 r1 的 28 次 type 中 26 次被误报“未送达”，但 24 格全部写对；根因是 `background_delivery_failed` 被整段 JSON 子串误判为硬失败。改为词边界后消失。
 
-### 4.3 ZCode CU 同机能力探针
+### 23.3 ZCode CU 同机能力探针
 
 方法：ZCode `computer-use` skill 要求 main agent only，由主会话直接执行；只验证关键原语，不是完整三题跑分。
 
@@ -535,9 +543,9 @@ node tests/native-dialogs.test.mjs
 | t11 Paint | 返回 221 个元素，含画布 bounds `[879,600,800,600]`、矩形/椭圆/直线、红/靛蓝/黑；元素点击可选工具/颜色。坐标 drag 要求先 `get_app_state({include_screenshot:true})`；返回 frame 是 1280×800（不是 2560×1600），画布映射约 `[440,300,400,300]`；`[480,345]→[580,415]` 被接受但 Paint 状态无变化；Windows 无 `bring_to_front`/activation API。结论：ZCode CU 在 t11 同样无法稳定完成 |
 | t12 PowerPoint | 返回 353 个元素；形状以 `Image "S4 Bar Q1/Q2/Q3"` 暴露并带 bounds；标题/副标题 value 可读；`形状填充/形状轮廓` SplitButton 可见。按元素名选中形状可行；surface reference 会 retired，需要重新 observe。文本/颜色/字号/居中仍是应用层成本 |
 
-## 5. 2026-11-16
+## 24. 2026-11-16
 
-### 5.1 脏桌面首轮（t11-t17）
+### 24.1 脏桌面首轮（t11-t17）
 
 | 任务 | 结果 | 步数 | 备注 |
 |---|---|---:|---|
@@ -548,13 +556,13 @@ node tests/native-dialogs.test.mjs
 | t12 PPT | fail | 126 | 未保存输出 |
 | t14/t17 | 仅 setup/cleanup | — | oracle 未跑 |
 
-### 5.2 修复轮
+### 24.2 修复轮
 
 - t11 显式题面 **84/77 步 pass**（app_launch=0、computer_activate 使用、12 drag）；旧题面 107/71 fail。
 - t15 新题面 **3/3 pass**（177/146/89 步，仍高于旧 112）。
 - t12 16:9 seed + 占位柱可打开/保存；25 min/190 步仅 title/subtitle、红/蓝柱、Q1 通过，仍高风险。
 
-### 5.3 t01 / t05 / 离线
+### 24.3 t01 / t05 / 离线
 
 - t01 新题面 **5/5 pass**，steps 17/32/8/19/11（median 17），wall 98.0/278.5/69.2/129.8/81.0s；中间题面版本 4/5。
 - t05 **3/3 pass**，steps 26/28/19，dirty=false，tabstate restored。
@@ -564,7 +572,7 @@ node tests/native-dialogs.test.mjs
 - 第二轮离线 **22 套 / 477 断言**；pack 38 文件；`key.xaml` 33、`action.echo` 30、`observe.truth` 20。
 - 第三轮离线 **22 套 / 483 断言**；pack 39?（原文未单列）；t01 新题面 5/5。
 
-### 5.4 WinUI 键鼠通道探针
+### 24.4 WinUI 键鼠通道探针
 
 | 组合 | 通道 | 实际效果 |
 |---|---|---|
@@ -579,9 +587,9 @@ node tests/native-dialogs.test.mjs
 
 - 结论：Ctrl+A 可靠回退是“点编辑菜单 → 全选”；Alt+F 只在 foreground `press_key` 可靠；Alt+Tab 优先用 `computer_activate`/`app_launch`。
 
-## 6. 2026-11-15
+## 25. 2026-11-15
 
-### 6.1 runtime/pipeline 复盘
+### 25.1 runtime/pipeline 复盘
 
 - t01 50 次调用（10 click / 14 key / 7 zoom / 1 set_value / 15 observe），约 6 分钟；8 次执行点击 × 5 段滑行 ≈ 40 次小段指针移动；另存为文件名框出现 `count:3` 三连击 + 8 次 BackSpace（`delivery_failed`/unverifiable）。
 - Notepad 污染：同一窗口 8 个标签：2 个用户已修改文档 + 6 个测试文件；窗口标题无 `*`；旧 cleanup 会尝试 WM_CLOSE。
@@ -599,9 +607,9 @@ node tests/native-dialogs.test.mjs
 - 输入回读/保存门禁离线 **458 断言**；`from_zoom` 真机探针 pass（请求 160×100 → 返回 224×140）。
 - 第二轮离线 2026-11-16：22 套 / 477；第三轮 483；verify-runtime 17/17（当时）。
 
-## 7. 2026-11-12
+## 26. 2026-11-12
 
-### 7.1 dsh 0.2.2-rc.1 headless 真机加载
+### 26.1 dsh 0.2.2-rc.1 headless 真机加载
 
 ```bash
 dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
@@ -621,12 +629,12 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 
 - headless 默认禁用 `credentials`；探针 patch 显式启用后可用。`OPENCODE_GO_API_KEY` 当时过期 401，使用默认 DeepSeek 通道。
 
-### 7.2 eval oracle 双向验证
+### 26.2 eval oracle 双向验证
 
 - `TEMP=C:\Windows\TEMP` 时 `Add-Type` 报找不到 `*.cs`，首次 0/10；把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp` 后 **10/10 PASS**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1）。
 - 判据：setup ok → oracle 空跑 fail → simulate pass ×2 → cleanup ok。
 
-### 7.3 headless eval smoke
+### 26.3 headless eval smoke
 
 | 轮次 | 上限 | 结果 | 备注 |
 |---|---:|---|---|
@@ -636,7 +644,7 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - 两轮合计 7/8；wa2 对时间预算敏感（8min fail → 10min pass）。
 - Round 2 工具级：141 次调用，19 错误（13.5%），41 unverified（29.1%）。
 
-### 7.4 dsh 0.2.2 兼容升级
+### 26.4 dsh 0.2.2 兼容升级
 
 | 检查 | 结果 |
 |---|---|
@@ -650,7 +658,7 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 | PTC + task | `tools.computer_do` 拉起子 agent；直接 `tools.computer_task` 为 undefined |
 | 离线 | 22 套 / 458；check 20/20；pack 37 文件（当时） |
 
-## 8. 2026-11-09/10
+## 27. 2026-11-09/10
 
 - 离线 10 套 / 231 断言（当时）；新增 `action-bounds`、`dispatcher.test`、`package-manifest`；`delivery-chain` 改为真实 `cuaDeliver`。
 - 语法 16/16；runtime 16/16（当时）；pack 31 文件（当时）。
@@ -658,7 +666,7 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - 工具面：dispatcher 默认（2 可见/20 隐藏，当时）；hybrid（7/15，当时）；dynamic 删除。
 - 缓存：稳定 dispatcher 重复 99.5%、首 tool_call 后 92.1%、第二次 85.4%；tools 变化首击 0–18%。
 
-## 9. 2026-09-17
+## 28. 2026-09-17
 
 - 离线 7 套 / 148 断言；schema 20 工具 / 42 场景；config.plumbing 25。
 - `live-action.e2e` **23/23**（唯一命名临时文件 + 标题匹配，不杀进程）。
@@ -667,17 +675,17 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - 发现并修复：`scroll`/`drag` 把结构化拒绝当成功；`runAction`/`dedupInvalidate`/`taskCallCount` 死代码；schema 覆盖 13/20 → 20/20。
 - v0.5.6 注解 tag；`main` 单分支。
 
-## 10. 2026-09-16
+## 29. 2026-09-16
 
 - 离线 4 套 / 74 断言；19 工具 / 22 场景。
 - `live-action.e2e` 3 轮 **30/30**（旧版设计）。
 - 坐标标定：可控探针逐点最小二乘 **残差 ≤0.55px**；`computer_click(x,y)` = 窗口矩形相对物理像素；截图 == `list_windows.bounds` 1:1。
 - 输入通道：经典 Win32（regedit `ctrl+f`）**3/3**；WinUI3（记事本）`hotkey` **5/5 失败**（UIA 加速器 4s 超时，#3908）。
-- 驱动完整性：`cua-driver.exe` 清单 `requireAdministrator` → daemon 与 `app_launch` 子进程 High IL；非提权客户端清不掉（#3607）。
+- 驱动完整性（0.23.2 当时）：`cua-driver.exe` 清单 `requireAdministrator` → daemon 与 `app_launch` 子进程 High IL；非提权客户端清不掉（#3607）。0.52.13 的清单复核见 §3。
 - eval 9 任务 + AC2 **9/9**（连跑 3 次一致）；冒烟 t07 pass。
 - 客户端适配：严格输出校验、composer `Input.insertText`、页脚格式、新会话视图钉住。
 
-## 11. 2026-09-06/07
+## 30. 2026-09-06/07
 
 - A6 密码窗口 **9/9**：结构标记注记 / guard 硬拒 / 普通框零误拒 / sidecar 时延 1.4–1.6s / zoom crop 元数据；发现并修复标记坐标系错误。
 - 快照新鲜度 **4/4**：快照 id / 首写 confirmed+readback / 同快照二写一致性注记 / 密码框硬拒。
@@ -685,12 +693,12 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - dsv4fv 通道：ax ✓；native ✓（attachments 端到端，首 token 0.9s / 116 tok/s / 缓存 74%）；vision 观察者半通（只出思考）；GLM 无 key 优雅降级。
 - 上游反馈：#3576（密码投影）、#3586（树版本/条件请求）、#3587（干预信号）已提。
 
-## 12. 2026-08-25 / 08-15
+## 31. 2026-08-25 / 08-15
 
 - 2026-08-25：`verify-runtime` **12/12**；12 工具注册（新增 `screen_zoom`）；AX 真实树；native text-only 拒绝；native image route PNG（1.06MB）attachments + `{type:"image"}`；zoom 区域 JPEG；vision 降级链；坐标语义；安全回归；结构化拒绝透传。
 - 2026-08-15：macOS 初始验证；cua-driver headless / MCP 链路 / dsh-mcp-client 桥接；11 工具注册；备忘录“打开→点击→输入”闭环；TTL/白名单/危险词/密码保护；home 级 patch 安装与 HMR。此阶段危险词审批已在 0.4.0 删除，结论仅作历史。
 
-## 13. 原始 run id 索引
+## 32. 原始 run id 索引
 
 - t11：`2026-11-16T10-45-11`（旧题面 71）、`11-09-17`（84）、`11-22-15`（r2 49）、`11-46-40`（77）
 - t12：`12-10-08`（189）、`12-32-32`（160）、`13-37-29`（162）、`14-01-08`（178）、`14-29-56`（190）
@@ -699,7 +707,7 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
 - 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）、`08-14-46`（capture-only t11 76 / t12 98）、`10-26-53`（回执修复后 t11 70 / t12 100）
 
-## 14. 证据边界
+## 33. 证据边界
 
 - 原始 report/trajectory 在 gitignored 的 `evals/headless-runs/`；本文件不提交截图/文档正文/模型原始 thinking。
 - ZCode CU 探针是能力验证，不是完整 t11/t12/t15 的通过/失败统计。

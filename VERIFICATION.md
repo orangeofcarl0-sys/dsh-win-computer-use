@@ -2,7 +2,7 @@
 
 > 目的：把“声称支持”变成可复现的当前证据；逐轮历史见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
 > 代码快照：`main` @ 2026-11-22（`package.json` 仍 0.5.8，npm 0.5.8 的 tag 在 `84225cc`）。main 包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力。
-> 环境：Windows 11 x64 · DPI 150% · cua-driver **0.23.2 基线 + 0.52.13 canary** · dsh 0.2.2-rc.1/rc.2 · Node 22。
+> 环境：Windows 11 x64 · 双物理屏 150%+100% · cua-driver **0.23.2 基线 + 0.52.13 canary**（宿主当前实测 0.52.13）· dsh 兼容基线 **0.2.2-rc.1** / 宿主 **0.2.2-rc.5** · Node 22。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；驱动层见 [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md)。
 
 ## 1. 当前验证矩阵
@@ -23,7 +23,7 @@
 | eval oracle（P0/P1 新增） | 2026-11-21：**19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
 | eval 参数化（variant） | 2026-11-21：t21/t22/a11y01 × variant 1-3 AC2 **9/9 PASS**；mutation t22/a11y01 **2/2 PASS**（固定 variant 1） | Windows 11 | `node evals/verify-oracles.mjs --tasks t21,t22,a11y01 --variants 3` |
 | 跨屏模型任务 | 2026-11-22：dpi01 **pass**（3 步、inner 3、oracle `clicks=1`、0 dirty；wall 70s，total 33,038 tokens；plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go） | Windows 11 / 双物理屏 150%+100% | `node evals/headless-run.mjs --tasks dpi01 --isolation clean --timeout-min 8 --patch evals/headless-patch.opencode.yml` |
-| eval oracle（S1 + x1 clean 组） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；2026-11-15 18:40 复跑） | Windows 11 | `node evals/verify-oracles.mjs` |
+| eval oracle（S1 + x1 clean 组，2026-11-15 局部复跑） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；该组后续并入 2026-11-20 全量 22/23 基线，此处保留为历史样本） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
 | S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
 | S3 导航/对话框 | 2026-11-20 题面修改后：t19/t20 AC2 **2/2 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t19,t20` |
@@ -45,16 +45,16 @@
 | oracle 反向敏感性 | 2026-11-20 基线：**19/19** 变异被 exit 1 拒绝；t04/t07 live GUI、t13 ac2:none SKIP | Windows 11 | `node evals/oracle-mutation.mjs` |
 | oracle 反向敏感性（P0/P1 抽样） | 2026-11-21：**13/13 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/dpi01；其余新增待补跑） | Windows 11 | `node evals/oracle-mutation.mjs --tasks <id> --isolation clean|dirty` |
 | 轨迹行为修复（P0/P1） | 2026-11-20：预填字段优先 `set_value`、超时不再被 preflight/activate/move_cursor 吞掉、超时候选/延迟成功、win 组合键 fail-closed、另存为目录提示/新值回执、menu `->`/`→`、无目标跳过 shell、TabState 隔离、runner `budgetExhausted`/`timeout` | Windows（离线 + 单测） | `npm test` 31/764；`node tests/proc-run.test.mjs` |
-| 模型真跑样本（最新，P0/P1 后） | 2026-11-20：t20 **2/2 pass**（27/25 inner，626/601s；超时仍多，候选 window_id 已出现）、t19 **2/2 pass**（70/48 inner，652/454s；`win+r` 归零，但 r1 比上一轮更慢）、t05 **2/2 pass**（10/15 inner，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,t05 --repeats 2 --patch evals/headless-patch.opencode.yml`；见 EVIDENCE §1.3 |
-| 模型真跑样本（上一轮/修复前） | 上一轮：t20 27/25 inner（595/618s）、t19 40/56（387/595s）、t05 21/13（185/121s）；修复前：t19/t20 各 1 pass / 1 预算耗尽、t05 r4 43 inner/1.25M | Windows 11 / opencode-go | 见 EVIDENCE §1.1/§1.2 与 [TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) §11 |
+| 模型真跑样本（最新，P0/P1 后） | 2026-11-20：t20 **2/2 pass**（27/25 inner，626/601s；超时仍多，候选 window_id 已出现）、t19 **2/2 pass**（70/48 inner，652/454s；`win+r` 归零，但 r1 比上一轮更慢）、t05 **2/2 pass**（10/15 inner，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,t05 --repeats 2 --patch evals/headless-patch.opencode.yml`；见 EVIDENCE §19 |
+| 模型真跑样本（上一轮/修复前） | 上一轮：t20 27/25 inner（595/618s）、t19 40/56（387/595s）、t05 21/13（185/121s）；修复前：t19/t20 各 1 pass / 1 预算耗尽、t05 r4 43 inner/1.25M | Windows 11 / opencode-go | 见 EVIDENCE §21/§20 与 [TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) §11 |
 | AC6 成本工具 | 2026-11-20：t01/t05 各 5 轮全 pass；t01 steps 中位 12/p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24/p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 | Windows 11 / opencode-go | `node evals/ac6-summary.mjs --reports evals/headless-runs/ac6/report.json` |
-| S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §3.1 |
-| S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §5.3 |
+| S4 任务（dirty，最新） | t11 **70 步 pass**（oracle 22/22）、t12 **100 步 pass**（oracle 13/13）；同轮 `snapshot_mismatch` 均为 0 | Windows 11 / 0.52.13 / opencode-go | `evals/headless-run.mjs --tasks t11,t12`；见 EVIDENCE §22.1 |
+| S1 任务（clean 组） | t01 新题面 **5/5 pass**（17/32/8/19/11 步）；t05 **3/3 pass**（26/28/19 步，dirty=false） | Windows 11 / dsh 0.2.2-rc.1 | `evals/headless-run.mjs`；见 EVIDENCE §24.3 |
 | P0/P1 模型 smoke（新增） | 2026-11-21：t21 **1/1 pass**（16 步，oracle 19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察）；term01 **1 次 8min timeout**（模型打开 Notepad 而非控制台）；两者 AC2 已 PASS，cleanup 关闭测试 Notepad 并恢复 TabState | Windows 11 / opencode-go | `node evals/headless-run.mjs --tasks t21 --isolation clean`；`--tasks sec02 --isolation clean`；`--tasks term01 --isolation clean` |
 | P0 判定绑定 | 2026-11-19 `t03/t04/t05/t07/x1` oracle **5/5 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t03,t04,t05,t07,x1` |
-| headless eval smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.3 |
+| headless eval smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §26.3 |
 | 阶段过滤 | **S1 10 / S2 5 / S3 26 / S4 17**（成员 58，唯一 41）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
-| dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
+| dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §26.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
 | npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.5.8`；web profile 已安装 0.5.8 并切换配置（运行中的 web 进程需重启生效）** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
@@ -77,16 +77,16 @@
 | 菜单未确认 | ✅ `effect:unverifiable` 不再报成功 | — | — | `menu.receipt` |
 | 像素点击落点 | ⚠️ best-effort（A7） | 未标定 | 未标定 | 六轮实验，见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §13 |
 
-### 1.2 提示缓存 A/B
+### 1.2 提示缓存 A/B（设计依据，2026-11-09 历史测量）
 
-2026-11-09，opencode / deepseek-v4.1-flash，重复请求同一前缀：
+opencode / deepseek-v4.1-flash，重复请求同一前缀：
 
 | 工具面 | 结果 |
 |---|---|
 | `dispatcher` 稳定 tools | 重复 **99.5%**；首次 tool_call 后 **92.1%**；第二次后 **85.4%** |
 | 旧 `dynamic` / lazy search 工具层变化 | 首击 **0%–18%**（+1 工具 0%，+4 工具 17.7%） |
 
-结论：**tools 列表必须稳定**。这是 `dispatcher` 成为默认、`dynamic` 被删除的直接依据。测试脚本在仓库外，key 只从本地配置读取、未打印；原始记录见 [EVIDENCE](docs/EVIDENCE.md) §8。
+结论：**tools 列表必须稳定**。这是 `dispatcher` 成为默认、`dynamic` 被删除的直接依据。测试脚本在仓库外，key 只从本地配置读取、未打印；原始记录见 [EVIDENCE](docs/EVIDENCE.md) §27。
 
 ### 1.3 模型可发现性
 
@@ -114,7 +114,7 @@
 | A19 实验性后台输入 | ✅ 真机（提权轮 14/0） | B0/B1/B3 真机通过；B1 touch-only 收到 `WMTOUCH`；`syntheticPointer:promote` 的 mouse-only 普通窗口收到 `MOUSEDOWN/MOUSEUP`；严格 B2 默认非提权失败关闭，`--elevated` 125ms PASS；`cursor-clip` PASS；B1 光标用 helper `cursorDrift=0` 归因，外部漂移不再误判；B2/B3 会动光标/窗口 | 默认不自动提权；只对显式 `allowedApps` 启用 |
 | A20 经典 HMENU 后端 | ✅ 真机 fixture 通过 | `nativeMenus:auto`（默认 off）离线 18 项通过；`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过（commandId/marker）；MenuStrip/WPF/WinUI 明确不支持 | 用 regedit/MFC 交叉验证；MenuStrip 仍走 UIA |
 | A21 原生 Button 触发 | ✅ 自建探针通过 | `nativeButtonTrigger:auto`（默认 off）离线 12 项通过；自建 WinForms Delete + MessageBox 1.2s 触发、opened=1、latch 生效 | t20 需显式开启 overlay 复跑；WPF/WinUI/ToolStrip 仍回退 driver |
-| 模态 click/press_key 30s 超时 | 根因已定位；标准 Button 触发已有原生兜底 | t20 2/2 pass；触发模态的标准 WinForms Button 可用 `nativeButtonTrigger:auto` 1.2s 返回（自建探针 4/4），但默认 off；模态内标准 MessageBox 按钮由 `nativeDialogs:auto` 处理；WPF/WinUI/自定义 Button 仍走 driver，可能 30s。2026-11-20 探针：AX 树 1s/5s/15s 均 0；capture-only 1.5s；`timeout_ms` 调大证伪 | 上游 #5012（`#5046` 是 closed-unmerged PR）；t20 需显式开启 nativeButtonTrigger overlay 复跑 |
+| 模态 click/press_key 30s 超时 | 根因已定位；标准 Button 触发已有原生兜底 | t20 2/2 pass；触发模态的标准 WinForms Button 可用 `nativeButtonTrigger:auto` 1.2s 返回（自建探针 4/4），但默认 off；模态内标准 MessageBox 按钮由 `nativeDialogs:auto` 处理；WPF/WinUI/自定义 Button 仍走 driver，可能 30s。2026-11-20 探针：AX 树 1s/5s/15s 均 0；capture-only 1.5s；`timeout_ms` 调大证伪 | 上游 #5012/#5046 统一见 [WINDOWS §9](docs/WINDOWS.md)；t20 需显式开启 nativeButtonTrigger overlay 复跑 |
 
 ## 3. 复现方式
 

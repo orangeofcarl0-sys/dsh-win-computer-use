@@ -2,7 +2,7 @@
 
 > 目的：30 个配置键、环境变量、优先级、交互与已知陷阱。
 > 读者：部署者、集成者、排障者。
-> 状态：当前实现（最后核对 2026-11-20；由 `npm run docs:check` 校验键数）。
+> 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验键数）。
 > 相关：[INSTALL](INSTALL.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 加载与优先级
@@ -19,6 +19,8 @@
 同一键以后加载的层为准。`apply()` 会把配置归一化成内部 `cfg`；`extremePatterns` 在这一步编译成正则，非法正则会让 `apply` 抛错（插件加载失败）。
 
 ## 2. 配置键总表
+
+> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键**只在未发布的 `main` 可用**（npm 0.5.8 安装的用户没有这些键）；其余 25 键在 0.5.8 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 未发布段为准。
 
 ### 2.1 观察与工具面
 
@@ -114,11 +116,9 @@
 | `nativeDialogs: off` × 模态 | 不 spawn Win32 对话框 helper；UIA 树为 0 时回到原有 30s/桌面降级路径 |
 | `nativeMenus: auto` × 经典 HMENU | 只在驱动结构化拒绝后解析 `GetMenu` 路径并 `PostMessage(WM_COMMAND)`；`effect:unverifiable`，不要重复 |
 | `nativeMenus: auto` × MenuStrip/WPF/WinUI | `GetMenu` 为 0 → `no_hmenu`；明确不支持，不回退像素/坐标 |
-| `nativeMenus: off` × 菜单 | 零 PowerShell spawn；保持驱动/UIA 的拒绝与未确认语义 |
 | `nativeButtonTrigger: auto` × 标准 Button | 只对唯一匹配的 Win32/WinForms Button 发 `BM_CLICK`；1.2s 级返回；10s latch 防重复；`effect:unverifiable` |
 | `nativeButtonTrigger: auto` × WPF/WinUI/ToolStrip | 没有独立标准 BUTTON 子 HWND → `no_match`，回退 driver；不会误点相邻同名控件 |
 | `nativeButtonTrigger: auto` × 模态已打开 | 主窗口 owner 被禁用 → `owner_disabled`，不回退 driver；先 observe 同 pid 对话框 |
-| `nativeButtonTrigger: off` × click | 零 PowerShell spawn；保持 driver UIA 语义（模态触发仍可能 30s） |
 | `backgroundInput: auto` × 有可交互 UIA | 不接管；继续 driver/UIA。只有快照没有 Button/Edit/MenuItem 等可交互角色时才走插件消息通道 |
 | `syntheticPointer: auto` × `allowedApps: []` | 不接管（B1/B2/B3 的强制安全闸）；B0 不受此限制 |
 | `syntheticPointer: promote` × 普通 message 窗口 | 无 anchor 单点合成触控被系统提升为鼠标消息；探针 `MOUSEDOWN/MOUSEUP`；不移动光标/前台；应用语义未验证 |

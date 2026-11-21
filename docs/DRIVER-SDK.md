@@ -2,7 +2,7 @@
 
 > 目的：让插件在用户安装的**不同 cua-driver 版本**上保持同一套内部语义。
 > 读者：维护者、驱动适配者、排障者。
-> 状态：当前实现（最后核对 2026-11-18；实测 0.23.2 → 0.52.13；0.53.0 按发布说明预留，未真机验证）。
+> 状态：当前实现（最后核对 2026-11-22；实测 0.23.2 → 0.52.13；0.53.0 按发布说明预留，未真机验证）。
 > 相关：[COMPATIBILITY](COMPATIBILITY.md) · [WINDOWS](WINDOWS.md) · [ERRORS](ERRORS.md) · [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 
 ## 1. 分层

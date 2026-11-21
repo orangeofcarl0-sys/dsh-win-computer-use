@@ -18,7 +18,7 @@
 
 | 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|---|
-| 语法/安装脚本 | S1 | `npm run check` | 46 JS（含 lib/driver、eval runner、tasks.check、background-input、nativeMenus）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
+| 语法/安装脚本 | S1 | `npm run check` | 57 JS（含 lib/driver、eval runner、tasks.check、background-input、nativeMenus）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
 | 离线单元/契约 | S1 | `npm test` | 31 套 / 774 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
 | 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
@@ -30,19 +30,19 @@
 | 安全运行时 | S1/S4 | `node evals/probe-safety-runtime.mjs` | 13 项 | 密码拒绝、TTL 过期、stop/resume 锁存、驱动错误恢复 |
 | 滚动 | S1 | `node evals/probe-scroll.mjs` | 3 项 | WinForms AutoScroll：向下/向上滚动与位置回读 |
 | 私有拖拽 | S2 | `node evals/probe-private-drag.mjs` | 1 项 × 3 轮 | 真实插件 → helper → WinForms down/move/up 均读到修饰键，drop 后无卡键 |
-| 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 13 PASS / 0 BLOCKED | click/double/right/key/hover/verify/wait_for/activate/app_list；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu/menu-count，专用 `menu:0x4D4B` marker）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked` |
+| 原语矩阵 | S1/S3 | `node evals/probe-ops.mjs` | 13 PASS / 0 BLOCKED（2026-11-21） | click/double/right/key/hover/verify/wait_for/activate/app_list；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu/menu-count，专用 `menu:0x4D4B` marker）。默认 BLOCKED 退出 0；严格验收加 `--strict-blocked` |
 | app 启动/收尾 | S1/S4 | `node evals/probe-launch.mjs` | 7 项 | app_launch pid/window、子进程 IL 实测、驱动侧 alt+F4/关闭按钮、基线窗口保留 |
 | modifier drop | S2/S4 | `node evals/probe-modifier-drop.mjs`（可加 `--excel --excel-only`） | 5 项 + Excel 分支 | Explorer Ctrl+drag 复制、普通 drag 移动、无卡键；Excel 分支已实现 UIA `DataItem` 几何/Ctrl+drag/Ctrl+S/OOXML 校验；2026-11-22 复跑：`CellDragAndDrop=true`，边框 144–148/中心/不带 Ctrl 均投递成功但 A2 不动、E2 为空 → 拖拽未启动，仍 BLOCKED。`--strict-blocked` 时 BLOCKED 为 exit 2 |
-| 模态根因 | S3 | `node evals/probe-modal-timeout.mjs` | 10 PASS / 13 BLOCKED | MessageBox 期间 AX 树 0@1s/5s/15s、capture 1.5s、驱动 click/key/bring 阻塞、原生 WM_COMMAND 关闭、触发 click 随模态关闭返回 |
-| 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
-| 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
-| 常见对话框后端 | S3 | `node evals/probe-common-dialogs.mjs` | 6 PASS / 0 BLOCKED | WinForms Open/Save/Font/Color/Print：标准 `#32770`、`modal=owner-disabled`、Cancel `BM_CLICK`、state result=Cancel；不覆盖 WPF/WinUI/自定义 shell 对话框 |
-| 手势真实性 | S2/S4 | `node evals/probe-gesture-truth.mjs` | private PASS；driver move BLOCKED | WinForms 记录 down/move/up + Ctrl：private 路径完整；driver 原生 drag 只看到 down/up、无中间 move，记 BLOCKED |
-| WPF 模态 | S3 | `node evals/probe-wpf-dialog.mjs` | 7 PASS / 0 BLOCKED | WPF 模态 class=`HwndWrapper[...]`、owner 主窗口 disabled、UIA 5 元素、capture-only 可用、native scan=null |
-| Chromium 文件/打印 | S3 | `node evals/probe-chromium-dialogs.mjs --browser chrome` | 1 PASS / 2 BLOCKED | 页面可加载；合成 click 未弹出 file chooser；Ctrl+P 未产生可识别 print 窗口 → BLOCKED |
-| 跨 IL / UIPI | S3/S4 | `node evals/probe-cross-il.mjs --no-uac`；`--uac`（一次授权） | 只读 PASS；UAC 部分 | 高 IL sink/拒绝有证据；该次运行暴露并修正 `IntegrityRank` off-by-one，修正后 UAC 复跑待做 |
-| 原生 Button 触发 | S3 | `node evals/probe-native-button.mjs` | 4 PASS / 0 BLOCKED | 自建 WinForms Delete + MessageBox：原生触发 1.2s 返回、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 |
-| 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs`（可加 `--elevated`） | 默认 14 PASS / 1 BLOCKED；提权 14 PASS / 0 BLOCKED | 自建 native message/pointer/touch-only/mouse-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B3 window 通过；B1 光标用 helper 注入窗口内 `cursorDrift=0` 判定，外部漂移不再污染；严格 B2 非提权 `BlockInput` 被拒 → BLOCKED，`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；0 FAIL |
+| 模态根因 | S3 | `node evals/probe-modal-timeout.mjs` | 10 PASS / 13 BLOCKED（2026-11-20） | MessageBox 期间 AX 树 0@1s/5s/15s、capture 1.5s、驱动 click/key/bring 阻塞、原生 WM_COMMAND 关闭、触发 click 随模态关闭返回 |
+| 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED（2026-11-20） | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
+| 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED（2026-11-20） | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
+| 常见对话框后端 | S3 | `node evals/probe-common-dialogs.mjs` | 6 PASS / 0 BLOCKED（2026-11-22） | WinForms Open/Save/Font/Color/Print：标准 `#32770`、`modal=owner-disabled`、Cancel `BM_CLICK`、state result=Cancel；不覆盖 WPF/WinUI/自定义 shell 对话框 |
+| 手势真实性 | S2/S4 | `node evals/probe-gesture-truth.mjs` | private PASS；driver move BLOCKED（2026-11-22） | WinForms 记录 down/move/up + Ctrl：private 路径完整；driver 原生 drag 只看到 down/up、无中间 move，记 BLOCKED |
+| WPF 模态 | S3 | `node evals/probe-wpf-dialog.mjs` | 7 PASS / 0 BLOCKED（2026-11-22） | WPF 模态 class=`HwndWrapper[...]`、owner 主窗口 disabled、UIA 5 元素、capture-only 可用、native scan=null |
+| Chromium 文件/打印 | S3 | `node evals/probe-chromium-dialogs.mjs --browser chrome` | 1 PASS / 2 BLOCKED（2026-11-22） | 页面可加载；合成 click 未弹出 file chooser；Ctrl+P 未产生可识别 print 窗口 → BLOCKED |
+| 跨 IL / UIPI | S3/S4 | `node evals/probe-cross-il.mjs --no-uac`；`--uac`（一次授权） | 只读 PASS；UAC 部分（2026-11-22） | 高 IL sink/拒绝有证据；该次运行暴露并修正 `IntegrityRank` off-by-one，修正后 UAC 复跑待做 |
+| 原生 Button 触发 | S3 | `node evals/probe-native-button.mjs` | 4 PASS / 0 BLOCKED（2026-11-21） | 自建 WinForms Delete + MessageBox：原生触发 1.2s 返回、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 |
+| 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs`（可加 `--elevated`） | 默认 14 PASS / 1 BLOCKED；提权 14 PASS / 0 BLOCKED（2026-11-21） | 自建 native message/pointer/touch-only/mouse-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B3 window 通过；B1 光标用 helper 注入窗口内 `cursorDrift=0` 判定，外部漂移不再污染；严格 B2 非提权 `BlockInput` 被拒 → BLOCKED，`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；0 FAIL |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 37 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13/t21 按原因 SKIP |
 | AC6 成本 | S1-S4 | `node evals/ac6-summary.mjs --reports <report>` | per-task token/步数 | 读 `status/step_end.usage`，输出中位数/p90 与 billable |
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
@@ -53,13 +53,15 @@
 | 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 41 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
 | oracle 验证 | S1-S4 | `node evals/verify-oracles.mjs --stage S4` | 41 条（t13 可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
 
+> 规模列中的 PASS/BLOCKED 是**最近一次真机结果**，日期随行标注；历史轮次见 [EVIDENCE](EVIDENCE.md)。
+
 ### 2.1 S1-S4 阶段
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
 | **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31/774、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / dpi01 / p01 / p02 / p03（5） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20（26） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t20、t22、t23、w01/w02/sec01–sec04/rec01–rec03/combo01/combo02/b01/term01/a11y01/x1（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
 
 阶段是**成员标签，可重叠**：S1 10 / S2 5 / S3 26 / S4 17，成员合计 58，唯一任务 41。t11=S2+S4；t12-t18=S3+S4；t23/sec01–sec04/combo01/combo02/rec02/rec03 也含 S4；x1=S3。
@@ -98,7 +100,7 @@
 | `package-manifest.test.mjs` | 9 | 包名/仓库、peer/dev 依赖、dsh 兼容范围、发布文件、权限声明、测试脚本 |
 | `proc-run.test.mjs` | 3 | 子进程超时（close 抢跑不丢 `timedOut`）、正常退出、spawn 失败不误报超时 |
 | `native-dialogs.test.mjs` | 18 | 空 AX→native-dialog 合成按钮；native click 不走驱动；坐标/键盘/滚动/双击/右键拒绝；off/非模态回退；失败不消费；allowedApps/snapshot_id/UIA 复核；sidecar JSON/base64/超时 |
-| `background-input.test.mjs` | 50 | 实验后台输入：click/type/key 接入；off/foreground/modifier/组合键回退；拒绝不重试；回执字段/错误码；client 就绪/超时/坏响应/旧进程 exit 竞态；分类器/坐标/VK；B0/B1/B2/B3 路由、遮挡不降级、密码拒绝；`cursor-clip`/`desktop_busy`/诊断透传；B3 外部移动回执；`syntheticPointer:promote` 路由与 pointer 契约不接管 |
+| `background-input.test.mjs` | 52 | 实验后台输入：click/type/key 接入；off/foreground/modifier/组合键回退；拒绝不重试；回执字段/错误码；client 就绪/超时/坏响应/旧进程 exit 竞态；分类器/坐标/VK；B0/B1/B2/B3 路由、遮挡不降级、密码拒绝；`cursor-clip`/`desktop_busy`/诊断透传；B3 外部移动回执；`syntheticPointer:promote` 路由与 pointer 契约不接管；G5b/I6b：UIPI 拒绝不落入 `unverifiable`、高 IL profile fail-closed |
 | `native-menus.test.mjs` | 18 | 经典 HMENU 兜底：off 零调用；驱动拒绝后才回退；confirmed/unverifiable/effect 缺失/超时不回退；no_hmenu/timeout；resolve/invoke/base64/超时/非零退出；resolved hwnd/stage/诊断 |
 | `native-button-trigger.test.mjs` | 12 | 原生 Button 触发：off 零调用；Button 命中不走 driver；非 Button/坐标/多击/modifier/foreground 不触发；pre-delivery 回退；owner_disabled/timeout/latch 不回退 |
 
@@ -159,7 +161,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 
 - `headless` 默认禁用 `credentials`；overlay 必须显式启用，否则会在 LLM 路由报 `MISSING_CREDENTIAL`，不是插件加载错误。
 - 2026-11-12 实测：dsh 0.2.2-rc.1 + 默认 DeepSeek 通道，1 轮 5 步完成 `status` / `screen_observe` / `catalog` / 隐藏 `computer_wait`；当时 2 可见/20 隐藏；`cacheReadTokens` 6528→7296。
-- 证据见 [EVIDENCE](EVIDENCE.md) §7.1。
+- 证据见 [EVIDENCE](EVIDENCE.md) §26.1。
 
 ### 4.2 headless eval smoke
 
@@ -167,7 +169,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 node evals/headless-run.mjs --tier smoke --timeout-min 10
 ```
 
-复用 setup/oracle/cleanup，逐条保存 `evals/headless-runs/<stamp>/<task>-r<n>.jsonl`，统计 pass/fail、工具错误、未验证、超时。`timedOut`/`budgetExhausted`/`noFinal` 分开记录；撞满 `--timeout-min` 且没有 `final` 的样本记 `verdict=timeout`，不再混成普通 fail。前置：headless profile 可解析 `dsh-win-computer-use`；`DSH_BIN` 可覆盖 dsh entry；`TEMP/TMP` 自动归一化。2026-11-12 两轮 smoke **7/8**（Round 2 4/4）；详见 [EVIDENCE](EVIDENCE.md) §7.3。
+复用 setup/oracle/cleanup，逐条保存 `evals/headless-runs/<stamp>/<task>-r<n>.jsonl`，统计 pass/fail、工具错误、未验证、超时。`timedOut`/`budgetExhausted`/`noFinal` 分开记录；撞满 `--timeout-min` 且没有 `final` 的样本记 `verdict=timeout`，不再混成普通 fail。前置：headless profile 可解析 `dsh-win-computer-use`；`DSH_BIN` 可覆盖 dsh entry；`TEMP/TMP` 自动归一化。2026-11-12 两轮 smoke **7/8**（Round 2 4/4）；详见 [EVIDENCE](EVIDENCE.md) §26.3。
 
 > **Web runner 已退役**：`evals/run.mjs` 的 UI 选择器/发送路径基于 dsh 0.1.5；在 0.2.2 上创建空会话、`steps` 误读。现在默认拒绝运行并提示改用 headless runner（`--allow-legacy-web` 仅旧 UI 调试，`--dry-setup` 仍可用）。
 
@@ -182,7 +184,17 @@ node tests/live-action.e2e.mjs 3
 - 用**唯一命名临时文件**打开记事本，做确定性窗口选择，避免桌面已有多个记事本时选错；
 - 流程：observe(ax) → 找文档元素 → `computer_type`（`effect:confirmed`）→ **脚本自读 UIA 文档文本含标记**（独立见证）→ `computer_verify` 窗口谓词 satisfied / 自输入文本 `unknown+untrusted_source` → 未知参数拒绝 → 剪贴板往返 → `computer_wait`；
 - 不杀进程：Win11 记事本可能同时持有用户未保存文档；脚本只报告残留标签，由人工关闭；
-- 最近一次：23/23（2026-09-17，重设计后）；0.52.13 canary 33/33（详见 [EVIDENCE](EVIDENCE.md) §3.2）。
+- 最近一次：23/23（2026-09-17，重设计后）；0.52.13 canary 33/33（详见 [EVIDENCE](EVIDENCE.md) §22.2）。
+
+### 5.1 密码框冒烟（`tools/password-probe.ps1`）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/password-probe.ps1
+```
+
+期望：结构位标记命中；`computer_type` / `computer_set_value` 对密码框硬拒；普通输入框零误拒。
+
+> **不再使用的旧验收项**：旧版 `WINDOWS_TEST.md` 曾要求“危险词按钮 → 触发审批”。审批网关在 0.4.0 已删除；现在的正确验收是 `extremePatterns` 命中 → 结果附警告注记但**动作仍执行**、密码框硬拒、快照 TTL/无快照结构化拒绝、`computer_stop` 全工具锁存。
 
 ## 6. 任务级评测（S1-S4，`evals/`）
 
@@ -194,7 +206,7 @@ node evals/headless-run.mjs --tier smoke --timeout-min 10   # 旧调度标签
 node evals/verify-oracles.mjs --stage S4
 ```
 
-- 任务集 41 条：S1 10（t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2）+ S2 5（t11/dpi01/p01/p02/p03）+ S3 26（t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20）+ S4 17（t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03）；成员合计 58，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
+- 任务集 41 条：S1 10（t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2）+ S2 5（t11/dpi01/p01/p02/p03）+ S3 26（t12–t20、t22、t23、w01/w02/sec01–sec04/rec01–rec03/combo01/combo02/b01/term01/a11y01/x1）+ S4 17（t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03）；成员合计 58，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
 - `--tasks` > `--stage` > `--tier`；`--stage` 无匹配时退出非 0；无参数仍按旧 smoke 运行。退役任务见 [evals/RETIRED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/RETIRED.md)。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
 - `verify-oracles` 判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；**2026-11-20 全量 22/23 PASS + t13 SKIP（0 FAIL/ENV/dirty）**。若 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp`。
@@ -216,7 +228,7 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 - 交替跑 off/auto（每轮 `--repeats 1` 最稳）抵消机器漂移；两臂不要并发。两臂 patch 必须都固定 `agent-default-model`；dsh 0.2.2 不支持 seed/top_p，重复测试只能按统计分布解读。
 - report 带 `patchPath/patchSha256/wallMs/innerSteps`；trajectory 分析用 `node evals/analyze-trajectory.mjs <file> --json`。
 - 决策规则：pass 不下降；median steps/duration 不恶化超过约 15%；p90 不恶化超过约 25%（n<8 标 `p90Unstable`）；没有新增 dirty/timeout；strategy 分布不更偏 exploratory。否则保持 `off`。
-- 2026-11-16 首轮 **10/10 pass**；auto 中位略优但有 533s 尾部、每轮多 2–12 次复核，默认保持 `off`。详见 [EVIDENCE](EVIDENCE.md) §5.3。
+- 2026-11-16 首轮 **10/10 pass**；auto 中位略优但有 533s 尾部、每轮多 2–12 次复核，默认保持 `off`。详见 [EVIDENCE](EVIDENCE.md) §24.3。
 
 ### 6.2 S4 脏桌面套件（t11-t18）
 
@@ -241,7 +253,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 - `ac2: none` 只剩 t13（真实网络）在 verify-oracles 中显示 **SKIP**，表示 setup/oracle-empty/cleanup 已验，但无 simulate；不是假 PASS。t12/t14/t17/t18 均有 simulate。
 - setup ENV（应用缺失/网络不可达/浏览器不能新开窗口）在 headless-run 记 `verdict=env`，不混入 pass/fail。
 - t13 复用用户浏览器：下载目录是真实 Downloads；oracle/cleanup 只考虑任务开始后新增且哈希匹配的 PDF，绝不删除用户已有文件。
-- 逐轮步数与失败样本见 [EVIDENCE](EVIDENCE.md) §2–§5；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
+- 逐轮步数与失败样本见 [EVIDENCE](EVIDENCE.md) §2 与 §22–§24；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ### 6.3 S2 像素/OCR/zoom 任务
 
@@ -344,8 +356,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 评测 | 41 条任务：S1 10 / S2 5 / S3 26 / S4 17（成员 58）；t12/t14/t17/t18/p01-p03/t19/t20/t21/t22/t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01 均有 simulate；仅 t13 仍 `ac2:none`，其 SKIP 不是 PASS |
 | AC2 全量 | 2026-11-20 基线 **22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty）；2026-11-21 P0/P1 新增 **19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01）；**variant 1-3 回归 9/9 PASS**（t21/t22/a11y01 各 3 个 variant，2026-11-21） |
 | oracle 变异 | 2026-11-20 基线 **19/19**；2026-11-21 P0/P1 抽样 **13/13 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/dpi01；其余新增待补跑）；参数化回归 t22/a11y01 **2/2 PASS**（mutation 固定 variant 1；t21 无产物按原因 SKIP） |
-| 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3**；modal-timeout **10 PASS / 13 BLOCKED**、modal-escapes **6 PASS / 4 BLOCKED**；native-dialog **9 PASS / 0 BLOCKED**（根因见 EVIDENCE §1.4/§1.5） |
-| 模型真跑（最新） | 2026-11-20：opencode t19 **2/2 pass**（inner 70/48）、t20 **2/2 pass**（inner 27/25）、t05 **2/2 pass**（inner 10/15）；0 timeout/dirty；t20 30s 超时仍多但候选 window_id 已出现；t19 `win+r` 归零、r1 回归；t05 无 `type`/无 src 残留；见 EVIDENCE §1.3 |
+| 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu，当时）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3**；modal-timeout **10 PASS / 13 BLOCKED**、modal-escapes **6 PASS / 4 BLOCKED**；native-dialog **9 PASS / 0 BLOCKED**（根因见 EVIDENCE §18/§17）。probe-ops 最新为 2026-11-21 的 **13 PASS / 0 BLOCKED**（见 §2 表） |
+| 模型真跑（最新） | 2026-11-20：opencode t19 **2/2 pass**（inner 70/48）、t20 **2/2 pass**（inner 27/25）、t05 **2/2 pass**（inner 10/15）；0 timeout/dirty；t20 30s 超时仍多但候选 window_id 已出现；t19 `win+r` 归零、r1 回归；t05 无 `type`/无 src 残留；见 EVIDENCE §19 |
 | 模型真跑（上一轮/修复前） | 上一轮 t19 40/56、t20 27/25、t05 21/13；修复前 t19/t20 各 1 pass/1 预算耗尽（35/56、17/33），p01/p02/p03 6/11/8；保留为历史 |
 | AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24 / p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 |
 | P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
@@ -363,6 +375,6 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 - **参数化（已实现，3 条任务）**：`variants: N` + `evals/variants/<id>.json` 是唯一数据源；runner 通过 `S4_VARIANT` 传给 setup/oracle/simulate/cleanup，prompt 用 `{{key}}` 渲染。`headless-run --variants N` 与 `verify-oracles --variants N` 对声明任务跑 1..N；未声明任务只跑 variant 1。当前 t21（Calculator 除法）、t22（PPT 标题/副标题）、a11y01（键盘-only 文本）各 3 个 variant；mutation 固定 variant 1（case 按 variant 1 编写）。仍以 41 条任务为分母，variant 用于统计功效而非新增任务数。
 - **可访问性**：`a11y01` 已实现键盘-only + UIA 名称 + 3 个输入 variant；高对比度/Narrator 全量验收仍未做。
 - **Linux**：仅 Ubuntu CI 跑 `npm run check` / `npm test`；`probe-platform.mjs` 在非 Windows 只报 BLOCKED。无 Linux 任务套件，`verify-runtime` 可选；Linux 不作为发布门禁，文档不写“已支持”。
-- **Windows 专项**：`probe-display` 已记录 2 屏/混合 DPI；`dpi01` AC2 已过，**真实模型跨屏点击 2026-11-22 PASS**（3 步，oracle clicks=1，0 dirty，plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go）；`probe-common-dialogs` 对 Open/Save/Font/Color/Print 标准 `#32770` **6/6 PASS**；`probe-wpf-dialog` WPF 模态 **7/7 PASS**（UIA 可读、native scan=null）；`probe-gesture-truth` private PASS、driver 中间 move BLOCKED；Chromium file chooser/print preview 仍 BLOCKED；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
+- **Windows 专项**：`probe-display` 已记录 2 屏/混合 DPI；`dpi01` AC2 已过，**真实模型跨屏点击 2026-11-22 PASS**（3 步，oracle clicks=1，0 dirty，plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go）；`probe-common-dialogs` 对 Open/Save/Font/Color/Print 标准 `#32770` **6/6 PASS**；`probe-wpf-dialog` WPF 模态 **7/7 PASS**（UIA 可读、native scan=null）；`probe-gesture-truth` private PASS、driver 中间 move BLOCKED；Chromium file chooser/print preview 仍 BLOCKED；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)。
 
 > 逐轮时间线、工具计数、失败模式见 [EVIDENCE](EVIDENCE.md)；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；当前矩阵见 [VERIFICATION](../VERIFICATION.md)。

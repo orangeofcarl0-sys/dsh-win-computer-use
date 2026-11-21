@@ -1,11 +1,12 @@
 # Changelog
 
-> **版本状态（2026-11-21）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
+> **版本状态（2026-11-22）**：`v0.5.8` 已发布并推送 npm（`dsh-win-computer-use@0.5.8`）；`main` 为 0.5.8 + 下述未发布能力，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.8 并切换 bundles（运行中的 web 进程需重启）。
+> 各版本条目内的测试/文件计数是**当时快照**；当前值以 `tests/docs.facts.json` 与 [VERIFICATION](VERIFICATION.md) 为准。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
-## 未发布 (2026-11-21)
+## 未发布 (2026-11-22)
 
-**主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）+ 经典 HMENU 菜单兜底。不改驱动、不改变默认行为。
+**主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）+ 经典 HMENU 菜单兜底 + UIPI 回执映射与评测证据探针（手势真值 / WPF / Chromium / 跨 IL）。不改驱动、不改变默认行为。
 
 ### Added
 
@@ -19,16 +20,24 @@
 - 新增 `nativeMenus`（经典 Win32 HMENU，默认 off）：驱动 `invoke_menu` 结构化拒绝后，`GetMenu` 精确路径解析 + 一次 `PostMessage(WM_COMMAND)`；只叶子命令、同 pid、不自动选择；`effect:unverifiable`；MenuStrip/WPF/WinUI 返回 `no_hmenu`。新增 `lib/nativeMenus.js`、`tools/native-menu.ps1`、`tests/native-menus.test.mjs`（18 项）；`probe-ops` SetMenu fixture 真机通过。
 - 新增 `nativeButtonTrigger`（标准 Win32/WinForms Button，默认 off）：`computer_click(element=Button)` 单次左键时，重新枚举同 pid 标准 Button，严格 class/style/label/屏幕点唯一匹配后 `BM_CLICK`；t20 形态 1.2s 返回；10s latch；pre-delivery 回退 driver，owner_disabled/超时不回退。新增 `lib/nativeButtonTrigger.js`、`tools/native-button.ps1`、`tests/native-button-trigger.test.mjs`（12 项）、`evals/probe-native-button.mjs`（4/4 PASS）。
 - 回执新增投递标签：后台消息/控件消息/合成触控/光标锚定/窗口锚定；拒绝码 `background_input_*`。
+- `computer_drag` 回执新增 `engine: 'private_sendinput' | 'driver_native'`，输出 schema 同步；描述修正为“驱动支持 `dragModifier` 时 modifier 走原生；`dwell_ms>0`/`dragEngine:private`/旧驱动走私有 SendInput”。
+- UIPI 回执映射：`lib/cua.js`/`lib/engine.js` 显式识别 `background_uipi_blocked`/`uipi_blocked`/`higher_integrity`/`background_secure_desktop`，分类为拒绝（不再落入 `unverifiable`）；`lib/receipt.js` 给出“先 screen_observe、改前台投递或放弃高完整性目标”指引。
+- 评测证据探针：`evals/probe-gesture-truth.mjs`（WinForms 手势真值）、`evals/probe-wpf-dialog.mjs`（WPF 模态/MessageBox）、`evals/probe-chromium-dialogs.mjs`（Chrome 临时 profile 文件选择器/打印）、`evals/probe-cross-il.mjs`（`--no-uac` 只读 + `--uac` 测试自建 elevated sink）。
+- `evals/lib/excel-geometry.ps1` 增强：`AccessibleObjectFromWindow` 回退、UIA `SelectionItemPattern` 选中证明、`GetCursorPos`/`GetAsyncKeyState` 光标与修饰键状态。
+- `lib/nativeDialogs.js` 支持 `DSH_POWERSHELL` 覆盖 spawn；`tools/native-dialog.ps1` 补 Per-Monitor V2 DPI 感知。
 
 ### Notes
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
 - 真机探针 2026-11-21：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift=0` 归因，外部漂移（348–766px）不再误判；B3 PASS。
-- 离线 31 套 / 772 项；语法 57/57；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
+- 离线 31 套 / 774 项；语法 57/57；任务元数据检查 907 项；`npm test`/`npm run check` 通过。已 push 到 `main`（最新 `a716633`，CI success，run 44939474514）；未 tag/npm publish。
 - 评测 P2（2026-11-21）：`variants` 参数化落地（t21/t22/a11y01 × variant 1-3，AC2 **9/9 PASS**，mutation **2/2 PASS**）；新增只读 `evals/probe-platform.mjs`；虚拟桌面因无驱动原语 + `win` 组合键 fail-closed 记 BLOCKED。
 - 评测 P2（2026-11-22）：`dpi01` 真实模型跨屏点击 **pass**（3 步，双物理屏 150%+100%）；新增 `probe-common-dialogs.mjs`，Open/Save/Font/Color/Print 标准 `#32770` 后端 **6/6 PASS**。
 - `nativeMenus` 真机已 PASS：`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过；MenuStrip/WPF/WinUI 仍明确不支持。
 - `nativeButtonTrigger` 真机探针：自建 WinForms Delete + MessageBox **4 PASS / 0 BLOCKED / 0 FAIL**（1.2s、opened=1、native-dialog 关闭、latch）；默认 off，t20 需显式开启 overlay 复跑。
+- 评测证据（2026-11-22）：Excel 双引擎矩阵 private/native/无 Ctrl **36 PASS / 6 BLOCKED / 0 FAIL**——A2 经 UIA `SelectionItemPattern` 证实选中、hover/光标/边框证据齐全，但两引擎与无 Ctrl 对照均未启动拖拽 → **保持 BLOCKED，不冒充 PASS**；WPF 模态 **7/7 PASS**（`HwndWrapper` class、owner 禁用、UIA 5 元素、capture-only 14,100B、native scan null）；Chromium 文件选择器/打印预览合成输入打不开 → **1 PASS / 2 BLOCKED**；`probe-cross-il --no-uac` 2 PASS / 1 BLOCKED，授权一次 `--uac`：测试 sink RID 12288、Medium helper `{"ok":false,"code":"uipi","delivered":false}`、0 events。
+- PE 清单复核（2026-11-22，只读字节扫描）：0.52.13 `cua-driver.exe` 全二进制仅一处 `requestedExecutionLevel`，`level="asInvoker" uiAccess="false"`；另一处 `requireAdministrator` 字节命中不属于任何清单（正是此前误判来源）。daemon High 取决于启动方式。
+- `evals/BLOCKED.md` 重构为环境型/能力型（A 输入手势 / B 观察原生 UI / UIPI 跨 IL）/证据型三类；已解的 dpi01、标准常见对话框移出能力型。
 
 ### Fixed
 
@@ -39,6 +48,8 @@
 - **sidecar 生命周期**：子进程 generation 隔离，旧 `exit` 不再误杀新进程；ready 后非 JSON 立即 `bad_response`；长文本按长度缩放超时。
 - **B3 外部改动判定**：不再只在请求位置与原点不同时检测；请求位置=原位置时也会识别外部移动；点击后窗口被外部移动时不还原，返回 `ok:true` + `warning_code=window_changed_externally`，不再和用户抢窗口。探针把 `desktop_busy`/`window_changed_externally`/`window_not_movable` 归为 BLOCKED。
 - **B2 失败诊断**：`block_input_failed` 现在带 `win32_error` 和 `diagnostics`；严格 B2 仍 fail-closed，不自动回退；`cursor-clip` 是独立的免提权通道，默认 off。
+- **IntegrityRank off-by-one**（2026-11-22）：`tools/background-input.ps1` 的 RID 阈值修正——medium 8192 曾被误标为 high，system/high 曾同为 rank 3；现映射 `0x1000=low / 0x2000=medium / 0x3000=high / 0x4000=system`。修正后 Medium→High UAC 复跑**待做**。
+- **UIPI fail-closed 离线断言**：`tests/background-input.test.mjs` 新增 G5b（`background_uipi_blocked → deliveryFailure='uipi'`）与 I6b（高 IL profile 使 `tryBackgroundClick/Type/Key` 返回 null），并清理 profile 缓存污染。
 
 ## 0.5.8 (2026-11-20)
 
@@ -69,7 +80,7 @@
 - 新增模态根因探针 `evals/probe-modal-timeout.mjs`（~75s）与 `evals/probe-modal-escapes.mjs`（~3min，`--trigger-only` 快速验证触发侧）；不加入 `npm test`。
 - 新增原生对话框后端 `lib/nativeDialogs.js` + `tools/native-dialog.ps1`；`tests/native-dialogs.test.mjs` 18 项；真机 `evals/probe-native-dialog.mjs` 9 PASS。
 - `tests/tasks.check.mjs` 增加 t19/t20 题面守卫与 t05 副作用守卫（332 项）。
-- 文档同步：TOOLS/CONFIGURATION/WINDOWS/ARCHITECTURE/TESTING/VERIFICATION/PERMISSIONS/evals README；EVIDENCE §1.5 与 TRAJECTORY-ANALYSIS §11.11 记录私有实现。
+- 文档同步：TOOLS/CONFIGURATION/WINDOWS/ARCHITECTURE/TESTING/VERIFICATION/PERMISSIONS/evals README；EVIDENCE §17（重组前 §1.5）与 TRAJECTORY-ANALYSIS §11.11 记录私有实现。
 - 2026-11-20 复跑：t20 **2/2 pass**（inner 27/25，626/601s；30s 超时仍多、候选 window_id 出现）、t19 **2/2 pass**（inner 70/48；`win+r` 归零，但 r1 从 40→70 回归）、t05 **2/2 pass**（inner 10/15；零 `type` 改文件名、无 `src` 残留）。
 
 ## 0.5.7 (2026-11-19)

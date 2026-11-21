@@ -2,7 +2,7 @@
 
 > 目的：模块边界、工具面、请求/观察管线、快照、投递、委派、不变量与扩展方式。
 > 读者：要改代码或排查行为的人。
-> 状态：当前实现（最后核对 2026-11-20；代码快照 `main` @ 0.5.8，npm 已发布）。
+> 状态：当前实现（最后核对 2026-11-22；代码快照 `main` @ 0.5.8，npm 已发布）。
 > 相关：[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [docs/README](README.md)。
 
 ## 1. 目标与非目标
@@ -220,7 +220,7 @@ sequenceDiagram
 | `menu_path_unavailable` 等 | `false` | — | `refusalReceipt` |
 | 驱动调用 `timeout` | `false` | `markSuspect` | `timeoutReceipt`：click 先等待 5–10s 再 observe 新模态/capture 确认；type 指向“可能已部分写入” |
 
-> 2026-11-20 探针补充：WinForms MessageBox 打开期间，该进程 UIA provider 不服务跨进程请求——同 pid 的 AX 树在 1s/5s/15s 预算下都是 0 元素；驱动的 click/press_key/bring_to_front 会阻塞到模态关闭。`timeoutReceipt` 已按此修正，不再建议 Escape/Enter/foreground 键作为快速路径。详见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。
+> 模态补充：MessageBox 打开期间，该进程 UIA provider 不服务跨进程请求——同 pid 的 AX 树在 1s/5s/15s 预算下都是 0 元素；驱动的 click/press_key/bring_to_front 会阻塞到模态关闭。`timeoutReceipt` 已按此修正，不再建议 Escape/Enter/foreground 键作为快速路径；完整操作指引见 [WINDOWS §6.1](WINDOWS.md)，根因证据见 [EVIDENCE §18](EVIDENCE.md#18-2026-11-20--t20-模态-30s-超时根因探针)。
 
 XAML/WinUI 组合键例外（`lib/actions.js key()` + `lib/keyFallback.js`）：
 
@@ -440,9 +440,9 @@ stateDiagram-v2
 | A14 | 输入真实性 | 无 Document/TextArea 的聚焦输入保留快照，避免每格 observe；有回读控件仍逐字复核 | Excel/PPT 连续输入不再 snapshot churn | 单测 D-bg/F17-F20/E29-E30；t14/t17 复跑观察 |
 | A15 | 观察提示 | 目标 z 序落后时提示 `computer_activate`；坐标行带源图尺寸并警告预览缩放；网格/画布用 `screen_zoom`+`from_zoom` | z 序不是 OS 前台，文案保守；`z_index=null` 不提示 | 单测 C15-C18；t14/t17 复跑 |
 | A16 | 强制前台指针 | `foreground:true` 的 click/scroll/drag 改为前置单次（bring_to_front → 动作一次 → 恢复），不再失败后 L3 重试 | 避免同一文件点两遍/同一形状画两遍；代价是每次强制动作多一次前置 | 单测 F14/F14b/F16；t11/t15/t14/t17 回归 |
-| A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；`probe-modifier-drop` 已回归 Explorer Ctrl+drag 复制与普通 drag 移动；`--excel` 分支已实现（UIA cell 几何 + OOXML 校验），Ctrl+drag 仍未复现 E2 复制 → BLOCKED；PPT 无分支 |
-| A19 | 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对无交互 UIA 的目标；B1 遮挡失败关闭；B2 `cursor` 依赖 `BlockInput`，`cursor-clip` 用 `ClipCursor` 免提权；B3 会移窗口；helper 增加 `desktop_busy`、`cursorDrift`、elevation/UIAccess 诊断 | B0/B1/B3 真机通过；严格 B2 默认非提权失败关闭，`--elevated`（UAC）125ms PASS（`inputBlocked=true`/`cursorRestored=true`）；`cursor-clip` PASS；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift` 归因；提权轮 14/0，默认轮 14/1 | 见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)；生产不自动提权；不把 BLOCKED 当 PASS |
-| A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；2026-11-20 实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
+| A17 | 私有拖拽 | `modifier`/`dwell_ms` 走持久 PowerShell + C# P/Invoke SendInput；PMv2、virtual desk、4px 阈值、16ms 插值、modifier 持有到 drop、finally 释放、恢复前台 | 不支持 `from_zoom`；UIPI 高权限目标会失败；不自动重试 | `probe-private-drag` 通过；Explorer Ctrl+drag 已回归；Excel 分支 UIA 选中/hover/边框证据齐全但拖拽未启动 → **BLOCKED**（[EVIDENCE §8](EVIDENCE.md)）；PPT 无分支 |
+| A19 | 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对无交互 UIA 的目标；B1 遮挡失败关闭；B2 `cursor` 依赖 `BlockInput`，`cursor-clip` 用 `ClipCursor` 免提权；B3 会移窗口；helper 带 `desktop_busy`/`cursorDrift`/elevation 诊断 | B0/B1/B3 真机通过；严格 B2 默认非提权失败关闭、提权后 PASS、`cursor-clip` PASS；实测数字见 [BACKGROUND-INPUT §12](BACKGROUND-INPUT.md) | 生产不自动提权；不把 BLOCKED 当 PASS |
+| A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
 | G7 | 部署 | web profile 已安装 `dsh-win-computer-use@0.5.8` 并切换 bundles；运行中的 web 进程需重启 | 重启前用户看到的可能仍是旧版 | 重启后冒烟 |
 

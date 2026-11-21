@@ -2,7 +2,7 @@
 
 > 目的：定义 S1-S4 测试阶段、任务成员、oracle 契约、runner、verdict 语义与 dirty 规则；逐轮运行结果见 [docs/EVIDENCE.md](../docs/EVIDENCE.md)。
 > 读者：维护者/评测者。`evals/` **不进入 npm 发布包**。
-> 状态：内部开发手册（最后核对 2026-11-21）。P2 已落地：`variants`/`S4_VARIANT` 参数化、`probe-platform`、虚拟桌面 BLOCKED。
+> 状态：内部开发手册（最后核对 2026-11-22）。P2 已落地：`variants`/`S4_VARIANT` 参数化、`probe-platform`、虚拟桌面 BLOCKED。
 > 相关：[TESTING](../docs/TESTING.md) · [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md) · [WINDOWS](../docs/WINDOWS.md) · [COVERAGE](COVERAGE.md)。
 
 > **命名说明（2026-11-19）**：本文的 S1-S4 是**测试阶段**，S4 只表示 Dirty 阶段。旧文档里的 `S4` 指 0.5.4 的整套评测系统，已全局改称 `eval`；旧 `S2` 是像素定位修订，`S3a`/`S3b` 是视觉断言/观察者工作流，均改为描述性名称。`S4_*` 环境变量、`~/.dsh/s4-evals/` 与 `S4 Bar` 等 fixture 字符串是冻结兼容名，不代表新阶段。
@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31 套 / 774；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / dpi01 / p01 / p02 / p03（5） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20（26） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t20、t22、t23、w01/w02/sec01–sec04/rec01–rec03/combo01/combo02/b01/term01/a11y01/x1（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
 
 **阶段是成员标签，可重叠**：`S1 10 / S2 5 / S3 26 / S4 17`，成员合计 **58**，唯一任务 **41**。t11 = S2+S4；t12–t18 = S3+S4；t23/sec01–sec04/combo01/combo02/rec02/rec03 也含 S4；x1 = S3。
@@ -92,7 +92,7 @@ evals/
   probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-common-dialogs 覆盖 Open/Save/Font/Color/Print，probe-gesture-truth 对比 driver/private 手势，probe-wpf-dialog/probe-chromium-dialogs 覆盖 WPF/浏览器 UI，probe-cross-il 是 UIPI/跨 IL 探针，probe-background-input 是实验性后台输入，probe-platform 是只读平台/套件可用性
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
   headless-patch.sec02.yml / headless-patch.sec04.yml  安全负向任务的 allowedApps / ttlMs overlay
-  COVERAGE.md / coverage.json  热点覆盖矩阵（10+恢复）
+  COVERAGE.md / coverage.json  热点覆盖矩阵（当前 12 个热点）
   RETIRED.md        退役任务/runner 台账
   BLOCKED.md        未覆盖/无法证明的能力（不计入 pass）
   headless-runs/    运行产物（gitignore）
@@ -105,6 +105,8 @@ evals/
 - runner 从仓库 `package.json` 读插件版本；`pluginVersion` 不是从 web profile 读。
 
 ## 4. 环境知识
+
+通用窗口/标签清理规则（绝不按进程名杀、WM_CLOSE 限制、TabState 隔离）见 [WINDOWS §7](../docs/WINDOWS.md)；以下是 eval 侧的执行细则：
 
 1. **TEMP**：若 `TEMP=C:\Windows\TEMP`，PowerShell `Add-Type` 可能报“未能找到源文件 …*.cs”；跑 eval 前把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp`。
 2. **Notepad TabState**：Win11 Notepad 会从 `TabState/*.bin` 恢复会话；**新 HWND 不等于干净窗口**。runner 在非 dirty 任务前 `tabstate.ps1 backup`，每个任务前清 eval bin，全部任务后 `restore`。
@@ -123,21 +125,26 @@ evals/
 
 ## 6. 元数据
 
-任务 md 统一结构：
+任务 md 统一结构（示意，条目缩进两格避免污染大纲）：
 
 ```text
 # tXX · name
-- **stages: S1**            # 或 S2, S4；至少一个
-- **tier: smoke|core**      # 旧调度标签，不是阶段
-- **isolation: notepad|dirty**
-- **ac2: full|none**
-- **variants: 3**           # 可选；1..9，>1 时必须有 evals/variants/<id>.json
-- **require_tool: computer_task**   # 可选，仅 x1
-## Prompt
-<<<PROMPT
-...
-PROMPT>>>
-## Notes
+  - **stages: S1**            # 或 S2/S3/S4；至少一个
+  - **tier: smoke|core**      # 旧调度标签，不是阶段
+  - **isolation: notepad|clean|dirty|both**   # 含 S4 ⇔ dirty/both
+  - **ac2: full|none**
+  - **app: notepad**          # 列表；值必须在 coverage.json majorApps（或 other）
+  - **hotspot: uia-element**  # 单值；值必须在 coverage.json hotspots（或 other）
+  - **requires: notepad**     # 可选；声明依赖应用（文档用途）
+  - **variants: 3**           # 可选；1..9，>1 时必须有 evals/variants/<id>.json
+  - **require_tool: computer_task**    # 可选，仅 x1
+  - **security: password**    # 可选列表；值必须在 coverage.json security
+  - **security_expect: refuse|allow**   # security 任务必填，且必须声明 require_tools
+  ## Prompt
+  <<<PROMPT
+  ...
+  PROMPT>>>
+  ## Notes
 ```
 
 规则由 `node tests/tasks.check.mjs` 强制：
@@ -145,6 +152,9 @@ PROMPT>>>
 - `stages` 必填、去重、只允许 S1-S4；含 S4 ⇔ `isolation: dirty`。
 - `ac2: full` ⇔ 存在 `simulate/<id>.ps1`；`ac2: none` 不得有 simulate。
 - 每条任务必须有 setup/oracle/cleanup 和 prompt 块。
+- `app` 是列表且非空，每个值必须是 [coverage.json](coverage.json) 的 `majorApps`（或 `other`）；每个主要应用 ≥2 条任务由 tasks.check 强制。
+- `hotspot` 单值且非空，必须是 coverage.json `hotspots` 键（或 `other`）；热点正向/负向证据由 coverage.json 校验。
+- 声明 `security` 的任务必须给出 `security_expect: refuse|allow` 并声明 `require_tools`；语义矩阵见 [COVERAGE](COVERAGE.md) §4。
 - `variants` 必须是 1..9；>1 时 `variants/<id>.json` 的 key 必须恰为 1..N，prompt 中每个 `{{key}}` 在所有 variant 中都存在，且 setup/oracle/simulate 至少一处读取 variant（`Get-S4VariantData`/`Get-S4VariantNumber`/`S4_VARIANT`）。
 - 任务 ID 取文件名第一个 `-` 前的前缀；不重命名 `tXX`/`wa2`/`x1`。
 
@@ -265,9 +275,9 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 ## 11. 基线政策
 
-- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差。2026-11-20 最新 P0/P1 复跑：t19 **2/2 pass**（inner 70/48，652/454s；`win+r` 归零，但 r1 从 40→70 inner 回归）、t20 **2/2 pass**（inner 27/25，626/601s；30s 超时仍多，候选 window_id 已出现）、t05 **2/2 pass**（inner 10/15，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty。上一轮样本为 t19 40/56、t20 27/25、t05 21/13；再往前修复前 t19/t20 各 1 pass / 1 预算耗尽（旧 runner 记 `fail/timedOut=false`，现记 `verdict=timeout + budgetExhausted=true`）；p01-p03 各 1 次均 pass（6/11/8 步）。单次 pass 只作为样本。
+- **pass 不等于稳定**：t11/t12/t14/t15/t17 仍有方差。P0/P1 修复后 t19/t20/t05 各 2/2 pass、p01-p03 各 1 次 pass，且 t19 曾出现 40→70 inner 的轮间回归；完整数字与修复前对照见 [EVIDENCE](../docs/EVIDENCE.md) §19/§20/§21。单次 pass 只作为样本。
 - **预算耗尽不是任务失败率**：`wallMs` 达到 `--timeout-min` 且没有 `final` 的样本单独计数，不与普通 fail 混比；报告里同时保留 `timedOut/noFinal` 便于区分“驱动超时”和“模型没跑完”。
-- **t20 模态 30s 超时已有独立根因证据（2026-11-20）**：`probe-modal-timeout` / `probe-modal-escapes` 证明 MessageBox 打开期间同 pid 的 AX 树在 1s/5s/15s 预算下都是 0 元素，capture-only 仍可读；驱动的 `click`/`press_key`/`bring_to_front` 会阻塞到模态结束，原生 `WM_COMMAND`/`BM_CLICK` 可 ~1s 关闭。`timeout_ms` 调大**不是**修复；不要把“调大预算”写成已解决。详见 [EVIDENCE §1.4](../docs/EVIDENCE.md)。
+- **t20 模态 30s 超时已有独立根因证据**：模态打开期间该进程 UIA provider 不服务跨进程请求（AX 树 1s/5s/15s 均 0 元素），驱动动作阻塞到模态关闭；`timeout_ms` 调大**不是**修复，不要把“调大预算”写成已解决。操作指引统一见 [WINDOWS §6.1](../docs/WINDOWS.md)；根因证据见 [EVIDENCE §18](../docs/EVIDENCE.md#18-2026-11-20--t20-模态-30s-超时根因探针)。
 - p01-p03 需要 image 路由；opencode 通道已验证，text-only 路由失败不算 ENV。
 - 基线比较必须同 overlay、同模型、同预算、同桌面状态；跨 provider 不是受控 A/B。
 - 失败样本保留：环境态、模型策略、插件缺陷分开归因；修复后保留根因与守门测试。

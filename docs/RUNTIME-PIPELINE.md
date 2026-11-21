@@ -2,7 +2,7 @@
 
 > 目的：把 dsh 宿主、插件工具面、cua-driver、会话日志与 eval（S1-S4）串成一张可诊断的图。
 > 读者：排障者、集成者、维护者。
-> 状态：当前实现（最后核对 2026-11-19；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
+> 状态：当前实现（最后核对 2026-11-22；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
 > 相关：[ARCHITECTURE](ARCHITECTURE.md) · [WINDOWS](WINDOWS.md) · [TESTING](TESTING.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 总览

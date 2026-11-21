@@ -2,7 +2,7 @@
 
 > 目的：干净工作区重新开始时，这份文档 + 仓库内文档 = 足够的上下文。
 > 读者：本仓库维护者。
-> 状态：当前实现（最后核对 2026-11-20；`0.5.8` 已发布并推送 npm）。
+> 状态：当前实现（最后核对 2026-11-22；`0.5.8` 已发布并推送 npm）。
 > 唯一文档索引：[docs/README.md](docs/README.md)；版本历史：[CHANGELOG.md](CHANGELOG.md)；逐轮证据：[docs/EVIDENCE.md](docs/EVIDENCE.md)。
 
 ## 1. 项目状态
@@ -82,7 +82,7 @@ cua-driver autostart kick
 
 ### 3.4 完整性级别与清理
 
-- `cua-driver.exe` 清单 `requireAdministrator` → daemon High IL；`app_launch` 子进程 IL 取决于驱动/启动路径（0.52.13 实测 PowerShell 为 Medium；对照：同一 shell `Start-Process notepad` 也为 Medium）。
+- 0.23.2（当时）清单为 `requireAdministrator` → daemon High IL；**0.52.13 清单实测为 `asInvoker`**（2026-11-22 PE 复核：全二进制仅一处 `requestedExecutionLevel`；见 [docs/EVIDENCE](docs/EVIDENCE.md) §3）——daemon 是否 High 取决于启动方式，不是主 CLI 清单强制；`app_launch` 子进程 IL 取决于驱动/启动路径（0.52.13 实测 PowerShell 为 Medium；对照：同一 shell `Start-Process notepad` 也为 Medium）。
 - 驱动**能**操作自己启动的 High IL 窗口（提权记事本 `computer_type` 成功且 confirmed）；非提权客户端**清不掉**（UIPI 拒绝 taskkill/Stop-Process/WM_CLOSE）。
 - WinUI 目标上 `alt+f4` 撞 #3908、`invoke_menu` 不可用 → 只能人工收尾。
 - 测试/评测优先操作已在运行的普通应用；`app_launch` 任务接受人工关闭成本。
@@ -159,38 +159,28 @@ cua-driver autostart kick
   - 用法：`dsh --profile headless --patch "<repo>/evals/headless-patch.yml" --permission-mode read-only --approval-policy never "<任务>"`；headless 是“答一个任务即退出”的 profile。
   - eval headless 直跑：`node evals/headless-run.mjs --stage S1 --timeout-min 10`（日志在 `evals/headless-runs/`，gitignore）；旧 `--tier smoke` 仍可用。
 - npm 已发布 `dsh-win-computer-use@0.5.8`；`dsh plugin add dsh-win-computer-use` 可用（需宿主支持）。
-- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修；`ab61fc4` 与 `4596c1b` 的 Ubuntu CI 均 success。
+- CI：ubuntu Actions 跑 `npm ci` + `npm run check` + `npm test`；Windows self-hosted 为手动 workflow（同一套 + `verify-runtime`，exit 2 记 ENV；可选 safety/scroll/ops/modifier-drop/launch probes）。两个 workflow 都已在 `origin/main`；**Windows self-hosted 从未运行**，需要 runner + 人工 `workflow_dispatch`。ubuntu `npm test` 在 0.5.8 后因平台守卫失败，2026-11-20 已修；此后连续 success（最新 `a716633`，run 44939474514，2026-11-22）。
 - 详细步骤见 [PUBLISH.md](PUBLISH.md) §6。
 
 ## 6. 已知缺口
 
 > 这些是当前真实状态。要么修代码，要么在文档中保留限制；不要写成“已支持”。
 
-| # | 位置 | 现象 | 影响 | 建议 |
-|---|---|---|---|---|
-| G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 有环境时补矩阵 |
-| G7 | 部署 | web profile 已安装 0.5.8 并切换 bundles；运行中的 web 进程需重启 | 重启前用户看到的可能仍是旧版 | 重启 harness 后冒烟 |
-| A7 | 像素点击 | 驱动 0.23.2 混合 DPI 落点缺陷 | 像素路径 best-effort | 等上游；element 优先 |
-| A11 | 手势原语 | 无 selectText/key hold/mouse down-up；drag 无元素源 | 复杂文本选择/形状拖拽仍靠坐标 | 评估下一层原语 |
-| A17 | 私有拖拽 | Explorer Ctrl+drag 已由 `probe-modifier-drop` 回归；Excel/PPT drop 未自动回归 | 已知边界 | Excel 需 UIA 网格 + 保存路径；PPT 仍 BLOCKED |
-| A18 | `app_launch` | 子进程 IL 依驱动/路径；0.52.13 daemon High 但 powershell Medium | 不能一律按 High 清理 | `probe-launch` 记录实际 IL；残留写 leftover |
-| A19 | 实验后台输入 | B0/B1/B3 自建探针通过；B2 `BlockInput` 当前会话被拒；B1 普通应用不外推 | 默认 off；只在显式 `allowedApps` 下启用 B1/B2/B3 |
-| A20 | 经典 HMENU | 离线 18 项 + 真机 SetMenu fixture 通过；MenuStrip/WPF/WinUI 不支持 | 默认 off；用 regedit/MFC 交叉验证，不要写成 WinForms 已支持 |
-| A21 | 原生 Button | 自建 WinForms Delete/MessageBox 4/4；默认 off；10s latch | t20 overlay 复跑；WPF/WinUI/ToolStrip 回退 driver |
-
-其余见 [ARCHITECTURE](docs/ARCHITECTURE.md) §13。
+缺口清单**统一维护在 [ARCHITECTURE](docs/ARCHITECTURE.md) §13**（A7 像素落点、A11 手势原语、A17 私有拖拽、A18 `app_launch` 子进程 IL、A19 实验后台输入、A20 经典 HMENU、A21 原生 Button、G6 平台、G7 部署）；解除阻塞后先在 §13 删行，再同步 [VERIFICATION](VERIFICATION.md) 与 [docs/EVIDENCE](docs/EVIDENCE.md)。无法证明的能力不入 pass，见 [evals/BLOCKED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/BLOCKED.md)。
 
 ## 7. 待办
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | web profile 已切 0.5.8；待重启 harness 后冒烟 |
+| P1 | web profile 已切 0.5.8；待重启 harness 后冒烟（2026-11-22 复核：仍未执行） |
+| P2 | IntegrityRank 修正后的 Medium→High UAC 复跑（`probe-cross-il --uac`；需再一次授权 UAC） |
 | P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
 | P2 | daemon 提权/清理问题（#3607 上游已关闭）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |
 | P3 | macOS 回归；Linux 不在承诺范围 |
 | P3 | 驱动库存候补（browser_*、set_window_frame、trajectory…） |
 | P3 | 独立观察者裁决（原 S3b；需 ZHIPU key 或 dsv4fv 文本修复） |
+| P3 | awesome-dsh-plugin 收录提交（草稿见 [PUBLISH](PUBLISH.md) §8） |
 
 ## 8. 文档维护规则
 

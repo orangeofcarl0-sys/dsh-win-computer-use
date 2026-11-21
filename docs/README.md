@@ -1,14 +1,14 @@
 # 文档索引 — dsh-win-computer-use
 
 > 目的：按“读者要做什么”组织全部文档，并明确每篇文档描述的是**当前实现**、**历史证据**还是**研究分析**。
-> 状态：当前索引（最后核对 2026-11-20）。
-> 入口：[README](../README.md) · [安装](INSTALL.md) · [工具](TOOLS.md) · [配置](CONFIGURATION.md) · [排障](TROUBLESHOOTING.md)。
+> 状态：当前索引（最后核对 2026-11-22）。
+> 入口：[README](../README.md) · [INSTALL](INSTALL.md) · [FAQ](FAQ.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md)。
 
 ## 1. 按读者选择
 
 | 你是 | 先读 | 再读 |
 |---|---|---|
-| 第一次安装/使用 | [README](../README.md) → [INSTALL](INSTALL.md) | [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md) |
+| 第一次安装/使用 | [README](../README.md) → [INSTALL](INSTALL.md) | [FAQ](FAQ.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md) |
 | 把插件集成进宿主/产品 | [ARCHITECTURE](ARCHITECTURE.md) → [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md) | [COMPATIBILITY](COMPATIBILITY.md) · [DRIVER-SDK](DRIVER-SDK.md) · [TOOLS](TOOLS.md) |
 | 排查具体失败 | [TROUBLESHOOTING](TROUBLESHOOTING.md) | [ERRORS](ERRORS.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md) |
 | 安全/权限审查 | [SECURITY](SECURITY.md) → [PERMISSIONS](../PERMISSIONS.md) | [store-evidence](store-evidence.md) · [VERIFICATION](../VERIFICATION.md) |
@@ -21,6 +21,7 @@
 | 任务 | 文档 |
 |---|---|
 | 安装驱动、插件，升级/卸载 | [INSTALL](INSTALL.md) |
+| 常见坑/易混概念速查（Win+R、预填、坐标、S4 双义） | [FAQ](FAQ.md) |
 | 查某个工具的参数、默认值、前置、示例 | [TOOLS](TOOLS.md) |
 | 改配置、查环境变量、看配置交互 | [CONFIGURATION](CONFIGURATION.md) |
 | 查错误码含义和下一步动作 | [ERRORS](ERRORS.md) |
@@ -61,7 +62,7 @@
 
 | 状态 | 含义 | 文档 |
 |---|---|---|
-| **当前参考** | 只描述现在为真的行为；数字与代码一致；由 `npm run docs:check` 校验 | [README](../README.md)、[INSTALL](INSTALL.md)、[TOOLS](TOOLS.md)、[CONFIGURATION](CONFIGURATION.md)、[ERRORS](ERRORS.md)、[TROUBLESHOOTING](TROUBLESHOOTING.md)、[SECURITY](SECURITY.md)、[COMPATIBILITY](COMPATIBILITY.md)、[ARCHITECTURE](ARCHITECTURE.md)、[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)、[DRIVER-SDK](DRIVER-SDK.md)、[WINDOWS](WINDOWS.md)、[BACKGROUND-INPUT](BACKGROUND-INPUT.md)、[TESTING](TESTING.md)、[PERMISSIONS](../PERMISSIONS.md)、[VERIFICATION](../VERIFICATION.md)、[store-evidence](store-evidence.md) |
+| **当前参考** | 只描述现在为真的行为；数字与代码一致；由 `npm run docs:check` 校验 | [README](../README.md)、[INSTALL](INSTALL.md)、[FAQ](FAQ.md)、[TOOLS](TOOLS.md)、[CONFIGURATION](CONFIGURATION.md)、[ERRORS](ERRORS.md)、[TROUBLESHOOTING](TROUBLESHOOTING.md)、[SECURITY](SECURITY.md)、[COMPATIBILITY](COMPATIBILITY.md)、[ARCHITECTURE](ARCHITECTURE.md)、[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)、[DRIVER-SDK](DRIVER-SDK.md)、[WINDOWS](WINDOWS.md)、[BACKGROUND-INPUT](BACKGROUND-INPUT.md)、[TESTING](TESTING.md)、[PERMISSIONS](../PERMISSIONS.md)、[VERIFICATION](../VERIFICATION.md)、[store-evidence](store-evidence.md) |
 | **维护** | 环境、发布、路线、版本历史；部分文件不进入 npm 包 | [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md)、[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)、[ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md)、[CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) |
 | **历史证据** | 按日期追加，描述当时环境与结果，不代表当前行为 | [EVIDENCE](EVIDENCE.md)、[COMPATIBILITY-0.2.2](COMPATIBILITY-0.2.2.md)（别名页） |
 | **研究分析** | 对模型行为、社区方案的分析；结论可能随版本变化 | [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)、[CU-RESEARCH](CU-RESEARCH.md) |
@@ -78,12 +79,21 @@
 | **`element_token`** | 驱动侧的稳定元素句柄；编号动作最终走它，不依赖坐标。 |
 | **回执** | 工具返回给模型的文本/结构化结果；成功、拒绝、未送达、未验证都在这里表达。 |
 | **投递 L1/L2/L3** | 后台 → 前台 → `bring_to_front` 绕前台锁；详见 [WINDOWS](WINDOWS.md)。 |
+| **后台投递（L1）** | 驱动/消息投递层的不抢焦点通道（UIA Invoke、PostMessage），默认投递链的一部分；与“后台输入 B0-B3”是两层不同机制。 |
+| **后台输入 B0/B1/B2/B3** | 插件侧对“没有可交互 UIA 元素”目标的实验通道：B0 窗口消息、B1 合成触控、B2 光标锚定、B3 窗口锚定；默认 off，见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。B4 = 真实前台 SendInput（现有默认链）；B5 = 全局键/驱动级注入（明确不实现）。 |
 | **window-screenshot-px** | 窗口截图原图像素；`screen_observe` 的 `@(x,y)` 与 `computer_click(x,y)` 同空间。 |
 | **screen-physical-px** | 屏幕物理像素；元素 `frame`、密码 sidecar rect、`screenOrigin` 用这个空间。 |
 | **zoom-image-px** | `screen_zoom` 返回图的像素；必须配 `from_zoom=true` 使用。 |
 | **降噪** | 同窗口、同模式、界面哈希未变时的极简观察回执（`summary`/`brief`）。 |
 | **输入未确认** | `computer_type`/`computer_set_value` 回读不一致或无法回读时的状态；只拦保存意图。 |
 | **动作后复核** | `verifyAfterAction: auto` 的 opt-in 行为；默认关闭。 |
+| **S1-S4（阶段）** | 评测任务阶段：S1 基础功能、S2 像素定位、S3 覆盖面任务集、S4 Dirty 能力任务集；成员可重叠。与冻结兼容名 `S4_*` 无关（见 §6.1）。 |
+| **tier（smoke/core）** | 旧调度标签，不是阶段；`--tier` 仍可用，`--stage`/`--tasks` 优先。 |
+| **variant** | 参数化任务的取值序号：`evals/variants/<id>.json` 的 1..N，经 `S4_VARIANT` 注入 setup/oracle/simulate。 |
+| **hotspot** | 热点覆盖矩阵（[evals/COVERAGE](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/COVERAGE.md)）的最小风险单元；每热点至少一条正向 + 一条负向证据。 |
+| **AC2 / AC6** | AC2 = oracle 双向验证（setup ok → 空跑必 fail → simulate 必过 → cleanup 干净）；AC6 = 成本/步数统计轮。 |
+| **P0/P1/P2/P3** | 工作优先级（P0 最高）；与能力缺口编号 A#/G# 无关。 |
+| **A# / G#** | 已知缺口编号（A = 能力、G = 全局），统一列在 [ARCHITECTURE](ARCHITECTURE.md) §13。 |
 | **dirty** | 评测 cleanup 未能证明测试窗口可安全关闭时的状态；不算干净通过。 |
 
 ## 6. 文档约定

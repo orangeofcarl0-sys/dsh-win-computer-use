@@ -146,7 +146,7 @@ node verify-runtime.mjs
 
 - `cua-driver not found` → 设 `CUA_DRIVER_BIN`；
 - 没有可见窗口 → 打开一个普通应用窗口；
-- 选中 `0×0` shell 弹窗 → 脚本已跳过 `bounds` 为 0 的窗口；仍有问题看 [WINDOWS](WINDOWS.md) §8。
+- 选中 `0×0` shell 弹窗 → 脚本已跳过 `bounds` 为 0 的窗口；仍有问题看 [WINDOWS](WINDOWS.md) §3。
 
 ## 6. 已知限制
 

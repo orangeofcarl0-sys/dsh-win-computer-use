@@ -2,7 +2,7 @@
 
 > 目的：23 个工具的完整契约：参数、默认值、前置条件、行为、回执与错误、最小示例。
 > 读者：使用者、集成者、维护者。
-> 状态：当前实现（最后核对 2026-11-18；由 `npm run docs:check` 校验工具名与数量）。
+> 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验工具名与数量）。
 > 相关：[README](../README.md) · [CONFIGURATION](CONFIGURATION.md) · [ERRORS](ERRORS.md) · [ARCHITECTURE](ARCHITECTURE.md)。
 
 ## 1. 工具面
@@ -119,16 +119,22 @@
 
 - `element` 走 `element_token`，支持后台/隐藏窗口，不受 DPI 混合影响；像素路径 best-effort。
 - `native-dialog` 快照的按钮是 **Win32 原生控件**：只支持 `computer_click(element=编号)` 单次左键（`BM_CLICK`，异步/未验证）；坐标点击、type/key/scroll/drag、double/right、modifier/count>1/from_zoom 一律拒绝。点击后先 `screen_observe` 确认对话框是否关闭；不要重复点击或自动选择 Yes/No。
-- **实验性后台输入（默认 off）**：目标没有任何可交互 UIA 元素时，`backgroundInput:auto` 可走 B0 `WM_*`/`BM_CLICK`（支持左/右/双击）；`syntheticPointer:auto` 可走 B1 合成触控左单击，`syntheticPointer:promote` 可对普通 message 窗口走无 anchor 单点触控（系统提升为鼠标消息）；`anchoredInput:cursor/cursor-clip/window` 可走 B2/B3 左单击（`cursor` 用 `BlockInput`；`cursor-clip` 用 `ClipCursor` 5×5、免提权、不阻塞键盘）。失败/未验证不自动前台；B1 遮挡失败关闭；B1/B2/B3 需要 `allowedApps`。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
-- **实验性原生 Button 触发（`nativeButtonTrigger:auto`，默认 off）**：对 `element` 的 `Button` 单次左键，重新枚举同 pid 标准 `Button`/`WindowsForms10.BUTTON*`，严格 class/style/label/屏幕点唯一匹配后 `PostMessage(BM_CLICK)`；回执 `route=win32-native-button`、`effect:unverifiable`。1.2s 级返回，避免触发模态时 UIA Invoke 30s；明确未匹配回退 driver，`owner_disabled`/超时不回退；10s latch 防重复。WPF/WinUI/ToolStrip 通常 `no_match`。
+- 实验性兜底通道（后台输入/原生 Button，默认 off）统一见 §4.2。
 - 坐标点击按快照条目中心 24px 内取最近元素，回执回显目标（编号/角色/标签/当前值；密码值隐藏）。
 - 非空 `modifier` 在 Windows 上自动 `forceForeground`（SendInput 前台注入）并恢复原前台。
 - **Explorer 文件项单选请用 `foreground=true`**：后台坐标点击可能走 UIA Invoke 直接打开文件。
 - `double_click` 不参与重复点击抑制；`click`/`right_click` 参与。
 - 回执：`ok:false` 表示拒绝/未送达；`ok:true` 仍可能 `effect:unverifiable`，需 observe/verify 复核。
-- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先等待 5–10s，再 `screen_observe`（ax/native/vision；capture-only 尚未作为独立模式暴露）确认是否“延迟成功”，用新顶层 `window_id` 重新观察；不要连续重试像素/zoom/drag、换键或 activate（模态期间 UIA 树可能持续 0 元素）。Escape 在 Yes/No 上通常无效；必要时按对话框加速键只发一次。根因见 [EVIDENCE §1.4](EVIDENCE.md#14-2026-11-20--t20-模态-30s-超时根因探针)。
+- 驱动调用超时（默认 30s）时回执是“点击结果未知”：本次点击可能已触发模态对话框。先等待 5–10s，再 `screen_observe` 确认是否“延迟成功”，用新顶层 `window_id` 重新观察；不要连续重试像素/zoom/drag、换键或 activate。完整模态操作指引见 [WINDOWS §6.1](WINDOWS.md)；根因见 [EVIDENCE §18](EVIDENCE.md#18-2026-11-20--t20-模态-30s-超时根因探针)。
 
-### 4.2 `computer_type`
+### 4.2 实验性兜底通道（默认 off）
+
+两组实验通道，只在显式开启后接管**没有可交互 UIA 元素**的目标；失败/未验证不自动前台、不自动换通道。
+
+- **后台输入（`backgroundInput` / `syntheticPointer` / `anchoredInput`）**：B0 `WM_*`/`BM_CLICK` 覆盖 click 家族（左/右/双击）与普通 key/文本；B1 合成触控左单击（`auto` 带 anchor；`promote` 对普通 message 窗口无 anchor、系统提升为鼠标消息）；B2/B3 左单击（`cursor` 用 `BlockInput`；`cursor-clip` 用 `ClipCursor` 5×5 免提权、不阻塞键盘；`window` 临时移窗口）。B1/B2/B3 需 `allowedApps`；B1 遮挡失败关闭。等级定义、通道矩阵、错误码与实测统一见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
+- **原生 Button 触发（`nativeButtonTrigger`）**：对 `element` 的 `Button` 单次左键，重新枚举同 pid 标准 `Button`/`WindowsForms10.BUTTON*`，严格 class/style/label/屏幕点唯一匹配后 `PostMessage(BM_CLICK)`；回执 `route=win32-native-button`、`effect:unverifiable`，秒级返回，避免触发模态时 UIA Invoke 30s；明确未匹配回退 driver，`owner_disabled`/超时不回退；10s latch 防重复；WPF/WinUI/ToolStrip 通常 `no_match`。
+
+### 4.3 `computer_type`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -145,7 +151,7 @@
 - 不支持 `from_zoom`；先用 `computer_click(..., from_zoom=true)` 点输入框，再 type。
 - **实验性 `backgroundInput:auto`**：无交互 UIA 的目标可走 B0 `WM_CHAR`（同步 `SendMessageTimeout`）；支持简单文本，不支持 IME/代理对合并/组合键；`ES_PASSWORD` 仍拒绝。
 
-### 4.3 `computer_set_value`
+### 4.4 `computer_set_value`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -155,7 +161,7 @@
 
 只走 UIA `ValuePattern`；**预填字段优先用它覆盖**，回读按完全相等校验，不是追加。Web/自绘控件可能忽略；失败时改用 `computer_type` 或点击后输入。密码框硬拒。
 
-### 4.4 `computer_key`
+### 4.5 `computer_key`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -168,7 +174,7 @@
 - XAML/WinUI 组合键可能因 UIA 加速器超时或 `could not find a UIA AcceleratorKey` 失败；回执给“点菜单栏项 → 点菜单项”的指引。`xamlKeyFallback: auto` 可实验性自动完成，默认 `off`。
 - `ctrl+a` 在 WinUI 对话框/无菜单栏窗口可能不可用；替换预填字段优先 `computer_set_value`，而不是 `ctrl+a` 后 `type`。
 
-### 4.5 `computer_scroll`
+### 4.6 `computer_scroll`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -178,7 +184,7 @@
 | `snapshot_id` | string | 否 | — | 证据基线 |
 | `foreground` | boolean | 否 | `false` | 前台投递 |
 
-### 4.6 `computer_drag`
+### 4.7 `computer_drag`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -193,25 +199,25 @@
 | `snapshot_id` | string | 否 | — | 证据基线 |
 | `foreground` | boolean | 否 | `false` | 前台投递 |
 
-- 无 `modifier`、无 `dwell_ms`：走驱动 drag（保留 driver 的 zoom/后台路径）。
-- `modifier` 在驱动支持 `dragModifier` 时走 driver 原生；旧驱动/`dragEngine:private` 时走私有 SendInput helper（`tools/private-drag.ps1`）。
-- `dwell_ms > 0` 强制私有 SendInput helper；私有路径是原子手势、修饰键持有到 drop、失败路径释放、恢复原前台。
+- 引擎选择：`dwell_ms > 0` 或 `dragEngine: private` 或驱动不支持 `dragModifier` 时走私有 SendInput helper（`tools/private-drag.ps1`）；否则 modifier/普通 drag 优先驱动原生。回执带 `engine: 'private_sendinput' | 'driver_native'` 区分两条引擎（经 `computer_do` 路由时以工具直连回执为准）。
+- 无 `modifier`、无 `dwell_ms` 的普通 drag 走驱动（保留 driver 的 zoom/后台路径）。
+- 私有路径是原子手势、修饰键持有到 drop、失败路径释放、恢复原前台；原生失败不自动重拖。
 - 私有路径**不支持 `from_zoom`**（`[private_drag_zoom_unsupported]`），且需要快照的 `screenOrigin`/截图尺寸（缺失报 `[private_drag_no_frame]`）。
 - `duration_ms=0` 是合法值，不会被 truthiness 丢弃；`steps`/`dwell_ms` 越界会被拒绝。
 - 拖拽非幂等：不自动重试；只有前台校验失败（未发送输入）才可 activate 后重试一次。
 - **从标题栏拖动会移动窗口**（改变 `window origin`），不是点击/落点证明；回执会提示，且快照会被清空要求重新观察。需要点击效果时不要用 drag 代替 click。
 
-### 4.7 `computer_wait`
+### 4.8 `computer_wait`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `ms` | integer | **是** | — | 1–60000；本地等待，不调用引擎 |
 
-### 4.8 `app_list`
+### 4.9 `app_list`
 
 无参数。返回运行中应用的 `name`/`pid`/`active`（显示上限 20 条）。不需要快照。
 
-### 4.9 `app_launch`
+### 4.10 `app_launch`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -220,11 +226,11 @@
 | `bring_to_front` | boolean | 否 | `false` | 启动后前置 |
 | `creates_new_instance` | boolean | 否 | `false` | Windows 驱动当前为 no-op |
 
-- 驱动 daemon 可能是 High IL（取决于启动方式），但 `app_launch` 子进程不保证继承：0.52.13 实测 PowerShell 子进程为 Medium。非提权客户端可能关不掉 High IL 子窗口（UIPI）。任务结束提示用户手动关闭；**不要按进程名杀**。
+- 驱动 daemon 可能是 High IL（取决于启动方式），但 `app_launch` 子进程不保证继承（0.52.13 实测 PowerShell 子进程为 Medium）；非提权客户端可能关不掉 High IL 子窗口（UIPI）。事实矩阵见 [WINDOWS §1](WINDOWS.md)。任务结束提示用户手动关闭；**不要按进程名杀**。
 - 启动成功即 `ok:true`；前置失败只写“启动成功，但前置未确认”，并返回 `window_id`。
 - 输出 `pid`/`window_id`（没有可见主窗时为 null）。
 
-### 4.10 `computer_activate`
+### 4.11 `computer_activate`
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|

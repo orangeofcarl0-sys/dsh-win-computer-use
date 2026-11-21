@@ -2,7 +2,7 @@
 
 > 目的：插件侧 Windows 后台输入（B0/B1/B2/B3）的通道矩阵、配置、回执、安全边界与实测结果。
 > 读者：要启用/排障实验输入的人；改 `lib/backgroundInput.js` 或 `tools/background-input.ps1` 的人。
-> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 默认 14 PASS / 1 BLOCKED，`--elevated` 14 PASS / 0 BLOCKED）。
+> 状态：实验性，默认全关（2026-11-20 实现；2026-11-21 默认 14 PASS / 1 BLOCKED、`--elevated` 14 PASS / 0 BLOCKED；2026-11-22 修正 IntegrityRank off-by-one，修正后 UAC 复跑待做）。
 > 相关：[WINDOWS](WINDOWS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [SECURITY](SECURITY.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 定位
@@ -157,7 +157,7 @@ anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 |---|---|
 | `background_input_occluded` | 目标点被遮挡/不在目标窗口；未发送 |
 | `background_input_anchor_blocked` | 合成触控 anchor 被 topmost 窗口遮挡；未注入 |
-| `background_input_uipi` | 完整性/session 不匹配；未发送。rank 映射 `0=low / 1=medium / 2=high / 3=system`；2026-11-22 修正了 off-by-one（medium 曾误标为 high） |
+| `background_input_uipi` | 完整性/session 不匹配；未发送。rank 映射 `0=low / 1=medium / 2=high / 3=system`；2026-11-22 修正了 off-by-one（medium 曾误标为 high），**修正后 UAC 复跑待做**（证据见 [EVIDENCE](EVIDENCE.md) §4） |
 | `background_input_secure_desktop` | 非 Default 输入桌面；未发送 |
 | `background_input_clip_cursor` | `ClipCursor` 不允许目标点 |
 | `background_input_window_not_movable` | 最小化/最大化/全屏/拒绝移动 |
@@ -191,11 +191,11 @@ anchoredInput: off         # off | cursor | cursor-clip | window（B2/B3）
 
 ## 12. 测试与证据
 
-- 离线：`tests/background-input.test.mjs`（50 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由、`cursor-clip`/`desktop_busy`/诊断透传、B3 外部移动回执、`syntheticPointer:promote` 路由与 pointer 契约不接管。
+- 离线：`tests/background-input.test.mjs`（52 项）：动作接入、off/foreground/modifier/组合键回退、拒绝不重试、回执字段/错误码、client 就绪/超时/坏响应/旧进程 exit 竞态、分类器/坐标/VK、B1/B2/B3 路由、`cursor-clip`/`desktop_busy`/诊断透传、B3 外部移动回执、`syntheticPointer:promote` 路由与 pointer 契约不接管；G5b/I6b 断言 UIPI 拒绝不落入 `unverifiable`、高 IL profile fail-closed。
 - 真机：`evals/probe-background-input.mjs`（不加入 `npm test`；可加 `--elevated`）：
   - 自建原生 pointer 窗口 + 只处理 `WM_TOUCH` 的 touch-only 窗口 + 未注册触控的 mouse-only 窗口 + 隐藏 controller + cover；
   - B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B1 遮挡、B1 前台不变、B3 window 实测通过；
-  - B1 光标：helper 在注入窗口内采样 `cursorBefore/cursorAfter`，`cursorDrift=0` → PASS；外部漂移（13–766px）单独记录，不再把 B1 误判为 BLOCKED；
+  - B1 光标：helper 在注入窗口内采样 `cursorBefore/cursorAfter`，`cursorDrift=0` → PASS；外部漂移单独记录（各轮实测 30–751px 与 348–766px，见 [EVIDENCE](EVIDENCE.md) §16/§13），不再把 B1 误判为 BLOCKED；
   - B1 mouse-only：`syntheticPointer:promote` 的无 anchor 单点触控收到 `MOUSEDOWN/MOUSEUP` → PASS；应用语义仍未验证；
   - B2 严格 `BlockInput`：默认非提权会话被拒 → BLOCKED（`win32=0`、`helperElevated=false`、`helperUIAccess=false`、Default 桌面）；`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`inputUnblocked=true`、`cursorRestored=true`）；`cursor-clip` 也 PASS；
   - B3 干净轮次 PASS；脏桌面/输入桌面变化时 `window_move_failed`/`desktop_busy`/`window_changed_externally` → BLOCKED；点击后窗口被外部移动时不还原，回执 `warning_code=window_changed_externally`。
