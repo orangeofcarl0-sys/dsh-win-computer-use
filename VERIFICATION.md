@@ -1,7 +1,7 @@
 # VERIFICATION — 当前验证矩阵
 
 > 目的：把“声称支持”变成可复现的当前证据；逐轮历史见 [docs/EVIDENCE.md](docs/EVIDENCE.md)。
-> 代码快照：`main` @ 2026-11-21（`package.json` 仍 0.5.8，npm 0.5.8 的 tag 在 `84225cc`）。main 包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力。
+> 代码快照：`main` @ 2026-11-22（`package.json` 仍 0.5.8，npm 0.5.8 的 tag 在 `84225cc`）。main 包含未发布的 B0-B3/nativeMenus/nativeButtonTrigger 实验能力。
 > 环境：Windows 11 x64 · DPI 150% · cua-driver **0.23.2 基线 + 0.52.13 canary** · dsh 0.2.2-rc.1/rc.2 · Node 22。
 > 测试方法见 [docs/TESTING.md](docs/TESTING.md)；Windows 专项见 [docs/WINDOWS.md](docs/WINDOWS.md)；驱动层见 [docs/DRIVER-SDK.md](docs/DRIVER-SDK.md)。
 
@@ -10,9 +10,9 @@
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
 | 离线测试 | **31 套 / 772 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **52/52 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 语法/安装脚本 | **53/53 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
-| 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
+| 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id）；2026-11-22 在 0.52.13 复跑 **18/18**，副屏 Firefox 窗口 `screenOrigin={x:2560,y:0,w:2560,h:1440}` | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
 | 0.52.13 canary 形态 | **✅**：默认 markdown/显式 elements、session 归属、capture-only 截图上下文、结构化非零退出 | Windows 11 / 0.52.13 | `evals/probe-driver-shape.mjs` |
 | 手势探针 | click element/坐标的 Ctrl 到达；0.52.13 原生 modifier drag delivered；私有拖拽 3/3；from_zoom 命中 | Windows 11 | `probe-modifier` / `probe-private-drag` / `probe-from-zoom` |
@@ -22,6 +22,7 @@
 | eval oracle 双向验证（全量） | 2026-11-20 基线：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty；t13 真实网络 `ac2:none`） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（P0/P1 新增） | 2026-11-21：**19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
 | eval 参数化（variant） | 2026-11-21：t21/t22/a11y01 × variant 1-3 AC2 **9/9 PASS**；mutation t22/a11y01 **2/2 PASS**（固定 variant 1） | Windows 11 | `node evals/verify-oracles.mjs --tasks t21,t22,a11y01 --variants 3` |
+| 跨屏模型任务 | 2026-11-22：dpi01 **pass**（3 步、inner 3、oracle `clicks=1`、0 dirty；wall 70s，total 33,038 tokens；plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go） | Windows 11 / 双物理屏 150%+100% | `node evals/headless-run.mjs --tasks dpi01 --isolation clean --timeout-min 8 --patch evals/headless-patch.opencode.yml` |
 | eval oracle（S1 + x1 clean 组） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；2026-11-15 18:40 复跑） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
 | S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
@@ -30,6 +31,7 @@
 | 滚动探针 | 2026-11-20：**3/3 PASS**（WinForms AutoScroll 向下/向上与位置回读；120s 自关 Timer） | Windows 11 | `node evals/probe-scroll.mjs` |
 | 模态超时根因探针 | 2026-11-20：**AX 树 0 元素 @1s/5s/15s**；同 pid 主窗口同样 0；capture-only 1.5s；驱动 click/key/bring 阻塞；原生 `WM_COMMAND`/`BM_CLICK` 关闭成功；`timeout_ms` 重试**证伪** | Windows 11 / 0.52.13 | `node evals/probe-modal-timeout.mjs`；`node evals/probe-modal-escapes.mjs` |
 | 原生对话框后端 | 2026-11-20：`probe-native-dialog` **9 PASS / 0 BLOCKED / 0 FAIL**；UIA trigger 打开 MessageBox → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 | Windows 11 / 0.52.13 | `node evals/probe-native-dialog.mjs`；`node tests/native-dialogs.test.mjs` |
+| 常见对话框后端 | 2026-11-22：`probe-common-dialogs` **6 PASS / 0 BLOCKED / 0 FAIL**；Open/Save/Font/Color/Print 均为标准 `#32770`，`modal=owner-disabled`，Cancel `BM_CLICK` 后 state result=Cancel | Windows 11 / 0.52.13 | `node evals/probe-common-dialogs.mjs` |
 | 实验性后台输入 | 2026-11-21：默认 `probe-background-input` **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` **PASS**；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper `cursorDrift=0` 归因，外部漂移不再误判；B3 PASS | Windows 11 | `node evals/probe-background-input.mjs [--elevated]`；`node tests/background-input.test.mjs` |
 | 原语矩阵探针 | 2026-11-21：**13 PASS / 0 BLOCKED**；double/right/key/hover/verify/wait_for/activate/app_list 均有 marker/回读；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu + 专用 marker） | Windows 11 | `node evals/probe-ops.mjs` |
 | 原生 Button 触发 | 2026-11-21：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms Delete + MessageBox：原生触发 1.2s、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 | Windows 11 | `node evals/probe-native-button.mjs`；`node tests/native-button-trigger.test.mjs` |
@@ -130,7 +132,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 判据：
 
 - `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **772**。
-- `npm run check` 退出码 0：语法 **52/52** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm run check` 退出码 0：语法 **53/53** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。

@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-21：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 52/52 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-22：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 53/53 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -36,6 +36,7 @@
 | 模态根因 | S3 | `node evals/probe-modal-timeout.mjs` | 10 PASS / 13 BLOCKED | MessageBox 期间 AX 树 0@1s/5s/15s、capture 1.5s、驱动 click/key/bring 阻塞、原生 WM_COMMAND 关闭、触发 click 随模态关闭返回 |
 | 模态逃逸 | S3 | `node evals/probe-modal-escapes.mjs` | 6 PASS / 4 BLOCKED | 原生 WM_COMMAND/BM_CLICK 关闭；VK_ESCAPE 无效；驱动 key/hotkey 60s 不稳定；`--trigger-only` 验证原生 BM_CLICK 触发无 30s 阻塞 |
 | 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
+| 常见对话框后端 | S3 | `node evals/probe-common-dialogs.mjs` | 6 PASS / 0 BLOCKED | WinForms Open/Save/Font/Color/Print：标准 `#32770`、`modal=owner-disabled`、Cancel `BM_CLICK`、state result=Cancel；不覆盖 WPF/WinUI/自定义 shell 对话框 |
 | 原生 Button 触发 | S3 | `node evals/probe-native-button.mjs` | 4 PASS / 0 BLOCKED | 自建 WinForms Delete + MessageBox：原生触发 1.2s 返回、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 |
 | 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs`（可加 `--elevated`） | 默认 14 PASS / 1 BLOCKED；提权 14 PASS / 0 BLOCKED | 自建 native message/pointer/touch-only/mouse-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B3 window 通过；B1 光标用 helper 注入窗口内 `cursorDrift=0` 判定，外部漂移不再污染；严格 B2 非提权 `BlockInput` 被拒 → BLOCKED，`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；0 FAIL |
 | oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 37 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13/t21 按原因 SKIP |
@@ -331,7 +332,7 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 项 | 值 |
 |---|---|
 | 离线 | 31 套 / 772 ✅ / 0 ❌ |
-| 语法 | 52/52 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 语法 | 53/53 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
@@ -345,6 +346,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | AC6 | 2026-11-20：t01/t05 各 5 轮（opencode）全 pass；t01 steps 中位 12 / p90 15（p90Unstable，n=5<8）、billable 10,731；t05 steps 24 / p90 47（p90Unstable）、billable 24,993；t11/t14/t15 未跑 |
 | P0 基线 | t03/t04/t05/t07/x1 于 2026-11-19 变更判定/题面；旧结果只作历史，不与新结果混比 |
 | P0/P1 新增模型 smoke | 2026-11-21：t21 **1/1 pass**（16 步，19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察）；term01 **1 次 8min timeout**（模型打开 Notepad 而非控制台）；两者 AC2 均 PASS，cleanup 恢复 TabState |
+| 跨屏模型跑 | 2026-11-22：dpi01 **1/1 pass**（3 步，inner 3，oracle clicks=1，0 dirty；plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go/deepseek-v4.1-flash；wall 70s，total 33,038 tokens） |
+| 常见对话框 | 2026-11-22：probe-common-dialogs **6/6 PASS**（Open/Save/Font/Color/Print；标准 `#32770`、`modal=owner-disabled`、Cancel `BM_CLICK`） |
 | 打包 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` |
 
 ## 11. P2 设计与未闭合
@@ -352,6 +355,6 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 - **参数化（已实现，3 条任务）**：`variants: N` + `evals/variants/<id>.json` 是唯一数据源；runner 通过 `S4_VARIANT` 传给 setup/oracle/simulate/cleanup，prompt 用 `{{key}}` 渲染。`headless-run --variants N` 与 `verify-oracles --variants N` 对声明任务跑 1..N；未声明任务只跑 variant 1。当前 t21（Calculator 除法）、t22（PPT 标题/副标题）、a11y01（键盘-only 文本）各 3 个 variant；mutation 固定 variant 1（case 按 variant 1 编写）。仍以 41 条任务为分母，variant 用于统计功效而非新增任务数。
 - **可访问性**：`a11y01` 已实现键盘-only + UIA 名称 + 3 个输入 variant；高对比度/Narrator 全量验收仍未做。
 - **Linux**：仅 Ubuntu CI 跑 `npm run check` / `npm test`；`probe-platform.mjs` 在非 Windows 只报 BLOCKED。无 Linux 任务套件，`verify-runtime` 可选；Linux 不作为发布门禁，文档不写“已支持”。
-- **Windows 专项**：`probe-display` 已记录 2 屏/DPI；`dpi01` AC2 已过，真实模型跨屏点击待跑；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Open/Save/Print/Font/Color、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
+- **Windows 专项**：`probe-display` 已记录 2 屏/混合 DPI；`dpi01` AC2 已过，**真实模型跨屏点击 2026-11-22 PASS**（3 步，oracle clicks=1，0 dirty，plugin 0.5.8 + dsh 0.2.2-rc.5 + opencode-go）；`probe-common-dialogs` 对 Open/Save/Font/Color/Print 标准 `#32770` **6/6 PASS**；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
 
 > 逐轮时间线、工具计数、失败模式见 [EVIDENCE](EVIDENCE.md)；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；当前矩阵见 [VERIFICATION](../VERIFICATION.md)。

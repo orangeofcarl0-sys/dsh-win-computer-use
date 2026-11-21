@@ -18,7 +18,7 @@
 |---|---|---|---|---|
 | `uia-element` | t01/t03/t04/t05/t06/t07/t15/t19/t21/wa2 | `action-bounds` | 强 | Word/Office 元素路径 |
 | `pixel-zoom` | p01–p03/t09/t11 | `observe.coords` | 强 | DPI/多屏、目标尺寸阶梯 |
-| `native-dialog` | t20、`probe-native-dialog` | `native-dialogs.test` | 正向强、负向弱 | 同 pid/非模态/不自动 Yes-No；Open/Save/Print |
+| `native-dialog` | t20、`probe-native-dialog`、`probe-common-dialogs` | `native-dialogs.test` | 强（常见对话框后端 PASS） | WPF/WinUI/自定义 shell 对话框 |
 | `office-ooxml` | t12/t14/t17/t22/w01/w02 | `oracle-mutation` | 强 | 公式/图表、notes/track changes |
 | `browser` | t13/t16/t18/b01 | `action-bounds` | 中 | tab/upload/auth/print |
 | `multi-app` | t10/t17/combo01/combo02 | `oracle-mutation` | 中 | 更多工具链 |
@@ -26,7 +26,7 @@
 | `recovery` | rec01/rec02/rec03 | `eval-safety` | 中 | 崩溃/窗口被移走 |
 | `security-semantics` | sec01–sec04、`posture.smoke`、`probe-safety-runtime` | `eval-safety` | 契约强、任务级强 | 更多负向组合 |
 | `background-input` | `probe-background-input` | `background-input.test` | 探针强、任务级无 | no-UIA 任务、空 allowedApps 负向 |
-| `windows-specific` | dpi01/term01、`probe-display`、`probe-launch`、`probe-b2-elevated` | `background-input.test` | 中 | 虚拟桌面 BLOCKED；UAC/IME/Electron 见 BLOCKED |
+| `windows-specific` | dpi01/term01、`probe-display`、`probe-launch`、`probe-b2-elevated` | `background-input.test` | 中（跨屏模型 PASS） | 虚拟桌面 BLOCKED；UAC/IME/Electron 见 BLOCKED |
 | `accessibility` | a11y01（3 个 variant） | `eval-safety` | 中 | 高对比度/Narrator |
 
 ## 3. 主要应用计数

@@ -89,7 +89,7 @@ evals/
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
   ac6-summary.mjs   per-task token/步数汇总
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs
-  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-background-input 是实验性后台输入，probe-platform 是只读平台/套件可用性
+  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-common-dialogs 覆盖 Open/Save/Font/Color/Print，probe-background-input 是实验性后台输入，probe-platform 是只读平台/套件可用性
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
   headless-patch.sec02.yml / headless-patch.sec04.yml  安全负向任务的 allowedApps / ttlMs overlay
   COVERAGE.md / coverage.json  热点覆盖矩阵（10+恢复）
@@ -197,6 +197,9 @@ node evals/probe-modal-escapes.mjs
 node evals/probe-modal-escapes.mjs --trigger-only
 # 插件侧原生对话框后端：UIA trigger → native-dialog observe → BM_CLICK No（~10s）
 node evals/probe-native-dialog.mjs
+# 常见对话框后端：Open/Save/Font/Color/Print 的标准 #32770 + Cancel BM_CLICK（~20s）
+node evals/probe-common-dialogs.mjs
+node evals/probe-common-dialogs.mjs --strict-blocked
 # 原生 Button 触发：WinForms Delete + MessageBox；1.2s 触发、native-dialog 关闭、10s latch（~10s）
 node evals/probe-native-button.mjs
 # Excel Ctrl+drag：UIA DataItem 几何 + OOXML 校验；--excel-only 跳过 Explorer 部分

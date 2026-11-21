@@ -45,7 +45,8 @@
     "native-dialog": {
       "positive": [
         "t20",
-        "probe:probe-native-dialog"
+        "probe:probe-native-dialog",
+        "probe:probe-common-dialogs"
       ],
       "negative": [
         "test:native-dialogs.test"

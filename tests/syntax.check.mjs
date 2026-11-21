@@ -29,6 +29,7 @@ const extraFiles = [
   'evals/probe-modal-timeout.mjs',
   'evals/probe-modal-escapes.mjs',
   'evals/probe-native-dialog.mjs',
+  'evals/probe-common-dialogs.mjs',
   'evals/probe-background-input.mjs',
   'evals/probe-b2-elevated.mjs',
   'evals/probe-native-button.mjs',

@@ -7,7 +7,7 @@
   "configKeys": 30,
   "offlineSuites": 31,
   "offlineChecks": 772,
-  "syntaxFiles": 52,
+  "syntaxFiles": 53,
   "runtimeChecks": 18,
   "packFiles": 66,
   "evalTasks": 41,
@@ -22,5 +22,5 @@
   "nodeMin": "22.18.0",
   "driverBaseline": "0.23.2",
   "driverCanary": "0.52.13",
-  "lastVerified": "2026-11-21"
+  "lastVerified": "2026-11-22"
 }

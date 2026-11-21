@@ -11,10 +11,8 @@
 | Excel modifier drop | `probe-modifier-drop.mjs --excel --excel-only`（2026-11-21）：已实现 Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何（`"A" 2`/`"E" 2`）、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；拖拽已投递（private SendInput/foreground），A2 保留但 E2 仍为空 → BLOCKED。PPT 无分支 | Explorer Ctrl+drop 已回归；Excel/PPT 的 modifier drop 仍无自动 PASS | 在专用桌面确认 Excel 单元格边框拖拽的命中点/手势（当前从 A2 右边框/下边框均未复制）；否则保持 BLOCKED |
 | 独立观察者 / `screen_assert` | 无任务；需要 ZHIPU key 或 dsv4fv 文本输出修复 | 自绘/canvas 的“独立裁决”仍靠 oracle 文件，不是第二观察者 | 提供可用视觉 key 或修复文本输出 |
 | `selectText` / key hold / mouse down-up / drag-from-element | 工具面不存在这些原语 | 复杂文本选择/形状拖拽仍靠坐标 | 驱动/插件新增原语后再测 |
-| 多显示器 | `probe-display.mjs`（2026-11-21）实际枚举到 2 屏：`1707x1067@0,0` + `2560x1440@2560,0`；`dpi01` AC2 已 PASS（第二屏 fixture setup/oracle/simulate/cleanup） | 真实模型跨屏点击尚未跑；`get_screen_size` 仍只暴露主屏 | 用 `dpi01 --isolation clean` 做一次模型真跑；若落点失败，保持 BLOCKED |
 | 虚拟桌面 / Task View | 无任务；插件工具面没有虚拟桌面枚举/切换原语，`win`/`super` 组合键按 §2 fail-closed，驱动也没有对应能力 | 无法在受支持通道内创建、切换并**按 ID 精确回收**虚拟桌面；强行投递未支持按键会留下无法可靠清理的用户会话状态 | 驱动新增虚拟桌面原语（枚举/切换/按 ID 关闭）后再补 probe/任务；否则保持 BLOCKED |
 | UAC / 安装器 / Protected View | 没有任务；`probe-b2-elevated` 只证明提权后 BlockInput，不是 UAC 自动化 | 安装器、per-machine 注册、SmartScreen/MOTW、Office Protected View 未验证 | 一次性 VM 快照 + 测试签名包；无 VM 保持 BLOCKED，不在宿主执行 |
-| 原生对话框（Open/Save/Print/Font/Color） | `probe-native-dialog` 只覆盖 MessageBox；`nativeDialogs` 泛化到标准 `#32770` 但未逐个验证 | 文件选择/打印/字体/颜色对话框可能无正确落点 | 扩展 `probe-native-dialog`，失败保持 BLOCKED |
 | IME / Electron / Terminal / Settings / 媒体 | `probe-win-gaps`（2026-11-21）：VS Code/VLC 未安装；Settings exe 存在；WSL/wt 存在；语言 zh-Hans-CN/en-US。P1 已补 `term01` 与 `b01` | Electron/WebView2、WSL 交互、系统设置 UI、VLC、IME composition 未验证 | 有环境时补 probe/任务；缺失应用 setup 记 ENV，不伪造 PASS |
 | 可访问性高对比度/Narrator | `a11y01` 只覆盖键盘-only + UIA 名称；未做高对比度/Narrator 全量验收 | 不能宣称 a11y 全兼容 | 需要专用 a11y fixture/工具后再补 |
 | 浏览器 upload/auth/print-to-PDF | `b01` 只覆盖 tabs + 本地表单；`combo02`/`rec03` 覆盖下载 | 上传/登录/打印对话框未验证 | 本地 mock upload/auth + 打印对话框 fixture 后再补 |
@@ -33,6 +31,7 @@
 - **严格 B2 的提权边界**：默认非提权会话 `BlockInput` 失败关闭（`win32=0`、非提权/无 UIAccess、Default 桌面）；`node evals/probe-background-input.mjs --elevated`（UAC）**14 PASS / 0 BLOCKED**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）。生产不自动提权；免提权用 `cursor-clip`（不阻塞键盘）。
 - **B1 光标归因**：helper 在注入窗口内采样 `cursorBefore/cursorAfter/cursorDrift`；外部物理漂移单独记录，不再把 B1 误判为 BLOCKED。
 - **B1 普通应用语义**：promote 的 `MOUSEDOWN/MOUSEUP` 已到达 mouse-only 窗口，但应用是否按业务处理仍取决于目标；不外推为“普通应用全部支持”。
+- **原生对话框覆盖范围**：`probe-common-dialogs`（2026-11-22）对 WinForms Open/Save/Font/Color/Print 的标准 `#32770` 后端 **6/6 PASS**（`modal=owner-disabled`、Cancel `BM_CLICK`、fixture result=Cancel）；`probe-native-dialog` 对 MessageBox 的 `screen_observe` 集成 9/9。WPF/WinUI/自定义 shell 对话框未验证，不外推。
 - **`win`/`super`/`meta` 组合键**：本机旧实现会把 `win+r` 降级成单键 `win`（打开 Start/SearchHost），不可靠。2026-11-20 起 fail-closed，回执明确“不支持，用 app_launch/开始菜单”；不做原生 win 发送的承诺。
 
 ## 3. 规则

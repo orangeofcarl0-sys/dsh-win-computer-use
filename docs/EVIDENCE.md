@@ -1,7 +1,7 @@
 # EVIDENCE — 按日期归档的运行证据
 
 > 目的：保存逐轮步数、探针结果、一次性结论与失败样本；**不描述当前实现**。当前行为见 [README](../README.md) 与各参考文档。
-> 状态：历史证据（append-only；最后追加 2026-11-21）。
+> 状态：历史证据（append-only；最后追加 2026-11-22）。
 > 相关：[VERIFICATION](../VERIFICATION.md)（当前矩阵）· [TESTING](TESTING.md)（测试方法）· [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)（模型行为分析）。
 
 ## 1. 证据约定
@@ -289,6 +289,55 @@ node tests/native-dialogs.test.mjs
 | TabState | 恢复 | 每次 AC2 前 backup 39 bins，结束后 restore；0 dirty/残留 |
 
 > 说明：variant 值只来自 `evals/variants/<id>.json`，prompt 用 `{{key}}` 渲染；oracle 不硬编码 expected。非参数化任务在 `--variants 3` 下仍只跑 variant 1。
+
+## 1.11 2026-11-22 — dpi01 真实模型跨屏点击
+
+环境：Windows 11 x64；双**物理**屏：AUO B160QANAA.L 2560×1600 @150%（逻辑 1707×1067，主屏）+ AOC Q27B30S3 2560×1440 @100%（副屏，原点 x=2560）；dsh **0.2.2-rc.5**；headless profile 插件 **0.5.8**；cua-driver **0.52.13**；opencode-go / deepseek-v4.1-flash。
+
+命令：
+
+- `node evals/headless-run.mjs --tasks dpi01 --isolation clean --timeout-min 8 --patch evals/headless-patch.opencode.yml`
+
+结果：**pass**。
+
+| 项 | 值 |
+|---|---|
+| steps / inner | 3 / 3 |
+| calls | `screen_observe` → `computer_do:computer_click` → `screen_observe` |
+| wall | 70s |
+| tokens | input 8,716 / output 1,154 / cacheRead 23,168 / total 33,038 |
+| oracle | `secondary monitor click landed=true`，`clicks=1` |
+| cleanup | `ok=true`，0 dirty |
+| TabState | backup 39 bins → restore 成功 |
+| 错误 | toolErrors=0；unverified=1（收尾观察回执，不影响 oracle） |
+
+说明：fixture 位于副屏 `x=2560+100, y=100`；模型没有移动窗口，点击落在副屏按钮上。该结果只证明**当前双屏/混合 DPI 环境下**该任务可通过；不外推到所有多屏拓扑。
+
+## 1.12 2026-11-22 — verify-runtime 0.52.13 复跑
+
+环境：Windows 11 x64；双物理屏（主屏 150% / 副屏 100%）；cua-driver **0.52.13**（daemon running，permission mode standard）；不调用模型。
+
+命令：`node verify-runtime.mjs`
+
+结果：**18/18 通过**。自动选择副屏上的可见 Firefox 窗口做只读观察；`screenOrigin={x:2560,y:0,width:2560,height:1440}`，`coordinateSpace=window-screenshot-px`；native 直读 1,164,346B PNG + attachments 落盘；text-only route 对 native 明确拒绝；vision 无 key 时优雅降级；`screen_zoom` 1×1 JPEG。全程未点击/输入用户窗口，未修改桌面。
+
+## 1.13 2026-11-22 — 常见原生对话框后端
+
+环境：Windows 11 x64；不调用模型；只使用自建 WinForms fixture 与 `lib/nativeDialogs.js` 的 scan/click 后端。
+
+命令：`node evals/probe-common-dialogs.mjs`
+
+结果：**6 PASS / 0 BLOCKED / 0 FAIL**（fixture + 5 个对话框）。
+
+| 对话框 | class / modal | 按钮（截取） | 结果 |
+|---|---|---|---|
+| Open | `#32770` / owner-disabled | 打开(&O) \| 取消 \| 帮助(&H) | Cancel `BM_CLICK`，state result=Cancel |
+| Save | `#32770` / owner-disabled | 保存(&S) \| 取消 \| 帮助(&H) | 同上 |
+| Font | `#32770` / owner-disabled | 确定 \| 取消 \| 应用(&A) \| 帮助(&H) | 同上 |
+| Color | `#32770` / owner-disabled | 确定 \| 取消 \| 帮助(&H) | 同上 |
+| Print | `#32770` / owner-disabled | 确定 \| 取消 \| 帮助(&H) | 同上（本机有 2 个打印机） |
+
+说明：该探针只证明**标准 Win32 `#32770` 常见对话框的后端**；`screen_observe` 的完整插件集成路径由 `probe-native-dialog` 的 MessageBox 场景 9/9 覆盖。WPF/WinUI/自定义 shell 对话框不在本次证据内。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

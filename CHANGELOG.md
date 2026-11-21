@@ -24,8 +24,9 @@
 
 - 三键全 off：零 PowerShell spawn，行为与 0.5.8 一致。
 - 真机探针 2026-11-21：默认 **14 PASS / 1 BLOCKED / 0 FAIL**（严格 B2 非提权）；`--elevated`（UAC）**14 PASS / 0 BLOCKED / 0 FAIL**，严格 B2 125ms PASS（`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；B1 mouse-only 经 `syntheticPointer:promote` 收到 `MOUSEDOWN/MOUSEUP`；B1 光标用 helper 注入窗口内 `cursorDrift=0` 归因，外部漂移（348–766px）不再误判；B3 PASS。
-- 离线 31 套 / 772 项；语法 52/52；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
+- 离线 31 套 / 772 项；语法 53/53；`npm test`/`npm run check` 通过。已 push 到 `main`（CI 修复 `ab61fc4`）；未 tag/npm publish。
 - 评测 P2（2026-11-21）：`variants` 参数化落地（t21/t22/a11y01 × variant 1-3，AC2 **9/9 PASS**，mutation **2/2 PASS**）；新增只读 `evals/probe-platform.mjs`；虚拟桌面因无驱动原语 + `win` 组合键 fail-closed 记 BLOCKED。
+- 评测 P2（2026-11-22）：`dpi01` 真实模型跨屏点击 **pass**（3 步，双物理屏 150%+100%）；新增 `probe-common-dialogs.mjs`，Open/Save/Font/Color/Print 标准 `#32770` 后端 **6/6 PASS**。
 - `nativeMenus` 真机已 PASS：`probe-ops` 的 SetMenu fixture 自检 `GetMenu`/menu-count 后通过；MenuStrip/WPF/WinUI 仍明确不支持。
 - `nativeButtonTrigger` 真机探针：自建 WinForms Delete + MessageBox **4 PASS / 0 BLOCKED / 0 FAIL**（1.2s、opened=1、native-dialog 关闭、latch）；默认 off，t20 需显式开启 overlay 复跑。
 
