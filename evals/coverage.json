@@ -134,6 +134,14 @@
       "negative": [
         "test:background-input.test"
       ]
+    },
+    "accessibility": {
+      "positive": [
+        "a11y01"
+      ],
+      "negative": [
+        "test:eval-safety"
+      ]
     }
   },
   "security": {

@@ -38,14 +38,14 @@
 | 原生对话框后端 | S3 | `node evals/probe-native-dialog.mjs` | 9 PASS / 0 BLOCKED | UIA trigger → `screen_observe` native-dialog 2 按钮 → `computer_click(No)` BM_CLICK 关闭、state cancelled=1；double/key 明确拒绝 |
 | 原生 Button 触发 | S3 | `node evals/probe-native-button.mjs` | 4 PASS / 0 BLOCKED | 自建 WinForms Delete + MessageBox：原生触发 1.2s 返回、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 |
 | 实验后台输入 | S1/S4 | `node evals/probe-background-input.mjs`（可加 `--elevated`） | 默认 14 PASS / 1 BLOCKED；提权 14 PASS / 0 BLOCKED | 自建 native message/pointer/touch-only/mouse-only/cover：B0 click/text/key、B1 synthetic、B1 WM_TOUCH-only、B1 mouse-only 鼠标提升、B3 window 通过；B1 光标用 helper 注入窗口内 `cursorDrift=0` 判定，外部漂移不再污染；严格 B2 非提权 `BlockInput` 被拒 → BLOCKED，`--elevated`（UAC）**PASS**（125ms、`inputBlocked=true`、`cursorRestored=true`、`inputUnblocked=true`）；`cursor-clip` PASS；0 FAIL |
-| oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 36 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13/t21 按原因 SKIP |
+| oracle 变异 | S1-S4 | `node evals/oracle-mutation.mjs` | 37 条可变任务 | 错误但像成功的产物必须让 oracle exit 1；t04/t07/t13/t21 按原因 SKIP |
 | AC6 成本 | S1-S4 | `node evals/ac6-summary.mjs --reports <report>` | per-task token/步数 | 读 `status/step_end.usage`，输出中位数/p90 与 billable |
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
 | native freshness | S2 | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
 | dsh 真机加载 | S1 | `dsh --profile headless --patch ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
 | 真桌面闭环 | S1 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
-| 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 40 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
-| oracle 验证 | S1-S4 | `node evals/verify-oracles.mjs --stage S4` | 40 条（t13 可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
+| 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 41 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
+| oracle 验证 | S1-S4 | `node evals/verify-oracles.mjs --stage S4` | 41 条（t13 可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
 
 ### 2.1 S1-S4 阶段
 
@@ -56,7 +56,7 @@
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/x1/t18/t19/t20（25） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
 
-阶段是**成员标签，可重叠**：S1 10 / S2 5 / S3 25 / S4 17，成员合计 57，唯一任务 40。t11=S2+S4；t12-t18=S3+S4；t23/sec01–sec04/combo01/combo02/rec02/rec03 也含 S4；x1=S3。
+阶段是**成员标签，可重叠**：S1 10 / S2 5 / S3 26 / S4 17，成员合计 58，唯一任务 41。t11=S2+S4；t12-t18=S3+S4；t23/sec01–sec04/combo01/combo02/rec02/rec03 也含 S4；x1=S3。
 
 边界：S2 的 p01-p03 需要 image 能力；S4 已给 t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03 加 sentinel（窗口/身份/文件），sentinel 失败即 fail；`both` 任务在 clean 模式不建 sentinel，在 dirty 模式建。t13 仍是真实网络 `ac2:none`；t18 本地下载补 AC2。
 
@@ -188,7 +188,7 @@ node evals/headless-run.mjs --tier smoke --timeout-min 10   # 旧调度标签
 node evals/verify-oracles.mjs --stage S4
 ```
 
-- 任务集 40 条：S1 10（t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2）+ S2 5（t11/dpi01/p01/p02/p03）+ S3 25（t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/x1/t18/t19/t20）+ S4 17（t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03）；成员合计 57，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
+- 任务集 41 条：S1 10（t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2）+ S2 5（t11/dpi01/p01/p02/p03）+ S3 26（t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20）+ S4 17（t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03）；成员合计 58，任务可重叠。`tier`（smoke/core）是旧调度标签，不是阶段。
 - `--tasks` > `--stage` > `--tier`；`--stage` 无匹配时退出非 0；无参数仍按旧 smoke 运行。退役任务见 [evals/RETIRED](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/evals/RETIRED.md)。
 - oracle 一律 PowerShell/Win32 确定性读，不用模型自评；`setup` 预置到决策点，`oracle` 判定，`cleanup` 清沙箱，`simulate` 用于 AC2 双向验证。
 - `verify-oracles` 判据：setup 必 ok → oracle 空跑必失败 → simulate 后必通过 → cleanup 干净；**2026-11-20 全量 22/23 PASS + t13 SKIP（0 FAIL/ENV/dirty）**。若 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先把 `TEMP`/`TMP` 指到 `%LOCALAPPDATA%\Temp`。
@@ -335,9 +335,9 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
-| 评测 | 40 条任务：S1 10 / S2 5 / S3 25 / S4 17（成员 57）；t12/t14/t17/t18/p01-p03/t19/t20/t21/t22/t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01 均有 simulate；仅 t13 仍 `ac2:none`，其 SKIP 不是 PASS |
-| AC2 全量 | 2026-11-20 基线 **22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty）；2026-11-21 P0/P1 新增 **18/18 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01） |
-| oracle 变异 | 2026-11-20 基线 **19/19**；2026-11-21 P0/P1 抽样 **12/12 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/dpi01；其余新增待补跑） |
+| 评测 | 41 条任务：S1 10 / S2 5 / S3 26 / S4 17（成员 58）；t12/t14/t17/t18/p01-p03/t19/t20/t21/t22/t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01 均有 simulate；仅 t13 仍 `ac2:none`，其 SKIP 不是 PASS |
+| AC2 全量 | 2026-11-20 基线 **22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty）；2026-11-21 P0/P1 新增 **19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01） |
+| oracle 变异 | 2026-11-20 基线 **19/19**；2026-11-21 P0/P1 抽样 **13/13 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/dpi01；其余新增待补跑） |
 | 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3**；modal-timeout **10 PASS / 13 BLOCKED**、modal-escapes **6 PASS / 4 BLOCKED**；native-dialog **9 PASS / 0 BLOCKED**（根因见 EVIDENCE §1.4/§1.5） |
 | 模型真跑（最新） | 2026-11-20：opencode t19 **2/2 pass**（inner 70/48）、t20 **2/2 pass**（inner 27/25）、t05 **2/2 pass**（inner 10/15）；0 timeout/dirty；t20 30s 超时仍多但候选 window_id 已出现；t19 `win+r` 归零、r1 回归；t05 无 `type`/无 src 残留；见 EVIDENCE §1.3 |
 | 模型真跑（上一轮/修复前） | 上一轮 t19 40/56、t20 27/25、t05 21/13；修复前 t19/t20 各 1 pass/1 预算耗尽（35/56、17/33），p01/p02/p03 6/11/8；保留为历史 |
@@ -348,8 +348,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 ## 11. P2 设计与未闭合
 
-- **参数化**：设计为 `S4_VARIANT=1..3` + `headless-run --variants`；setup 从 variant 派生 expected 值，report 记录 variant。当前未实现，仍以 40 条静态任务 + `--repeats` 为主；这是统计功效的下一条改进。
-- **可访问性**：键盘-only、高对比度、Narrator/UIA 名称未做；结构 AX 覆盖不等于 a11y 验收。计划新增 `a11y01`，在 WinForms fixture 上做键盘-only 完成与 UIA 名称断言。
+- **参数化**：设计为 `S4_VARIANT=1..3` + `headless-run --variants`；setup 从 variant 派生 expected 值，report 记录 variant。当前未实现，仍以 41 条静态任务 + `--repeats` 为主；这是统计功效的下一条改进。
+- **可访问性**：`a11y01` 已实现键盘-only + UIA 名称；高对比度/Narrator 全量验收仍未做。
 - **Linux**：仅 Ubuntu CI 跑 `npm run check` / `npm test`；无 Linux 任务套件，`verify-runtime` 可选。Linux 不作为发布门禁，文档不写“已支持”。
 - **Windows 专项**：`probe-display` 已记录 2 屏/DPI；`dpi01` AC2 已过，真实模型跨屏点击待跑；UAC/安装器、Open/Save/Print/Font/Color、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
 

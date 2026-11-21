@@ -15,6 +15,7 @@
 | UAC / 安装器 / Protected View | 没有任务；`probe-b2-elevated` 只证明提权后 BlockInput，不是 UAC 自动化 | 安装器、per-machine 注册、SmartScreen/MOTW、Office Protected View 未验证 | 一次性 VM 快照 + 测试签名包；无 VM 保持 BLOCKED，不在宿主执行 |
 | 原生对话框（Open/Save/Print/Font/Color） | `probe-native-dialog` 只覆盖 MessageBox；`nativeDialogs` 泛化到标准 `#32770` 但未逐个验证 | 文件选择/打印/字体/颜色对话框可能无正确落点 | 扩展 `probe-native-dialog`，失败保持 BLOCKED |
 | IME / Electron / Terminal / Settings / 媒体 | `probe-win-gaps`（2026-11-21）：VS Code/VLC 未安装；Settings exe 存在；WSL/wt 存在；语言 zh-Hans-CN/en-US。P1 已补 `term01` 与 `b01` | Electron/WebView2、WSL 交互、系统设置 UI、VLC、IME composition 未验证 | 有环境时补 probe/任务；缺失应用 setup 记 ENV，不伪造 PASS |
+| 可访问性高对比度/Narrator | `a11y01` 只覆盖键盘-only + UIA 名称；未做高对比度/Narrator 全量验收 | 不能宣称 a11y 全兼容 | 需要专用 a11y fixture/工具后再补 |
 | 浏览器 upload/auth/print-to-PDF | `b01` 只覆盖 tabs + 本地表单；`combo02`/`rec03` 覆盖下载 | 上传/登录/打印对话框未验证 | 本地 mock upload/auth + 打印对话框 fixture 后再补 |
 | macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证 | 不能把“能加载”当“已验收” | Linux 仅可选举措；有环境时跑离线 + `verify-runtime` |
 

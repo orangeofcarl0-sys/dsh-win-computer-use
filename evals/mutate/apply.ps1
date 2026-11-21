@@ -280,6 +280,13 @@ try {
       [IO.File]::WriteAllText($f, 'S4 TERM WRONG', (New-Object Text.UTF8Encoding($false)))
       $changes += 'terminal output changed'
     }
+    'a11y01' {
+      $f = Join-Path $base 'out/result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.submitted = $false
+      Write-Json $f $j
+      $changes += 'keyboard submit cleared'
+    }
     'p01' {
       $f = Join-Path $base 'out\result.json'
       Write-Json $f ([ordered]@{ target = 'C2'; cell = 'C2'; hit = 'false' })
