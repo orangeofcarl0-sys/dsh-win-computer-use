@@ -5,6 +5,7 @@ try {
   $base = Get-TaskDir
   $state = Read-TestState (Join-Path $base 'state.json')
   if (-not $state) { Out-Finish -Ok $false -Checks @((Add-Check 'state file' $false 'missing')) -EnvError 'state file missing' }
+  $checks += (Add-Check 'variant matches runner' ([int]$state.variant -eq (Get-S4VariantNumber)) ("state=$($state.variant) runner=$(Get-S4VariantNumber)"))
   $out = Join-Path $base 'out\deck2.pptx'
   if (-not (Test-Path $out)) {
     Out-Finish -Ok $false -Checks @((Add-Check 'file exists' $false $out))
@@ -22,7 +23,7 @@ try {
   $allText = (($texts -join ' ') -replace '\s+', ' ').Trim()
   $checks += (Add-Check 'updated title' ($allText.IndexOf([string]$state.title, [System.StringComparison]::Ordinal) -ge 0) $allText)
   $checks += (Add-Check 'updated subtitle' ($allText.IndexOf([string]$state.subtitle, [System.StringComparison]::Ordinal) -ge 0) $allText)
-  $checks += (Add-Check 'old title removed' ($allText.IndexOf('S4 T22 DECK', [System.StringComparison]::Ordinal) -lt 0) $allText)
+  $checks += (Add-Check 'old title removed' ($allText.IndexOf([string]$state.seedTitle, [System.StringComparison]::Ordinal) -lt 0) $allText)
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

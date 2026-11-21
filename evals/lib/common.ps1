@@ -4,6 +4,8 @@
 # ASCII-only: PowerShell 5.1 parses BOM-less scripts as ANSI (no CJK comments here).
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+# Evals root captured at load time; functions below may run from setup/oracle scripts.
+$Script:S4EvalsRoot = Split-Path $PSScriptRoot -Parent
 
 if (-not $TaskId -or $TaskId -eq '') {
   # dot-sourced: $MyInvocation.ScriptName is the CALLER script path; derive <id> from <id>.ps1
@@ -17,6 +19,34 @@ $Script:S4TaskId = $TaskId
 function Get-TaskDir {
   if (-not $Script:S4TaskId) { throw 'S4: no task id (pass as arg 0 or set S4_TASK)' }
   return (Join-Path $env:USERPROFILE (Join-Path '.dsh\s4-evals' $Script:S4TaskId))
+}
+
+function Get-S4VariantNumber {
+  # S4_VARIANT is set by the runner per run; default 1 keeps old scripts unchanged.
+  $raw = ([string]$env:S4_VARIANT).Trim()
+  if ($raw -match '^[0-9]+$') {
+    $n = [int]$raw
+    if ($n -ge 1) { return $n }
+  }
+  return 1
+}
+
+function Get-S4VariantData {
+  # Single source of truth for variant values: evals/variants/<id>.json.
+  # Setup, oracle and simulate must read the same entry so expected values cannot drift.
+  param([string]$TaskId = '', [int]$Variant = 0)
+  if (-not $TaskId) { $TaskId = $Script:S4TaskId }
+  if (-not $TaskId) { throw 'Get-S4VariantData: no task id' }
+  if ($Variant -le 0) { $Variant = Get-S4VariantNumber }
+  $path = Join-Path (Join-Path $Script:S4EvalsRoot 'variants') ($TaskId + '.json')
+  if (-not (Test-Path -LiteralPath $path)) { throw "variant data missing: $path" }
+  $all = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+  $prop = @($all.PSObject.Properties | Where-Object { $_.Name -eq ([string]$Variant) })
+  if ($prop.Count -eq 0) { throw "variant $Variant missing: $path" }
+  $out = [ordered]@{}
+  foreach ($p in $prop[0].Value.PSObject.Properties) { $out[$p.Name] = $p.Value }
+  $out['variant'] = $Variant
+  return [pscustomobject]$out
 }
 
 function Get-IsolationMode {

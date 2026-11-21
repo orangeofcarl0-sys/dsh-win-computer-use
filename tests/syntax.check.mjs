@@ -34,6 +34,7 @@ const extraFiles = [
   'evals/probe-native-button.mjs',
   'evals/probe-display.mjs',
   'evals/probe-win-gaps.mjs',
+  'evals/probe-platform.mjs',
   'evals/oracle-mutation.mjs',
   'evals/ac6-summary.mjs',
   'tests/tasks.check.mjs',

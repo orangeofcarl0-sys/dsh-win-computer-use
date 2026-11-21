@@ -1,7 +1,7 @@
 # EVIDENCE — 按日期归档的运行证据
 
 > 目的：保存逐轮步数、探针结果、一次性结论与失败样本；**不描述当前实现**。当前行为见 [README](../README.md) 与各参考文档。
-> 状态：历史证据（append-only；最后追加 2026-11-20）。
+> 状态：历史证据（append-only；最后追加 2026-11-21）。
 > 相关：[VERIFICATION](../VERIFICATION.md)（当前矩阵）· [TESTING](TESTING.md)（测试方法）· [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)（模型行为分析）。
 
 ## 1. 证据约定
@@ -268,6 +268,27 @@ node tests/native-dialogs.test.mjs
 | Excel 分支 | BLOCKED | Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭；A2 保留但 E2 为空 |
 
 > 环境：Windows 11 x64，DPI 150%，dirty 桌面；外部物理光标漂移不再污染 B1 归因，严格 B2 用一次性 UAC 提权探针验证。
+
+## 1.10 2026-11-21 — P2 参数化 variant 与平台探针
+
+环境：Windows 11 x64，DPI 150%，dsh 0.2.2-rc.1，cua-driver 0.52.13；不调用模型（仅 setup/simulate/oracle/cleanup 与只读探针）。
+
+命令与结果：
+
+- `node evals/verify-oracles.mjs --tasks t21,a11y01 --variants 3`：**6/6 PASS**（t21/t22 各 3 个 variant；每条 setup → empty-fail → simulate → oracle×2 → cleanup）。
+- `node evals/verify-oracles.mjs --tasks t22 --variants 3`：**3/3 PASS**（PowerPoint seed/目标文本随 variant 变化）。
+- `node evals/oracle-mutation.mjs --tasks t22,a11y01`：**2/2 PASS**（错误标题、未提交均被 exit 1 拒绝；mutation 固定 variant 1）。
+- `node evals/probe-platform.mjs`：**PASS**（win32 + PowerShell 5.1.26100 + 41 条任务定义）；未在非 Windows 运行，Linux 仍为可选、非门禁。
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| t21 Calculator 除法 variant 1-3 | PASS | expression/expected 来自同一 `variants/t21.json`；oracle 校验 state.variant |
+| t22 PowerPoint 标题/副标题 variant 1-3 | PASS | seed 与目标文本随 variant 变化；旧 seed 标题消失 |
+| a11y01 键盘-only variant 1-3 | PASS | 输入文本随 variant 变化；仍不依赖鼠标坐标 |
+| 平台套件探针 | PASS | 只读；非 Windows 返回 BLOCKED（exit 2 仅 `--strict-blocked`） |
+| TabState | 恢复 | 每次 AC2 前 backup 39 bins，结束后 restore；0 dirty/残留 |
+
+> 说明：variant 值只来自 `evals/variants/<id>.json`，prompt 用 `{{key}}` 渲染；oracle 不硬编码 expected。非参数化任务在 `--variants 3` 下仍只跑 variant 1。
 
 ## 2. 运行矩阵（t11 / t12 / t14 / t15 / t17）
 

@@ -9,14 +9,19 @@
  * 用法：
  *   node evals/headless-run.mjs --tier smoke --timeout-min 10
  *   node evals/headless-run.mjs --tasks t01,t04 --repeats 3 --timeout-min 12
+ *   node evals/headless-run.mjs --tasks t21,t22,a11y01 --variants 3 --timeout-min 10
  *   node evals/headless-run.mjs --tier all --timeout-min 10 --report evals/report-last-headless.json
+ *
+ * 参数化：任务 md 声明 `variants: N` 时，`--variants N` 会把该任务跑 1..N；
+ * 未声明的任务只跑 variant 1。每个 run 通过 `S4_VARIANT` 传给 setup/oracle/
+ * simulate/cleanup；prompt 中的 `{{key}}` 由 evals/variants/<id>.json 渲染。
  *
  * 前置：
  *   - headless profile 的 node_modules 里可解析 dsh-win-computer-use；
  *   - DSH_BIN 指向 dsh 的 lib/bin.js（默认从全局 npm 路径推断）；
  *   - PowerShell 可用；TEMP/TMP 会在子进程里指到用户临时目录（Add-Type 需要）。
  * 产物：
- *   - evals/headless-runs/<stamp>/<task>-r<n>.jsonl / .err（已 gitignore）
+ *   - evals/headless-runs/<stamp>/<task>-v<n>-r<n>.jsonl / .err（已 gitignore）
  *   - evals/report-last-headless.json（已 gitignore）
  */
 import fs from 'node:fs'
@@ -50,6 +55,12 @@ const isolationArg = val('isolation', '')
 const isolationFilter = isolationArg && isolationArg !== 'all' ? isolationArg.toLowerCase() : ''
 if (isolationFilter && !['clean', 'dirty'].includes(isolationFilter)) {
   console.error(`invalid --isolation: ${isolationArg} (expected clean|dirty)`)
+  process.exit(2)
+}
+const variantsArg = val('variants', '1')
+const variantsRequested = Number(variantsArg)
+if (!Number.isInteger(variantsRequested) || variantsRequested < 1 || variantsRequested > 9) {
+  console.error(`invalid --variants: ${variantsArg} (expected integer 1..9)`)
   process.exit(2)
 }
 const timeoutMin = Math.max(1, Number(val('timeout-min', '10')) || 10)
@@ -144,15 +155,41 @@ function discover() {
     const securityExpect = field(md, 'security_expect')
     const taskPatchRaw = field(md, 'patch')
     const taskPatch = taskPatchRaw ? path.resolve(REPO, taskPatchRaw) : patch
+    const variants = Math.max(1, Number(field(md, 'variants')) || 1)
+    const variantsPath = path.join(ROOT, 'variants', `${id}.json`)
+    if (variants > 1 && !fs.existsSync(variantsPath)) {
+      throw new Error(`task ${id}: variants=${variants} but ${variantsPath} is missing`)
+    }
     if (isolationFilter && !supportsIsolation(isolation, isolationFilter)) continue
     if (stageFilter.length && !stages.some((s) => stageFilter.includes(s))) continue
     if (tierArg !== 'all' && tier !== tierArg) continue
     const m = md.match(/<<<PROMPT\n([\s\S]*?)\nPROMPT>>>/)
     if (!m) throw new Error(`task ${id}: no <<<PROMPT block`)
     const taskDir = path.join(homedir(), '.dsh', 's4-evals', id)
-    out.push({ id, group, tier, isolation, isolationEffective, stages, ac2, requireTool, requireTools, apps, hotspot, requires, security, securityExpect, patch: taskPatch, prompt: m[1].replaceAll('{task_dir}', taskDir), taskDir })
+    out.push({ id, group, tier, isolation, isolationEffective, stages, ac2, requireTool, requireTools, apps, hotspot, requires, security, securityExpect, patch: taskPatch, promptTemplate: m[1], taskDir, variants, variantsPath })
   }
   return out
+}
+
+/** 读取 evals/variants/<id>.json 的某一项；未声明 variants 的任务返回空对象。 */
+function loadVariantData(task, variant) {
+  if (!task.variantsPath || !fs.existsSync(task.variantsPath)) return {}
+  const all = readJsonSafe(task.variantsPath)
+  const data = all?.[String(variant)]
+  if (!data || typeof data !== 'object') {
+    throw new Error(`task ${task.id}: variant ${variant} missing in ${task.variantsPath}`)
+  }
+  return data
+}
+
+/** 渲染 prompt 的 `{{key}}` 与 `{task_dir}`；缺 key 直接报错，不把占位符发给模型。 */
+function renderPrompt(task, variant) {
+  const data = loadVariantData(task, variant)
+  const text = task.promptTemplate.replace(/\{\{([A-Za-z0-9_.-]+)\}\}/g, (_, key) => {
+    if (!(key in data)) throw new Error(`task ${task.id}: variant ${variant} missing key ${key}`)
+    return String(data[key])
+  })
+  return text.replaceAll('{task_dir}', task.taskDir)
 }
 
 /** 统一注入 eval 的 cwd/env；超时与 720s 边界语义在 lib/run.mjs。 */
@@ -160,11 +197,11 @@ function run(cmd, cmdArgs, opts = {}) {
   return runProcess(cmd, cmdArgs, { cwd: REPO, env: ENV, ...opts })
 }
 
-async function ps(kind, id, isolation = 'clean') {
+async function ps(kind, id, isolation = 'clean', variant = 1) {
   const started = Date.now()
   const r = await run(PS, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, kind, `${id}.ps1`), id], {
     timeoutMs: 120000,
-    env: { ...ENV, S4_ISOLATION: isolation },
+    env: { ...ENV, S4_ISOLATION: isolation, S4_VARIANT: String(variant) },
   })
   let json = null
   for (const line of r.stdout.split(/\r?\n/)) {
@@ -247,9 +284,13 @@ function analyze(events) {
   }
 }
 
-async function runOne(task) {
+async function runOne(task, variant = 1) {
+  // Render before any setup/cleanup so a bad variant file leaves no fixture behind.
+  const renderedPrompt = renderPrompt(task, variant)
   const rec = {
     id: task.id, group: task.group, tier: task.tier,
+    variant, variantsDeclared: task.variants,
+    variantData: task.variants > 1 ? loadVariantData(task, variant) : null,
     stages: task.stages, isolation: task.isolation,
     isolationTask: task.isolation, isolationEffective: task.isolationEffective,
     apps: task.apps, hotspot: task.hotspot, requires: task.requires,
@@ -265,7 +306,8 @@ async function runOne(task) {
     setup: null, cleanup: null, dirty: false, notes: [],
     setupMs: 0, initialCleanupMs: 0, oracleMs: 0, cleanupMs: 0,
   }
-  const cl0 = await ps('cleanup', task.id, task.isolationEffective)
+  const psTask = (kind) => ps(kind, task.id, task.isolationEffective, variant)
+  const cl0 = await psTask('cleanup')
   rec.initialCleanupMs = cl0.durMs
   if (cl0.code !== 0 || cl0.json?.ok === false) {
     rec.notes.push(`initial cleanup failed: ${cl0.code} ${JSON.stringify(cl0.json?.checks || []).slice(0, 200)}`)
@@ -280,14 +322,14 @@ async function runOne(task) {
     const tclear = clearEvalTabState()
     if (tclear.removed > 0) rec.notes.push(`tabstate clear-eval removed=${tclear.removed}`)
   }
-  const su = await ps('setup', task.id, task.isolationEffective)
+  const su = await psTask('setup')
   rec.setupMs = su.durMs
   rec.setup = su.json || { code: su.code }
   if (su.code !== 0) {
     const envBlocked = su.code === 2 || Boolean(su.json?.envError)
     rec.envError = envBlocked ? String(su.json?.envError || 'setup env blocked').slice(0, 300) : null
     rec.notes.push('setup: ' + String(su.json?.envError || su.stderr || su.code).slice(0, 300))
-    const cl = await ps('cleanup', task.id, task.isolationEffective)
+    const cl = await psTask('cleanup')
     rec.cleanupMs = cl.durMs
     rec.cleanup = cl.json || { code: cl.code }
     if (cl.json?.dirty) {
@@ -299,17 +341,17 @@ async function runOne(task) {
   }
 
   fs.mkdirSync(logDir, { recursive: true })
-  const base = path.join(logDir, `${task.id}-r${runOne.round}`)
+  const base = path.join(logDir, `${task.id}-v${variant}-r${runOne.round}`)
   const trajFile = `${base}.trajectory.jsonl`
   rec.trajectory = trajFile
   const runStarted = Date.now()
   const dr = await run(process.execPath, [
     DSH_ENTRY, '--profile', 'headless', '--patch', task.patch,
     '--permission-mode', 'read-only', '--approval-policy', 'never', '--json',
-    COMMON + task.prompt,
+    COMMON + renderedPrompt,
   ], {
     timeoutMs: timeoutMin * 60000,
-    env: { ...ENV, DSH_CU_TRAJECTORY_FILE: trajFile },
+    env: { ...ENV, DSH_CU_TRAJECTORY_FILE: trajFile, S4_VARIANT: String(variant) },
   })
   rec.wallMs = Date.now() - runStarted
   fs.writeFileSync(`${base}.jsonl`, dr.stdout)
@@ -340,7 +382,7 @@ async function runOne(task) {
   }
   if (dr.code === 'SPAWN_ERR') {
     rec.notes.push('dsh spawn: ' + dr.stderr.slice(0, 300))
-    const cl = await ps('cleanup', task.id, task.isolationEffective)
+    const cl = await psTask('cleanup')
     rec.cleanupMs = cl.durMs
     rec.cleanup = cl.json || { code: cl.code }
     if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after spawn failure') }
@@ -351,7 +393,7 @@ async function runOne(task) {
     rec.notes.push(dr.timedOut
       ? `timeout ${timeoutMin}min; oracle skipped`
       : `wall clock reached ${Math.round(rec.wallMs / 1000)}s with no final; treated as budget exhausted; oracle skipped`)
-    const cl = await ps('cleanup', task.id, task.isolationEffective)
+    const cl = await psTask('cleanup')
     rec.cleanupMs = cl.durMs
     rec.cleanup = cl.json || { code: cl.code }
     if (cl.json?.dirty) { rec.dirty = true; rec.notes.push('cleanup dirty after budget exhaustion') }
@@ -359,7 +401,7 @@ async function runOne(task) {
     return rec
   }
 
-  const orc = await ps('oracle', task.id, task.isolationEffective)
+  const orc = await psTask('oracle')
   rec.oracleMs = orc.durMs
   rec.oracle = orc.json || { code: orc.code }
   if (orc.code === 2 || orc.json?.envError) {
@@ -375,7 +417,7 @@ async function runOne(task) {
       rec.notes.push(`oracle passed but required tools were not called: ${missing.join(',')}`)
     }
   }
-  const cl1 = await ps('cleanup', task.id, task.isolationEffective)
+  const cl1 = await psTask('cleanup')
   rec.cleanupMs = cl1.durMs
   rec.cleanup = cl1.json || { code: cl1.code }
   if (cl1.code !== 0 || cl1.json?.ok === false) {
@@ -399,6 +441,7 @@ if (!tasks.length) {
   console.error(`no tasks matched (stage=${stagesArg || 'all'}, tier=${tierArg}, tasks=${tasksArg || 'all'})`)
   process.exit(1)
 }
+const plannedRuns = tasks.reduce((n, t) => n + Math.min(variantsRequested, t.variants), 0) * repeats
 if (!fs.existsSync(DSH_ENTRY)) {
   console.error(`dsh entry not found: ${DSH_ENTRY}\nset DSH_BIN to .../@deepseek-ai/dsh/lib/bin.js`)
   process.exit(1)
@@ -408,7 +451,7 @@ if (!fs.existsSync(patch)) {
   process.exit(1)
 }
 
-console.log(`headless eval: ${tasks.length} tasks, stage=${stagesArg || 'all'}, tier=${tierArg}, isolation=${isolationFilter || 'mixed'}, repeats=${repeats}, timeout=${timeoutMin}min`)
+console.log(`headless eval: ${tasks.length} tasks, runs=${plannedRuns}, stage=${stagesArg || 'all'}, tier=${tierArg}, isolation=${isolationFilter || 'mixed'}, variants=${variantsRequested}, repeats=${repeats}, timeout=${timeoutMin}min`)
 console.log(`dsh=${DSH_ENTRY}`)
 console.log(`logs=${logDir}`)
 
@@ -435,11 +478,14 @@ try {
   for (let r = 0; r < repeats; r++) {
     runOne.round = r + 1
     for (const task of tasks) {
-      const rec = await runOne(task)
-      rec.repeat = r + 1
-      runs.push(rec)
-      console.log(`\n== ${task.id} r${r + 1} -> ${rec.verdict} steps=${rec.steps} inner=${rec.innerSteps} err=${rec.toolErrors} unverified=${rec.unverified}${rec.timedOut ? ' timeout' : ''}${rec.dirty ? ' dirty' : ''}${rec.turn ? ' turn=' + rec.turn : ''}`)
-      if (rec.oracle?.checks) console.log('   oracle:', rec.oracle.checks.map((c) => `${c.name}=${c.ok}`).join(' '))
+      const variantCount = Math.min(variantsRequested, task.variants)
+      for (let variant = 1; variant <= variantCount; variant++) {
+        const rec = await runOne(task, variant)
+        rec.repeat = r + 1
+        runs.push(rec)
+        console.log(`\n== ${task.id} v${variant} r${r + 1} -> ${rec.verdict} steps=${rec.steps} inner=${rec.innerSteps} err=${rec.toolErrors} unverified=${rec.unverified}${rec.timedOut ? ' timeout' : ''}${rec.dirty ? ' dirty' : ''}${rec.turn ? ' turn=' + rec.turn : ''}`)
+        if (rec.oracle?.checks) console.log('   oracle:', rec.oracle.checks.map((c) => `${c.name}=${c.ok}`).join(' '))
+      }
     }
   }
 } finally {
@@ -466,6 +512,7 @@ const summary = {
   isolationFilter: isolationFilter || null,
   timeoutMin,
   repeats,
+  variants: variantsRequested,
   patchPath: patch,
   patchSha256,
   modelRoute: readModelRoute(patch),

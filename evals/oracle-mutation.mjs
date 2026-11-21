@@ -14,6 +14,9 @@
  * t04/t07 are skipped: their oracles read live GUI state, not an artifact.
  * t13 is skipped: ac2:none (real network task).
  *
+ * Mutation cases target variant 1 fixtures. `S4_VARIANT` is pinned to 1 so an
+ * ambient variant value cannot desynchronize setup/simulate/mutation.
+ *
  * Run: node evals/oracle-mutation.mjs [--tasks t01,t03,...]
  */
 import { spawn } from 'node:child_process'
@@ -135,7 +138,9 @@ function runPsArgs(script, argv, timeoutMs = 120000, extraEnv = {}) {
 
 function runPs(script, id, timeoutMs = 120000) {
   const mode = effectiveIsolation(taskMeta.get(id)?.isolation)
-  return runPsArgs(script, [id], timeoutMs, { S4_ISOLATION: mode })
+  // Mutation fixtures are authored against variant 1; pin it even if the caller
+  // exported S4_VARIANT for a manual run.
+  return runPsArgs(script, [id], timeoutMs, { S4_ISOLATION: mode, S4_VARIANT: '1' })
 }
 
 function parseJson(out) {

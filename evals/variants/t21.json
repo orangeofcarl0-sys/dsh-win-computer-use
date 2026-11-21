@@ -1,0 +1,5 @@
+{
+  "1": { "expression": "98765/5", "expected": "19753" },
+  "2": { "expression": "255/15", "expected": "17" },
+  "3": { "expression": "980/28", "expected": "35" }
+}

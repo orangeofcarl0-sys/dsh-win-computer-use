@@ -91,9 +91,10 @@
 | AC6（A–F 的 per-task token/步数对比） | 部分完成 | `headless-run` 采 `status/step_end.usage`，`ac6-summary` 出中位数/p90；2026-11-20 t01/t05 各 5 轮（全 pass）；t11/t14/t15 待空闲桌面 |
 | observe:action 比例 | 已知瓶颈 | eval 基线约 2–3:1，历史单回合输入曾达 8.5M tok（任务已退役） |
 | 降噪收益 | ✅ 离线 | summary 958→187 字符（80%）、brief 958→81（92%） |
-| 参数化 / 有效样本量 | P2 设计 | `S4_VARIANT` + `--variants` 尚未实现；当前仍以 41 条静态任务 + repeats 为主 |
-| 可访问性 | 部分完成 | `a11y01` 键盘-only + UIA 名称已落地；高对比度/Narrator 全量验收未做 |
-| Linux | 可选，非门禁 | Ubuntu CI 只跑 `npm run check` / `npm test`；无 Linux 任务套件，不写“已支持” |
+| 参数化 / 有效样本量 | ✅ 已实现（3 条） | `variants: N` + `evals/variants/<id>.json`；`headless-run --variants N` / `verify-oracles --variants N`；t21/t22/a11y01 各 3 个 variant，AC2 9/9 PASS；mutation 固定 variant 1 |
+| 可访问性 | 部分完成 | `a11y01` 键盘-only + UIA 名称 + 3 个输入 variant；高对比度/Narrator 全量验收未做 |
+| 虚拟桌面 | BLOCKED | 无驱动/插件原语，`win` 组合键 fail-closed，无法按 ID 精确回收；见 [BLOCKED](evals/BLOCKED.md) |
+| Linux | 可选，非门禁 | Ubuntu CI 只跑 `npm run check` / `npm test`；`probe-platform` 非 Windows 只报 BLOCKED；无 Linux 任务套件，不写“已支持” |
 
 ## 7. 平台
 

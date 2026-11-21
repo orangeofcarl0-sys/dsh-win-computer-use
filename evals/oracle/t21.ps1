@@ -9,6 +9,7 @@ try {
   }
   $owned = [bool]$state.owned
   $hwnd = [int]$state.hwnd
+  $checks += (Add-Check 'variant matches runner' ([int]$state.variant -eq (Get-S4VariantNumber)) ("state=$($state.variant) runner=$(Get-S4VariantNumber)"))
   $checks += (Add-Check 'calculator is task-owned' ($owned -and $hwnd -ne 0) ("owned=$owned hwnd=$hwnd"))
   if (-not $owned -or $hwnd -eq 0) {
     Out-Finish -Ok $false -Checks $checks
@@ -27,7 +28,7 @@ try {
   $checks += (Add-Check 'calculator results found' $true 'CalculatorResults located in owned HWND')
   $checks += (Add-Check 'display text read' ($name.Length -gt 0) $name)
   $checks += (Add-Check "value == $expected" ($digits -eq $expected) ('parsed=' + $digits))
-  $ok = ($digits -eq $expected)
+  $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {
   Out-Finish -Ok $false -Checks $checks -EnvError ('uia: ' + $_.Exception.Message)

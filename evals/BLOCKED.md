@@ -12,12 +12,13 @@
 | 独立观察者 / `screen_assert` | 无任务；需要 ZHIPU key 或 dsv4fv 文本输出修复 | 自绘/canvas 的“独立裁决”仍靠 oracle 文件，不是第二观察者 | 提供可用视觉 key 或修复文本输出 |
 | `selectText` / key hold / mouse down-up / drag-from-element | 工具面不存在这些原语 | 复杂文本选择/形状拖拽仍靠坐标 | 驱动/插件新增原语后再测 |
 | 多显示器 | `probe-display.mjs`（2026-11-21）实际枚举到 2 屏：`1707x1067@0,0` + `2560x1440@2560,0`；`dpi01` AC2 已 PASS（第二屏 fixture setup/oracle/simulate/cleanup） | 真实模型跨屏点击尚未跑；`get_screen_size` 仍只暴露主屏 | 用 `dpi01 --isolation clean` 做一次模型真跑；若落点失败，保持 BLOCKED |
+| 虚拟桌面 / Task View | 无任务；插件工具面没有虚拟桌面枚举/切换原语，`win`/`super` 组合键按 §2 fail-closed，驱动也没有对应能力 | 无法在受支持通道内创建、切换并**按 ID 精确回收**虚拟桌面；强行投递未支持按键会留下无法可靠清理的用户会话状态 | 驱动新增虚拟桌面原语（枚举/切换/按 ID 关闭）后再补 probe/任务；否则保持 BLOCKED |
 | UAC / 安装器 / Protected View | 没有任务；`probe-b2-elevated` 只证明提权后 BlockInput，不是 UAC 自动化 | 安装器、per-machine 注册、SmartScreen/MOTW、Office Protected View 未验证 | 一次性 VM 快照 + 测试签名包；无 VM 保持 BLOCKED，不在宿主执行 |
 | 原生对话框（Open/Save/Print/Font/Color） | `probe-native-dialog` 只覆盖 MessageBox；`nativeDialogs` 泛化到标准 `#32770` 但未逐个验证 | 文件选择/打印/字体/颜色对话框可能无正确落点 | 扩展 `probe-native-dialog`，失败保持 BLOCKED |
 | IME / Electron / Terminal / Settings / 媒体 | `probe-win-gaps`（2026-11-21）：VS Code/VLC 未安装；Settings exe 存在；WSL/wt 存在；语言 zh-Hans-CN/en-US。P1 已补 `term01` 与 `b01` | Electron/WebView2、WSL 交互、系统设置 UI、VLC、IME composition 未验证 | 有环境时补 probe/任务；缺失应用 setup 记 ENV，不伪造 PASS |
 | 可访问性高对比度/Narrator | `a11y01` 只覆盖键盘-only + UIA 名称；未做高对比度/Narrator 全量验收 | 不能宣称 a11y 全兼容 | 需要专用 a11y fixture/工具后再补 |
 | 浏览器 upload/auth/print-to-PDF | `b01` 只覆盖 tabs + 本地表单；`combo02`/`rec03` 覆盖下载 | 上传/登录/打印对话框未验证 | 本地 mock upload/auth + 打印对话框 fixture 后再补 |
-| macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证 | 不能把“能加载”当“已验收” | Linux 仅可选举措；有环境时跑离线 + `verify-runtime` |
+| macOS 近期回归 / Linux | 近期测试都在 Windows；Linux 未验证。`probe-platform.mjs`（2026-11-21）：本机 win32 + PowerShell 5.1 + 41 条任务 → PASS；非 Windows 只报 BLOCKED，不冒充运行 | 不能把“能加载”当“已验收”；Linux 无任务套件 | Linux 仅可选举措（离线 `npm run check`/`npm test`，非发布门禁）；有环境时再补 `verify-runtime`，不写“已支持” |
 
 ## 2. 已知边界（不是阻塞，但不计入 pass）
 

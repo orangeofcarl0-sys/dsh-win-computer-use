@@ -2,6 +2,9 @@ param([string]$TaskId = '')
 . (Join-Path $PSScriptRoot '..\lib\common.ps1')
 $checks = @()
 try {
+  $v = Get-S4VariantData -TaskId $TaskId
+  $expression = [string]$v.expression
+  $expected = [string]$v.expected
   $pid2 = Start-Calculator
   if (-not $pid2) { Out-Finish -Ok $false -Checks @() -EnvError 'calculator window never appeared' -Kind 'simulate' }
   $sh = New-Object -ComObject WScript.Shell
@@ -9,7 +12,7 @@ try {
   for ($i = 0; $i -lt 5 -and -not $sent; $i++) {
     [void]$sh.AppActivate($pid2)
     Start-Sleep -Milliseconds 700
-    $sh.SendKeys('98765/5=')
+    $sh.SendKeys($expression + '=')
     Start-Sleep -Seconds 2
     try {
       Add-Type -AssemblyName UIAutomationClient
@@ -22,7 +25,7 @@ try {
         if ($found.Count -gt 0) {
           $name = [string]$found[0].Current.Name
           $digits = ($name -replace '[^0-9]', '')
-          if ($digits -eq '19753') { $sent = $true }
+          if ($digits -eq $expected) { $sent = $true }
           break
         }
       }

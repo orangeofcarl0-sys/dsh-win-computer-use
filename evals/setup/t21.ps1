@@ -3,6 +3,7 @@ param([string]$TaskId = '')
 $checks = @()
 try {
   [void](New-TaskDir)
+  $v = Get-S4VariantData -TaskId $TaskId
   $before = Get-CalculatorWindow
   $pid2 = Start-Calculator
   $after = Get-CalculatorWindow
@@ -18,8 +19,9 @@ try {
     pid = if ($after) { [int]$after.pid } else { 0 }
     processStart = $start
     title = if ($after) { [string]$after.title } else { '' }
-    expression = '98765/5'
-    expected = '19753'
+    expression = [string]$v.expression
+    expected = [string]$v.expected
+    variant = [int]$v.variant
     at = (Get-Date).ToString('o')
   }
   [void](Write-TestState $stateFile $state)

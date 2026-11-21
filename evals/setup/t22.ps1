@@ -3,10 +3,11 @@ param([string]$TaskId = '')
 $checks = @()
 try {
   $base = Get-TaskDir
+  $v = Get-S4VariantData -TaskId $TaskId
   $outDir = New-TaskDir 'out'
   $outPptx = Join-Path $outDir 'deck2.pptx'
   if (Test-Path $outPptx) { Remove-Item $outPptx -Force }
-  $seed = New-S4WidescreenPptxSeed -Path $outPptx -Title 'S4 T22 DECK' -Subtitle 'Second PPT Test' -BarPrefix 'T22 Bar'
+  $seed = New-S4WidescreenPptxSeed -Path $outPptx -Title ([string]$v.seedTitle) -Subtitle ([string]$v.seedSubtitle) -BarPrefix ([string]$v.barPrefix)
   $checks += (Add-Check '16:9 PowerPoint seed' ([bool]$seed.ok) ("$($seed.reason) slideCount=$($seed.slideCount) size=$($seed.widthIn)x$($seed.heightIn)"))
   if (-not $seed.ok) {
     Out-Finish -Ok $false -Checks $checks -Kind 'setup' -EnvError ("PowerPoint seed unavailable: " + $seed.reason)
@@ -23,7 +24,8 @@ try {
   $checks += (Add-Check 'PowerPoint test window' ([bool]$ppt.ok) ("hwnd=$($ppt.hwnd) title=$($ppt.title) reason=$($ppt.reason)"))
   [void](Write-TestState (Join-Path $base 'state.json') ([ordered]@{
     startedAt = $startedAt.ToString('o'); seed = $outPptx; seedHash = $seedHash
-    title = 'S4 T22 UPDATED'; subtitle = 'Second PPT Test Updated'
+    title = [string]$v.title; subtitle = [string]$v.subtitle
+    seedTitle = [string]$v.seedTitle; variant = [int]$v.variant
   }))
   if (-not $ppt.ok) {
     Out-Finish -Ok $false -Checks $checks -Kind 'setup' -EnvError ("PowerPoint unavailable: " + $ppt.reason)

@@ -62,6 +62,7 @@ for (const f of files) {
   const security = listField(md, 'security')
   const securityExpect = field(md, 'security_expect')
   const patch = field(md, 'patch')
+  const variants = Number(field(md, 'variants') || 1)
 
   check(`${id}: stages 非空且合法`, stages.length > 0 && stages.every((s) => STAGES.includes(s)), stages.join(',') || '(missing)')
   check(`${id}: stages 无重复`, new Set(stages).size === stages.length, stages.join(','))
@@ -73,6 +74,31 @@ for (const f of files) {
   check(`${id}: hotspot 非空且已知`, Boolean(hotspot) && (hotspot === 'other' || Boolean(hotspots[hotspot])), hotspot || '(missing)')
   check(`${id}: both 需要 ac2=full`, isolation !== 'both' || ac2 === 'full', `isolation=${isolation} ac2=${ac2}`)
   check(`${id}: require_tools 合法`, requireTools.every((t) => t === 'computer_task' || t.startsWith('computer_')), requireTools.join(',') || '(none)')
+  check(`${id}: variants 合法`, Number.isInteger(variants) && variants >= 1 && variants <= 9, String(variants))
+  const variantFile = join(root, 'evals', 'variants', `${id}.json`)
+  if (variants > 1) {
+    check(`${id}: variants 数据存在`, existsSync(variantFile), variantFile.replace(root + '\\', ''))
+    let variantData = null
+    try { variantData = JSON.parse(readFileSync(variantFile, 'utf8')) } catch { variantData = null }
+    check(`${id}: variants JSON 可读`, Boolean(variantData))
+    if (variantData) {
+      const keys = Object.keys(variantData).map(Number).sort((a, b) => a - b)
+      check(`${id}: variants keys 1..N`,
+        keys.length === variants && keys.every((k, i) => k === i + 1), keys.join(','))
+      const placeholders = [...new Set([...md.matchAll(/\{\{([A-Za-z0-9_.-]+)\}\}/g)].map((m) => m[1]))]
+      const missing = placeholders.filter((key) => keys.some((k) => !variantData[k]
+        || !Object.prototype.hasOwnProperty.call(variantData[k], key)))
+      check(`${id}: prompt 占位符覆盖所有 variant`, missing.length === 0,
+        missing.length ? `missing=${missing.join(',')}` : (placeholders.join(',') || '(none)'))
+    }
+    const wired = ['setup', 'oracle', 'simulate'].filter((kind) => {
+      const p = join(root, 'evals', kind, `${id}.ps1`)
+      return existsSync(p) && /Get-S4VariantData|Get-S4VariantNumber|S4_VARIANT/.test(readFileSync(p, 'utf8'))
+    })
+    check(`${id}: variant 逻辑接入 setup/oracle/simulate`, wired.length === 3, wired.join(',') || '(none)')
+  } else {
+    check(`${id}: 无孤儿 variants 文件`, !existsSync(variantFile), variantFile.replace(root + '\\', ''))
+  }
   if (patch) check(`${id}: task patch 存在`, existsSync(join(root, patch)), patch)
   if (security.length) {
     check(`${id}: security 已知`, security.every((s) => Boolean(securityGuarantees[s])), security.join(','))

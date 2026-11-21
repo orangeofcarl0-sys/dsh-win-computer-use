@@ -10,7 +10,7 @@
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
 | 离线测试 | **31 套 / 772 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 语法/安装脚本 | **51/51 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 语法/安装脚本 | **52/52 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id） | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -20,7 +20,8 @@
 | native freshness | WinForms 文本变化窗口未复现“AX 已变而 PNG 不变” | Windows 11 | `probe-native-freshness.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后）；0.52.13 canary **33/33** | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | eval oracle 双向验证（全量） | 2026-11-20 基线：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty；t13 真实网络 `ac2:none`） | Windows 11 | `node evals/verify-oracles.mjs` |
-| eval oracle（P0/P1 新增） | 2026-11-21：**18/18 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
+| eval oracle（P0/P1 新增） | 2026-11-21：**19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
+| eval 参数化（variant） | 2026-11-21：t21/t22/a11y01 × variant 1-3 AC2 **9/9 PASS**；mutation t22/a11y01 **2/2 PASS**（固定 variant 1） | Windows 11 | `node evals/verify-oracles.mjs --tasks t21,t22,a11y01 --variants 3` |
 | eval oracle（S1 + x1 clean 组） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；2026-11-15 18:40 复跑） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
 | S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
@@ -33,6 +34,7 @@
 | 原语矩阵探针 | 2026-11-21：**13 PASS / 0 BLOCKED**；double/right/key/hover/verify/wait_for/activate/app_list 均有 marker/回读；`nativeMenus:auto` 对 SetMenu fixture 通过（fixture 自检 GetMenu + 专用 marker） | Windows 11 | `node evals/probe-ops.mjs` |
 | 原生 Button 触发 | 2026-11-21：**4 PASS / 0 BLOCKED / 0 FAIL**；自建 WinForms Delete + MessageBox：原生触发 1.2s、opened=1；native-dialog 点 No、cancelled=1；10s latch 阻止重复 | Windows 11 | `node evals/probe-native-button.mjs`；`node tests/native-button-trigger.test.mjs` |
 | app 启动/收尾探针 | 2026-11-20：**7/7**；daemon High、`powershell.exe` 子进程 Medium；alt+F4 关闭、无残留、基线窗口保留 | Windows 11 / 0.52.13 | `node evals/probe-launch.mjs` |
+| 平台套件探针 | 2026-11-21：win32 + PowerShell 5.1 + 41 条任务 → **PASS**；非 Windows 只报 BLOCKED（Linux 非门禁） | Windows 11 | `node evals/probe-platform.mjs` |
 | modifier-drop 探针 | 2026-11-20：**5/5**；Explorer Ctrl+drag 复制、普通 drag 移动、无卡键。2026-11-21：`--excel --excel-only` 分支已实现（Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭），A2 保留但 E2 未复制 → **BLOCKED** | Windows 11 / Excel 16.0 | `node evals/probe-modifier-drop.mjs`；`node evals/probe-modifier-drop.mjs --excel --excel-only` |
 | oracle 反向敏感性 | 2026-11-20 基线：**19/19** 变异被 exit 1 拒绝；t04/t07 live GUI、t13 ac2:none SKIP | Windows 11 | `node evals/oracle-mutation.mjs` |
 | oracle 反向敏感性（P0/P1 抽样） | 2026-11-21：**13/13 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/dpi01；其余新增待补跑） | Windows 11 | `node evals/oracle-mutation.mjs --tasks <id> --isolation clean|dirty` |
@@ -128,7 +130,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 判据：
 
 - `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **772**。
-- `npm run check` 退出码 0：语法 **51/51** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm run check` 退出码 0：语法 **52/52** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。

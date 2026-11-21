@@ -8,8 +8,10 @@ try {
   $result = Join-Path $base 'out\result.json'
   if (-not (Test-Path $result)) { Out-Finish -Ok $false -Checks @((Add-Check 'result file' $false $result)) }
   $r = Get-Content $result -Raw | ConvertFrom-Json
+  $checks += (Add-Check 'variant matches runner' ([int]$state.variant -eq (Get-S4VariantNumber)) ("state=$($state.variant) runner=$(Get-S4VariantNumber)"))
+  $expected = [string]$state.text
   $checks += (Add-Check 'submitted by keyboard' ($r.submitted -eq $true) ("submitted=$($r.submitted)"))
-  $checks += (Add-Check 'text exact' ([string]$r.text -ceq 'S4 A11Y OK') ("text=[$($r.text)]"))
+  $checks += (Add-Check 'text exact' ([string]$r.text -ceq $expected) ("text=[$($r.text)] expected=[$expected]"))
   $ok = -not ($checks | Where-Object { -not $_.ok })
   Out-Finish -Ok $ok -Checks $checks
 } catch {

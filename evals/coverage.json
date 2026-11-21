@@ -23,6 +23,7 @@
         "t07",
         "t15",
         "t19",
+        "t21",
         "wa2"
       ],
       "negative": [
@@ -54,7 +55,10 @@
       "positive": [
         "t12",
         "t14",
-        "t17"
+        "t17",
+        "t22",
+        "w01",
+        "w02"
       ],
       "negative": [
         "eval:oracle-mutation"
@@ -75,6 +79,7 @@
       "positive": [
         "t10",
         "t17",
+        "combo01",
         "combo02"
       ],
       "negative": [
@@ -90,7 +95,16 @@
         "t15",
         "t16",
         "t17",
-        "t18"
+        "t18",
+        "t23",
+        "sec01",
+        "sec02",
+        "sec03",
+        "sec04",
+        "combo01",
+        "combo02",
+        "rec02",
+        "rec03"
       ],
       "negative": [
         "test:eval-safety"
@@ -98,6 +112,10 @@
     },
     "security-semantics": {
       "positive": [
+        "sec01",
+        "sec02",
+        "sec03",
+        "sec04",
         "test:posture.smoke",
         "probe:probe-safety-runtime"
       ],

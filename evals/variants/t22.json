@@ -1,0 +1,23 @@
+{
+  "1": {
+    "title": "S4 T22 UPDATED",
+    "subtitle": "Second PPT Test Updated",
+    "seedTitle": "S4 T22 DECK",
+    "seedSubtitle": "Second PPT Test",
+    "barPrefix": "T22 Bar"
+  },
+  "2": {
+    "title": "S4 T22 VARIANT 2",
+    "subtitle": "Second PPT Test V2",
+    "seedTitle": "S4 T22 DECK V2",
+    "seedSubtitle": "Second PPT Test V2 Seed",
+    "barPrefix": "T22 V2 Bar"
+  },
+  "3": {
+    "title": "S4 T22 VARIANT 3",
+    "subtitle": "Second PPT Test V3",
+    "seedTitle": "S4 T22 DECK V3",
+    "seedSubtitle": "Second PPT Test V3 Seed",
+    "barPrefix": "T22 V3 Bar"
+  }
+}

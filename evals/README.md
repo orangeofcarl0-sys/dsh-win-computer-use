@@ -2,7 +2,7 @@
 
 > 目的：定义 S1-S4 测试阶段、任务成员、oracle 契约、runner、verdict 语义与 dirty 规则；逐轮运行结果见 [docs/EVIDENCE.md](../docs/EVIDENCE.md)。
 > 读者：维护者/评测者。`evals/` **不进入 npm 发布包**。
-> 状态：内部开发手册（最后核对 2026-11-21）。新增 P0：t21/t22/t23、w01/w02、sec01–sec04、rec01、combo01。
+> 状态：内部开发手册（最后核对 2026-11-21）。P2 已落地：`variants`/`S4_VARIANT` 参数化、`probe-platform`、虚拟桌面 BLOCKED。
 > 相关：[TESTING](../docs/TESTING.md) · [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md) · [WINDOWS](../docs/WINDOWS.md) · [COVERAGE](COVERAGE.md)。
 
 > **命名说明（2026-11-19）**：本文的 S1-S4 是**测试阶段**，S4 只表示 Dirty 阶段。旧文档里的 `S4` 指 0.5.4 的整套评测系统，已全局改称 `eval`；旧 `S2` 是像素定位修订，`S3a`/`S3b` 是视觉断言/观察者工作流，均改为描述性名称。`S4_*` 环境变量、`~/.dsh/s4-evals/` 与 `S4 Bar` 等 fixture 字符串是冻结兼容名，不代表新阶段。
@@ -11,7 +11,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 30 套 / 748；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31 套 / 772；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / dpi01 / p01 / p02 / p03（5） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
@@ -48,8 +48,8 @@
 | t18 | 本地 PDF 下载 | S3, S4 | core | dirty | full | 本地 HTTP + hash-pinned fixture |
 | t19 | Explorer 地址栏导航 | S3 | core | notepad | full | 从用户目录导航到沙箱；允许 Notepad 另存为（不证明 Explorer 新建） |
 | t20 | 对话框取消/确认链 | S3 | core | notepad | full | WinForms confirm/cancel；允许 Tab/Enter/Escape 选择按钮 |
-| t21 | Calculator 除法 | S1 | smoke | clean | full | 第二条 Calculator；UIA 结果 19753 |
-| t22 | PPT 标题/副标题编辑 | S3 | core | clean | full | 第二条 PowerPoint；seed 可参数化 |
+| t21 | Calculator 除法 | S1 | smoke | clean | full | 第二条 Calculator；3 个 variant 不同除法 |
+| t22 | PPT 标题/副标题编辑 | S3 | core | clean | full | 第二条 PowerPoint；seed 与目标文本 3 个 variant |
 | t23 | 三按钮/嵌套对话框 | S3, S4 | core | both | full | 第二条 WinForms；clean/dirty 双模式 |
 | w01 | Word 编辑并原地保存 | S3 | core | clean | full | DOCX XML oracle |
 | w02 | Word Save As 新路径 | S3 | core | clean | full | 源 seed hash 不变 |
@@ -63,7 +63,7 @@
 | rec02 | 模态恢复 | S3, S4 | core | both | full | 关闭模态后继续 |
 | rec03 | 断网重试 | S3, S4 | core | dirty | full | 首次 500，重试成功 |
 | term01 | PowerShell 终端 | S3 | core | clean | full | 控制台输入 + 文件 oracle |
-| a11y01 | 键盘-only 完成 | S3 | core | clean | full | 无鼠标；UIA 名称/键盘焦点 |
+| a11y01 | 键盘-only 完成 | S3 | core | clean | full | 无鼠标；UIA 名称/键盘焦点；3 个输入 variant |
 | b01 | 浏览器多标签表单 | S3 | core | clean | full | 本地 tabs + form |
 | p01 | 无坐标 canvas 目标点击 | S2 | core | notepad | full | 红圆/格子 C2 |
 | p02 | 像素 token 读取输入 | S2 | core | notepad | full | canvas code P02-7K9 |
@@ -80,15 +80,16 @@ evals/
   oracle/           41 个 oracle.ps1
   cleanup/          41 个 cleanup.ps1
   simulate/         40 个 simulate.ps1（t13 仍 ac2:none）
+  variants/         参数化任务数据（t21/t22/a11y01 各 3 个 variant；唯一数据源）
   fixtures/         t12/t14/t17/t18/combo01 成功态夹具（测试输入，不是测量产物）
   mutate/           release.ps1 + apply.ps1（oracle 变异，不是任务）
   lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / security-fixture.ps1 / env-info.ps1 / win-gaps.ps1 / form-server.mjs / cdp.mjs / run.mjs
-  headless-run.mjs  当前 runner（--stage / --tasks / --tier / --isolation）
-  verify-oracles.mjs  AC2 双向验证
+  headless-run.mjs  当前 runner（--stage / --tasks / --tier / --isolation / --variants）
+  verify-oracles.mjs  AC2 双向验证（--variants 对声明任务逐 variant 跑）
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
   ac6-summary.mjs   per-task token/步数汇总
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs
-  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-background-input 是实验性后台输入
+  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-background-input 是实验性后台输入，probe-platform 是只读平台/套件可用性
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
   headless-patch.sec02.yml / headless-patch.sec04.yml  安全负向任务的 allowedApps / ttlMs overlay
   COVERAGE.md / coverage.json  热点覆盖矩阵（10+恢复）
@@ -130,6 +131,7 @@ evals/
 - **tier: smoke|core**      # 旧调度标签，不是阶段
 - **isolation: notepad|dirty**
 - **ac2: full|none**
+- **variants: 3**           # 可选；1..9，>1 时必须有 evals/variants/<id>.json
 - **require_tool: computer_task**   # 可选，仅 x1
 ## Prompt
 <<<PROMPT
@@ -143,6 +145,7 @@ PROMPT>>>
 - `stages` 必填、去重、只允许 S1-S4；含 S4 ⇔ `isolation: dirty`。
 - `ac2: full` ⇔ 存在 `simulate/<id>.ps1`；`ac2: none` 不得有 simulate。
 - 每条任务必须有 setup/oracle/cleanup 和 prompt 块。
+- `variants` 必须是 1..9；>1 时 `variants/<id>.json` 的 key 必须恰为 1..N，prompt 中每个 `{{key}}` 在所有 variant 中都存在，且 setup/oracle/simulate 至少一处读取 variant（`Get-S4VariantData`/`Get-S4VariantNumber`/`S4_VARIANT`）。
 - 任务 ID 取文件名第一个 `-` 前的前缀；不重命名 `tXX`/`wa2`/`x1`。
 
 ## 7. 运行语义
@@ -170,8 +173,12 @@ node evals/headless-run.mjs --stage S2,S4 --timeout-min 15
 node evals/headless-run.mjs --tier smoke --timeout-min 10
 node evals/headless-run.mjs --tasks t01 --repeats 3 --timeout-min 10
 
+# 参数化：声明 variants 的任务跑 1..N；未声明任务只跑 variant 1
+node evals/headless-run.mjs --tasks t21,t22,a11y01 --variants 3 --timeout-min 10
+
 node evals/verify-oracles.mjs --stage S4
 node evals/verify-oracles.mjs --tasks t11,t15
+node evals/verify-oracles.mjs --tasks t21,t22,a11y01 --variants 3
 
 # oracle 反向敏感性：错误但像成功的产物必须 exit 1
 node evals/oracle-mutation.mjs
@@ -182,6 +189,7 @@ node evals/probe-ops.mjs
 node evals/probe-launch.mjs
 node evals/probe-display.mjs          # 只读 monitor/DPI/virtual screen；单屏 BLOCKED
 node evals/probe-win-gaps.mjs         # 只读 VS Code/VLC/Settings/WSL/CJK 语言清单
+node evals/probe-platform.mjs         # 只读平台/套件可用性；非 Windows BLOCKED（Linux 非门禁）
 node evals/probe-modifier-drop.mjs
 # t20 模态根因：AX 预算/阻塞矩阵（~75s）与原生 Win32 逃逸路径（~3min；--trigger-only 只跑触发侧）
 node evals/probe-modal-timeout.mjs
@@ -212,6 +220,7 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 
 - `--tasks` > `--stage` > `--tier`；无参数仍按旧 `smoke` 运行，避免破坏 `npm run eval:headless`。
 - `--stage` 无匹配时退出非 0，不静默成功。
+- `--variants N`（1..9）对每个任务跑 `1..min(N, variants)`；report 每个 run 记录 `variant`，日志名为 `<task>-v<n>-r<n>`。mutation 固定 variant 1。
 - `DSH_BIN` 可覆盖 dsh entry；`TEMP/TMP` 自动归一化。
 - report 带 `stage/stages/isolation/ac2/patchPath/patchSha256/wallMs/innerSteps`；trajectory 路径记录在 report。
 - 历史运行结果不在本文件维护，统一追加到 [docs/EVIDENCE.md](../docs/EVIDENCE.md)。
@@ -221,6 +230,8 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 | 字段 | 含义 |
 |---|---|
 | `id` / `repeat` / `verdict` | 任务、轮次、pass/fail/**timeout**/error/env/dirty |
+| `variant` / `variantsDeclared` | 本次 variant 与任务声明的 variant 数 |
+| `variantData` | 本次 variant 的具体键值（`variants/<id>.json`；非参数化任务为 null） |
 | `stages` / `isolation` / `ac2` | 阶段成员、隔离方式、AC2 状态 |
 | `innerSteps` / `wallMs` | dsh 内部步数、墙钟 |
 | `timedOut` / `budgetExhausted` / `noFinal` | 是否撞驱动超时、是否时间预算耗尽、是否没有 `final` 事件 |
@@ -239,9 +250,10 @@ node evals/ab-summary.mjs --dir evals/headless-runs/ab --tasks t01,t05
 2. 在 `setup/`、`oracle/`、`cleanup/` 加 PowerShell；需要 AC2 时加 `simulate/`；
 3. oracle 必须确定性读（文件系统/OOXML/UIA/像素），不用模型自评；
 4. `isolation: dirty` 的任务要记录测试 HWND/pid/start/title，cleanup 只关证明归属的对象；含 S4 的任务必须 dirty；
-5. 跑 `node tests/tasks.check.mjs` 与 `node evals/verify-oracles.mjs --tasks <id>` 双向验证；
-6. 更新本文件的任务表与 [docs/TESTING.md](../docs/TESTING.md)；
-7. 不提交 report/trajectory/截图。
+5. 声明 `variants: N` 时，在 `variants/<id>.json` 放 1..N 的键值，prompt 用 `{{key}}`，setup/oracle/simulate 通过 `Get-S4VariantData` 读同一份数据；
+6. 跑 `node tests/tasks.check.mjs` 与 `node evals/verify-oracles.mjs --tasks <id>` 双向验证；参数化任务加 `--variants N`；
+7. 更新本文件的任务表与 [docs/TESTING.md](../docs/TESTING.md)；
+8. 不提交 report/trajectory/截图。
 
 ## 11. 基线政策
 

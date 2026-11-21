@@ -10,6 +10,10 @@
  * - 环境阻塞（Calculator/剪贴板/TabState）单独记 ENV，不冒充插件 fail；
  * - 每步 stdout/stderr/json + summary 写到 evals/verify-runs/<stamp>/；
  * - timeout 用 taskkill /T /F 收进程树并等待。
+ *
+ * 参数化：`--variants N` 对声明 `variants: N` 的任务逐个跑 1..N；
+ * 每个 variant 独立执行 cleanup → setup → oracle-empty → simulate → oracle×2，
+ * 并通过 `S4_VARIANT` 传给 PowerShell。
  */
 import { spawn } from 'node:child_process'
 import { readdirSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -39,6 +43,15 @@ const isolationArg = (() => {
 const isolationFilter = isolationArg && isolationArg !== 'all' ? isolationArg.toLowerCase() : ''
 if (isolationFilter && !['clean', 'dirty'].includes(isolationFilter)) {
   console.error(`invalid --isolation: ${isolationArg} (expected clean|dirty)`)
+  process.exit(2)
+}
+const variantsArg = (() => {
+  const i = args.indexOf('--variants')
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : '1'
+})()
+const variantsRequested = Number(variantsArg)
+if (!Number.isInteger(variantsRequested) || variantsRequested < 1 || variantsRequested > 9) {
+  console.error(`invalid --variants: ${variantsArg} (expected integer 1..9)`)
   process.exit(2)
 }
 
@@ -71,7 +84,8 @@ const taskMeta = new Map(taskFiles.map((f) => {
   const isolation = field(md, 'isolation') || 'notepad'
   const ac2 = field(md, 'ac2') || 'full'
   const stages = (field(md, 'stages') || field(md, 'stage')).split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
-  return [id, { id, isolation, ac2, stages }]
+  const variants = Math.max(1, Number(field(md, 'variants')) || 1)
+  return [id, { id, isolation, ac2, stages, variants }]
 }))
 const ORACLE_IDS = [...taskMeta.keys()]
   .filter((id) => !tasksArg || tasksArg.split(',').map((s) => s.trim().toLowerCase()).includes(id.toLowerCase()))
@@ -127,9 +141,9 @@ function runPsArgs(script, args, timeoutMs = 120000, extraEnv = {}) {
   })
 }
 
-function runPs(script, id, timeoutMs = 120000) {
+function runPs(script, id, timeoutMs = 120000, variant = 1) {
   const mode = effectiveIsolation(taskMeta.get(id)?.isolation)
-  return runPsArgs(script, [id], timeoutMs, { S4_ISOLATION: mode })
+  return runPsArgs(script, [id], timeoutMs, { S4_ISOLATION: mode, S4_VARIANT: String(variant) })
 }
 
 function parseJson(out) {
@@ -138,8 +152,8 @@ function parseJson(out) {
   try { return JSON.parse(lines[lines.length - 1]) } catch { return null }
 }
 
-function writeStep(id, name, r) {
-  const base = join(LOG_DIR, `${id}-${name}`)
+function writeStep(id, name, r, variant = 1) {
+  const base = join(LOG_DIR, `${id}-v${variant}-${name}`)
   try {
     writeFileSync(`${base}.stdout.txt`, r.out || '')
     writeFileSync(`${base}.stderr.txt`, r.err || '')
@@ -165,18 +179,23 @@ if (needsTabState) {
 const results = []
 let failed = 0
 let envs = 0
+const work = []
 for (const id of ORACLE_IDS) {
+  const declared = Math.max(1, Number(taskMeta.get(id)?.variants) || 1)
+  for (let variant = 1; variant <= Math.min(variantsRequested, declared); variant++) work.push({ id, variant })
+}
+for (const { id, variant } of work) {
   const s = (k) => join(root, k, `${id}.ps1`)
   const rec = {
-    id, stages: taskMeta.get(id)?.stages || [], setupOk: false, emptyFail: false, simPass: false, simRepeat: false,
+    id, variant, stages: taskMeta.get(id)?.stages || [], setupOk: false, emptyFail: false, simPass: false, simRepeat: false,
     cleanupOk: true, cleanupDirty: false, envError: null, envBlocked: false, ac2Skip: taskMeta.get(id)?.ac2 === 'none', notes: [],
   }
   const st = existsSync(s('setup'))
 
   async function cleanupStep(phase) {
     if (!existsSync(s('cleanup'))) return
-    const r = await runPs(s('cleanup'), id, 60000)
-    writeStep(id, `cleanup-${phase}`, r)
+    const r = await runPs(s('cleanup'), id, 60000, variant)
+    writeStep(id, `cleanup-${phase}`, r, variant)
     const j = parseJson(r.out)
     if (r.code !== 0 || j?.ok === false) rec.cleanupOk = false
     if (j?.dirty) {
@@ -203,8 +222,8 @@ for (const id of ORACLE_IDS) {
     let emptyCode = null
     for (const [name, script, to] of steps) {
       if (!existsSync(script)) { rec.notes.push(`${name}: script missing`); continue }
-      const r = await runPs(script, id, to * 1000)
-      writeStep(id, name, r)
+      const r = await runPs(script, id, to * 1000, variant)
+      writeStep(id, name, r, variant)
       const j = parseJson(r.out)
       if (name === 'oracle-empty') emptyCode = r.code
       if (name === 'setup') rec.setupOk = r.code === 0
@@ -235,7 +254,7 @@ for (const id of ORACLE_IDS) {
   rec.status = status
   if (status === 'FAIL') failed++
   if (status === 'ENV') envs++
-  console.log(`${status} ${id} setup=${rec.setupOk} emptyFail=${rec.emptyFail} simPass=${rec.simPass} repeat=${rec.simRepeat} cleanup=${rec.cleanupOk}${rec.cleanupDirty ? ' dirty' : ''}${rec.envError ? ' envError=' + rec.envError : ''}${rec.notes.length ? ' notes=' + rec.notes.join(' ; ') : ''}`)
+  console.log(`${status} ${id} v${variant} setup=${rec.setupOk} emptyFail=${rec.emptyFail} simPass=${rec.simPass} repeat=${rec.simRepeat} cleanup=${rec.cleanupOk}${rec.cleanupDirty ? ' dirty' : ''}${rec.envError ? ' envError=' + rec.envError : ''}${rec.notes.length ? ' notes=' + rec.notes.join(' ; ') : ''}`)
   results.push(rec)
 }
 
@@ -253,11 +272,12 @@ try {
   writeFileSync(join(LOG_DIR, 'summary.json'), JSON.stringify({
     startedAt: STAMP, stage: stageArg || null, stageFilter,
     isolation: isolationFilter || 'mixed',
+    variants: variantsRequested,
     tabState: { backup: tbJson, restore: trJson }, results,
   }, null, 2))
 } catch { /* 忽略 */ }
 
 const pass = results.filter((r) => r.status === 'PASS').length
-console.log(`\nverify-oracles: ${pass}/${ORACLE_IDS.length} PASS${envs ? ` + ${envs} ENV` : ''}${failed ? ` (${failed} FAIL)` : ''} stage=${stageArg || 'all'}`)
+console.log(`\nverify-oracles: ${pass}/${work.length} PASS${envs ? ` + ${envs} ENV` : ''}${failed ? ` (${failed} FAIL)` : ''} tasks=${ORACLE_IDS.length} variants=${variantsRequested} stage=${stageArg || 'all'}`)
 console.log(`logs -> ${LOG_DIR}`)
 process.exit(failed ? 1 : 0)

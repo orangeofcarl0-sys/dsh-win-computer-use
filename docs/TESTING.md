@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-21：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 51/51 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-21：`npm test` 31 套 / **772 项检查**；`npm run check` 语法 52/52 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -43,6 +43,7 @@
 | 驱动形态 | S2 | `node evals/probe-driver-shape.mjs` | 1 项 | 默认/显式 tree_format、window_bounds、frame/screenshot_frame、session、zoom MIME、click 回执 |
 | native freshness | S2 | `node evals/probe-native-freshness.mjs` | 2 项 | 文本变化后 driver 截图与插件 native 图的 hash/字节数是否更新 |
 | dsh 真机加载 | S1 | `dsh --profile headless --patch ...` | 5 步 | 插件注册、真实工具调用、dispatcher 路由、prompt cache |
+| 平台套件 | 可选 | `node evals/probe-platform.mjs` | 1 项 | win32 + PowerShell + 任务定义 → PASS；非 Windows → BLOCKED（Linux 非门禁） |
 | 真桌面闭环 | S1 | `node tests/live-action.e2e.mjs 3` | 23 项 × 3 轮 | 真实输入/焦点/窗口选择/剪贴板/验证 |
 | 任务级评测 | S1-S4 | `node evals/headless-run.mjs --stage S1` | 41 条任务 | 多步任务收敛、步数/成本、模型行为（Web runner 已退役） |
 | oracle 验证 | S1-S4 | `node evals/verify-oracles.mjs --stage S4` | 41 条（t13 可 SKIP/ENV） | setup 必 ok → 空跑必失败 → simulate 必过 → cleanup 干净 |
@@ -53,7 +54,7 @@
 |---|---|---|---|
 | **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31/772、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / dpi01 / p01 / p02 / p03（5） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/x1/t18/t19/t20（25） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/x1/t18/t19/t20（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
 
 阶段是**成员标签，可重叠**：S1 10 / S2 5 / S3 26 / S4 17，成员合计 58，唯一任务 41。t11=S2+S4；t12-t18=S3+S4；t23/sec01–sec04/combo01/combo02/rec02/rec03 也含 S4；x1=S3。
@@ -330,14 +331,14 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 | 项 | 值 |
 |---|---|
 | 离线 | 31 套 / 772 ✅ / 0 ❌ |
-| 语法 | 51/51 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 语法 | 52/52 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |
 | 真桌面 | `live-action.e2e` 23/23（2026-09-17） |
 | 评测 | 41 条任务：S1 10 / S2 5 / S3 26 / S4 17（成员 58）；t12/t14/t17/t18/p01-p03/t19/t20/t21/t22/t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01 均有 simulate；仅 t13 仍 `ac2:none`，其 SKIP 不是 PASS |
-| AC2 全量 | 2026-11-20 基线 **22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty）；2026-11-21 P0/P1 新增 **19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01） |
-| oracle 变异 | 2026-11-20 基线 **19/19**；2026-11-21 P0/P1 抽样 **13/13 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/dpi01；其余新增待补跑） |
+| AC2 全量 | 2026-11-20 基线 **22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty）；2026-11-21 P0/P1 新增 **19/19 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01/a11y01）；**variant 1-3 回归 9/9 PASS**（t21/t22/a11y01 各 3 个 variant，2026-11-21） |
+| oracle 变异 | 2026-11-20 基线 **19/19**；2026-11-21 P0/P1 抽样 **13/13 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/a11y01/dpi01；其余新增待补跑）；参数化回归 t22/a11y01 **2/2 PASS**（mutation 固定 variant 1；t21 无产物按原因 SKIP） |
 | 真机探针 | 2026-11-20：probe-ops **11 PASS + 1 BLOCKED**（WinForms menu）；probe-launch **7/7**（子进程 Medium 实测）；probe-modifier-drop **5/5**；safety **13/13**；scroll **3/3**；modal-timeout **10 PASS / 13 BLOCKED**、modal-escapes **6 PASS / 4 BLOCKED**；native-dialog **9 PASS / 0 BLOCKED**（根因见 EVIDENCE §1.4/§1.5） |
 | 模型真跑（最新） | 2026-11-20：opencode t19 **2/2 pass**（inner 70/48）、t20 **2/2 pass**（inner 27/25）、t05 **2/2 pass**（inner 10/15）；0 timeout/dirty；t20 30s 超时仍多但候选 window_id 已出现；t19 `win+r` 归零、r1 回归；t05 无 `type`/无 src 残留；见 EVIDENCE §1.3 |
 | 模型真跑（上一轮/修复前） | 上一轮 t19 40/56、t20 27/25、t05 21/13；修复前 t19/t20 各 1 pass/1 预算耗尽（35/56、17/33），p01/p02/p03 6/11/8；保留为历史 |
@@ -348,9 +349,9 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 ## 11. P2 设计与未闭合
 
-- **参数化**：设计为 `S4_VARIANT=1..3` + `headless-run --variants`；setup 从 variant 派生 expected 值，report 记录 variant。当前未实现，仍以 41 条静态任务 + `--repeats` 为主；这是统计功效的下一条改进。
-- **可访问性**：`a11y01` 已实现键盘-only + UIA 名称；高对比度/Narrator 全量验收仍未做。
-- **Linux**：仅 Ubuntu CI 跑 `npm run check` / `npm test`；无 Linux 任务套件，`verify-runtime` 可选。Linux 不作为发布门禁，文档不写“已支持”。
-- **Windows 专项**：`probe-display` 已记录 2 屏/DPI；`dpi01` AC2 已过，真实模型跨屏点击待跑；UAC/安装器、Open/Save/Print/Font/Color、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
+- **参数化（已实现，3 条任务）**：`variants: N` + `evals/variants/<id>.json` 是唯一数据源；runner 通过 `S4_VARIANT` 传给 setup/oracle/simulate/cleanup，prompt 用 `{{key}}` 渲染。`headless-run --variants N` 与 `verify-oracles --variants N` 对声明任务跑 1..N；未声明任务只跑 variant 1。当前 t21（Calculator 除法）、t22（PPT 标题/副标题）、a11y01（键盘-only 文本）各 3 个 variant；mutation 固定 variant 1（case 按 variant 1 编写）。仍以 41 条任务为分母，variant 用于统计功效而非新增任务数。
+- **可访问性**：`a11y01` 已实现键盘-only + UIA 名称 + 3 个输入 variant；高对比度/Narrator 全量验收仍未做。
+- **Linux**：仅 Ubuntu CI 跑 `npm run check` / `npm test`；`probe-platform.mjs` 在非 Windows 只报 BLOCKED。无 Linux 任务套件，`verify-runtime` 可选；Linux 不作为发布门禁，文档不写“已支持”。
+- **Windows 专项**：`probe-display` 已记录 2 屏/DPI；`dpi01` AC2 已过，真实模型跨屏点击待跑；虚拟桌面无驱动原语且 `win` 组合键 fail-closed → BLOCKED；UAC/安装器、Open/Save/Print/Font/Color、Protected View、IME、Electron、Settings、VLC 仍在 [BLOCKED](../evals/BLOCKED.md)。
 
 > 逐轮时间线、工具计数、失败模式见 [EVIDENCE](EVIDENCE.md)；模型行为分析见 [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)；当前矩阵见 [VERIFICATION](../VERIFICATION.md)。

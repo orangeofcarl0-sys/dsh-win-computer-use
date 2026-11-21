@@ -3,6 +3,7 @@ param([string]$TaskId = '')
 $checks = @()
 try {
   $base = Get-TaskDir
+  $v = Get-S4VariantData -TaskId $TaskId
   $appDir = New-TaskDir 'app'
   $out = New-TaskDir 'out'
   $resultFile = Join-Path $out 'result.json'
@@ -53,7 +54,7 @@ $form.Add_Shown({ $input.Focus() })
   $stateFile = Join-Path $base 'app.json'
   $win = Open-TestAppWindow -Exe $psExe -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $appScript, '-ResultFile', $resultFile) -ProcessName 'powershell' -TitleNeedle @('S4-A11Y01-KEYBOARD') -StateFile $stateFile -TimeoutSec 20
   $checks += (Add-Check 'accessibility fixture window' ([bool]$win.ok) ("hwnd=$($win.hwnd) title=$($win.title) reason=$($win.reason)"))
-  [void](Write-TestState (Join-Path $base 'state.json') ([ordered]@{ startedAt = $startedAt.ToString('o'); result = $resultFile }))
+  [void](Write-TestState (Join-Path $base 'state.json') ([ordered]@{ startedAt = $startedAt.ToString('o'); result = $resultFile; text = [string]$v.text; variant = [int]$v.variant }))
   if (-not $win.ok) { Out-Finish -Ok $false -Checks $checks -Kind 'setup' -EnvError ("fixture unavailable: " + $win.reason) }
   Out-Finish -Ok $true -Checks $checks -Kind 'setup'
 } catch {
