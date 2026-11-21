@@ -3,7 +3,7 @@
  *
  * Usage:
  *   node evals/lib/form-server.mjs --root <dir> --result <json> --state <json> [--port 0]
- *     [--mode form|pixel1|pixel2|pixel3|download] [--fixture <pdf>]
+ *     [--mode form|pixel1|pixel2|pixel3|download|download-csv|download-flaky] [--fixture <file>] [--fail-first]
  *
  * Writes a local state file with pid/port/mode/startedAt. The visible browser uses
  * 127.0.0.1 only; no external network and no user cookies/profile changes.
@@ -24,6 +24,8 @@ const statePath = resolve(val('state', join(root, 'server.json')))
 const port = Math.max(0, Number(val('port', '0')) || 0)
 const mode = val('mode', 'form')
 const fixture = resolve(val('fixture', join(root, 'download.pdf')))
+const failFirst = args.includes('--fail-first')
+let downloadAttempts = 0
 
 const PAGE_FORM = `<!doctype html>
 <html><head><meta charset="utf-8"><title>S4-T16-FORM</title>
@@ -123,7 +125,57 @@ const PAGE_DOWNLOAD = `<!doctype html>
 <p class="hint">The file is served locally from 127.0.0.1.</p>
 </body></html>`
 
-const PAGES = { form: PAGE_FORM, pixel1: PAGE_PIXEL1, pixel2: PAGE_PIXEL2, pixel3: PAGE_PIXEL3, download: PAGE_DOWNLOAD }
+const PAGE_DOWNLOAD_CSV = `<!doctype html>
+<html><head><meta charset="utf-8"><title>S4-COMBO02-DOWNLOAD</title>
+<style>body{font:16px Segoe UI,Arial;margin:40px}code{background:#f1f3f5;padding:2px 6px}</style></head>
+<body><h1>S4 Combo02 Download</h1>
+<p>Download the sales CSV for this task.</p>
+<p><a id="dl" href="/download/sales.csv">Download CSV</a></p>
+<p class="hint">The file is served locally from 127.0.0.1.</p>
+</body></html>`
+
+const PAGE_DOWNLOAD_FLAKY = `<!doctype html>
+<html><head><meta charset="utf-8"><title>S4-REC03-FLAKY</title>
+<style>body{font:16px Segoe UI,Arial;margin:40px}code{background:#f1f3f5;padding:2px 6px}</style></head>
+<body><h1>S4 Rec03 Flaky Download</h1>
+<p>The first download request may fail. Retry until the PDF is saved.</p>
+<p><a id="dl" href="/download/paper.pdf">Download PDF</a></p>
+<p class="hint">The file is served locally from 127.0.0.1.</p>
+</body></html>`
+
+const PAGE_TABS = `<!doctype html>
+<html><head><meta charset="utf-8"><title>S4-B01-TABS</title>
+<style>body{font:16px Segoe UI,Arial;margin:40px}a{display:block;margin:12px 0}</style></head>
+<body><h1>S4 B01 Tabs</h1>
+<p>Open both links in separate tabs.</p>
+<a id="a" href="/tabs/a" target="_blank">Tab A</a>
+<a id="b" href="/tabs/b" target="_blank">Tab B</a>
+</body></html>`
+
+const PAGE_TAB_A = `<!doctype html>
+<html><head><meta charset="utf-8"><title>S4-B01-A</title></head>
+<body><h1>S4 B01 A</h1><p id="marker">S4 B01 A READY</p></body></html>`
+
+const PAGE_TAB_B = `<!doctype html>
+<html><head><meta charset="utf-8"><title>S4-B01-B</title>
+<style>body{font:16px Segoe UI,Arial;margin:40px}label{display:block;margin:10px 0 4px}input,textarea{width:320px;padding:6px;font:inherit}</style></head>
+<body><h1>S4 B01 B</h1>
+<form method="post" action="/submit">
+  <label for="name">Name</label><input id="name" name="name" type="text">
+  <label for="notes">Notes</label><textarea id="notes" name="notes"></textarea>
+  <button type="submit">Submit</button>
+</form></body></html>`
+
+const PAGES = {
+  form: PAGE_FORM,
+  pixel1: PAGE_PIXEL1,
+  pixel2: PAGE_PIXEL2,
+  pixel3: PAGE_PIXEL3,
+  download: PAGE_DOWNLOAD,
+  'download-csv': PAGE_DOWNLOAD_CSV,
+  'download-flaky': PAGE_DOWNLOAD_FLAKY,
+  tabs: PAGE_TABS,
+}
 
 function send(res, code, body, type = 'text/html; charset=utf-8') {
   res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' })
@@ -184,7 +236,25 @@ const server = createServer(async (req, res) => {
       send(res, 200, '<!doctype html><html><head><meta charset="utf-8"><title>ok</title></head><body>ok</body></html>')
       return
     }
+    if (req.method === 'GET' && url.pathname === '/download/sales.csv') {
+      try {
+        const data = readFileSync(fixture)
+        res.writeHead(200, {
+          'content-type': 'text/csv; charset=utf-8',
+          'content-disposition': 'attachment; filename="s4-combo02-sales.csv"',
+          'content-length': data.length,
+          'cache-control': 'no-store',
+        })
+        res.end(data)
+      } catch { send(res, 404, 'fixture not found', 'text/plain') }
+      return
+    }
     if (req.method === 'GET' && url.pathname === '/download/paper.pdf') {
+      downloadAttempts++
+      if (failFirst && downloadAttempts === 1) {
+        send(res, 500, 'temporary failure; retry the download', 'text/plain')
+        return
+      }
       try {
         const data = readFileSync(fixture)
         res.writeHead(200, {
@@ -195,6 +265,14 @@ const server = createServer(async (req, res) => {
         })
         res.end(data)
       } catch { send(res, 404, 'fixture not found', 'text/plain') }
+      return
+    }
+    if (req.method === 'GET' && url.pathname === '/tabs/a') {
+      send(res, 200, PAGE_TAB_A)
+      return
+    }
+    if (req.method === 'GET' && url.pathname === '/tabs/b') {
+      send(res, 200, PAGE_TAB_B)
       return
     }
     if (req.method === 'GET' && url.pathname.startsWith('/static/')) {

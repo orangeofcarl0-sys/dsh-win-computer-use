@@ -20,7 +20,7 @@
 | native freshness | WinForms 文本变化窗口未复现“AX 已变而 PNG 不变” | Windows 11 | `probe-native-freshness.mjs` |
 | 真桌面动作闭环 | **23/23**（2026-09-17 重设计后）；0.52.13 canary **33/33** | Windows 11 | `node tests/live-action.e2e.mjs 3` |
 | eval oracle 双向验证（全量） | 2026-11-20 基线：**22/23 PASS + t13 SKIP**（0 FAIL/ENV/dirty；t13 真实网络 `ac2:none`） | Windows 11 | `node evals/verify-oracles.mjs` |
-| eval oracle（P0 新增） | 2026-11-21：**13/13 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/combo01/dpi01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
+| eval oracle（P0/P1 新增） | 2026-11-21：**18/18 模式运行 PASS**（t21/t22/t23 clean+dirty/w01/w02/sec01–sec04/rec01/rec02/combo01/combo02/rec03/dpi01/term01/b01；每条 setup→empty-fail→simulate→oracle×2→cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks <id> --isolation clean|dirty` |
 | eval oracle（S1 + x1 clean 组） | **10/10**（t01/t03/t04/t05/t06/t07/t09/t10/wa2/x1；2026-11-15 18:40 复跑） | Windows 11 | `node evals/verify-oracles.mjs` |
 | eval oracle（S4 dirty 组） | 2026-11-19：t12/t14/t17/t18 **PASS**（AC2 full；t18 本地下载）；t15 sentinel **PASS**；t13 真实网络 **SKIP**（不是 PASS） | Windows 11 | `node evals/verify-oracles.mjs --tasks t12,t14,t15,t17,t18,t13` |
 | S2 像素任务 | 2026-11-19：p01/p02/p03 AC2 **3/3 PASS** | Windows 11 | `node evals/verify-oracles.mjs --tasks p01,p02,p03` |
@@ -35,7 +35,7 @@
 | app 启动/收尾探针 | 2026-11-20：**7/7**；daemon High、`powershell.exe` 子进程 Medium；alt+F4 关闭、无残留、基线窗口保留 | Windows 11 / 0.52.13 | `node evals/probe-launch.mjs` |
 | modifier-drop 探针 | 2026-11-20：**5/5**；Explorer Ctrl+drag 复制、普通 drag 移动、无卡键。2026-11-21：`--excel --excel-only` 分支已实现（Excel/COM 检测、临时 xlsx、UIA `DataItem` 几何、Ctrl+drag、Ctrl+S、OOXML 校验、精确 HWND 关闭），A2 保留但 E2 未复制 → **BLOCKED** | Windows 11 / Excel 16.0 | `node evals/probe-modifier-drop.mjs`；`node evals/probe-modifier-drop.mjs --excel --excel-only` |
 | oracle 反向敏感性 | 2026-11-20 基线：**19/19** 变异被 exit 1 拒绝；t04/t07 live GUI、t13 ac2:none SKIP | Windows 11 | `node evals/oracle-mutation.mjs` |
-| oracle 反向敏感性（P0 抽样） | 2026-11-21：**7/7 PASS**（t22/w01/sec01/sec02/rec01/combo01/dpi01；其余新增待补跑） | Windows 11 | `node evals/oracle-mutation.mjs --tasks <id> --isolation clean|dirty` |
+| oracle 反向敏感性（P0/P1 抽样） | 2026-11-21：**12/12 PASS**（t22/w01/sec01/sec02/rec01/rec02/rec03/combo01/combo02/b01/term01/dpi01；其余新增待补跑） | Windows 11 | `node evals/oracle-mutation.mjs --tasks <id> --isolation clean|dirty` |
 | 轨迹行为修复（P0/P1） | 2026-11-20：预填字段优先 `set_value`、超时不再被 preflight/activate/move_cursor 吞掉、超时候选/延迟成功、win 组合键 fail-closed、另存为目录提示/新值回执、menu `->`/`→`、无目标跳过 shell、TabState 隔离、runner `budgetExhausted`/`timeout` | Windows（离线 + 单测） | `npm test` 31/764；`node tests/proc-run.test.mjs` |
 | 模型真跑样本（最新，P0/P1 后） | 2026-11-20：t20 **2/2 pass**（27/25 inner，626/601s；超时仍多，候选 window_id 已出现）、t19 **2/2 pass**（70/48 inner，652/454s；`win+r` 归零，但 r1 比上一轮更慢）、t05 **2/2 pass**（10/15 inner，86/106s；零 `type` 改文件名、无 `src` 残留）；0 timeout/dirty | Windows 11 / opencode-go | `evals/headless-run.mjs --tasks t19,t20,t05 --repeats 2 --patch evals/headless-patch.opencode.yml`；见 EVIDENCE §1.3 |
 | 模型真跑样本（上一轮/修复前） | 上一轮：t20 27/25 inner（595/618s）、t19 40/56（387/595s）、t05 21/13（185/121s）；修复前：t19/t20 各 1 pass / 1 预算耗尽、t05 r4 43 inner/1.25M | Windows 11 / opencode-go | 见 EVIDENCE §1.1/§1.2 与 [TRAJECTORY-ANALYSIS](docs/TRAJECTORY-ANALYSIS.md) §11 |
@@ -45,7 +45,7 @@
 | P0 模型 smoke（新增） | 2026-11-21：t21 **1/1 pass**（16 步，oracle 19753）；sec02 **1 次 12min timeout**（模型在 Notepad/fixture 间反复观察，未完成 allow.txt 正向控制；AC2 已 PASS，cleanup 关闭测试 Notepad 并恢复 TabState） | Windows 11 / opencode-go | `node evals/headless-run.mjs --tasks t21 --isolation clean`；`--tasks sec02 --isolation clean` |
 | P0 判定绑定 | 2026-11-19 `t03/t04/t05/t07/x1` oracle **5/5 PASS**（setup → empty-fail → simulate ×2 → cleanup） | Windows 11 | `node evals/verify-oracles.mjs --tasks t03,t04,t05,t07,x1` |
 | headless eval smoke | **7/8（两轮；Round 2 4/4）** | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.3 |
-| 阶段过滤 | **S1 10 / S2 5 / S3 20 / S4 14**（成员 49，唯一 35）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
+| 阶段过滤 | **S1 10 / S2 5 / S3 25 / S4 17**（成员 57，唯一 40）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §7.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
 | npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.5.8`；web profile 已安装 0.5.8 并切换配置（运行中的 web 进程需重启生效）** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
@@ -132,7 +132,7 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 - `verify-runtime` 输出 `结果：18/18 通过`。
 - `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。
-- 阶段成员：S1 10 / S2 5 / S3 20 / S4 14（成员 49，唯一 35）；`node tests/tasks.check.mjs` 必须通过。
+- 阶段成员：S1 10 / S2 5 / S3 25 / S4 17（成员 57，唯一 40）；`node tests/tasks.check.mjs` 必须通过。
 - `npm pack --dry-run --json` 的文件数与 `tests/docs.facts.json` / `docs/store-evidence.md` 一致。
 - headless 探针的 `status` 返回 `dispatcher` / 2 可见 / 21 隐藏。
 - 若 `verify-oracles` 的 PowerShell 报 `Add-Type` 找不到 `C:\Windows\TEMP\*.cs`，先设 `TEMP`/`TMP` 到 `%LOCALAPPDATA%\Temp`。

@@ -267,5 +267,29 @@ check('ES50: security fixture uses only state-scoped app opener',
   /Open-TestAppWindow/.test(readFileSync(join(evals, 'lib', 'security-fixture.ps1'), 'utf8'))
   && !/Stop-Process\s+-Name|taskkill\s+\/IM/i.test(readFileSync(join(evals, 'lib', 'security-fixture.ps1'), 'utf8')))
 
+// 2026-11-21 P1: browser/server/terminal tasks remain state-scoped.
+check('ES51: combo02 uses server + browser + Excel state helpers',
+  /Start-TestFormServer/.test(taskSrc('combo02', 'setup'))
+  && /Open-TestBrowserWindow/.test(taskSrc('combo02', 'setup'))
+  && /Open-TestAppWindow/.test(taskSrc('combo02', 'setup'))
+  && /Stop-TestFormServer/.test(taskSrc('combo02', 'cleanup'))
+  && /Close-TestBrowserWindow/.test(taskSrc('combo02', 'cleanup'))
+  && /Close-TestAppWindow/.test(taskSrc('combo02', 'cleanup')))
+for (const id of ['rec03', 'b01']) {
+  check(`ES52: ${id} uses server + browser state helpers`,
+    /Start-TestFormServer/.test(taskSrc(id, 'setup'))
+    && /Open-TestBrowserWindow/.test(taskSrc(id, 'setup'))
+    && /Stop-TestFormServer/.test(taskSrc(id, 'cleanup'))
+    && /Close-TestBrowserWindow/.test(taskSrc(id, 'cleanup')))
+}
+check('ES53: term01 uses state-scoped console Open/Close',
+  /Open-TestAppWindow/.test(taskSrc('term01', 'setup'))
+  && /Close-TestAppWindow/.test(taskSrc('term01', 'cleanup')))
+check('ES54: rec02 uses state-scoped app + optional sentinel',
+  /Open-TestAppWindow/.test(taskSrc('rec02', 'setup'))
+  && /Open-TestSentinel/.test(taskSrc('rec02', 'setup'))
+  && /Close-TestAppWindow/.test(taskSrc('rec02', 'cleanup'))
+  && /Close-TestSentinel/.test(taskSrc('rec02', 'cleanup')))
+
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : `❌ ${checks.length} 项失败`}`)
 process.exit(checks.length === 0 ? 0 : 1)

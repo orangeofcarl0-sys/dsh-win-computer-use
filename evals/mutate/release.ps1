@@ -34,6 +34,7 @@ try {
     'w02' { Close-One (Join-Path $base 'word.json') 'app' }
     'sec02' { Close-One (Join-Path $base 'test-notepad.json') 'notepad' }
     'sec04' { Close-One (Join-Path $base 'test-notepad.json') 'notepad' }
+    'term01' { Close-One (Join-Path $base 'term.json') 'app' }
     'combo01' {
       Close-One (Join-Path $base 'ppt.json') 'app'
       Close-One (Join-Path $base 'excel.json') 'app'

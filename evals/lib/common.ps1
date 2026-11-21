@@ -629,6 +629,14 @@ function Close-OrphanTestNotepads {
     }
     $labels = @($tabs | ForEach-Object { ([string]$_.label).Trim().ToLowerInvariant() })
     $unknown = @($tabs | Where-Object { -not $_.known })
+    $modified = @($tabs | Where-Object { $_.modified -eq $true })
+    $allowUntitled = $false
+    if ($evalOwned -and $modified.Count -eq 0 -and $labels.Count -gt 0) {
+      $allowUntitled = $true
+      foreach ($l in $labels) {
+        if ($l -notmatch '^(无标题|untitled)\.?$') { $allowUntitled = $false; break }
+      }
+    }
     $allowed = $true
     foreach ($l in $labels) {
       if ($allowedLabels -notcontains $l) { $allowed = $false; break }
@@ -637,6 +645,7 @@ function Close-OrphanTestNotepads {
     foreach ($l in $labels) {
       if ($seeds -contains $l) { $hasSeed = $true; break }
     }
+    if ($allowUntitled) { $allowed = $true; $hasSeed = $true; $unknown = @() }
 
     # Safety: evalOwned alone is NOT enough for tabbed windows with generic names
     # (a.txt/note.txt/draft.txt). Require a unique test seed; t10's a+b window is
@@ -1447,6 +1456,33 @@ function Wait-TestPdfPageReady {
   return [ordered]@{ ok = $false; reason = $last; sample = '' }
 }
 
+function Get-S4NewFileCandidates([string]$Dir, [datetime]$StartedAt, [string]$Filter = '*') {
+  if (-not (Test-Path $Dir)) { return @() }
+  return @(Get-ChildItem -Path $Dir -Filter $Filter -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTimeUtc -ge $StartedAt.ToUniversalTime() } | Sort-Object LastWriteTimeUtc -Descending)
+}
+
+function Wait-S4DownloadMatchAny([string]$Dir, [datetime]$StartedAt, [string]$ExpectedHash, [string]$Filter = '*', [int]$TimeoutSec = 60) {
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    foreach ($f in @(Get-S4NewFileCandidates $Dir $StartedAt $Filter)) {
+      if ((Get-S4Sha256 $f.FullName) -eq $ExpectedHash) { return $f }
+    }
+    Start-Sleep -Milliseconds 800
+  }
+  return $null
+}
+
+function Remove-S4MatchedDownloadsAny([string]$Dir, [datetime]$StartedAt, [string]$ExpectedHash, [string]$Filter = '*') {
+  $removed = @()
+  foreach ($f in @(Get-S4NewFileCandidates $Dir $StartedAt $Filter)) {
+    if ((Get-S4Sha256 $f.FullName) -eq $ExpectedHash) {
+      try { Remove-Item $f.FullName -Force -ErrorAction Stop; $removed += $f.FullName } catch {}
+    }
+  }
+  return @($removed)
+}
+
 function Get-S4NewPdfCandidates([string]$Dir, [datetime]$StartedAt) {
   if (-not (Test-Path $Dir)) { return @() }
   return @(Get-ChildItem -Path $Dir -Filter '*.pdf' -File -ErrorAction SilentlyContinue |
@@ -1478,7 +1514,7 @@ function Remove-S4MatchedDownloads([string]$Dir, [datetime]$StartedAt, [string]$
 }
 
 function Start-TestFormServer {
-  param([string]$Root, [string]$ResultFile, [string]$StateFile, [string]$Mode = 'form', [string]$Fixture = '')
+  param([string]$Root, [string]$ResultFile, [string]$StateFile, [string]$Mode = 'form', [string]$Fixture = '', [switch]$FailFirst)
   $node = 'node.exe'
   $c = Get-Command node -ErrorAction SilentlyContinue
   if ($c) { $node = $c.Source }
@@ -1492,6 +1528,7 @@ function Start-TestFormServer {
     $q = { param($v) if (($v + '') -match 's') { return ('"' + $v + '"') } return ($v + '') }
     $argList = @((& $q $script), '--root', (& $q $Root), '--result', (& $q $ResultFile), '--state', (& $q $StateFile), '--mode', (& $q $Mode))
     if ($Fixture) { $argList += @('--fixture', (& $q $Fixture)) }
+    if ($FailFirst) { $argList += @('--fail-first') }
     $proc = Start-Process -FilePath $node -ArgumentList $argList -PassThru -WindowStyle Hidden
   } catch {
     return [ordered]@{ ok = $false; reason = $_.Exception.Message }
@@ -1527,6 +1564,12 @@ function Stop-TestFormServer {
   $s = Read-TestState $StateFile
   if (-not $s -or -not $s.pid) { $res.reason = 'invalid state'; return $res }
   if (-not (Test-ProcessIdentity ([int]$s.pid) ([string]$s.processStart))) {
+    $proc = Get-Process -Id ([int]$s.pid) -ErrorAction SilentlyContinue
+    if (-not $proc) {
+      $res.stopped = $true
+      $res.reason = 'already stopped'
+      return $res
+    }
     $res.reason = 'pid/start-time mismatch (refusing to stop)'; return $res
   }
   try { Stop-Process -Id ([int]$s.pid) -Force -ErrorAction Stop; $res.stopped = $true } catch { $res.reason = $_.Exception.Message }

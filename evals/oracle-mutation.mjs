@@ -59,7 +59,7 @@ function effectiveIsolation(raw) {
 const MUTABLE = new Set([
   't01', 't03', 't05', 't06', 't09', 't10', 't11', 't12', 't14', 't15',
   't16', 't17', 't18', 't19', 't20', 't22', 't23', 'w01', 'w02',
-  'sec01', 'sec02', 'sec03', 'sec04', 'rec01', 'combo01', 'dpi01',
+  'sec01', 'sec02', 'sec03', 'sec04', 'rec01', 'rec02', 'rec03', 'combo01', 'combo02', 'b01', 'term01', 'dpi01',
   'p01', 'p02', 'p03', 'wa2', 'x1',
 ])
 const SKIPPED = new Map([

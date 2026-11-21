@@ -450,8 +450,8 @@ stateDiagram-v2
 
 - 离线：31 套、772 项检查（2026-11-21；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
-- 评测：`evals/` 35 条任务，S1 10 / S2 5 / S3 20 / S4 14（成员 49，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
-- 反向证据：`evals/oracle-mutation.mjs` 对 31 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。
+- 评测：`evals/` 40 条任务，S1 10 / S2 5 / S3 25 / S4 17（成员 57，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）。
+- 反向证据：`evals/oracle-mutation.mjs` 对 36 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。
 - 当前矩阵：[VERIFICATION](../VERIFICATION.md)；按日期证据：[EVIDENCE](EVIDENCE.md)；模型行为：[TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)。
 
 ## 15. 参考

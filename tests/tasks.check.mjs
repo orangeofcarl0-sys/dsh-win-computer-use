@@ -116,12 +116,12 @@ const unique = tasks.length
 const counts = Object.fromEntries(STAGES.map((s) => [s, tasks.filter((t) => t.stages.includes(s)).length]))
 const memberships = tasks.reduce((n, t) => n + t.stages.length, 0)
 
-check('任务总数 == 35', unique === 35, String(unique))
+check('任务总数 == 40', unique === 40, String(unique))
 check('S1 成员 == 10', counts.S1 === 10, String(counts.S1))
 check('S2 成员 == 5', counts.S2 === 5, String(counts.S2))
-check('S3 成员 == 20', counts.S3 === 20, String(counts.S3))
-check('S4 成员 == 14', counts.S4 === 14, String(counts.S4))
-check('阶段成员合计 == 49', memberships === 49, String(memberships))
+check('S3 成员 == 25', counts.S3 === 25, String(counts.S3))
+check('S4 成员 == 17', counts.S4 === 17, String(counts.S4))
+check('阶段成员合计 == 57', memberships === 57, String(memberships))
 
 // 每个主要应用至少两条任务（正常 + 边界/失败/组合）。
 for (const app of majorApps) {
@@ -153,12 +153,12 @@ let facts = null
 try { facts = JSON.parse(readFileSync(factsPath, 'utf8')) } catch { facts = null }
 check('docs.facts.json 可读', Boolean(facts))
 if (facts) {
-  check('facts.evalTasks == 35', facts.evalTasks === unique, `facts=${facts.evalTasks} actual=${unique}`)
+  check('facts.evalTasks == 40', facts.evalTasks === unique, `facts=${facts.evalTasks} actual=${unique}`)
   for (const s of STAGES) {
     const key = `stage${s}`
     check(`facts.${key} == ${counts[s]}`, facts[key] === counts[s], `facts=${facts[key]} actual=${counts[s]}`)
   }
-  check('facts.stageMemberships == 49', facts.stageMemberships === memberships, `facts=${facts.stageMemberships} actual=${memberships}`)
+  check('facts.stageMemberships == 57', facts.stageMemberships === memberships, `facts=${facts.stageMemberships} actual=${memberships}`)
 }
 
 // P0 判定绑定：这些检查保证修复不会被后续编辑悄悄回退。
@@ -194,9 +194,9 @@ check('P0 x1: runner 执行 require_tool', /requireToolUsed|requireToolsUsed/.te
 
 // 文档/退役/阻塞清单一致性：这些是人工最容易漂移的入口。
 const evalsReadme = readFileSync(join(root, 'evals', 'README.md'), 'utf8')
-check('docs: evals/README 阶段计数', /S1 10 \/ S2 5 \/ S3 20 \/ S4 14/.test(evalsReadme)
-  && /成员合计 \*\*49\*\*/.test(evalsReadme) && /唯一任务 \*\*35\*\*/.test(evalsReadme))
-check('docs: evals/README simulate 34', /simulate\/\s+34 个/.test(evalsReadme))
+check('docs: evals/README 阶段计数', /S1 10 \/ S2 5 \/ S3 25 \/ S4 17/.test(evalsReadme)
+  && /成员合计 \*\*57\*\*/.test(evalsReadme) && /唯一任务 \*\*40\*\*/.test(evalsReadme))
+check('docs: evals/README simulate 39', /simulate\/\s+39 个/.test(evalsReadme))
 check('docs: RETIRED 记录 t02/t08', existsSync(join(root, 'evals', 'RETIRED.md'))
   && /`t02`/.test(readFileSync(join(root, 'evals', 'RETIRED.md'), 'utf8'))
   && /`t08`/.test(readFileSync(join(root, 'evals', 'RETIRED.md'), 'utf8')))

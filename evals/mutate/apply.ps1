@@ -240,6 +240,46 @@ try {
       } finally { $zip.Dispose() }
       $changes += 'combo subtitle changed'
     }
+    'combo02' {
+      $f = Join-Path $base 'out/sales.xlsx'
+      $zipFs = [IO.File]::Open($f, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+      $zip = New-Object IO.Compression.ZipArchive($zipFs, [IO.Compression.ZipArchiveMode]::Update)
+      try {
+        $charts = @($zip.Entries | Where-Object { $_.FullName -match '^xl/charts/chart[0-9]+.xml$' })
+        if ($charts.Count -eq 0) { throw 'no chart parts' }
+        $xml = Read-S4ZipText $zip $charts[0].FullName
+        $new = $xml.Replace('S4 Sales', 'S4 Wrong')
+        if ($new -eq $xml) { throw 'chart title not found' }
+        Set-S4ZipText $zip $charts[0].FullName $new
+      } finally { $zip.Dispose() }
+      $changes += 'combo02 chart title changed'
+    }
+    'rec02' {
+      $f = Join-Path $base 'out/result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.finished = $false
+      Write-Json $f $j
+      $changes += 'recovery finish cleared'
+    }
+    'rec03' {
+      $state = Read-TestState (Join-Path $base 'state.json')
+      if (-not $state) { throw 'state.json missing' }
+      $removed = @(Remove-S4MatchedDownloads -Dir (Get-S4DownloadsDir) -StartedAt ([datetime]::Parse([string]$state.startedAt).ToUniversalTime()) -ExpectedHash ([string]$state.expectedHash))
+      if ($removed.Count -eq 0) { throw 'no simulated PDF to remove' }
+      $changes += ('removed retried PDFs=' + $removed.Count)
+    }
+    'b01' {
+      $f = Join-Path $base 'out/result.json'
+      $j = Get-Content $f -Raw | ConvertFrom-Json
+      $j.name = 'S4 WRONG'
+      Write-Json $f $j
+      $changes += 'tab form name changed'
+    }
+    'term01' {
+      $f = Join-Path $base 'out/term.txt'
+      [IO.File]::WriteAllText($f, 'S4 TERM WRONG', (New-Object Text.UTF8Encoding($false)))
+      $changes += 'terminal output changed'
+    }
     'p01' {
       $f = Join-Path $base 'out\result.json'
       Write-Json $f ([ordered]@{ target = 'C2'; cell = 'C2'; hit = 'false' })

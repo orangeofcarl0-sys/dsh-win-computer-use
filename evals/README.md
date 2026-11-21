@@ -13,10 +13,10 @@
 |---|---|---|---|
 | **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 30 套 / 748；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / dpi01 / p01 / p02 / p03（5） |
-| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12/t13/t14/t15/t16/t17/x1/t18/t19/t20/t22/t23/w01/w02/sec01–sec04/rec01/combo01（20） |
-| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18 + t23/sec01–sec04/combo01（14） |
+| **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t23/w01/w02/sec01–sec04/rec01/rec02/rec03/combo01/combo02/b01/term01/x1/t18/t19/t20（25） |
+| **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
 
-**阶段是成员标签，可重叠**：`S1 10 / S2 5 / S3 20 / S4 14`，成员合计 **49**，唯一任务 **35**。t11 = S2+S4；t12–t18 = S3+S4；t23/sec01–sec04/combo01 也含 S4；x1 = S3。
+**阶段是成员标签，可重叠**：`S1 10 / S2 5 / S3 25 / S4 17`，成员合计 **57**，唯一任务 **40**。t11 = S2+S4；t12–t18 = S3+S4；t23/sec01–sec04/combo01/combo02/rec02/rec03 也含 S4；x1 = S3。
 
 边界必须明确：
 
@@ -59,6 +59,11 @@
 | sec04 | 快照 TTL 拒绝 | S3, S4 | core | both | full | 正向控制 + 过期点击计数 0 |
 | rec01 | 从 draft 恢复 | S3 | core | clean | full | 应用关闭后重开并保存 final.txt |
 | combo01 | PDF→Excel→PPT | S3, S4 | core | dirty | full | 三应用链；A1=42 + PPT 文本 |
+| combo02 | 下载 CSV→Excel→图表 | S3, S4 | core | dirty | full | 本地 CSV + XLSX 图表 |
+| rec02 | 模态恢复 | S3, S4 | core | both | full | 关闭模态后继续 |
+| rec03 | 断网重试 | S3, S4 | core | dirty | full | 首次 500，重试成功 |
+| term01 | PowerShell 终端 | S3 | core | clean | full | 控制台输入 + 文件 oracle |
+| b01 | 浏览器多标签表单 | S3 | core | clean | full | 本地 tabs + form |
 | p01 | 无坐标 canvas 目标点击 | S2 | core | notepad | full | 红圆/格子 C2 |
 | p02 | 像素 token 读取输入 | S2 | core | notepad | full | canvas code P02-7K9 |
 | p03 | screen_zoom 小目标点击 | S2 | core | notepad | full | D3 / from_zoom |
@@ -69,11 +74,11 @@
 
 ```text
 evals/
-  tasks/            35 个任务 md（id = 文件名前缀）
-  setup/            35 个 setup.ps1
-  oracle/           35 个 oracle.ps1
-  cleanup/          35 个 cleanup.ps1
-  simulate/         34 个 simulate.ps1（t13 仍 ac2:none）
+  tasks/            40 个任务 md（id = 文件名前缀）
+  setup/            40 个 setup.ps1
+  oracle/           40 个 oracle.ps1
+  cleanup/          40 个 cleanup.ps1
+  simulate/         39 个 simulate.ps1（t13 仍 ac2:none）
   fixtures/         t12/t14/t17/t18/combo01 成功态夹具（测试输入，不是测量产物）
   mutate/           release.ps1 + apply.ps1（oracle 变异，不是任务）
   lib/              common.ps1 / tabstate.ps1 / image.ps1 / office.ps1 / sentinel.ps1 / security-fixture.ps1 / env-info.ps1 / form-server.mjs / cdp.mjs / run.mjs
