@@ -147,7 +147,7 @@ node verify-runtime.mjs
 | 插件包内 `cordis.patch.yml` | bundle 默认值 | 低 |
 | `--patch <file>` | 一次性 overlay（评测/探针） | 最高（按加载顺序覆盖） |
 
-完整 30 键说明见 [CONFIGURATION](CONFIGURATION.md)。只改 `surfaceMode` 等少量键时，保留其余默认值即可。
+完整 31 键说明见 [CONFIGURATION](CONFIGURATION.md)。只改 `surfaceMode` 等少量键时，保留其余默认值即可。
 
 ## 6. 升级
 

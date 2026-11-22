@@ -71,6 +71,7 @@ flowchart LR
 | `lib/ops.js` | `createOpsState`、`gate`、`stop`、`resume`、`verifyOnce`、`waitFor`、`clipboard`、`menu`、`hover` | 确定性验证、轮询、剪贴板、菜单直调（可选经典 HMENU 兜底）、悬停、强杀锁存 | cua / snapshot / attach / engine / receipt / menuPath / nativeMenus |
 | `lib/task.js` | `runComputerTask`、`resetTaskCalls`、`DELEGATION_RECIPE` | 子 agent 委派（0.2.2 `startActivation`）、能力降级、超时/预算、结构化结果 | 宿主 `subagents` |
 | `lib/guard.js` | `guard`、`extremeNote` | 无快照拒绝、白名单、密码三态、极危注记、inputUnconfirmed 保存意图门禁 | snapshot / roles / keyFallback / human / menuPath |
+| `lib/policy.js` | `normalizeAutonomy`、`evaluatePolicy`、`resolvePolicyDecision`、`resetPolicySession`、`describePolicy` | 自治策略：auto/locked/guarded；blockedApps/sensitiveApps/allowlist、真实指针、子 Agent、委派；guarded 会话级询问 | snapshot / roles / dispatcher |
 | `lib/snapshot.js` | `setSnapshot`、`resolveToken`、`resolveWindow`、`validateSnapshotId`、`markConsumed`、`markSuspect`、`freshnessGate`、`markInputUnconfirmed`/`getInputUnconfirmed`/`clearInputUnconfirmed` | 全局单例快照、TTL、编号解析、消费/可疑标记、连击语义；跨快照的输入未确认状态 | — |
 | `lib/windowMap.js` | `rememberWindows`、`pidOfWindow`、`resetWindowMap` | list_windows 的 window_id→pid 缓存；L3 恢复原前台查 pid | — |
 | `lib/receipt.js` | `receipt`、`refusalReceipt`、`timeoutReceipt`、`settleAction`、`UNVERIFIED_NOTE`、`SUSPECTED_NOOP_NOTE`、`INPUT_UNVERIFIED_NOTE`、`SET_VALUE_NOTE` | 动作回执唯一出口：规范化 → 判拒绝 → 标快照 → 紧凑文本；驱动超时的工具特定下一步 | cua / engine / snapshot |
@@ -155,9 +156,10 @@ const r = await def.execute(hiddenArgs, exec)
 gate（stop 锁存；computer_do 除外）
   → 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默丢弃）
   → guard（无快照/白名单/密码/极危）
+  → evaluatePolicy（auto/locked/guarded；拒绝不消费快照、不进入重复抑制）
   → checkRepeat（重复点击抑制）
   → impl(args, cfg, exec)
-  → 把 guard 的 note 追加到 result
+  → 把 guard/policy 的 note 追加到 result
 ```
 
 任何异常都被归一化为 `{ ok:false, result:"✗ …" }`，不向宿主抛原始错误。
@@ -396,10 +398,12 @@ stateDiagram-v2
 
 `computer_stop` 的锁存在 `wrap()` 最前面，先于 `guard()`；`computer_resume` 是唯一例外。`computer_do` 的外层闸门被跳过（见 §4.3），隐藏工具自己的闸门仍然生效。
 
+`guard()` 之后是 `lib/policy.js` 的 `evaluatePolicy`：默认 auto 零提示；blockedApps 拒绝、sensitiveApps 只读、allowedApps 非空时补齐 menu/hover/activate/launch、子 Agent 真实指针默认 deny；locked 只允许 allowedApps；guarded 仅对 sensitiveApps/真实指针走 `userQuestions` 会话级询问。策略拒绝发生在动作前，不消费快照、不调用驱动；审计事件见 `lib/trajectory.js` 的 `policy_decision`。
+
 ## 11. 不变量
 
 1. **依赖单向**：`index.js → lib → cua-driver`，lib 内无环。
-2. **闸门顺序恒定**：锁存 → 未知参数 → 守卫 → 重复抑制 → 实现 → 注记；新工具自动继承。
+2. **闸门顺序恒定**：锁存 → 未知参数 → 守卫 → 策略 → 重复抑制 → 实现 → 注记；新工具自动继承。
 3. **禁止盲发 desktop scope**：`type`/`key`/`scroll`/`drag` 必须绑定快照窗口的 `pid + window_id`。
 4. **回执单一出口**：click/double/right/type/key/scroll/drag/set_value 统一走 `settleAction`。
 5. **unknown ≠ 成功**：`computer_verify` / `wait_for` 的 `unknown` 永不计为成功。
@@ -409,6 +413,7 @@ stateDiagram-v2
 9. **不要订阅 waterfall 事件**：`tools/post-execute` 是 cordis waterfall，监听器不调用 `next()` 会让工具注册表崩溃；仅观测用 `tools/result`。
 10. **快照全局单例**：任意成功全量观察替换 id；动作/回执不得假设“每窗口一个快照”。
 11. **工具面可机械校验**：描述/参数/输出 schema/render 的变更要过 schema conformance、dispatcher 测试与 `npm run docs:check`。
+12. **策略纯函数**：`evaluatePolicy` 不读全局快照、不 spawn、不网络、不询问；auto/locked 零 `userQuestions`，guarded 只在 `resolvePolicyDecision` 询问。
 
 ## 12. 扩展指南
 
@@ -420,7 +425,7 @@ stateDiagram-v2
 4. 在 `tests/schema.conformance.mjs` 加正常/拒绝/未验证等返回形态；
 5. 在 `tests/dispatcher.test.mjs` 校正可见/隐藏数量与 catalog；
 6. 在 `tests/action-bounds.mjs` 加边界（无快照/窗口绑定/参数校验）；
-7. 更新 `docs/TOOLS.md`、`docs/ERRORS.md`（如有新码）、`CHANGELOG.md`；
+7. 更新 `docs/TOOLS.md`、`docs/ERRORS.md`（如有新码）、`docs/AUTONOMY.md`（如涉及策略）、`CHANGELOG.md`；
 8. 跑 `npm test`（看退出码）、`npm run check`；有真机时跑 `verify-runtime.mjs`。
 
 改工具描述/参数名时，建议同时生成工具面 JSON 快照做前后 diff（工作区一次性脚本，不入库）；工具面是模型看到的全部接口，漂移即回归。
@@ -448,7 +453,7 @@ stateDiagram-v2
 
 ## 14. 测试与证据
 
-- 离线：31 套、774 项检查（2026-11-22；schema 47 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
+- 离线：32 套、818 项检查（2026-11-22；schema 50 场景）。分层、失败模式与新增测试方法见 [TESTING](TESTING.md)；驱动版本兼容层见 [DRIVER-SDK](DRIVER-SDK.md)；完整运行时链路见 [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 - 真机：dsh 0.2.2-rc.1 headless 1 轮 5 步（2 可见/21 隐藏，2026-11-12 当时为 20）；`verify-runtime.mjs` 18/18；`tests/live-action.e2e.mjs` 最近一次 23/23（2026-09-17）。
 - 评测：`evals/` 41 条任务，S1 10 / S2 5 / S3 26 / S4 17（成员 58，可重叠；含 x1 委派通道）+ oracle 双向验证（app/network 依赖任务可 SKIP）；t21/t22/a11y01 通过 `variants/<id>.json` 支持 `--variants` 参数化。
 - 反向证据：`evals/oracle-mutation.mjs` 对 37 条可变任务注入错误但像成功的产物，要求 oracle exit 1；`probe-ops`/`probe-launch`/`probe-modifier-drop` 覆盖原语、app_launch 收尾与 Explorer modifier drop；`ac6-summary` 汇总 token/步数。未覆盖项见 `evals/BLOCKED.md`。

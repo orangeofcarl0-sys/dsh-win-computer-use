@@ -41,9 +41,9 @@ const PARAM_HINTS = {
   screen_zoom: 'screen_zoom 只接受 pid/window_id/x1/y1/x2/y2；示例 {window_id,x1:0,y1:0,x2:400,y2:300}；x2-x1 ≤500。',
   computer_activate: 'computer_activate 只接受 window_id/pid；它本身就是前台，不需要 foreground。',
   computer_key: 'computer_key 只接受 key/snapshot_id/foreground；pid/window_id 由当前快照绑定；要换窗口先 screen_observe。',
-  computer_click: 'computer_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
-  computer_double_click: 'computer_double_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
-  computer_right_click: 'computer_right_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_click: 'computer_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/relative/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_double_click: 'computer_double_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/relative/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
+  computer_right_click: 'computer_right_click 只接受 element/x/y/snapshot_id/foreground/from_zoom/relative/modifier/count；窗口由当前快照绑定，不要传 window_id/pid。',
   computer_type: 'computer_type 只接受 text/element/foreground/snapshot_id；窗口由当前快照绑定，不要传 window_id/pid。',
   computer_scroll: 'computer_scroll 只接受 direction/amount/element/foreground/snapshot_id；窗口由当前快照绑定，不要传 window_id/pid。',
   screen_observe: 'screen_observe 只接受 window/window_id/mode/query/maxElements/force；pid 请用 window 或 window_id。',
@@ -61,8 +61,9 @@ import { resetLoopGuard, checkRepeat, noteObserveChange } from './lib/loopGuard.
 import { getSnapshot, markConsumed, markSuspect, resetInputGuard } from './lib/snapshot.js'
 import { timeoutReceipt } from './lib/receipt.js'
 import { resetWindowMap } from './lib/windowMap.js'
-import { trajectoryStart, runTool as runTrajectoryTool } from './lib/trajectory.js'
+import { trajectoryStart, runTool as runTrajectoryTool, logPolicyDecision } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
+import { normalizeAutonomy, evaluatePolicy, resolvePolicyDecision, resetPolicySession, describePolicy } from './lib/policy.js'
 import {
   click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, activate, setValue,
 } from './lib/actions.js'
@@ -267,6 +268,23 @@ export const Config = z.object({
    * dwell_ms 始终走私有 helper（驱动没有 dwell 参数）。
    */
   dragEngine: z.union(['auto', 'private']).default('auto'),
+  /**
+   * 自治策略（默认 auto，零提示）：
+   *   auto = blockedApps 拒绝、sensitiveApps 只读、真实指针主 Agent 可用、子 Agent 默认拒绝；
+   *   locked = 只允许 allowedApps；禁真实指针/委派；allowedApps 为空时 fail-closed；
+   *   guarded = 仅对 sensitiveApps 操作与真实指针做会话级询问；子 Agent 不能询问。
+   * blockedApps/sensitiveApps 按快照 appName（app_launch 按 name）精确匹配。
+   */
+  autonomy: z.object({
+    mode: z.union(['auto', 'locked', 'guarded']).default('auto'),
+    blockedApps: z.array(z.string()).default([]),
+    sensitiveApps: z.array(z.string()).default([]),
+    realPointer: z.union(['auto', 'deny']).default('auto'),
+    subagents: z.object({
+      realPointer: z.union(['deny', 'inherit']).default('deny'),
+      delegation: z.union(['allow', 'deny']).default('allow'),
+    }).default({}),
+  }).default({}),
 })
 
 /** 统一输出 schema：ok + result 文本。 */
@@ -425,6 +443,17 @@ const FROM_ZOOM_PARAM = {
   from_zoom: {
     type: 'boolean',
     description: '可选：坐标是最近一次 screen_zoom 返回图的像素坐标（不是窗口截图坐标）。true 时由驱动换算；click 家族必须与 element 互斥，且 zoom 必须晚于当前观察、同 pid/window。',
+  },
+}
+
+/**
+ * relative：坐标用窗口宽高的 0–999 千分比，而不是截图物理像素。
+ * 适合模型只看到缩放预览/无法可靠估像素时；与 from_zoom 互斥。
+ */
+const RELATIVE_PARAM = {
+  relative: {
+    type: 'boolean',
+    description: '可选：true = x/y（drag 为四个坐标）是窗口宽高的 0–999 整数千分比；与 from_zoom 互斥。需要当前快照带窗口截图尺寸。',
   },
 }
 
@@ -610,7 +639,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   {
     name: 'computer_click',
     description: '点击：传入 screen_observe 输出的元素编号（element），或窗口截图像素坐标（x,y）。图内坐标来自 screen_zoom 时加 from_zoom=true，由驱动换算。modifier 用于 Ctrl+click 多选等手势（Windows 必须前台注入，插件自动升级并恢复原前台）。点击的是 cua-driver 的虚拟光标，不抢真实鼠标。默认后台投递（后台/最小化/隐藏窗口也可点，不抢焦点）；后台不可用时按 deliveryMode（默认 auto）自动升级投递并恢复原前台。Explorer 文件项的单选请用 foreground=true：后台点击可能走 UIA Invoke 直接打开文件。不要无条件加 foreground=true（前台点击更慢且会移动指针）。native-dialog 快照的按钮只支持单次左键（BM_CLICK，异步/未验证）；不支持 modifier/count>1/from_zoom；不要自动选择 Yes/No。实验性 backgroundInput/syntheticPointer/anchoredInput（默认 off）可在无 UIA 目标上走插件侧消息/合成触控/光标或窗口锚定；syntheticPointer:promote 对普通 message 窗口用无 anchor 单点合成触控（系统提升为鼠标消息，应用语义未验证）；失败不自动前台，先观察。实验性 nativeButtonTrigger（默认 off）只对能唯一匹配的标准 Win32/WinForms Button 发 BM_CLICK（未验证）；明确未匹配会回退 driver，owner_disabled/超时不回退。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...RELATIVE_PARAM, ...MODIFIER_PARAM, count: { type: 'integer', description: '可选：点击次数（1-3），默认 1。' } },
     output: OUT(),
     execute: wrap('computer_click', (args, cfg2) => click(args, cfg2)),
   },
@@ -618,7 +647,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   {
     name: 'computer_double_click',
     description: '双击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true；modifier 非空时自动前台注入。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM },
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...RELATIVE_PARAM, ...MODIFIER_PARAM },
     output: OUT(),
     execute: wrap('computer_double_click', (args, cfg2) => doubleClick(args, cfg2)),
   },
@@ -626,7 +655,7 @@ function actionToolDefs(ctx, cfg, wrap) {
   {
     name: 'computer_right_click',
     description: '右键点击：element 编号 或 x/y 坐标（后台投递，不抢焦点）；来自 screen_zoom 的坐标加 from_zoom=true；modifier 非空时自动前台注入。',
-    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...MODIFIER_PARAM },
+    parameters: { ...TARGET_PARAMS, ...SNAPSHOT_ID_PARAM, ...FOREGROUND_PARAM, ...FROM_ZOOM_PARAM, ...RELATIVE_PARAM, ...MODIFIER_PARAM },
     output: OUT(),
     execute: wrap('computer_right_click', (args, cfg2) => rightClick(args, cfg2)),
   },
@@ -704,6 +733,7 @@ function actionToolDefs(ctx, cfg, wrap) {
       dwell_ms: { type: 'integer', description: '可选：到达终点后按住悬停毫秒（0-2000），Explorer 弹簧文件夹可用 500-1000。' },
       ...DRAG_MODIFIER_PARAM,
       ...FROM_ZOOM_PARAM,
+      ...RELATIVE_PARAM,
       ...SNAPSHOT_ID_PARAM,
       ...FOREGROUND_PARAM,
     },
@@ -906,6 +936,7 @@ function opsToolDefs(ctx, cfg, wrap, opsState) {
       x: { type: 'integer', required: true, description: '横坐标（默认=窗口本地截图像素；real=true 时=屏幕坐标）。' },
       y: { type: 'integer', required: true, description: '纵坐标。' },
       real: { type: 'boolean', description: '可选：true = 移动真实 OS 指针（scope=desktop），默认 false 仅移动覆盖层。' },
+      ...RELATIVE_PARAM,
     },
     output: OUT(),
     execute: wrap('computer_hover', (args) => opsHover(args)),
@@ -1080,9 +1111,14 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
           }
         }
         const driver = await cuaDriverStatus()
+        const policyLine = describePolicy(cfg)
+        const providerName = ctx?.get?.('computerUse')?.providerName
+        const providerLine = providerName
+          ? `\nProvider：${providerName}（另一套 CU 已启用；共享同一桌面，建议只启用一套）。`
+          : ''
         return {
           ok: true,
-          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。\n${driver}`,
+          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。\n${driver}\n${policyLine}${providerLine}`,
           tool: '', surface: cfg.surfaceMode, tools: hidden, scope: 'dispatcher',
         }
       }),
@@ -1099,6 +1135,7 @@ export function apply(ctx, config) {
   resetNativeButtonTrigger()  // 原生按钮 10s latch 按会话重置
   resetTaskCalls()   // 委派预算按会话重置
   resetInputGuard()  // 输入未确认门禁按会话重置
+  resetPolicySession()  // guarded 会话级批准按会话重置
   const cfg = {
     ttlMs: config.ttlMs,
     maxElements: config.maxElements,
@@ -1131,6 +1168,7 @@ export function apply(ctx, config) {
     xamlPressFallback: config.xamlPressFallback || 'off',
     driverProfile: config.driverProfile || 'auto',
     dragEngine: config.dragEngine || 'auto',
+    autonomy: normalizeAutonomy(config.autonomy),
   }
 
   // 能力探测按 profile 重置；异步预热，不阻塞插件加载（失败退 unknown 自适应）。
@@ -1211,6 +1249,23 @@ export function apply(ctx, config) {
         }
         const g = guard(cfg, toolName, args)
         if (!g.ok) return { ok: false, result: `✗ ${g.reason}` }
+        // 自治策略：在 guard 之后、重复抑制之前判定；拒绝不消费快照、不进入 repeat 状态。
+        // computer_do 只是路由壳，策略由被路由的内层工具在各自的 wrap 中执行。
+        const policyOrigin = exec?.agent?.session?.header?.origin || 'main'
+        const policy = toolName === 'computer_do' ? null : evaluatePolicy(cfg, {
+          tool: toolName,
+          args,
+          snapshot: getSnapshot(),
+          origin: policyOrigin,
+        })
+        if (policy) logPolicyDecision({ tool: toolName, origin: policyOrigin, ...policy })
+        let policyNote = ''
+        if (policy?.decision === 'deny') return { ok: false, result: `✗ ${policy.reason}` }
+        if (policy?.decision === 'ask') {
+          const approved = await resolvePolicyDecision(ctx, exec, policy)
+          if (!approved.ok) return { ok: false, result: `✗ ${approved.reason}` }
+          policyNote = approved.note || ''
+        }
         // 重复点击抑制：不消耗快照、不落动作；只打断“同一目标连续点击且界面未变”的循环。
         const repeat = checkRepeat(toolName, args, getSnapshot(), cfg)
         if (repeat) return repeat
@@ -1218,7 +1273,8 @@ export function apply(ctx, config) {
         if (toolName === 'screen_observe' && v && v.window && typeof v.changedSinceLast === 'boolean') {
           noteObserveChange(`${v.window.pid}:${v.window.windowId}`, v.changedSinceLast)
         }
-        return g.note && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${g.note}` } : v
+        const mergedNote = [g.note, policyNote].filter(Boolean).join('')
+        return mergedNote && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${mergedNote}` } : v
       } catch (err) {
         if (err?.kind === 'timeout') {
           // 超时 = 结果未知：标记快照已消费 + 可疑；等 500ms 后廉价查窗口，

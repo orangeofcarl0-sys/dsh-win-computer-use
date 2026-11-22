@@ -94,7 +94,7 @@ else fail('CONFIGURATION.md 缺少键', missingCfg.join(', '))
 const runtimeFiles = ['index.js', ...readdirSync(join(root, 'lib'), { recursive: true })
   .filter((f) => String(f).endsWith('.js'))
   .map((f) => join('lib', String(f)))]
-const codeRe = /\[((?:snapshot|index|zoom|pointer|private_drag|input|repeat|stale)_[a-z0-9_]+)\]/g
+const codeRe = /\[((?:snapshot|index|zoom|pointer|private_drag|input|repeat|stale|policy|relative|model)_[a-z0-9_]+)\]/g
 const codes = new Set()
 for (const rel of runtimeFiles) {
   const text = readFileSync(join(root, rel), 'utf8')

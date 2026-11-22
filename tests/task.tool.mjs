@@ -25,10 +25,10 @@ const plugin = await loadPlugin(work)
 const mod = await import(pathToFileURL(join(work, 'index.js')).href)
 const { DELEGATION_RECIPE, resetTaskCalls } = await import(pathToFileURL(join(work, 'lib', 'task.js')).href)
 
-async function setup({ subagents } = {}) {
+async function setup({ subagents, config = {} } = {}) {
   const overrides = subagents ? { subagents } : {}
   const { reg, ctx, exec } = makeCtx({ services: makeServices(overrides), agent: { id: 'parent-agent' } })
-  plugin.apply(ctx, { ttlMs: 60000, maxElements: 120, deliveryMode: 'auto', passwordScan: 'off' })
+  plugin.apply(ctx, { ttlMs: 60000, maxElements: 120, deliveryMode: 'auto', passwordScan: 'off', ...config })
   const defs = new Map(mod.toolDefinitions().map((d) => [d.name, d]))
   resetTaskCalls()
   return {
@@ -185,6 +185,20 @@ const activation = (result, onDispose) => ({
   await new Promise((r) => setTimeout(r, 30))
   check('T9 长任务进行中未提前 dispose', disposed === false)
   void p // 1 分钟超时不在此等待；process.exit 会结束
+}
+
+// ── T10：autonomy.subagents.delegation=deny 不启动子 agent ───────────
+{
+  let started = 0
+  const fake = {
+    list: () => ['spawn'],
+    async startActivation() { started++; throw new Error('should not start') },
+  }
+  const { call } = await setup({ subagents: fake, config: { autonomy: { subagents: { delegation: 'deny' } } } })
+  const r = await call('computer_task', { goal: 'x' })
+  check('T10 delegation deny 拒绝且不启动子 agent',
+    r.ok === false && /policy_delegation_denied/.test(String(r.result)) && started === 0,
+    String(r.result).slice(0, 90))
 }
 
 console.log(`\n结果：${checkState.failures ? '❌ ' + checkState.failures + ' 项失败' : '✅ 全部通过'}`)

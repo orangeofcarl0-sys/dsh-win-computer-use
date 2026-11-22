@@ -31,6 +31,21 @@
 | `[input_unconfirmed]` | `guard` | false | 不清空 | 先回读/修正输入；保存意图被拦 | 回读一致、native observe 或 zoom 可解除 |
 | `[repeat_suppressed]` | `loopGuard` | false | 不消费 | 先观察；确认要再点就换目标或 `count=2` | 5s 同窗口/同目标/同投递模式 |
 | `[stale_element_token]` | `receipt` | false（引擎拒绝） | 清空 | 重新观察，不要重试旧编号 | 驱动 session/token 失效 |
+| `[policy_blocked_app]` | `policy` | false | 不消费 | 应用在 `autonomy.blockedApps`；观察仍可用，换应用或改配置 | 确认是否误列 |
+| `[policy_sensitive_app]` | `policy` | false | 不消费 | auto/locked 下只读；要操作切 `guarded` 或移出 `sensitiveApps` | 敏感应用清单 |
+| `[policy_locked]` | `policy` | false | 不消费 | locked 只允许 `allowedApps`；换应用或改配置 | 白名单模式 |
+| `[policy_locked_no_allowlist]` | `policy` | false | 不消费 | locked 需要非空 `allowedApps`；否则观察仍可用、操作全拒绝 | 配置 fail-closed |
+| `[policy_not_allowlisted]` | `policy` | false | 不消费 | 应用不在 `allowedApps`；换应用或改配置 | 白名单模式 |
+| `[policy_real_pointer_denied]` | `policy` | false | 不消费 | `realPointer=deny`；改用虚拟悬停/点击 | 共享机器建议 |
+| `[policy_subagent_pointer]` | `policy` | false | 不消费 | 子 Agent 不能移动真实指针；交回主 Agent | 委派边界 |
+| `[policy_delegation_denied]` | `policy` | false | 不消费 | locked/deny/子 Agent 不能委派；改为内联操作 | 委派预算/策略 |
+| `[policy_approval_unavailable]` | `policy` | false | 不消费 | guarded 需要主 Agent + `userQuestions`；缺失/子 Agent 一律拒绝 | 宿主能力 |
+| `[policy_approval_denied]` | `policy` | false | 不消费 | 用户本会话已拒绝；不要重复询问 | 用户决定 |
+| `[policy_approval_cancelled]` | `policy` | false | 不消费 | 询问被取消；本会话按拒绝处理 | 用户取消 |
+| `[relative_coordinate_invalid]` | `actions`/`ops` | false | 不消费 | relative 只接受 0–999 整数；与 element/real=true 互斥 | 坐标参数 |
+| `[relative_coordinate_unavailable]` | `snapshot` | false | 不消费 | 先全量 `screen_observe` 获取截图尺寸，或改用像素坐标 | 快照缺尺寸 |
+| `[relative_from_zoom_conflict]` | `actions` | false | 不消费 | `relative` 与 `from_zoom` 二选一 | 坐标空间 |
+| `[model_image_unsupported]` | `observe` | false | 不消费 | 当前模型未声明 image；改用 `mode="ax"` 或视觉模型 | route 能力 |
 
 ### 2.1 实验性后台输入
 

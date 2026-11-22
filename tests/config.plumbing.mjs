@@ -336,6 +336,19 @@ const observeArgs = { window: '4242', mode: 'ax' }
   check('B17 screen_observe 参数提示', p.ok === false && /pid 请用 window 或 window_id/.test(t.raw(p)), t.raw(p).slice(0, 160))
 }
 
+// B18 autonomy：blockedApps 拒绝；默认放行（策略在 guard 之后、动作之前）
+{
+  const t = await freshConfig({ autonomy: { blockedApps: ['Notepad'] } })
+  await t.call('screen_observe', observeArgs)
+  const denied = await t.call('computer_click', { x: 5, y: 5 })
+  check('B18 autonomy.blockedApps 拒绝操作', denied.ok === false && /policy_blocked_app/.test(t.raw(denied)), t.raw(denied).slice(0, 90))
+
+  const ok = await freshConfig()
+  await ok.call('screen_observe', observeArgs)
+  const pass = await ok.call('computer_click', { x: 5, y: 5 })
+  check('B18 autonomy 默认放行', pass.ok === true, ok.raw(pass).slice(0, 60))
+}
+
 console.log(`\n结果：${state.failures ? '❌ ' + state.failures + ' 项失败' : '✅ 全部通过'}`)
 if (!state.failures) cleanupWork(work)
 process.exit(state.failures ? 1 : 0)

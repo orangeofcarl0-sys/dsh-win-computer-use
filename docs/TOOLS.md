@@ -112,12 +112,14 @@
 | `snapshot_id` | string | 否 | — | 证据基线；与当前快照不一致则 `[snapshot_mismatch]` |
 | `foreground` | boolean | 否 | `false` | 强制前台投递；更慢，且会短暂切换焦点 |
 | `from_zoom` | boolean | 否 | `false` | 坐标来自 `screen_zoom` 图；与 `element` 互斥 |
+| `relative` | boolean | 否 | `false` | `x/y` 为窗口宽高 0–999 千分比；与 `from_zoom`/`element` 互斥；需要快照带截图尺寸 |
 | `modifier` | string[] | 否 | — | `ctrl`/`shift`/`alt`/`win`；Ctrl+click 多选等 |
 | `count` | integer | 否 | `1` | 仅 `computer_click`；1–3 |
 
 行为：
 
 - `element` 走 `element_token`，支持后台/隐藏窗口，不受 DPI 混合影响；像素路径 best-effort。
+- `relative: true` 把 `x/y` 当作窗口宽高的 0–999 整数千分比，按快照截图尺寸换算并 clamp；适合只看到缩放预览/无法可靠估像素时。与 `from_zoom`、`element` 互斥。
 - `native-dialog` 快照的按钮是 **Win32 原生控件**：只支持 `computer_click(element=编号)` 单次左键（`BM_CLICK`，异步/未验证）；坐标点击、type/key/scroll/drag、double/right、modifier/count>1/from_zoom 一律拒绝。点击后先 `screen_observe` 确认对话框是否关闭；不要重复点击或自动选择 Yes/No。
 - 实验性兜底通道（后台输入/原生 Button，默认 off）统一见 §4.2。
 - 坐标点击按快照条目中心 24px 内取最近元素，回执回显目标（编号/角色/标签/当前值；密码值隐藏）。
@@ -196,6 +198,7 @@
 | `dwell_ms` | integer | 否 | `0` | 0–2000；Explorer 弹簧文件夹可用 500–1000 |
 | `modifier` | string[] | 否 | — | `ctrl`/`shift`/`alt`/`win` |
 | `from_zoom` | boolean | 否 | `false` | 起终点都按 zoom 图坐标 |
+| `relative` | boolean | 否 | `false` | 四个坐标都是窗口宽高 0–999 千分比；与 `from_zoom` 互斥 |
 | `snapshot_id` | string | 否 | — | 证据基线 |
 | `foreground` | boolean | 否 | `false` | 前台投递 |
 
@@ -307,6 +310,7 @@
 | `pid` | integer | 否 | — | 默认覆盖层模式需要 |
 | `window_id` | integer | 否 | — | 默认覆盖层模式需要 |
 | `real` | boolean | 否 | `false` | `true` 移动真实 OS 指针 |
+| `relative` | boolean | 否 | `false` | 默认覆盖层模式下 `x/y` 为窗口 0–999 千分比；`real=true` 不支持 |
 
 实验性：默认只移动虚拟覆盖层；WinForms 按钮 MouseEnter 已在 probe-ops 窄验证，工具提示/悬停菜单是否触发仍取决于应用。
 
@@ -334,6 +338,7 @@
 - 把多步/高噪声操作交给一次性子 agent；主上下文只收 `ok/summary/evidence`（summary ≤300 字，evidence ≤5 条）。
 - 每会话预算 `maxTaskCalls`（默认 3）；`0` 仍回退 3。
 - **不是沙箱**：dsh 0.2.2 的 `startActivation` 没有 `toolFilter`，子 agent 可能拥有与父会话同级能力；回执会写明。
+- **自治策略**：`autonomy.subagents.delegation=deny`、`mode=locked` 或子 Agent 再次委派会被拒绝（`[policy_delegation_denied]`）；子 Agent 不能移动真实指针（默认 deny），也不能申请 guarded 批准。
 - 宿主未提供子 agent 能力时返回委派配方，不执行操作。
 - 输出 `structured`（`{ok, summary, evidence}`）或 null；拿到结果后建议 `computer_verify`/`screen_observe` 复核。
 
@@ -346,7 +351,7 @@
 | `args` | object | 否 | — | `call` 的参数对象 |
 | `query` | string | 否 | — | `catalog` 关键词 |
 
-见 §2。输出 `tool`/`surface`/`tools`/`scope`/`data`，`screen_zoom`/native 还可能带 `image`。
+见 §2。输出 `tool`/`surface`/`tools`/`scope`/`data`，`screen_zoom`/native 还可能带 `image`。`action="status"` 还显示自治策略（mode/名单数量/真实指针/委派）与检测到的官方 CU provider 冲突提示；策略语义见 [AUTONOMY](AUTONOMY.md)。
 
 ## 7. 选择指南
 

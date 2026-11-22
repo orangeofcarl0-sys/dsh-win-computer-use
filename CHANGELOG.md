@@ -4,6 +4,23 @@
 > 各版本条目内的测试/文件计数是**当时快照**；当前值以 `tests/docs.facts.json` 与 [VERIFICATION](VERIFICATION.md) 为准。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
+## 未发布 (2026-11-22)
+
+**主题**：契约化自治策略（auto/locked/guarded）+ 相对坐标 + 图像预检错误码；默认行为除子 Agent 真实指针收紧外不变。
+
+### Added
+
+- 新增 `autonomy` 配置与 `lib/policy.js` 纯策略引擎：`auto`（默认零提示）、`locked`（只允许 `allowedApps`）、`guarded`（仅 `sensitiveApps`/真实指针会话级询问）；`blockedApps`/`sensitiveApps`/`subagents.realPointer`/`subagents.delegation`。
+- 策略拒绝码 `policy_*`；`computer_do status` 显示策略与官方 CU provider 冲突；trajectory 新增 `policy_decision` 审计事件。
+- click 家族/drag/hover 支持 `relative: true`（0–999 窗口千分比）；错误码 `relative_coordinate_invalid`/`relative_coordinate_unavailable`/`relative_from_zoom_conflict`。
+- native/screen_zoom 图像预检错误码 `model_image_unsupported`。
+- 子 Agent 真实指针默认 deny；`computer_task` 委派受 `subagents.delegation`/locked/子 Agent 限制。
+
+### Tests / Docs
+
+- 新增 `tests/policy.test.mjs`（37 项）；`schema.conformance` 50 场景；离线 32 套 / 818 项，语法 58/58。
+- 新增 [docs/AUTONOMY.md](docs/AUTONOMY.md)；CONFIGURATION/TOOLS/ERRORS/ARCHITECTURE/SECURITY/TESTING/VERIFICATION 同步。
+
 ## 0.5.9 (2026-11-22)
 
 **主题**：实验性插件侧 Windows 后台输入（B0/B1/B2/B3）+ 经典 HMENU 菜单兜底 + UIPI 回执映射与评测证据探针（手势真值 / WPF / Chromium / 跨 IL）。不改驱动、不改变默认行为。

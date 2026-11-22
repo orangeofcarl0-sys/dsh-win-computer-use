@@ -2,7 +2,7 @@
 
 > 目的：让每一类缺陷在**最便宜、最能复现**的层被抓住；真机只验证“离线测不出来”的部分。
 > 读者：贡献者、维护者。
-> 状态：当前实现（最后核对 2026-11-22：`npm test` 31 套 / **774 项检查**；`npm run check` 语法 57/57 + 文档/任务一致性；`verify-runtime` **18/18**）。
+> 状态：当前实现（最后核对 2026-11-22：`npm test` 32 套 / **818 项检查**；`npm run check` 语法 58/58 + 文档/任务一致性；`verify-runtime` **18/18**）。
 > 相关：[VERIFICATION](../VERIFICATION.md) · [EVIDENCE](EVIDENCE.md) · [WINDOWS](WINDOWS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 原则
@@ -19,7 +19,7 @@
 | 层 | 阶段 | 命令 | 规模 | 能抓住什么 |
 |---|---|---|---|---|
 | 语法/安装脚本 | S1 | `npm run check` | 57 JS（含 lib/driver、eval runner、tasks.check、background-input、nativeMenus）+ 2 bash + 文档/任务检查 | 语法错误、Windows glob 失效、install/uninstall 语法、文档/阶段漂移 |
-| 离线单元/契约 | S1 | `npm test` | 31 套 / 774 项检查 | 守卫、快照、schema、投递链、配置接线、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
+| 离线单元/契约 | S1 | `npm test` | 32 套 / 818 项检查 | 守卫、快照、schema、投递链、配置接线、自治策略、dispatcher、边界、坐标一致性、观察值/差分、query 只读、元素点击 TTL、from_zoom、modifier/私有拖拽、capture-only、回执真实性、eval 安全、驱动归一化、原生对话框、实验后台输入 |
 | 运行时（真驱动） | S1 | `node verify-runtime.mjs` | 18 项 | 引擎契约、真实截图/图片块、dispatcher 路由、坐标一致、native 快照 id |
 | WinUI 键鼠通道 | S1 | `node evals/probe-winui-keys.mjs` | 14 组 | Ctrl+A/Alt+F/Alt+Tab 的 hotkey/press_key/菜单回退可达性 |
 | from_zoom 映射 | S2 | `node evals/probe-from-zoom.mjs` | 1 项 | 真实 zoom padding/缩放后 from_zoom 点击命中按钮 |
@@ -59,7 +59,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31/774、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 32/818、`verify-runtime` 18、`live-action` 23、`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；from_zoom/modifier/private-drag/driver-shape/native-freshness 探针 | t11 / dpi01 / p01 / p02 / p03（5） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t20、t22、t23、w01/w02/sec01–sec04/rec01–rec03/combo01/combo02/b01/term01/a11y01/x1（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
@@ -75,7 +75,7 @@
 | `posture.smoke.mjs` | 37 | 零审批姿态、密码硬保护（AX/UIA/结构位/掩码）、极危注记、桌面降级、快照新鲜度、执行侧接线、zoom pid/500px/fromZoom、compact 明确失败 |
 | `tools.smoke.mjs` | 28 | stop/resume 锁存、verify unknown≠成功、wait_for 超时、clipboard/menu/hover、失败回执、engineRefusal、menu 路径指引（`/`、`->`、`→`） |
 | `delivery-chain.smoke.mjs` | 12 | 真实 `cuaDeliver`：三级链/恢复、hotkey 不 L3、background/foreground 模式、无 pid、未确认恢复、L3 重试失败不假报完成 |
-| `schema.conformance.mjs` | 47 | 23 个工具 / 47 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活/modifier click 形态 |
+| `schema.conformance.mjs` | 50 | 23 个工具 / 50 个场景，按声明 schema 严格校验正常/拒绝/驱动错误/降级/query 只读/窗口激活/modifier click/relative 坐标形态 |
 | `observe.dedup.mjs` | 17 | summary/brief/off、force、动作后全量、标题/值/enabled/selected/actions 变化、时间噪声 |
 | `observe.truth.mjs` | 29 | 输入值外显/预填字段优先 set_value、密码隐藏、标题/值/字符数差分、降噪 stub 关键控件、同标题多窗口警告、中英别名、Document 正文不泄露、顶层菜单栏、文档不置脏、query 只读/旧快照已清除、无目标跳过 shell 表面、另存为默认目录提示、地址栏建议提示 |
 | `observe.coords.mjs` | 20 | 文本 `@(x,y)` == 结构化 `elements.x/y` == 减窗口原点；window_id 精确匹配；同 pid 多窗口 z 序；缺 bounds 降级；overlay 过滤；z 序提示；源图尺寸提示；native 快照 id + 全局单例；跨窗口旧 id 拒绝 |
@@ -86,11 +86,12 @@
 | `delivery.failures.mjs` | 33 | background/foreground/delivery_failed 对 click/type/scroll/drag/set_value 全部 ok:false；纯 unverifiable 仍 ok:true；`background_delivery_failed` 是升级建议；click/key/type 驱动超时回执分别指向对话框/不重复按键/部分写入；候选 window_id、目标已消失、enforce 消费 |
 | `delivery.foreground.mjs` | 23 | 真实 `cuaDeliver`：force + foreground_unavailable → 精确 window_id 的 L3 → 恢复；重试失败如实报未送达；hotkey 升级；非 foreground 异常保持抛出；force + unverified 指针前置单次；type 不前置；preflight bring/click 超时透传 |
 | `observe.failure.mjs` | 10 | notFound/不同窗口降级保留旧快照；同窗口降级清空；overlay 拒绝保留；suspect 后去重强制全量 |
-| `trajectory.test.mjs` | 18 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报、modifier 独立签名、driver 手势参数保留 |
+| `trajectory.test.mjs` | 19 | 文本脱敏、驱动归属、AX 树不落盘、computer_do 透明、unverified/stub/suppressed/移动数、动作后复核不误报、modifier 独立签名、driver 手势参数保留、policy_decision 审计事件 |
 | `eval-safety.mjs` | 83 | 禁止按进程名杀；Explorer/Paint/Office/浏览器状态化 Open/Close；Notepad ProtectHwnd/orphan seed；标签枚举/ExpectedTabs/owned 对话框/UIA 关闭/测试标签丢弃；同 pid 模态归属；dirty helper/Downloads hash 清理 |
 | `notepad-tabs.test.mjs` | 10 | 纯标签分类：精确/额外用户标签/已修改/未知后缀/双标签/数量不符；Save As 后允许的最终标签；TabState 只清测试路径 |
-| `task.tool.mjs` | 17 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算 |
-| `config.plumbing.mjs` | 33 | 30 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵；数字 window/window_id 提示归属 |
+| `task.tool.mjs` | 18 | 子 agent 请求构造、结构化结果、超时、无服务配方、outputSchema 降级、预算、delegation deny |
+| `config.plumbing.mjs` | 34 | 31 个 Config 键 ↔ `cfg` ↔ 读取点三向比对；行为哨兵；数字 window/window_id 提示归属；autonomy blockedApps 哨兵 |
+| `policy.test.mjs` | 37 | auto/locked/guarded 矩阵；blockedApps/sensitiveApps/allowlist；真实指针/子 Agent/委派；guarded 询问/缓存/取消/无服务 fail-closed；relative 坐标与图像预检 |
 | `action-bounds.mjs` | 37 | 无快照/窗口绑定/window_id 透传/suspected_noop/指定窗口 fail-closed/set_value/密码硬拒；drag steps/duration/from_zoom/zoom 缺失/非法参数；modifier/dwell 私有路由、屏幕坐标、modifier+from_zoom 拒绝、缺 frame 拒绝 |
 | `dispatcher.test.mjs` | 36 | dispatcher/hybrid 注册面、catalog、隐藏工具不可直调、guard/stop/resume、参数校验、图片透传、data 字段、工具面稳定、宿主 schema、click modifier/drag from_zoom+steps、通用快照前置描述 |
 | `driver.normalize.mjs` | 23 | 0.23.2 与 0.53 fixtures 归一化一致；未知字段保留；坐标空间校准 |
@@ -104,7 +105,7 @@
 | `native-menus.test.mjs` | 18 | 经典 HMENU 兜底：off 零调用；驱动拒绝后才回退；confirmed/unverifiable/effect 缺失/超时不回退；no_hmenu/timeout；resolve/invoke/base64/超时/非零退出；resolved hwnd/stage/诊断 |
 | `native-button-trigger.test.mjs` | 12 | 原生 Button 触发：off 零调用；Button 命中不走 driver；非 Button/坐标/多击/modifier/foreground 不触发；pre-delivery 回退；owner_disabled/timeout/latch 不回退 |
 
-合计 **774** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
+合计 **818** 项；新增/删除断言后以 `npm test` 实际输出为准，并同步 `tests/docs.facts.json`。
 
 ### 3.1 共享脚手架
 
@@ -347,8 +348,8 @@ node evals/headless-run.mjs --tasks t15 --repeats 5 --timeout-min 20 --patch eva
 
 | 项 | 值 |
 |---|---|
-| 离线 | 31 套 / 774 ✅ / 0 ❌ |
-| 语法 | 57/57 JS + `bash -n` 两脚本 + 文档/任务检查 |
+| 离线 | 32 套 / 818 ✅ / 0 ❌ |
+| 语法 | 58/58 JS + `bash -n` 两脚本 + 文档/任务检查 |
 | 运行时 | `verify-runtime` 18/18（Windows 11；0.23.2 基线 + 0.52.13 canary） |
 | dsh 真机 | headless 1 轮 5 步（2 可见/21 隐藏；2026-11-12 当时 20 隐藏）；eval smoke 两轮 7/8（Round 2 4/4）；t01 新题面 5/5；t05 3/3 |
 | S4 真机 | 最新：t11 70 步 pass、t12 100 步 pass（2026-11-18，0.52.13 + opencode-go）；t14/t15/t17 见 EVIDENCE |

@@ -132,6 +132,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 - **`computer_hover` 是实验性能力。** 默认只移动虚拟覆盖层；`real=true` 才动真实指针。
 - **`computer_menu` fail-closed。** 路径缺失/歧义/禁用/结构不匹配即失败，绝不回退像素。
 - **平台**：Windows 深度实测；macOS 与 Linux 未验证。
+- **自治策略**：默认 `auto` 零提示；`blockedApps`/`sensitiveApps`、`locked` 白名单、`guarded` 会话级询问与子 Agent 真实指针默认 deny 见 [AUTONOMY](docs/AUTONOMY.md)。
 
 逐条错误与处理见 [ERRORS](docs/ERRORS.md) 与 [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)；Windows 底层原因见 [WINDOWS](docs/WINDOWS.md)。
 
@@ -151,7 +152,7 @@ macOS 与 Linux 均按未验证处理：macOS 只有 0.1–0.2 时期的基础�
 
 ## 文档
 
-**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。快速入口：[INSTALL](docs/INSTALL.md)（安装/升级/卸载）· [TOOLS](docs/TOOLS.md)（23 个工具）· [CONFIGURATION](docs/CONFIGURATION.md)（30 个配置键）· [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)（错误码/排障）· [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md)（安全/权限）· [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md)（内部结构）· [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md)（测试/当前验证矩阵）· [EVIDENCE](docs/EVIDENCE.md)（按日期的运行证据与失败样本）。
+**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。快速入口：[INSTALL](docs/INSTALL.md)（安装/升级/卸载）· [TOOLS](docs/TOOLS.md)（23 个工具）· [CONFIGURATION](docs/CONFIGURATION.md)（31 个配置键）· [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)（错误码/排障）· [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md)（安全/权限）· [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md)（内部结构）· [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md)（测试/当前验证矩阵）· [EVIDENCE](docs/EVIDENCE.md)（按日期的运行证据与失败样本）。
 
 开发与验证命令见 [TESTING](docs/TESTING.md)；维护者环境、硬知识与发布检查见 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 与 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 

@@ -83,6 +83,8 @@
 
 安全任务（`sec01`–`sec04`）使用自建 WinForms fixture；`sec02/sec04` 还使用 Notepad 正向控制，确保空跑不会因“没有副作用”而误判通过。通用 OS-Harm/Agent-SafetyBench 类基准不直接搬进插件回归。
 
+自治策略（`autonomy`）默认 `auto` 零提示：`blockedApps` 拒绝操作、`sensitiveApps` 只读、`allowedApps` 非空时白名单、子 Agent 真实指针默认 deny；`locked` 只允许 `allowedApps`；`guarded` 仅对敏感应用/真实指针做会话级询问，子 Agent 不能询问，服务缺失/取消 fail-closed。策略拒绝不消费快照、不调用驱动；完整规则见 [AUTONOMY](AUTONOMY.md)。
+
 ## 5. 明确不承诺
 
 1. **不是沙箱**：`computer_task` 在 dsh 0.2.2 没有 `toolFilter`，子 agent 可能拥有与父会话同级能力；回执会写明。

@@ -193,6 +193,8 @@ const scenarios = [
   { name: 'menu/ok', stub: 'ok', tool: 'computer_menu', args: { window_id: 77, path: JSON.stringify(['Save']) } },
   { name: 'click/driver-error', stub: 'driver-error', tool: 'computer_click', args: { x: 5, y: 5 } },
   { name: 'click/modifier', stub: 'ok', tool: 'computer_click', args: { x: 5, y: 5, modifier: ['ctrl'] } },
+  { name: 'click/relative', stub: 'ok', tool: 'computer_click', args: { x: 500, y: 500, relative: true } },
+  { name: 'drag/relative', stub: 'ok', tool: 'computer_drag', args: { from_x: 100, from_y: 100, to_x: 900, to_y: 900, relative: true } },
   // 补齐覆盖：剩余 7 个工具（此前 22 场景只盖到 13 个工具）
   { name: 'double_click/no-snapshot', stub: 'ok', tool: 'computer_double_click', args: { x: 5, y: 5 } },
   { name: 'double_click/element', stub: 'ok', tool: 'computer_double_click', args: { element: 1 } },
@@ -202,6 +204,7 @@ const scenarios = [
   { name: 'wait_for/timeout', stub: 'ok', predicate: 'unsatisfied', tool: 'computer_wait_for', args: { window_id: 77, timeoutMs: 200, pollMs: 100, expect: JSON.stringify([{ element: { selector: { role: 'Button', label_contains: 'Save' }, exists: true } }]) } },
   { name: 'wait_for/bad-predicate', stub: 'ok', tool: 'computer_wait_for', args: { window_id: 77, timeoutMs: 200, expect: '不是json' } },
   { name: 'hover/ok', stub: 'ok', tool: 'computer_hover', args: { x: 5, y: 5 } },
+  { name: 'hover/relative', stub: 'ok', tool: 'computer_hover', args: { x: 500, y: 500, relative: true } },
   { name: 'hover/driver-error', stub: 'driver-error', tool: 'computer_hover', args: { x: 5, y: 5 } },
   // 结构化拒绝（引擎以 {ok:false, refusal} 表达，回执必须报失败而不是成功）
   { name: 'click/engine-refusal', stub: 'engine-refusal', tool: 'computer_click', args: { x: 5, y: 5 } },

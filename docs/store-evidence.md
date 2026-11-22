@@ -37,9 +37,9 @@ rm -rf "$DSH_HOME"
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
-| 语法 + 安装脚本 | `npm run check` | **57/57** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
+| 语法 + 安装脚本 | `npm run check` | **58/58** JS + `bash -n install.sh/uninstall.sh` + 文档/任务一致性 |
 | 入口可加载 | `node -e "import('./index.js')"` | 成功（导出 `name` / `inject` / `Config` / `apply` / `toolDefinitions`） |
-| 离线测试 | `npm test; echo $?` | **31 套 / 774 ✅ / 0 ❌** |
+| 离线测试 | `npm test; echo $?` | **32 套 / 818 ✅ / 0 ❌** |
 | dsh 真机加载 | `dsh --profile headless --patch <overlay> ...` | **✅ 2026-11-12**：dsh 0.2.2-rc.1，1 轮 5 步，2 可见/20 隐藏（当时），真实 `screen_observe` + dispatcher 路由 |
 | 工具定义面 | `toolDefinitions()`（测试/诊断） | **23 个**：`computer_do` / `screen_observe` / `screen_zoom` / click / double / right / type / set_value / key / scroll / drag / wait / verify / wait_for / clipboard / menu / hover / stop / resume / app_list / app_launch / computer_activate / computer_task |
 | 默认注册面 | `apply()` + 假注册表 | `dispatcher` 只注册 `computer_do` + `screen_observe`；隐藏 21 个经 dispatcher 路由；`hybrid` 注册 7 个 |
@@ -63,7 +63,7 @@ rm -rf "$DSH_HOME"
 
 ## 4. 打包内容
 
-> 本节以 `npm pack --dry-run --json` 的实际输出为准；新增/删除发布文件后必须同步本清单、`tests/docs.facts.json` 与 `tests/package-manifest.test.mjs`。当前基线为 **67 文件**。
+> 本节以 `npm pack --dry-run --json` 的实际输出为准；新增/删除发布文件后必须同步本清单、`tests/docs.facts.json` 与 `tests/package-manifest.test.mjs`。当前基线为 **69 文件**。
 
 ```text
 LICENSE
@@ -73,6 +73,7 @@ VERIFICATION.md
 assets/demo-verified.png
 cordis.patch.yml
 docs/ARCHITECTURE.md
+docs/AUTONOMY.md
 docs/BACKGROUND-INPUT.md
 docs/COMPATIBILITY-0.2.2.md
 docs/COMPATIBILITY.md
@@ -115,6 +116,7 @@ lib/nativeButtonTrigger.js
 lib/observe.js
 lib/ops.js
 lib/passwordScan.js
+lib/policy.js
 lib/privateDrag.js
 lib/receipt.js
 lib/roles.js

@@ -1,6 +1,6 @@
 # CONFIGURATION — 配置与环境变量
 
-> 目的：30 个配置键、环境变量、优先级、交互与已知陷阱。
+> 目的：31 个配置键、环境变量、优先级、交互与已知陷阱。
 > 读者：部署者、集成者、排障者。
 > 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验键数）。
 > 相关：[INSTALL](INSTALL.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
@@ -20,7 +20,7 @@
 
 ## 2. 配置键总表
 
-> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键**只在未发布的 `main` 可用**（npm 0.5.8 安装的用户没有这些键）；其余 25 键在 0.5.8 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 未发布段为准。
+> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键在 0.5.9 已可用；`autonomy` 为本轮新增（未发布 main）。其余 25 键在 0.5.8/0.5.9 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 未发布段为准。
 
 ### 2.1 观察与工具面
 
@@ -83,6 +83,20 @@
 | `anchoredInput` | string | `off` | `off`/`cursor`/`cursor-clip`/`window` | B2/B3：`cursor` 临时移光标 + `BlockInput`；`cursor-clip` 免提权，用 `ClipCursor` 把光标限制在目标 5×5 区域（不阻塞键盘）；`window` 临时移窗口。只左单击；需要 `allowedApps` 非空；会动光标/窗口 |
 
 三键全 `off` 时零 PowerShell spawn，行为与 0.5.8 一致。B1/B2/B3 只对“没有可交互 UIA 元素”的快照生效；有 Button/Edit/MenuItem 等仍走 driver/UIA。组合键/modifier/`foreground=true`/`deliveryMode=foreground`/`from_zoom` 一律跳过本功能。详见 [BACKGROUND-INPUT](BACKGROUND-INPUT.md)。
+
+### 2.7 自治与策略
+
+| 键 | 类型 | 默认 | 枚举/范围 | 作用 |
+|---|---|---|---|---|
+| `autonomy` | object | `{}` | 见下 | 自治策略；默认 `mode:auto`，零提示 |
+| `autonomy.mode` | string | `auto` | `auto`/`locked`/`guarded` | auto 零提示；locked 只允许 `allowedApps`；guarded 仅敏感应用/真实指针会话级询问 |
+| `autonomy.blockedApps` | string[] | `[]` | 应用名 | 永久拒绝该应用的操作；观察仍可用 |
+| `autonomy.sensitiveApps` | string[] | `[]` | 应用名 | auto/locked 只读；guarded 首次操作询问 |
+| `autonomy.realPointer` | string | `auto` | `auto`/`deny` | 主 Agent 真实指针；`deny` 时虚拟悬停仍可用 |
+| `autonomy.subagents.realPointer` | string | `deny` | `deny`/`inherit` | 子 Agent 真实指针；默认 deny（有意的安全收紧） |
+| `autonomy.subagents.delegation` | string | `allow` | `allow`/`deny` | 是否允许 `computer_task`；locked 强制 deny |
+
+策略在 `guard` 之后、动作之前判定；拒绝不消费快照、不调用驱动。应用身份按快照 `appName`（`app_launch` 按 `name`）精确匹配；无快照的 menu/hover/activate 无法套用应用级规则。`locked` 且 `allowedApps` 为空时 fail-closed（观察仍可用）。guarded 需要宿主 `userQuestions` 服务；缺失/取消/子 Agent 一律拒绝。完整语义见 [AUTONOMY](AUTONOMY.md)。
 
 ## 3. 环境变量
 

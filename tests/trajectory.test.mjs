@@ -10,7 +10,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { logDriverCall, runTool, trajectoryStart, trajectoryStop } from '../lib/trajectory.js'
+import { logDriverCall, logPolicyDecision, runTool, trajectoryStart, trajectoryStop } from '../lib/trajectory.js'
 
 const dir = mkdtempSync(join(tmpdir(), 'dsh-cu-traj-'))
 const file = join(dir, 'trajectory.jsonl')
@@ -38,7 +38,10 @@ for (let i = 0; i < 3; i++) {
 }
 // dispatcher 外壳透明：外层 computer_do 不记事件，只记内层真实工具
 await runTool('computer_do', { action: 'call', tool: 'computer_key', args: { key: 'return' } }, async () => {
-  await runTool('computer_key', { key: 'return' }, async () => ({ ok: true, result: '按键完成 · unverifiable' }))
+  await runTool('computer_key', { key: 'return' }, async () => {
+    logPolicyDecision({ tool: 'computer_key', decision: 'deny', rule: 'policy_blocked_app', code: 'policy_blocked_app', app: 'Notepad', origin: 'main' })
+    return { ok: true, result: '按键完成 · unverifiable' }
+  })
   return { ok: true, result: '[computer_key] 按键完成' }
 })
 await runTool('screen_observe', { window: 'Notepad', mode: 'ax' }, async () => ({
@@ -114,6 +117,9 @@ check('T17: driver drag 保留 from/steps/from_zoom', Boolean(dragDrv)
   && dragDrv.args.from_x === 10 && dragDrv.args.to_y === 40
   && dragDrv.args.steps === 30 && dragDrv.args.duration_ms === 0
   && dragDrv.args.from_zoom === true, JSON.stringify(dragDrv?.args || {}))
+check('T18: policy_decision 事件且不改变 tools 计数', lines.some((e) => e.type === 'policy_decision'
+  && e.tool === 'computer_key' && e.code === 'policy_blocked_app' && e.app === 'Notepad')
+  && summary.tools === 21, `tools=${summary.tools}`)
 
 rmSync(dir, { recursive: true, force: true })
 console.log(`\n结果：${checks.length === 0 ? '✅ 全部通过' : '❌ ' + checks.length + ' 项失败'}`)
