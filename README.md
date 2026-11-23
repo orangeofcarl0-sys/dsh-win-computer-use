@@ -11,7 +11,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-23）**：npm 最新为 `dsh-win-computer-use@0.6.0`（tag `v0.6.0`）；`main` = 0.6.0，含 PTC 对象桥接（`ptcBridge` 默认 off）、`autonomy` 策略与 relative 坐标。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 的 0.6.0 切换状态见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-23）**：npm 最新为 `dsh-win-computer-use@0.6.0`（tag `v0.6.0`）；`main` = 0.6.0，含 PTC 对象桥接（`ptcBridge` 默认 off）、`autonomy` 策略与 relative 坐标。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 已安装 0.6.0（运行中的 web 进程需重启）——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 

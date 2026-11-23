@@ -459,7 +459,7 @@ stateDiagram-v2
 | A19 | 实验性后台输入 | `backgroundInput`/`syntheticPointer`/`anchoredInput` 默认 off；只对无交互 UIA 的目标；B1 遮挡失败关闭；B2 `cursor` 依赖 `BlockInput`，`cursor-clip` 用 `ClipCursor` 免提权；B3 会移窗口；helper 带 `desktop_busy`/`cursorDrift`/elevation 诊断 | B0/B1/B3 真机通过；严格 B2 默认非提权失败关闭、提权后 PASS、`cursor-clip` PASS；实测数字见 [BACKGROUND-INPUT §12](BACKGROUND-INPUT.md) | 生产不自动提权；不把 BLOCKED 当 PASS |
 | A18 | `app_launch` 子进程 | 完整性级别取决于驱动版本与启动路径；实测 0.52.13 daemon 为 High，但 powershell.exe 子进程为 Medium | 不能一律假定 High；清理能力按实际 IL 判断 | `probe-launch` 记录子进程/daemon IL；高完整性残留写 leftover |
 | G6 | 平台 | macOS 近期未回归；Linux 未验证 | 不要把“能加载”当“已验收” | 见 [COMPATIBILITY](COMPATIBILITY.md) |
-| G7 | 部署 | web profile 当前为 `dsh-win-computer-use@0.5.9`；0.6.0 切换步骤见 PUBLISH §6；运行中的 web 进程需重启 | 重启前用户看到的可能仍是旧版 | 切换后重启并冒烟 |
+| G7 | 部署 | web profile 已安装 `dsh-win-computer-use@0.6.0`（备份 0.5.9）；当前 3080 未监听，下次启动生效 | 重启前用户看到的可能仍是旧版 | 启动后冒烟 |
 
 ## 14. 测试与证据
 

@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-23）：`v0.6.0` 已发布并推送 npm（`dsh-win-computer-use@0.6.0`）；`main` = 0.6.0（PTC 对象桥接，`ptcBridge` 默认 off）。web profile 的 0.6.0 切换状态见 §1/§6。
+> 状态（2026-11-23）：`v0.6.0` 已发布并推送 npm（`dsh-win-computer-use@0.6.0`）；`main` = 0.6.0（PTC 对象桥接，`ptcBridge` 默认 off）。web profile 已安装 0.6.0（备份 `dsh-win-computer-use.0.5.9-kept`）；当前 3080 未监听，下次启动生效。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -14,7 +14,7 @@
 | `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
 | `package.json` version | `0.6.0` |
 | npm | 已发布 `dsh-win-computer-use@0.6.0`；`npm view dsh-win-computer-use version` 复核 |
-| 部署 | web profile 的 0.6.0 切换见 §6；旧 `dsh-computer-use` 0.5.6 已移除（`dsh-computer-use.0.5.5-kept` 保留）；重启后生效 |
+| 部署 | web profile 已安装 `dsh-win-computer-use@0.6.0`（备份 `dsh-win-computer-use.0.5.9-kept`）；旧 `dsh-computer-use` 0.5.6 已移除（`dsh-computer-use.0.5.5-kept` 保留）；当前 3080 未监听，下次启动生效 |
 | 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
 
 ## 2. 版本口径
@@ -181,6 +181,7 @@ dsh plugin --profile web add dsh-win-computer-use
 
 | 版本 | 日期 | 提交 | 主题 |
 |---|---|---|---|
+| v0.6.0 | 2026-11-23 | `1ad3b97` | PTC 对象桥接 L1/L2 + 自治策略契约；发布前 18/18、live 33/33、oracle 40/41（S4 16/17）、离线 1021 |
 | v0.5.9 | 2026-11-22 | `1505db6` | 实验后台输入 B0-B3 + nativeMenus/nativeButtonTrigger + UIPI 回执映射；发布前 18/18、live 33/33、oracle 16/17+10/10、UAC 7/7 |
 | v0.5.8 | 2026-11-20 | — | t20 模态 30s 根因 + Win32 原生对话框后端（nativeDialogs）+ 回执/测试收口 |
 | v0.5.7 | 2026-11-19 | — | S1-S4 测试体系、S4 哨兵、AC2 夹具、p01-p03/t18/t19/t20、npm 首发 |

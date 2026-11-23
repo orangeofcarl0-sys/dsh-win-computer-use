@@ -172,7 +172,7 @@ cua-driver autostart kick
 
 | 优先级 | 事项 |
 |---|---|
-| P1 | web profile 当前为 0.5.9（备份 `dsh-win-computer-use.0.5.8-kept`）；0.6.0 待切换；当前 3080 未监听，切换后下次启动生效；会话内冒烟待做 |
+| P1 | web profile 已安装 0.6.0（备份 `dsh-win-computer-use.0.5.9-kept`）；当前 3080 未监听，下次启动生效；会话内冒烟待做 |
 | P2 | AC6 长任务 5 轮（t01/t05 已完成；t11/t14/t15 待空闲桌面/模型额度） |
 | P2 | daemon 提权/清理问题（#3607 上游已关闭）；0.52.13 实测 PowerShell 子进程 Medium，按实际 IL 判断 |
 | P2 | #3908 实战影响面；把“路径受阻→改点控件”写进提示层 |

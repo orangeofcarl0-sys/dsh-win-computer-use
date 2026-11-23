@@ -1,6 +1,6 @@
 # Changelog
 
-> **版本状态（2026-11-23）**：`v0.6.0` 已发布并推送 npm（`dsh-win-computer-use@0.6.0`）；`main` = 0.6.0，dsh 兼容基线为 **0.2.2-rc.1**。web profile 的 0.6.0 切换状态见 [PUBLISH](PUBLISH.md)（运行中的 web 进程需重启）。
+> **版本状态（2026-11-23）**：`v0.6.0` 已发布并推送 npm（`dsh-win-computer-use@0.6.0`）；`main` = 0.6.0，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.6.0（运行中的 web 进程需重启）。
 > 各版本条目内的测试/文件计数是**当时快照**；当前值以 `tests/docs.facts.json` 与 [VERIFICATION](VERIFICATION.md) 为准。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 

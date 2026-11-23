@@ -25,7 +25,7 @@
 
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
-| C6 | web profile 部署 | 0.5.9 已安装；0.6.0 待切换 | 当前 3080 未监听；0.6.0 切换步骤见 [PUBLISH](PUBLISH.md) §6 |
+| C6 | web profile 部署 | 0.6.0 已安装，待启动 | 当前 3080 未监听，下次启动加载 0.6.0；备份 `dsh-win-computer-use.0.5.9-kept`。见 [PUBLISH](PUBLISH.md) §6 |
 | C12 | eval 任务级复跑 + AC6 | 待排期 | 降噪/预算的 per-task token/步数对比；需空闲桌面与纯净 daemon |
 | C13 | daemon 高完整性/清理 | 上游已关闭，保留观测 | #3607 已 completed；0.52.13 实测 daemon High 但 PowerShell 子进程 Medium，按实际 IL 清理 |
 | C14 | #3908 实战影响面 | 跟踪 | WinUI3 hotkey/menu 不可达；已给控件指引 + 实验性回退 |

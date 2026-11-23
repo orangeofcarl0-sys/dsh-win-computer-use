@@ -58,7 +58,7 @@
 | 阶段过滤 | **S1 10 / S2 5 / S3 26 / S4 17**（成员 58，唯一 41）；`--stage` 无匹配退出非 0 | 跨平台（静态） | `node tests/tasks.check.mjs` |
 | dsh 0.2.2 兼容升级 | **✅ P0/P1/P2**（`startActivation` / vision 默认 / 附件限额 / PTC） | Windows 11 / dsh 0.2.2-rc.1 | 见 EVIDENCE §26.4；契约矩阵见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) |
 | 打包面 | 以 `npm pack --dry-run --json` 为准；当前值见 `tests/docs.facts.json` | — | `npm pack --dry-run --json` |
-| npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.6.0`；web profile 的 0.6.0 切换见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
+| npm / 部署 | **npm 已发布 `dsh-win-computer-use@0.6.0`；web profile 已安装 0.6.0（运行中的 web 进程需重启）** | — | `npm view dsh-win-computer-use version`；[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) |
 
 > 2026-11-19 复跑 `verify-runtime` 为 **18/18**。此前一次 17/18 是自动选中 `Microsoft.CmdPal.UI.exe`（AX 0 元素）；现已改为探测候选窗口，要求至少一个带可定位 frame 的元素，并排除 CmdPal/TextInputHost/PowerToys 等 shell 表面。
 
@@ -103,7 +103,7 @@ opencode / deepseek-v4.1-flash，重复请求同一前缀：
 | 项 | 状态 | 原因/影响 | 下一步 |
 |---|---|---|---|
 | npm 发布 | **已发布** | `dsh-win-computer-use@0.6.0`（2026-11-23）；临时 `0.0.0-stage` 已 deprecate | 无（后续版本需重新授权） |
-| web profile 部署 | 0.5.9 已安装；0.6.0 待切换 | 当前 3080 未监听；0.6.0 切换步骤见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md) §6 | 切换后启动 web harness 做会话内冒烟（`computer_do status` → 2 可见/21 隐藏） |
+| web profile 部署 | 已安装 0.6.0 | 备份 `dsh-win-computer-use.0.5.9-kept`；当前 3080 未监听，下次启动即加载 0.6.0 | 启动 web harness 后做会话内冒烟（`computer_do status` → 2 可见/21 隐藏） |
 | macOS 近期回归 | 未做 | 近期测试都在 Windows；macOS 证据多为 0.1–0.2 时期 | 有 macOS 环境时跑离线 + verify-runtime |
 | Linux | 未验证 | 桌面/accessibility 栈差异大 | 不在当前承诺范围 |
 | cua-driver 0.53 | 预期 | 只按发布说明预留 `screenshot_frame`；未真机 | 有 0.53 时跑 `probe-driver-shape` + 全量探针 |

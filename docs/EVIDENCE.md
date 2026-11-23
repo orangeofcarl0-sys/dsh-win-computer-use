@@ -836,3 +836,9 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - `live-action.e2e 3`：**33/33**（3 轮；同一代码 `26c2103`，版本切换只改版本/文档字符串）；残留测试窗口按精确 HWND 关闭，未按进程名杀。
 - `verify-oracles --stage S4`：**16/17 PASS + t13 SKIP**；`stage=all`：**40/41 PASS + t13 SKIP**（同一代码 `26c2103`；t13 真实网络 `ac2:none`）。
 - `npm pack --dry-run --json`：**76 文件**、version `0.6.0`；含 `lib/ptc/`，不含 tests/evals/node_modules。
+
+## 40. 2026-11-23 0.6.0 发布记录
+
+- 发布提交 `1ad3b97`（`0.6.0 发布：PTC 对象桥接 L1/L2 与自治策略契约`）；注解 tag `v0.6.0` 已推送。
+- `npm publish --access public` 返回 `+ dsh-win-computer-use@0.6.0`（76 文件，sha1 `e8f0c05b…`）；registry 约 12 分钟后可见（期间直查 `registry.npmjs.org` 为 404，非 npm 缓存）；`latest=0.6.0`，shasum 一致。
+- web profile：`dsh plugin --profile web add dsh-win-computer-use@0.6.0` 成功；安装物 `0.6.0`，`--dump-config` 含插件块；备份 `dsh-win-computer-use.0.5.9-kept`。当前 3080 未监听，下次启动加载 0.6.0；会话内冒烟待做。
