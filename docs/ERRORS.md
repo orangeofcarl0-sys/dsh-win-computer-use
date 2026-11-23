@@ -2,7 +2,7 @@
 
 > 目的：把回执里的拒绝码、驱动码、投递码、传输错误统一成一张可查表：`ok`、快照影响、模型下一步、人工处理。
 > 读者：使用者、排障者、维护者。
-> 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验方括号码覆盖）。
+> 状态：当前实现（最后核对 2026-11-23；由 `npm run docs:check` 校验方括号码覆盖）。
 > 相关：[TROUBLESHOOTING](TROUBLESHOOTING.md) · [TOOLS](TOOLS.md) · [RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)。
 
 ## 1. 怎么读回执
@@ -104,6 +104,29 @@
 | `native_button_unknown` | helper 超时/异常，BM_CLICK 可能已发送 | 不要重复；先 observe 是否出现新同 pid 窗口 |
 | `no_match`/`ambiguous` | 未找到/多个标准 Button 匹配 | 回退 driver；不要坐标乱点 |
 | `window_not_found`/`pid_mismatch`/`post_message_failed` | 未投递 | 回退 driver；先 observe |
+
+### 2.4 PTC 桥接码（`ptcBridge:on`）
+
+这些码不是方括号回执，而是 `computer_cua` 抛出的 `PtcError` / facade 的 `CuaError`；`message` 带 `CODE:` 前缀，`details` 保留机器可读字段。
+
+| 代码 | 含义 | 模型/程序下一步 |
+|---|---|---|
+| `OBSERVE_REQUIRED` | 没有快照 | 先 `getAccessibilityTree()` |
+| `STALE_SNAPSHOT` | 快照过期/被替换/元素不在快照 | 重新观察；不要复用旧元素 ID |
+| `SCREENSHOT_REQUIRED` | 需要同窗口截图上下文 | 先 `screenshot()` 或重新观察 |
+| `IMAGE_UNSUPPORTED` | 当前模型路由未声明 image | 换视觉模型，或只用 AX/非截图方法 |
+| `ATTACHMENTS_UNAVAILABLE` | 组合未挂载 attachments | 调整宿主组合；不要重试 |
+| `APP_ACCESS_REQUIRED` | `appHandle` 缺失/格式无效 | 先 `getApp(selector)` |
+| `APP_NOT_FOUND` / `APP_AMBIGUOUS` / `APP_LAUNCH_FAILED` | 应用解析/启动失败 | 用 pid/完整路径；先 `findApps` |
+| `WINDOW_NOT_FOUND` | 窗口不属于应用或已关闭 | 重新 `getWindows()` |
+| `POLICY_DENIED` | autonomy 策略拒绝 | 换应用/改配置；观察仍可用 |
+| `APPROVAL_DENIED` / `APPROVAL_UNAVAILABLE` | guarded 询问被拒/不可用 | 不要重复询问；交回主 Agent |
+| `OPERATION_LOCKED` | `computer_stop` 锁存 | 用户明示继续后 `computer_resume` |
+| `CAPABILITY_UNAVAILABLE` | `selectText/paste/sendKeyEvent`；`performAction` 未映射 action；`scroll` 目标无 UIA ScrollPattern（含 subtree 搜索后仍无） | 看 `details.alternatives`/`availableActions`/`details.code`；不要用坐标点击/输入猜 |
+| `CAPABILITY_OPTION_UNAVAILABLE` | 选项不支持（holdMs/middle/useSystemPointer/details 等） | 去掉该选项或用替代路径 |
+| `REPEAT_SUPPRESSED` | 重复点击抑制 | 先观察；不要重复同一目标 |
+| `DELIVERY_FAILED` / `OPERATION_TIMEOUT` | 输入未送达/结果未知 | 不要重复；先重新观察 |
+| `OPERATION_FAILED` | 其他执行失败（含 `scroll_no_effect` 无移动、`scroll_partial` 部分轴/部分步进；`scroll_unverified` 则成功返回但 effect 未证明） | 按 message 与 `details.code`/`details.axisMoved`/`percentBefore/After` 处理 |
 
 ## 3. 驱动码
 

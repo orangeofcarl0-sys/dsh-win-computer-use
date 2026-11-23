@@ -6,7 +6,7 @@
 
 ## 未发布 (2026-11-22)
 
-**主题**：契约化自治策略（auto/locked/guarded）+ 相对坐标 + 图像预检错误码；默认行为除子 Agent 真实指针收紧外不变。
+**主题**：契约化自治策略（auto/locked/guarded）+ 相对坐标 + 图像预检错误码 + PTC 对象桥接（L1/L2，默认 off）；默认行为除子 Agent 真实指针收紧外不变。
 
 ### Added
 
@@ -15,11 +15,18 @@
 - click 家族/drag/hover 支持 `relative: true`（0–999 窗口千分比）；错误码 `relative_coordinate_invalid`/`relative_coordinate_unavailable`/`relative_from_zoom_conflict`。
 - native/screen_zoom 图像预检错误码 `model_image_unsupported`。
 - 子 Agent 真实指针默认 deny；`computer_task` 委派受 `subagents.delegation`/locked/子 Agent 限制。
+- 新增 `ptcBridge`（默认 off）与 `computer_cua`（仅 PTC preset）：官方风格 raw 方法核心子集 + `lib/ptc/facade.js` 的 `connectCua` 对象层；截图返回 bytes + attachment。
+- `show`（Win32 `SW_SHOWNOACTIVATE` 非激活恢复）、`scroll`（UIA ScrollPattern 点滚动，无 pattern 诊断）、`performAction`（Invoke/ValuePattern.SetValue 窄子集）已接入；`selectText/paste/sendKeyEvent` 仍返回结构化 `CAPABILITY_UNAVAILABLE` + 替代路径。
+- 新增只读 UIA pattern 探针（`evals/probe-uia-patterns.*`，不入包）；`ptc_call` 轨迹事件；`wrapPtc` 让 PTC 错误 rejection，普通 `wrap` 回执不变。
 
 ### Tests / Docs
 
-- 新增 `tests/policy.test.mjs`（37 项）；`schema.conformance` 50 场景；离线 32 套 / 818 项，语法 58/58。
-- 新增 [docs/AUTONOMY.md](docs/AUTONOMY.md)；CONFIGURATION/TOOLS/ERRORS/ARCHITECTURE/SECURITY/TESTING/VERIFICATION 同步。
+- 新增 `tests/policy.test.mjs`（42 项）、`tests/ptc.test.mjs`（160 项）；`schema.conformance` 52 场景；离线 33 套 / 1021 项，语法 62/62。
+- PTC 失败面补测：preset gating（含 boot-order 延迟解析）、`ptc_call` 轨迹（脱敏/目标/origin/外壳透明）、截图错误与尺寸基准、show/scroll native 错误矩阵、scroll 参数/relative 边界、performAction action 列表与 `set_value` 别名、listActions 字符串数组 schema、scroll moved/percent/axis 与 `scroll_no_effect`/`scroll_unverified`/subtree 诊断、facade emit、native runner fake spawn。
+- 小修：`ATTACHMENTS_UNAVAILABLE`/`SCREENSHOT_REQUIRED`/`INVALID_ARGUMENT` 回执映射；`show` 透传 `effect`/`warningCode`；`ptc_call` 记录 app/windowId 并修正 null→0；scroll relative 非法值与快照缺失分开报错；`when` 延迟到激活时解析 `agentPresets`，避免 Web 组合把 `computer_cua` 全局注册。
+- PTC 真机 dogfood（2026-11-23）：headless `run_code` 38/38 检查通过（setValue/performAction/typeText/invoke/screenshot/show/stop+resume；WinForms scroll 无 UIA ScrollPattern，按 capability 记录）；Web `agentPreset: ptc` gating 通过（PTC 可见 `computer_cua`，Standard header 不可见）。
+- 闭合（2026-11-23）：WPF `ScrollViewer` 上 PTC `scroll` 返回 `moved:true`，percent 与 fixture offset/hOffset 双 oracle 变化；at-limit 返回 `scroll_no_effect`；多轴按 1×/5× 分别步进。`uia-scroll.ps1` 增加 root/ancestor/subtree 发现、轴过滤、分轴循环、before/after 百分比与诊断；WinForms target 明确 capability。驱动 `--version` 超时重试（5s→15s）与 info generation guard；Web 状态恢复 `0.52.13 (modern)`。新增 `evals/probe-ptc-web.mjs`：Web 四阶段 **25/25**（截图 `onImage`/image block、实际滚动、show from minimized、stop/resume、Standard 负例）。
+- 新增 [docs/AUTONOMY.md](docs/AUTONOMY.md)、[docs/PTC.md](docs/PTC.md)；CONFIGURATION/TOOLS/ERRORS/ARCHITECTURE/SECURITY/TESTING/VERIFICATION 同步。
 
 ## 0.5.9 (2026-11-22)
 

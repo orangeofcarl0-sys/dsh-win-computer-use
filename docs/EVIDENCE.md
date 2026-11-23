@@ -1,7 +1,7 @@
 # EVIDENCE — 按日期归档的运行证据
 
 > 目的：保存逐轮步数、探针结果、一次性结论与失败样本；**不描述当前实现**。当前行为见 [README](../README.md) 与各参考文档。
-> 状态：历史证据（append-only；最后追加 2026-11-22）。
+> 状态：历史证据（append-only；最后追加 2026-11-23）。
 > 相关：[VERIFICATION](../VERIFICATION.md)（当前矩阵）· [TESTING](TESTING.md)（测试方法）· [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)（模型行为分析）。
 
 ## 1. 证据约定
@@ -716,10 +716,114 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - t17 旧题面：`2026-11-17T07-39-05`（89/63）；新题面：`10-33-54`（37/53/48）
 - 0.52.13 canary：t14 `18-20-17`（53）、`18-37-44`（64 fail：Sales series false）、`18-45-29`（51）、`20-19-28`（opencode 60）；t17 `18-25-41`（75）、`18-32-57`（37）、`20-32-44`（opencode 40）、`21-36-14`（post-fix 86）、`2026-11-18T06-35-51`（capture-only 29）、`06-43-40`（capture-only t14 r1 76）、`07-06-08`（capture-only t14 r2 64 fail）；t11 opencode `19-20-34`（77）；t15 opencode `19-37-43`（55）、`07-29-55`（capture-only 52 fail）；t12 opencode `19-51-11`（112）、`08-14-46`（capture-only t11 76 / t12 98）、`10-26-53`（回执修复后 t11 70 / t12 100）
 
-## 33. 证据边界
+## 34. 2026-11-22 PTC UIA pattern 探针（只读）
+
+- 命令：`node evals/probe-uia-patterns.mjs --window <app> --max N`；只读 UIA 属性，不截图、不输入、不写仓库。
+- 样本（元素数 / Scroll / Text / Invoke / ExpandCollapse / SelectionItem / Toggle / Value）：
+  - ZCode（120）：1 / 12 / 53 / 22 / 0 / 2 / 1
+  - Explorer 文件列表（80）：1 / 0 / 22 / 8 / 12 / 0 / 71
+  - Firefox（250）：0 / 6 / 168 / 19 / 70 / 0 / 2
+- 结论：ScrollPattern 存在于 Document/List 类控件但覆盖窄；TextPattern 存在于 Document/Combo/Text；Invoke/ExpandCollapse 覆盖较好，SelectionItem 在浏览器覆盖较好。第二轮优先做 UIA scroll/selectText 的窄实现，`performAction` 只映射已验证 patterns；其余继续 `CAPABILITY_UNAVAILABLE`。原始窗口内容未记录。
+
+## 35. 证据边界
 
 - 原始 report/trajectory 在 gitignored 的 `evals/headless-runs/`；本文件不提交截图/文档正文/模型原始 thinking。
 - ZCode CU 探针是能力验证，不是完整 t11/t12/t15 的通过/失败统计。
 - native 截图“陈旧”目前是轨迹观测 + 模型判断；`probe-native-freshness` 在 WinForms 文本变化窗口未复现。修复前不要写成已证实的普适 bug。
 - t12 的 PowerPoint 行为来自本机 Office 16 / Windows 11 / 150% DPI，其他环境可能不同。
 - 跨 provider 对比不是受控 A/B；桌面脏状态、模型采样和驱动 capture 行为都会影响步数。
+
+## 36. 2026-11-23 PTC show/scroll native smoke
+
+- `show`：对可见 Explorer 窗口调用 `showWindowNative`，返回 `ok:true, visible:true, minimized:false, foregroundChanged:false`；`SW_SHOWNOACTIVATE` 路径编译与执行成功。未对用户窗口做最小化/关闭操作。
+- `scroll`：`tools/uia-scroll.ps1` 在 ZCode 文档点（`DeltaX=0/DeltaY=0`）找到 `ControlType.Document` 的 ScrollPattern；该目标 `verticalScrollable:false`，因此只验证了 pattern 查找/失败语义，没有实际滚动。可滚目标（Explorer 列表）当时被其他窗口覆盖，`point_not_in_target` 安全拒绝。
+- 备注：一次独立脚本没有调用 client.stop，命令因 background helper 空闲 120s 才退出；不是 show 失败。后续 PTC smoke 的 `computer_cua.show` 返回 `dispatched:true, foregroundChanged:false`。仍不把它写成“所有应用通过”。
+
+## 37. 2026-11-23 PTC `run_code` 真机 dogfood 与 Web preset gating
+
+### 环境
+
+- dsh **0.2.2-rc.5**；headless profile（`tool-executor-ptc` 启用、native executor 关闭）；模型 `opencode-go/deepseek-v4.1-flash`（声明 image 输入）。
+- headless 状态报告驱动 **0.52.13 (modern)**；Web 临时实例的 `cua-driver --version` 探测 5s 超时，状态显示 `profile:unknown`，但 `check_permissions` 与 `computer_cua` 调用正常——按环境观测记录，不当作驱动通过。
+- 测试窗口：自建 WinForms fixture（唯一标题 `S4-PTC-DOGFOOD-...`；`Input` Edit、`Submit`/`Minimize` Button、`ScrollArea` Panel、只读 `Status`）。使用 state 文件记录的精确 `hwnd/pid/processStart`；未触碰用户窗口。
+
+### Headless `run_code` dogfood
+
+- 命令形态：`dsh --profile headless --patch evals/headless-patch.opencode.yml --patch <temp>/ptc-headless.patch.yml --permission-mode read-only --approval-policy never --json "<prompt>"`；同时写 `DSH_CU_TRAJECTORY_FILE`。
+- 结果：`run_code` 被真实调用，`ok:true`，**38/38 项检查通过**。
+- 覆盖：`tools.computer_cua` 绑定；`computer_do status` 的 `PTC：on`；catalog 21 且不含 `computer_cua`；`connectCua` facade；capabilities（`platform:win32`、show/scroll/performAction/screenshot、`systemPointer:false`、driver 非空）；`getApp(pid)`/`getWindows`/`getWindow(hwnd)`；`getAccessibilityTree` 快照与元素 ID；`listActions`；`setValue`；`performAction(ValuePattern.SetValue)`（驱动 action 为 `set_value`）；`typeText`；`invoke(Submit)` 后通过只读 `Status` 值确认 `SUBMITTED:` effect；facade 截图 bytes + raw `data/attachment/coordinateSpace`（`image/png`，744×591，`sha256:` attachment）；`show`；`Minimize` 后 `show` 恢复；`computer_stop` → `OPERATION_LOCKED` → `computer_resume`；缺口/选项诊断。
+- **scroll 未写成通过**：对 `ScrollArea` Pane 中心（窗口坐标 `(371,341)`，屏幕 `(3838,761)`）调用 `win.scroll`，返回 `CAPABILITY_UNAVAILABLE`（`uia-scroll.ps1` 未在该点找到 UIA ScrollPattern）。驱动元素表里 Pane 有 `scroll` action，但 helper 未命中；因此只记录 capability，不声称实际滚动。
+- 轨迹：多次运行合计 75 条 `ptc_call`；覆盖 `getCapabilities/listApps/getApp/listWindows/getState/listActions/setValue/performAction/screenshot/show/scroll/click/typeText/invoke/...`；无 `params`/文本/base64；带 `app/windowId`/`origin`。
+- 清理：`Close-TestAppWindow` 按精确 HWND 关闭并确认进程退出；未按进程名杀；无用户窗口操作。
+
+### Web `agentPreset: ptc` gating
+
+- 临时 profile `D:\dsh\profiles\ptc-web-test-<stamp>`：只含 base + web-app + 本插件 junction；临时 overlay 启用 `ptcBridge:on`、`agent-preset-registry` 的 `default:standard/selectedDefault:ptc`，并把 session/storage/attachment 根指到 temp；未修改用户 `web` profile，未调用 `settings/update`。
+- 通过 dsh HTTP API（token→cookie；`session/create`/`prompt`/`wait`/`events`），未使用浏览器 UI。
+- PTC 会话（显式 `agentPreset:'ptc'`）：`request/header.tools = ['run_code']`；`tool/ptc-dispatch` 中 `computer_do`、`computer_cua` 均 `isError:false`；`computer_do status` 含 `PTC：on`；`computer_cua.getCapabilities` 返回 `win32`，methods 含 `screenshot/show/scroll/performAction`。
+- Standard 会话（显式 `agentPreset:'standard'`）：`request/header.tools` 含 `computer_do`/`screen_observe`，**不含 `computer_cua`、不含 `run_code`**。这是 `when` gating 的负例。
+- 不传 `agentPreset` 的新会话解析为 `ptc`；两个会话 `pendingInput:[]`，无 question/approval 请求事件。
+- 清理：只停自己启动的 server 子进程（精确 PID）；`cmd /c rmdir` 移除 junction（不 `/s`）；删除临时 profile/存储；repo 未被改动。
+
+### 真机暴露并修复的问题
+
+1. **`listActions` 输出 schema 不接受字符串数组**：`computer_cua` 的 `oneOf` 只允许对象数组，raw `listActions` 返回 `string[]` 被宿主判为 invalid output。已在 schema 增加 `{type:'array', items:{type:'string'}}`，并加离线 C9b。
+2. **`performAction('ValuePattern.SetValue')` 与驱动 `set_value` 名称不匹配**：已加 canonical alias（`ValuePattern.SetValue`/`setValue`/`set_value`），并加离线 E29。
+3. **`when` 在 `apply()` 时捕获 `agentPresets`，Web 组合 boot order 下服务未挂载**：`computer_cua` 退化为全局注册，Standard 会话可见。已改为在 `when` 激活时懒解析；无服务时仍保持 standalone 全局。离线 B18 + Web 真机负例通过。
+4. **文档/注入 prompt 示例错误**：`connectCua` 第二参数改为 `{onText}`；`getWindows()[0]` 改为 `getWindow(windowId)`；核心方法列表补 show/scroll/performAction。
+5. 测试 fixture 自身问题（非 bridge）：PowerShell `$input` 自动变量覆盖 TextBox；WinForms Label 未进入驱动元素表。已改为 `$inputBox` + 只读 `Status` TextBox。
+
+### 边界
+
+- 当次 WinForms 目标未证明实际滚动；后续 §38 在 WPF ScrollViewer 上证明实际移动，WinForms 仍按 capability 记录。
+- §37 的 Web 只验证 preset gating + capabilities/status；§38 补全 Web action dogfood。
+- §37 的 Web 驱动版本探测超时被 §38 的 5s→15s 重试恢复为 `0.52.13 (modern)`。
+- 原始 stdout/轨迹/事件只在 `%TEMP%`，不入库。
+
+## 38. 2026-11-23 PTC scroll/driver probe/Web 全动作闭合
+
+### WinForms / WPF ScrollPattern census
+
+- 自建 WinForms AutoScroll Panel（唯一标题，精确 HWND/PID）：PowerShell UIA 探针 `Scroll:0`，所有 pattern 均为 0；`uia-scroll.ps1` 的 `no_scroll_pattern` 是正确的能力诊断。驱动元素表虽报 Pane `scroll` action，但该 action 不等于 PowerShell UIA 可见的 `ScrollPattern`。
+- 自建 WPF `ScrollViewer`（`AutomationProperties.Name/AutomationId='ScrollArea'`，200 行、宽 2400/高 4400，双滚动条）：`Scroll:1`，`ControlType.Pane`、`ClassName=ScrollViewer`、bounds `(461,345,818,574)`，`verticallyScrollable=true`、`horizontallyScrollable=true`，`VerticalViewSize≈8.3`、`HorizontalViewSize≈22`。
+
+### `uia-scroll.ps1` 修复
+
+- 身份：`WindowFromPoint` 顶层 root 必须等于目标 HWND 的 root；UIA root pid 校验。
+- 发现：`FromPoint` + ControlView/RawView 祖先 + window-root subtree fallback；按请求轴筛选；候选按包含点的最小面积排序；扫描上限 5000/5s，输出 `scan.truncated`。
+- 步进：去掉 `max(|dx|,|dy|)` 双轴重复；分别执行 `|deltaX|` 次水平、`|deltaY|` 次垂直。
+- 验证：before/after `VerticalScrollPercent/HorizontalScrollPercent`；`moved:true|false|null`；`scroll_no_effect`、`scroll_unverified`、`scroll_partial`；payload 带 `axisMoved/percentBefore/percentAfter/attempted/role/name/source/diagnostics`。
+- 直接 helper 验证：WPF 上 down 2 → percent 0→1.09、fixture offset 0→32（2×16）；up 2 → 0；顶部再 up → `ok:false, moved:false, code=scroll_no_effect`；多轴 `dx=-1,dy=-5` → hOffset +16、offset +80、`attempted=6`；水平到 100% 后 `dx=-1,dy=-1` → `scroll_partial`（h=false/v=true）。
+
+### Headless PTC scroll 闭合（7/7）
+
+- WPF fixture：`ScrollArea` 行 `[5] Pane "ScrollArea" @(411,332)`；PTC `win.scroll`：
+  - down 5 → `dispatched:true, moved:true, attempted:5`，percent 0→1.9828，fixture offset 80；
+  - up 5 → `moved:true`，percent→0；
+  - 顶部再 up → `OPERATION_FAILED ... [scroll_no_effect]`；
+  - 多轴 `deltaLinesX:-1, deltaLinesY:-5` → `moved:true, attempted:6`，percent h 0→0.8547、v 0→1.9828；fixture `offset=80, hOffset=16`。
+- WinForms 目标仍只记 capability，不伪造滚动。
+
+### Driver probe 重试与缓存守卫
+
+- 手工冷/热：`cua-driver --version` 60ms/31ms；`status` 587ms/1261ms（0.52.13 daemon 已运行）。
+- 临时 Web 实例首次 `--version` 仍出现 5000ms 超时；新重试逻辑第 2 次 15000ms 成功。Web `computer_do status` 显示 `0.52.13 (modern)`，`getCapabilities.driver={profile:'modern', pointerCapture:true, moveCursorScreen:true}`。
+- `lib/driver/info.js` generation guard 防止重复 `apply()` 时迟到探测覆盖新结果；离线 C20–C24 覆盖 timeout→success、双 timeout、spawn 不重试、首次成功、generation race。
+
+### Web 全动作 probe（`evals/probe-ptc-web.mjs`，25/25）
+
+- 临时 profile + junction + HTTP API；Standard 会话 header 不含 `computer_cua`/`run_code`，含 `computer_do`/`screen_observe`。
+- PTC 会话四阶段：
+  - A：`run_code` / status `PTC：on` / catalog 21 / caps `win32` / driver modern / app+window/tree IDs。
+  - B：`setValue`、`performAction(ValuePattern.SetValue)`、`typeText`、`invoke(Submit)`；fixture `SUBMITTED:WEB-BRAVOWEB-CHARLIE`，`submitCount=2`。
+  - C：`getScreenshot({emit:true})` → 1060×919、60048B、`image/png`，`onImage` 回调；`tool/ptc-dispatch` 有 image block，`user/message`（`ptc-mode`）有同一 attachment（`sha256:15264b91…`）；`win.scroll` down/up/at-limit/multi-axis 与 headless 结果一致（percent 0→2.001→0；多轴 h 0→0.910、v 0→2.001，attempted 6）。
+  - D：宿主按精确 HWND 最小化 fixture；PTC `show` 返回 `dispatched:true, foregroundChanged:false, effect:confirmed`，树恢复；stop→`OPERATION_LOCKED`→resume；selectText/paste/holdMs 诊断通过。
+- fixture oracle：`offset=80`、`horizontalOffset=16`、`events=17`、`windowState=Normal`；无 approval/question，`pendingInput:[]`；无 write/edit/bash/pwsh 嵌套。
+- 清理：fixture 精确 HWND 关闭、server 精确 PID 停止、junction `rmdir`（不递归）、profile/temp roots 删除；未按进程名杀。
+
+### 边界
+
+- WinForms/PowerShell 托管窗口对 PowerShell UIA 不暴露 pattern；该目标记 capability。
+- `percent=-1`（provider 不支持百分比）→ `scroll_unverified`/`moved:null`，不是 pass。
+- Web 全动作使用宿主最小化 + PTC `show`；未把 WPF 按钮 `Minimize` 的 invoke 当作 PTC API 缺口（headless WinForms 已覆盖 invoke Minimize）。
+- 原始报告/事件/轨迹只在 `%TEMP%`，不入库。

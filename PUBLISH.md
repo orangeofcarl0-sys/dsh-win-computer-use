@@ -38,13 +38,13 @@ git status --short
 # 1. 语法 + 安装脚本 + 文档/任务一致性
 npm run check; echo "check=$?"
 
-# 2. 离线测试（32 套 / 818 项；&& 串联，必须看 $?）
+# 2. 离线测试（33 套 / 887 项；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
 # 3. 真驱动运行时（只读观察；18/18）
 node verify-runtime.mjs
 
-# 4. 真桌面动作闭环（23/23；会打开临时记事本，残留标签人工关闭）
+# 4. 真桌面动作闭环（33/33；会打开临时记事本，残留标签人工关闭）
 node tests/live-action.e2e.mjs 3
 
 # 5a. eval oracle 双向验证（S4 dirty 组；SKIP 不是 PASS）

@@ -349,6 +349,24 @@ const observeArgs = { window: '4242', mode: 'ax' }
   check('B18 autonomy 默认放行', pass.ok === true, ok.raw(pass).slice(0, 60))
 }
 
+// B19 ptcBridge：off 不注册 computer_cua；on 才注册（默认工具面不变）
+{
+  const base = { ...defaultsOf(), passwordScan: 'off' }
+  const off = makeCtx({
+    services: ctxServices,
+    agent: { id: 'ptc-off', options: { provider: 'p', model: 'm' }, session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } },
+  })
+  plugin.apply(off.ctx, { ...base, ptcBridge: 'off' })
+  check('B19 ptcBridge=off 不注册 computer_cua', !off.reg.has('computer_cua'), [...off.reg.keys()].join(','))
+
+  const on = makeCtx({
+    services: ctxServices,
+    agent: { id: 'ptc-on', options: { provider: 'p', model: 'm' }, session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } },
+  })
+  plugin.apply(on.ctx, { ...base, ptcBridge: 'on' })
+  check('B19 ptcBridge=on 注册 computer_cua', on.reg.has('computer_cua'), [...on.reg.keys()].join(','))
+}
+
 console.log(`\n结果：${state.failures ? '❌ ' + state.failures + ' 项失败' : '✅ 全部通过'}`)
 if (!state.failures) cleanupWork(work)
 process.exit(state.failures ? 1 : 0)

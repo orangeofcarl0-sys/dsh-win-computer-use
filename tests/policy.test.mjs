@@ -278,6 +278,45 @@ async function setup(autonomy, { services = makeServices(), agent = agentMain } 
     r.ok === false && /policy_delegation_denied/.test(String(r.result)),
     String(r.result).slice(0, 80))
 }
+{
+  const { reg, exec } = await setup({})
+  const r = await callWith(reg, exec, 'computer_click', { x: 0, y: 0, relative: true })
+  const clickCall = calls.find((c) => c.tool === 'click')
+  check('I12 relative 0 → 窗口左上角',
+    r.ok === true && clickCall?.args.x === 0 && clickCall?.args.y === 0,
+    JSON.stringify(clickCall?.args || {}))
+}
+{
+  const { reg, exec } = await setup({})
+  const r = await callWith(reg, exec, 'computer_click', { x: 999, y: 999, relative: true })
+  const clickCall = calls.find((c) => c.tool === 'click')
+  check('I13 relative 999 → 窗口右下边界',
+    r.ok === true && clickCall?.args.x === 799 && clickCall?.args.y === 599,
+    JSON.stringify(clickCall?.args || {}))
+}
+{
+  const { reg, exec } = await setup({})
+  const r = await callWith(reg, exec, 'computer_click', { x: 1000, y: 10, relative: true })
+  check('I14 relative 越界拒绝且未调用驱动',
+    r.ok === false && /relative_coordinate_invalid/.test(String(r.result)) && !calls.some((c) => c.tool === 'click'),
+    String(r.result).slice(0, 100))
+}
+{
+  const { reg, exec } = await setup({})
+  const r = await callWith(reg, exec, 'computer_double_click', { x: 500, y: 500, relative: true })
+  const clickCall = calls.find((c) => c.tool === 'click' && c.args.count === 2)
+  check('I15 double_click relative 换算',
+    r.ok === true && clickCall?.args.x === 400 && clickCall?.args.y === 300,
+    JSON.stringify(clickCall?.args || {}))
+}
+{
+  const { reg, exec } = await setup({})
+  const r = await callWith(reg, exec, 'computer_right_click', { x: 500, y: 500, relative: true })
+  const clickCall = calls.find((c) => c.tool === 'click' && c.args.button === 'right')
+  check('I16 right_click relative 换算',
+    r.ok === true && clickCall?.args.x === 400 && clickCall?.args.y === 300,
+    JSON.stringify(clickCall?.args || {}))
+}
 
 cleanupWork(work)
 console.log(`\n结果：${state.failures ? `❌ ${state.failures} 项失败` : '✅ 全部通过'}`)

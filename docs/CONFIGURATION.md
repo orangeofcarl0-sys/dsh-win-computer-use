@@ -1,8 +1,8 @@
 # CONFIGURATION — 配置与环境变量
 
-> 目的：31 个配置键、环境变量、优先级、交互与已知陷阱。
+> 目的：32 个配置键、环境变量、优先级、交互与已知陷阱。
 > 读者：部署者、集成者、排障者。
-> 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验键数）。
+> 状态：当前实现（最后核对 2026-11-23；由 `npm run docs:check` 校验键数）。
 > 相关：[INSTALL](INSTALL.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [DRIVER-SDK](DRIVER-SDK.md)。
 
 ## 1. 加载与优先级
@@ -20,7 +20,7 @@
 
 ## 2. 配置键总表
 
-> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键在 0.5.9 已可用；`autonomy` 为本轮新增（未发布 main）。其余 25 键在 0.5.8/0.5.9 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 未发布段为准。
+> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键在 0.5.9 已可用；`autonomy`、`ptcBridge` 为本轮新增（未发布 main）。其余 25 键在 0.5.8/0.5.9 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 未发布段为准。
 
 ### 2.1 观察与工具面
 
@@ -97,6 +97,17 @@
 | `autonomy.subagents.delegation` | string | `allow` | `allow`/`deny` | 是否允许 `computer_task`；locked 强制 deny |
 
 策略在 `guard` 之后、动作之前判定；拒绝不消费快照、不调用驱动。应用身份按快照 `appName`（`app_launch` 按 `name`）精确匹配；无快照的 menu/hover/activate 无法套用应用级规则。`locked` 且 `allowedApps` 为空时 fail-closed（观察仍可用）。guarded 需要宿主 `userQuestions` 服务；缺失/取消/子 Agent 一律拒绝。完整语义见 [AUTONOMY](AUTONOMY.md)。
+
+### 2.8 PTC 对象桥接
+
+| 键 | 类型 | 默认 | 枚举/范围 | 作用 |
+|---|---|---|---|---|
+| `ptcBridge` | string | `off` | `off`/`on` | `on` 时对 PTC preset 的 Agent 额外声明 `computer_cua`（23 → 24 个工具），并提供 `lib/ptc/facade.js` 对象层；默认 23 工具面不变 |
+
+- `on` 只影响 PTC preset；没有 `agentPresets` 服务的 standalone 组合会全局注册（便于嵌入式/测试）。
+- `computer_cua` 不进入 dispatcher catalog；不能经 `computer_do({action:"call"})` 路由。
+- `show` 复用 `tools/background-input.ps1`（SW_SHOWNOACTIVATE）；`scroll` 使用新增 `tools/uia-scroll.ps1`（UIA ScrollPattern）；`performAction` 只支持 Invoke/ValuePattern.SetValue。`selectText/paste/sendKeyEvent` 仍返回 `CAPABILITY_UNAVAILABLE` + 替代路径。
+- 完整契约、方法矩阵、错误码与探针见 [PTC](PTC.md)。
 
 ## 3. 环境变量
 

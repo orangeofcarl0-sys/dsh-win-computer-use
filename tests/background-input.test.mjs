@@ -71,6 +71,7 @@ export async function tryBackgroundType(args) { state.typeCalls.push(args); retu
 export async function tryBackgroundKey(args) { state.keyCalls.push(args); return state.keyResult }
 export async function stopBackgroundInput() { state.stopCalls++ }
 export function resetBackgroundInput() { state.resetCalls++ }
+export async function showWindowNative() { return { ok: false, code: 'unavailable', error: 'stub' } }
 `, 'utf8')
 
 const plugin = await loadPlugin(work)
@@ -283,10 +284,27 @@ try {
     }
     const client = real.createBackgroundInputClient({
       platform: 'win32', scriptPath: 'fake.ps1', exists: () => true,
-      spawnFn: () => makeChild((req) => (req.cmd === 'probe' ? { ok: true, hwnd: 200, pid: 42, className: 'X' } : { ok: true })),
+      spawnFn: () => makeChild((req) => {
+        if (req.cmd === 'probe') return { ok: true, hwnd: 200, pid: 42, className: 'X' }
+        if (req.cmd === 'show') {
+          return {
+            ok: true, dispatched: true, windowId: req.hwnd, foregroundChanged: false,
+            effect: 'confirmed', warning_code: 'show_incomplete',
+          }
+        }
+        return { ok: true }
+      }),
     })
     const p = await client.probe({ hwnd: 200, pid: 42 })
     check('H1: client ready + probe', client.available === true && p.ok === true && p.pid === 42, JSON.stringify(p))
+    const show = await client.showWindow({ hwnd: 200, pid: 42 })
+    const showReq = requests.find((x) => x.cmd === 'show')
+    check('H1b: client show 发送 hwnd/pid', show?.ok === true && showReq?.hwnd === 200 && showReq?.pid === 42,
+      JSON.stringify({ show, showReq }))
+    check('H1c: client show 原样透传 native 字段',
+      show?.dispatched === true && show?.windowId === 200 && show?.foregroundChanged === false
+        && show?.effect === 'confirmed' && show?.warning_code === 'show_incomplete',
+      JSON.stringify(show))
     await client.stop()
     check('H2: stop 发送 restore/shutdown', requests.some((x) => x.cmd === 'restore') && requests.some((x) => x.cmd === 'shutdown'))
 
@@ -354,6 +372,28 @@ try {
       check('H7: ready 后非 JSON → 立即 bad_response', br.code === 'background_input_bad_response', JSON.stringify(br))
       await badProto.stop()
     }
+  }
+
+  // K. showWindowNative 工厂：平台/空响应/透传
+  {
+    const linux = real.createShowWindowNative({ platform: 'linux' })
+    const lr = await linux({ pid: 1, hwnd: 2 })
+    check('K1: showWindowNative 非 Windows → unavailable', lr.ok === false && lr.code === 'unavailable', JSON.stringify(lr))
+    const missing = real.createShowWindowNative({ client: { showWindow: async () => null } })
+    const mr = await missing({ pid: 1, hwnd: 2 })
+    check('K2: showWindowNative helper 不可用 → unavailable', mr.ok === false && mr.code === 'unavailable', JSON.stringify(mr))
+    let seen = null
+    const fake = real.createShowWindowNative({
+      client: {
+        async showWindow(payload, opts) {
+          seen = { payload, opts }
+          return { ok: true, dispatched: true, effect: 'unverifiable', warning_code: 'show_incomplete' }
+        },
+      },
+    })
+    const fr = await fake({ pid: 1, hwnd: 2 }, { timeoutMs: 7 })
+    check('K3: showWindowNative 原样透传', fr.effect === 'unverifiable' && fr.warning_code === 'show_incomplete'
+      && seen?.payload?.hwnd === 2 && seen?.opts?.timeoutMs === 7, JSON.stringify({ fr, seen }))
   }
 
   // J. 回执字段/错误码/fail-closed 语义

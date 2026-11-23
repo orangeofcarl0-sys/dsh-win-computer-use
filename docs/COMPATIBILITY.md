@@ -2,7 +2,7 @@
 
 > 目的：一张表看清 Node、dsh、驱动、OS、模型的“已实测/支持/预期/未验证”状态。
 > 读者：部署者、集成者、升级审查。
-> 状态：当前实现（最后核对 2026-11-22）。
+> 状态：当前实现（最后核对 2026-11-23）。
 > 相关：[DRIVER-SDK](DRIVER-SDK.md) · [INSTALL](INSTALL.md) · [WINDOWS](WINDOWS.md)。
 
 ## 1. 支持级别
@@ -45,7 +45,7 @@
 | llm | `resolveModelInfo`/`stream` | native/vision 真机通过 | ✅ |
 | subagents | `startActivation(spec)` 扁平 spec | `delivery:'caller'`；结果映射；`outputSchema` 降级 | ✅ P0 已修 |
 | `toolFilter` | 0.2.2 没有 | 不假装限制；回执写“同级能力” | ✅ 明确限制 |
-| PTC / `run_code` | SDK 只绑定可见工具 | 隐藏工具走 `tools.computer_do` | ✅ 真机 |
+| PTC / `run_code` | SDK 只绑定可见工具 | 隐藏工具走 `tools.computer_do`；`ptcBridge:on` 时 PTC preset 额外有 `computer_cua` 对象层（非 provider） | ✅ 离线 1021；2026-11-23 headless `run_code` 38/38；WPF scroll 7/7（实际 percent/offset）；Web 四阶段 25/25（gating、onImage、实际滚动、show/stop/resume） |
 | Web runner | 基于 0.1.5 UI，0.2.2 失效 | `evals/run.mjs` 默认拒绝，指向 `headless-run.mjs` | ⛔ 退役 |
 | `dsh.compatibility.dsh` | 无上限 | 补 `<0.3.0` | ✅ |
 
@@ -138,6 +138,7 @@ node verify-runtime.mjs
 - 0.23.2 混合 DPI 像素点击有实测偏差；element 路径可靠。
 - dsh 0.2.2 没有 `toolFilter`；委派工具集无法按调用限制。
 - PTC SDK 只绑定可见工具；隐藏工具必须经 `computer_do`。
+- PTC 对象桥接 `computer_cua` 默认 off；开启后仅 PTC preset 可见（2026-11-23 Web gating 实测），单快照、无应用级 AX；`show` 已实现；`scroll` 在 WPF `ScrollViewer` 上已证实际移动（percent/offset 双 oracle），WinForms/PowerShell 托管目标对 PowerShell UIA 不暴露 ScrollPattern，按 capability 记录；`moved:null`（百分比不支持）为 unverified；`performAction` 仅 Invoke/SetValue；`selectText/paste/sendKeyEvent` 仍为能力诊断，不是官方 provider。
 - macOS/Linux 的 Windows 专属行为不适用或未验证。
 
 ## 9. 复现

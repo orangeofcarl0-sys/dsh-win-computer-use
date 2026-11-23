@@ -139,7 +139,7 @@ const currentDocs = [
   'README.md', 'docs/README.md', 'docs/INSTALL.md', 'docs/TOOLS.md', 'docs/CONFIGURATION.md',
   'docs/ERRORS.md', 'docs/TROUBLESHOOTING.md', 'docs/SECURITY.md', 'docs/COMPATIBILITY.md',
   'docs/ARCHITECTURE.md', 'docs/RUNTIME-PIPELINE.md', 'docs/DRIVER-SDK.md', 'docs/WINDOWS.md',
-  'docs/BACKGROUND-INPUT.md',
+  'docs/BACKGROUND-INPUT.md', 'docs/PTC.md',
   'docs/TESTING.md', 'VERIFICATION.md', 'PERMISSIONS.md', 'docs/store-evidence.md',
   'MAINTAINING.md', 'PUBLISH.md', 'ROADMAP.md',
 ]
@@ -189,6 +189,12 @@ const factsChecks = [
 const factMissing = factsChecks.filter(([rel, val]) => !read(rel).includes(String(val)))
 if (factMissing.length === 0) ok('关键事实值存在', `${factsChecks.length} 项`)
 else fail('关键事实值缺失', factMissing.map(([rel, val, label]) => `${rel} ${label}=${val}`).join('; '))
+
+const ptcDoc = read('docs/PTC.md')
+const ptcCovered = /computer_cua/.test(ptcDoc) && /CAPABILITY_UNAVAILABLE/.test(ptcDoc)
+  && /probe-uia-patterns/.test(ptcDoc) && /不是 .*provider|不是官方 provider|非 provider/.test(ptcDoc)
+if (ptcCovered) ok('PTC 文档覆盖对象桥接/能力诊断/探针/非 provider 定位')
+else fail('PTC 文档覆盖不足', 'docs/PTC.md 需要 computer_cua、CAPABILITY_UNAVAILABLE、probe-uia-patterns 与非 provider 定位')
 
 // ── 7. 标题编号 ───────────────────────────────────────────────────
 const headingIssues = []

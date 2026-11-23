@@ -2,12 +2,14 @@
 
 > 目的：23 个工具的完整契约：参数、默认值、前置条件、行为、回执与错误、最小示例。
 > 读者：使用者、集成者、维护者。
-> 状态：当前实现（最后核对 2026-11-22；由 `npm run docs:check` 校验工具名与数量）。
+> 状态：当前实现（最后核对 2026-11-23；由 `npm run docs:check` 校验工具名与数量）。
 > 相关：[README](../README.md) · [CONFIGURATION](CONFIGURATION.md) · [ERRORS](ERRORS.md) · [ARCHITECTURE](ARCHITECTURE.md)。
 
 ## 1. 工具面
 
 23 个工具 = 22 个桌面能力 + 1 个 dispatcher。
+
+> `ptcBridge:on` 时额外声明 PTC 专用 `computer_cua`（23 + 1，仅 PTC preset Agent）；默认 off，不计入上面的 23 与 dispatcher 21/16 隐藏数。见 §11。
 
 | 模式 | 直接可见 | 隐藏 | 路由 |
 |---|---|---:|---|
@@ -400,3 +402,45 @@
 - PTC 的 SDK 只绑定**直接可见**的工具；`dispatcher` 下只有 `computer_do` 与 `screen_observe`。
 - 隐藏工具不会出现在 SDK 里，必须 `tools.computer_do({action:"call", tool, args})`；`tools.computer_task` 为 `undefined` 是预期行为。
 - `native` 图片作为 deferred context 交给主模型；`computer_do` 会透传 `image`。
+- `ptcBridge:on` 时额外声明 `computer_cua`（见 §11）；它不是 provider，不进入 catalog，也不能经 `computer_do` 路由。
+
+## 11. `computer_cua`（PTC 专用，可选）
+
+> 仅在 `ptcBridge:on` 且当前 Agent 使用 `ptc` preset 时声明；默认 23 工具面不变。
+> 完整对象层/协议/能力矩阵见 [PTC](PTC.md)。
+
+### 11.1 参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `method` | string | 是 | `getCapabilities/listApps/findApps/getApp/listWindows/getState/activate/listActions/invoke/setValue/typeText/pressKey/mouseMove/click/drag/screenshot/show/scroll/performAction`；仍缺口的方法会被识别并返回诊断 |
+| `params` | object | 是 | 方法参数；未知键由协议层拒绝 |
+
+### 11.2 核心方法
+
+- `getCapabilities`：平台、权限、`methods`、`methodSupport`（缺口状态/替代路径）。
+- `listApps` / `findApps` / `getApp`：运行中/已安装应用；`getApp` 返回 `appHandle: pid:<n>`。
+- `listWindows` / `getState`：窗口 bounds、AX 树文本、`snapshotId`。
+- `listActions` / `invoke` / `setValue`：元素动作；元素 ID 必须是 `<snapshotId>:<index>`。
+- `typeText` / `pressKey`：无匹配快照时自动观察绑定窗口。
+- `mouseMove` / `click` / `drag`：仅虚拟覆盖层；`relative`/modifier 透传。
+- `screenshot`：返回 `data` base64 + `attachment` + 像素尺寸；render 输出模型图片块。
+- `show`：Win32 `SW_SHOWNOACTIVATE` 非激活恢复；返回 `windowId`/`foregroundChanged`。
+- `scroll`：UIA `ScrollPattern` 点滚动；无 pattern/不可滚返回 `CAPABILITY_UNAVAILABLE` + `computer_scroll`/PageDown 替代。
+- `performAction`：仅 `Invoke` 与 `ValuePattern.SetValue`；其他 action 返回 `CAPABILITY_UNAVAILABLE` + `availableActions`。
+
+### 11.3 输出与错误
+
+- 成功返回官方形状 JSON（数组或对象）；失败抛 `CODE: message`，PTC 中表现为 tool rejection。
+- 缺口方法：`selectText/paste/sendKeyEvent` 返回 `CAPABILITY_UNAVAILABLE`，`details` 带 `method/status/reason/alternatives/probe`。
+- `performAction` 的未映射 action、`scroll` 的无 ScrollPattern 目标也返回 `CAPABILITY_UNAVAILABLE`（带 `availableActions`/替代）。
+- 选项缺口：`CAPABILITY_OPTION_UNAVAILABLE`（`holdMs`、middle click、`useSystemPointer`、`details` 等）。
+- 快照/策略/stop 错误：`OBSERVE_REQUIRED`、`STALE_SNAPSHOT`、`POLICY_DENIED`、`OPERATION_LOCKED`。
+
+### 11.4 约束
+
+- 不注册 `computerUse` provider，不提供 `cuaAccess`/权限页。
+- 单快照：切换应用/窗口后旧元素 ID 失效。
+- `show`/`scroll` 是 direct native 动作，使用同一 `autonomy` 策略重新授权；`show` 失败/仍最小化时如实报告，`scroll` 无 pattern 时诊断。
+- `selectText/paste/sendKeyEvent` 本轮不近似；`performAction` 仅窄子集。
+- 所有动作仍受 `autonomy`、stop 锁存、重复抑制与 Windows 投递阶梯约束。

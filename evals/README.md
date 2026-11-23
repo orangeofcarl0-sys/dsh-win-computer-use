@@ -2,7 +2,7 @@
 
 > 目的：定义 S1-S4 测试阶段、任务成员、oracle 契约、runner、verdict 语义与 dirty 规则；逐轮运行结果见 [docs/EVIDENCE.md](../docs/EVIDENCE.md)。
 > 读者：维护者/评测者。`evals/` **不进入 npm 发布包**。
-> 状态：内部开发手册（最后核对 2026-11-22）。P2 已落地：`variants`/`S4_VARIANT` 参数化、`probe-platform`、虚拟桌面 BLOCKED。
+> 状态：内部开发手册（最后核对 2026-11-23）。P2 已落地：`variants`/`S4_VARIANT` 参数化、`probe-platform`、虚拟桌面 BLOCKED。
 > 相关：[TESTING](../docs/TESTING.md) · [TRAJECTORY-ANALYSIS](../docs/TRAJECTORY-ANALYSIS.md) · [WINDOWS](../docs/WINDOWS.md) · [COVERAGE](COVERAGE.md)。
 
 > **命名说明（2026-11-19）**：本文的 S1-S4 是**测试阶段**，S4 只表示 Dirty 阶段。旧文档里的 `S4` 指 0.5.4 的整套评测系统，已全局改称 `eval`；旧 `S2` 是像素定位修订，`S3a`/`S3b` 是视觉断言/观察者工作流，均改为描述性名称。`S4_*` 环境变量、`~/.dsh/s4-evals/` 与 `S4 Bar` 等 fixture 字符串是冻结兼容名，不代表新阶段。
@@ -11,7 +11,7 @@
 
 | 阶段 | 定义 | 非任务层 | 任务成员 |
 |---|---|---|---|
-| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 31 套 / 774；`verify-runtime` 18；`live-action.e2e` 23；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
+| **S1 基础功能** | 单应用、确定性终态、基本 UI 原语 | 离线 33 套 / 1021；`verify-runtime` 18；`live-action.e2e` 33；`probe-winui-keys` | t01/t03/t04/t05/t06/t07/t09/t10/t21/wa2（10） |
 | **S2 像素定位** | 坐标、像素、拖拽、zoom/from_zoom | `observe.coords`、`human.click`、`action-bounds` 坐标用例；`probe-from-zoom`/`probe-modifier`/`probe-private-drag`/`probe-driver-shape`/`probe-native-freshness` | t11 / dpi01 / p01 / p02 / p03（5） |
 | **S3 覆盖面任务集** | 多应用/文件/Office/浏览器/委派/导航/对话框/恢复/安全契约 | — | t12–t20、t22、t23、w01/w02/sec01–sec04/rec01–rec03/combo01/combo02/b01/term01/a11y01/x1（26） |
 | **S4 Dirty 能力任务集** | 脏桌面下的任务收敛、焦点、用户状态保留与清理 | `probe-combo-foreground` | t11–t18/t23/sec01–sec04/combo01/combo02/rec02/rec03（17） |
@@ -89,7 +89,7 @@ evals/
   oracle-mutation.mjs 错误但像成功的产物必须让 oracle 失败
   ac6-summary.mjs   per-task token/步数汇总
   analyze-trajectory.mjs / analyze-sessions.mjs / ab-summary.mjs
-  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-common-dialogs 覆盖 Open/Save/Font/Color/Print，probe-gesture-truth 对比 driver/private 手势，probe-wpf-dialog/probe-chromium-dialogs 覆盖 WPF/浏览器 UI，probe-cross-il 是 UIPI/跨 IL 探针，probe-background-input 是实验性后台输入，probe-platform 是只读平台/套件可用性
+  probe-*.mjs       真机探针（不加入 npm test）；probe-modal-* 是模态根因，probe-native-dialog 是私有原生对话框后端，probe-common-dialogs 覆盖 Open/Save/Font/Color/Print，probe-gesture-truth 对比 driver/private 手势，probe-wpf-dialog/probe-chromium-dialogs 覆盖 WPF/浏览器 UI，probe-cross-il 是 UIPI/跨 IL 探针，probe-background-input 是实验性后台输入，probe-platform 是只读平台/套件可用性，probe-ptc-web 是临时 Web profile + WPF fixture 的 PTC 四阶段真机探针
   headless-patch.yml / headless-patch.opencode.yml / headless-patch-xamlfallback.yml
   headless-patch.sec02.yml / headless-patch.sec04.yml  安全负向任务的 allowedApps / ttlMs overlay
   COVERAGE.md / coverage.json  热点覆盖矩阵（当前 12 个热点）
@@ -197,6 +197,8 @@ node evals/oracle-mutation.mjs --tasks t01,t16,t20
 # 真机探针（自建窗口；不需要模型）
 node evals/probe-ops.mjs
 node evals/probe-launch.mjs
+# PTC live（需要 dsh/model/driver；临时 Web profile + WPF fixture；不加入 npm test）
+node evals/probe-ptc-web.mjs
 node evals/probe-display.mjs          # 只读 monitor/DPI/virtual screen；单屏 BLOCKED
 node evals/probe-win-gaps.mjs         # 只读 VS Code/VLC/Settings/WSL/CJK 语言清单
 node evals/probe-platform.mjs         # 只读平台/套件可用性；非 Windows BLOCKED（Linux 非门禁）

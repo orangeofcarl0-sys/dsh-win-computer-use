@@ -1,8 +1,8 @@
 # 文档索引 — dsh-win-computer-use
 
 > 目的：按“读者要做什么”组织全部文档，并明确每篇文档描述的是**当前实现**、**历史证据**还是**研究分析**。
-> 状态：当前索引（最后核对 2026-11-22）。
-> 入口：[README](../README.md) · [INSTALL](INSTALL.md) · [FAQ](FAQ.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [AUTONOMY](AUTONOMY.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md)。
+> 状态：当前索引（最后核对 2026-11-23）。
+> 入口：[README](../README.md) · [INSTALL](INSTALL.md) · [FAQ](FAQ.md) · [TOOLS](TOOLS.md) · [CONFIGURATION](CONFIGURATION.md) · [AUTONOMY](AUTONOMY.md) · [PTC](PTC.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md)。
 
 ## 1. 按读者选择
 
@@ -25,6 +25,7 @@
 | 查某个工具的参数、默认值、前置、示例 | [TOOLS](TOOLS.md) |
 | 改配置、查环境变量、看配置交互 | [CONFIGURATION](CONFIGURATION.md) |
 | 配 auto/locked/guarded 策略、敏感应用与真实指针 | [AUTONOMY](AUTONOMY.md) |
+| 在 PTC 中用对象层 / 原始协议 / 能力诊断 | [PTC](PTC.md) |
 | 查错误码含义和下一步动作 | [ERRORS](ERRORS.md) |
 | 按现象排查（驱动/窗口/快照/投递/复核） | [TROUBLESHOOTING](TROUBLESHOOTING.md) |
 | 理解安全边界和外发面 | [SECURITY](SECURITY.md) · [PERMISSIONS](../PERMISSIONS.md) |
@@ -63,7 +64,7 @@
 
 | 状态 | 含义 | 文档 |
 |---|---|---|
-| **当前参考** | 只描述现在为真的行为；数字与代码一致；由 `npm run docs:check` 校验 | [README](../README.md)、[INSTALL](INSTALL.md)、[FAQ](FAQ.md)、[TOOLS](TOOLS.md)、[CONFIGURATION](CONFIGURATION.md)、[AUTONOMY](AUTONOMY.md)、[ERRORS](ERRORS.md)、[TROUBLESHOOTING](TROUBLESHOOTING.md)、[SECURITY](SECURITY.md)、[COMPATIBILITY](COMPATIBILITY.md)、[ARCHITECTURE](ARCHITECTURE.md)、[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)、[DRIVER-SDK](DRIVER-SDK.md)、[WINDOWS](WINDOWS.md)、[BACKGROUND-INPUT](BACKGROUND-INPUT.md)、[TESTING](TESTING.md)、[PERMISSIONS](../PERMISSIONS.md)、[VERIFICATION](../VERIFICATION.md)、[store-evidence](store-evidence.md) |
+| **当前参考** | 只描述现在为真的行为；数字与代码一致；由 `npm run docs:check` 校验 | [README](../README.md)、[INSTALL](INSTALL.md)、[FAQ](FAQ.md)、[TOOLS](TOOLS.md)、[CONFIGURATION](CONFIGURATION.md)、[AUTONOMY](AUTONOMY.md)、[PTC](PTC.md)、[ERRORS](ERRORS.md)、[TROUBLESHOOTING](TROUBLESHOOTING.md)、[SECURITY](SECURITY.md)、[COMPATIBILITY](COMPATIBILITY.md)、[ARCHITECTURE](ARCHITECTURE.md)、[RUNTIME-PIPELINE](RUNTIME-PIPELINE.md)、[DRIVER-SDK](DRIVER-SDK.md)、[WINDOWS](WINDOWS.md)、[BACKGROUND-INPUT](BACKGROUND-INPUT.md)、[TESTING](TESTING.md)、[PERMISSIONS](../PERMISSIONS.md)、[VERIFICATION](../VERIFICATION.md)、[store-evidence](store-evidence.md) |
 | **维护** | 环境、发布、路线、版本历史；部分文件不进入 npm 包 | [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md)、[PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)、[ROADMAP](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/ROADMAP.md)、[CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) |
 | **历史证据** | 按日期追加，描述当时环境与结果，不代表当前行为 | [EVIDENCE](EVIDENCE.md)、[COMPATIBILITY-0.2.2](COMPATIBILITY-0.2.2.md)（别名页） |
 | **研究分析** | 对模型行为、社区方案的分析；结论可能随版本变化 | [TRAJECTORY-ANALYSIS](TRAJECTORY-ANALYSIS.md)、[CU-RESEARCH](CU-RESEARCH.md) |
@@ -125,7 +126,7 @@ S1-S4 现在表示**测试阶段**：S1 基础功能、S2 像素定位、S3 覆�
 
 ```bash
 npm run docs:check    # 工具/配置/错误码覆盖、链接、过期数字、标题结构
-npm run check         # 语法 58/58 + 文档/任务一致性
+npm run check         # 语法 62/62 + 文档/任务一致性
 ```
 
 改工具、配置键、错误码、权限面或发布文件时，按 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 的检查清单同步文档，并更新 `tests/docs.facts.json`。

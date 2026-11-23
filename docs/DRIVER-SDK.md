@@ -98,12 +98,14 @@ lib/driver/info.js          进程级 driverInfo 缓存与 status 文本
 
 1. 配置 `driverProfile: auto|legacy|latest`（显式覆盖）；
 2. 环境 `CUA_DRIVER_VERSION` / `CUA_DRIVER_PROFILE`（测试/排障）；
-3. `cua-driver --version` 解析 semver；
+3. `cua-driver --version` 解析 semver（首次 5s；仅超时重试一次 15s；spawn/ENOENT/非零退出不重试；连续超时跳过 `status`）；
 4. `status` 解析 contract（0.23.2 不输出 contract，忽略即可）；
 5. 首次响应学习：`window_bounds`、`screenshot_frame`、frame 差值；
 6. 首次错误学习：`invalid_arguments` 点名 `tree_format` → 关闭并重试一次。
 
-未知版本退 `unknown`：请求仍带 `tree_format`/`session`，依赖响应/错误自适应；drag 默认走私有 helper（已知可靠）。
+未知版本退 `unknown`：请求仍带 `tree_format`/`session`，依赖响应/错误自适应；drag 默认走私有 helper（已知可靠）。探测超时不等于驱动不可用——首次调用可能冷启动；`computer_do status` 会显示 `--version 第1次超时` 等 warning。`CUA_CALL_TIMEOUT_MS` 只影响真实驱动调用，不影响探测超时。
+
+重复 `apply()`/配置重置时使用 generation guard：迟到的旧探测不会覆盖新缓存；进程内不做磁盘版本缓存，也不在超时后自动提升 `driverProfile:latest`。
 
 `driverProfile` 显式覆盖：`legacy` 清空现代标志；`latest` 启用全部；`auto` 按版本推断并学习。显式档位优先于环境变量。
 

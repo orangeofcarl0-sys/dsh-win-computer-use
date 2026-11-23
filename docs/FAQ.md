@@ -2,7 +2,7 @@
 
 > 目的：把使用者/评测者最容易踩的坑与二义概念集中回答；细节链接到对应文档，不在本页复制长文。
 > 读者：使用者、评测者、新维护者。
-> 状态：当前实现（最后核对 2026-11-22）。
+> 状态：当前实现（最后核对 2026-11-23）。
 > 相关：[TOOLS](TOOLS.md) · [WINDOWS](WINDOWS.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md) · [ERRORS](ERRORS.md) · [README](../README.md)。
 
 ## 1. 启动应用为什么不要用 Win+R？

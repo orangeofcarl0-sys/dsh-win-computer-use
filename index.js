@@ -64,6 +64,8 @@ import { resetWindowMap } from './lib/windowMap.js'
 import { trajectoryStart, runTool as runTrajectoryTool, logPolicyDecision } from './lib/trajectory.js'
 import { runComputerTask, resetTaskCalls } from './lib/task.js'
 import { normalizeAutonomy, evaluatePolicy, resolvePolicyDecision, resetPolicySession, describePolicy } from './lib/policy.js'
+import { PtcError, receiptToPtcError } from './lib/ptc/protocol.js'
+import { createCuaToolDef } from './lib/ptc/tool.js'
 import {
   click, doubleClick, rightClick, typeText, key, scroll, drag, wait, listApps, launchApp, activate, setValue,
 } from './lib/actions.js'
@@ -285,6 +287,13 @@ export const Config = z.object({
       delegation: z.union(['allow', 'deny']).default('allow'),
     }).default({}),
   }).default({}),
+  /**
+   * PTC 对象桥接（实验性，默认 off）：
+   *   on = 仅在 PTC preset 的 Agent 上注册 computer_cua（tools 声明多 1 个），
+   *        并提供 lib/ptc/facade.js 的 connectCua 对象层。
+   *   默认 off，普通 Agent 的工具面与 prompt 完全不变。
+   */
+  ptcBridge: z.union(['off', 'on']).default('off'),
 })
 
 /** 统一输出 schema：ok + result 文本。 */
@@ -1116,9 +1125,12 @@ function metaToolDefs(ctx, cfg, wrap, defsRef) {
         const providerLine = providerName
           ? `\nProvider：${providerName}（另一套 CU 已启用；共享同一桌面，建议只启用一套）。`
           : ''
+        const ptcLine = cfg.ptcBridge === 'on'
+          ? '\nPTC：on（computer_cua；仅 PTC preset 的 Agent 声明）'
+          : '\nPTC：off（ptcBridge=on 可启用对象桥接）'
         return {
           ok: true,
-          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。\n${driver}\n${policyLine}${providerLine}`,
+          result: `当前：${cfg.surfaceMode} 模式（直接可见：${visible.join(', ')}；隐藏 ${hidden.length} 个，action="catalog" 查看）。\n${driver}\n${policyLine}${ptcLine}${providerLine}`,
           tool: '', surface: cfg.surfaceMode, tools: hidden, scope: 'dispatcher',
         }
       }),
@@ -1169,6 +1181,7 @@ export function apply(ctx, config) {
     driverProfile: config.driverProfile || 'auto',
     dragEngine: config.dragEngine || 'auto',
     autonomy: normalizeAutonomy(config.autonomy),
+    ptcBridge: config.ptcBridge || 'off',
   }
 
   // 能力探测按 profile 重置；异步预热，不阻塞插件加载（失败退 unknown 自适应）。
@@ -1225,69 +1238,94 @@ export function apply(ctx, config) {
     return { targetGone, candidates }
   }
 
-  /** 统一包装：锁存闸门 → 守卫（注记不阻断）→ 执行实现（exec 透传给需要 route 的实现）。 */
-  const wrap = (toolName, impl) => async (args, exec) => {
-    return runTrajectoryTool(toolName, args, async () => {
-      try {
-        // computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具自己判定
-        // （否则 stop 后连 computer_resume 都进不来）。
-        const gateName = toolName === 'computer_do' ? null : toolName
-        const denied = gateName ? opsGate(opsState, gateName) : null
-        if (denied) return { ok: false, result: `✗ ${denied}` }
-        // 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默忽略，
-        // 进而可能回退到非目标窗口/默认值——在桌面自动化里这是不可接受的静默错目标）
-        const allowed = toolParamNames.get(toolName) || []
-        const unknown = Object.keys(args || {}).filter((k) => !allowed.includes(k) && !k.startsWith('_'))
-        if (unknown.length) {
-          const hint = PARAM_HINTS[toolName] ? ` ${PARAM_HINTS[toolName]}` : ''
-          return {
-            ok: false,
-            result: `✗ 未知参数 ${unknown.join(', ')}（本工具接受：${allowed.length ? allowed.join(', ') : '无参数'}）。`
-              + '参数名不符的键会被静默丢弃并可能回退到默认目标，因此此处直接拒绝——请按上面列出的参数名重发。'
-              + hint,
-          }
-        }
-        const g = guard(cfg, toolName, args)
-        if (!g.ok) return { ok: false, result: `✗ ${g.reason}` }
-        // 自治策略：在 guard 之后、重复抑制之前判定；拒绝不消费快照、不进入 repeat 状态。
-        // computer_do 只是路由壳，策略由被路由的内层工具在各自的 wrap 中执行。
-        const policyOrigin = exec?.agent?.session?.header?.origin || 'main'
-        const policy = toolName === 'computer_do' ? null : evaluatePolicy(cfg, {
-          tool: toolName,
-          args,
-          snapshot: getSnapshot(),
-          origin: policyOrigin,
-        })
-        if (policy) logPolicyDecision({ tool: toolName, origin: policyOrigin, ...policy })
-        let policyNote = ''
-        if (policy?.decision === 'deny') return { ok: false, result: `✗ ${policy.reason}` }
-        if (policy?.decision === 'ask') {
-          const approved = await resolvePolicyDecision(ctx, exec, policy)
-          if (!approved.ok) return { ok: false, result: `✗ ${approved.reason}` }
-          policyNote = approved.note || ''
-        }
-        // 重复点击抑制：不消耗快照、不落动作；只打断“同一目标连续点击且界面未变”的循环。
-        const repeat = checkRepeat(toolName, args, getSnapshot(), cfg)
-        if (repeat) return repeat
-        const v = await impl(args, cfg, exec)
-        if (toolName === 'screen_observe' && v && v.window && typeof v.changedSinceLast === 'boolean') {
-          noteObserveChange(`${v.window.pid}:${v.window.windowId}`, v.changedSinceLast)
-        }
-        const mergedNote = [g.note, policyNote].filter(Boolean).join('')
-        return mergedNote && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${mergedNote}` } : v
-      } catch (err) {
-        if (err?.kind === 'timeout') {
-          // 超时 = 结果未知：标记快照已消费 + 可疑；等 500ms 后廉价查窗口，
-          // 区分“目标已消失(很可能已成功)”与“出现新对话框”。
-          markSuspect(toolName)
-          markConsumed(toolName)
-          const ctx = await timeoutContextFor()
-          return { ok: false, result: timeoutReceipt(toolName, err, ctx) }
-        }
-        return { ok: false, result: `✗ ${err.message}` }
+  /**
+   * 统一守卫/策略/重复抑制管线。
+   * rethrow=false：现有工具的回执语义（错误 → {ok:false,result}）。
+   * rethrow=true：PTC 外壳用（错误 → PtcError），让 PTC 里的 tools.computer_cua reject。
+   */
+  const runGuarded = async (toolName, args, exec, impl, { rethrow = false } = {}) => {
+    const fail = (code, message, details = undefined) => {
+      if (rethrow) throw new PtcError(code, String(message || code), details)
+      return { ok: false, result: `✗ ${message}` }
+    }
+    try {
+      // computer_do 本身只是路由壳：stop 锁存必须由被路由的隐藏工具自己判定
+      // （否则 stop 后连 computer_resume 都进不来）。
+      const gateName = toolName === 'computer_do' ? null : toolName
+      const denied = gateName ? opsGate(opsState, gateName) : null
+      if (denied) return fail('OPERATION_LOCKED', denied)
+      // 未知参数拒发（宿主参数表不含 additionalProperties，写错的键会被静默忽略，
+      // 进而可能回退到非目标窗口/默认值——在桌面自动化里这是不可接受的静默错目标）
+      const allowed = toolParamNames.get(toolName) || []
+      const unknown = Object.keys(args || {}).filter((k) => !allowed.includes(k) && !k.startsWith('_'))
+      if (unknown.length) {
+        const hint = PARAM_HINTS[toolName] ? ` ${PARAM_HINTS[toolName]}` : ''
+        return fail('INVALID_ARGUMENT',
+          `未知参数 ${unknown.join(', ')}（本工具接受：${allowed.length ? allowed.join(', ') : '无参数'}）。`
+            + '参数名不符的键会被静默丢弃并可能回退到默认目标，因此此处直接拒绝——请按上面列出的参数名重发。'
+            + hint,
+          { unknown, allowed })
       }
-    })
+      const g = guard(cfg, toolName, args)
+      if (!g.ok) return fail('GUARD_DENIED', g.reason)
+      // 自治策略：在 guard 之后、重复抑制之前判定；拒绝不消费快照、不进入 repeat 状态。
+      // computer_do 只是路由壳，策略由被路由的内层工具在各自的 wrap 中执行。
+      const policyOrigin = exec?.agent?.session?.header?.origin || 'main'
+      const policy = toolName === 'computer_do' ? null : evaluatePolicy(cfg, {
+        tool: toolName,
+        args,
+        snapshot: getSnapshot(),
+        origin: policyOrigin,
+      })
+      if (policy) logPolicyDecision({ tool: toolName, origin: policyOrigin, ...policy })
+      let policyNote = ''
+      if (policy?.decision === 'deny') {
+        return fail('POLICY_DENIED', policy.reason, { rule: policy.rule, code: policy.code })
+      }
+      if (policy?.decision === 'ask') {
+        const approved = await resolvePolicyDecision(ctx, exec, policy)
+        if (!approved.ok) {
+          return fail(approved.code ? String(approved.code).toUpperCase() : 'APPROVAL_DENIED',
+            approved.reason, { rule: policy.rule, code: approved.code })
+        }
+        policyNote = approved.note || ''
+      }
+      // 重复点击抑制：不消耗快照、不落动作；只打断“同一目标连续点击且界面未变”的循环。
+      const repeat = checkRepeat(toolName, args, getSnapshot(), cfg)
+      if (repeat) {
+        return fail('REPEAT_SUPPRESSED', String(repeat.result || '重复动作被抑制').replace(/^✗\s*/, ''))
+      }
+      const v = await impl(args, cfg, exec)
+      if (toolName === 'screen_observe' && v && v.window && typeof v.changedSinceLast === 'boolean') {
+        noteObserveChange(`${v.window.pid}:${v.window.windowId}`, v.changedSinceLast)
+      }
+      const mergedNote = [g.note, policyNote].filter(Boolean).join('')
+      return mergedNote && v && typeof v.result === 'string' ? { ...v, result: `${v.result}${mergedNote}` } : v
+    } catch (err) {
+      if (err?.kind === 'timeout') {
+        // 超时 = 结果未知：标记快照已消费 + 可疑；等 500ms 后廉价查窗口，
+        // 区分“目标已消失(很可能已成功)”与“出现新对话框”。
+        markSuspect(toolName)
+        markConsumed(toolName)
+        const timeoutCtx = await timeoutContextFor()
+        const receipt = timeoutReceipt(toolName, err, timeoutCtx)
+        if (rethrow) throw new PtcError('OPERATION_TIMEOUT', receipt, { kind: 'timeout' })
+        return { ok: false, result: receipt }
+      }
+      if (rethrow) {
+        if (err instanceof PtcError) throw err
+        throw receiptToPtcError(err?.message || String(err))
+      }
+      return { ok: false, result: `✗ ${err.message}` }
+    }
   }
+
+  const wrap = (toolName, impl) => async (args, exec) =>
+    runTrajectoryTool(toolName, args, () => runGuarded(toolName, args, exec, impl))
+
+  /** PTC 专用：错误必须 reject，而不是变成 ok:false 回执。 */
+  const wrapPtc = (toolName, impl) => async (args, exec) =>
+    runTrajectoryTool(toolName, args, () => runGuarded(toolName, args, exec, impl, { rethrow: true }))
 
   // 工具面 = 数据：各组返回定义数组。surfaceMode 决定 apply 时直接注册哪些工具：
   //   dispatcher（默认）= 2 个；其余经 computer_do({action:'call'}) 路由
@@ -1304,15 +1342,61 @@ export function apply(ctx, config) {
     ...taskToolDefs(ctx, cfg, wrap),
     ...metaToolDefs(ctx, cfg, wrap, () => defsByName),
   ].map((raw) => defineTool(raw))
-  lastToolDefs = allDefs
   const defsByName = new Map(allDefs.map((d) => [d.name, d]))
+
+  // PTC 对象桥接：默认不进入 allDefs，静态工具面仍是 23；
+  // 开启时才追加 computer_cua，并只对 PTC preset 的 Agent 声明。
+  if (cfg.ptcBridge === 'on') {
+    const cuaDef = defineTool(createCuaToolDef({
+      cfg, ctx, defsRef: () => defsByName, wrap: wrapPtc,
+    }))
+    allDefs.push(cuaDef)
+    defsByName.set(cuaDef.name, cuaDef)
+    // 服务可能在 apply() 时还没挂载（Web 组合的加载顺序）；when 里再解析，
+    // 避免把 computer_cua 退化成全局注册。无 agentPresets 时保持 standalone 全局。
+    const when = (context) => {
+      const presets = ctx.get?.('agentPresets')
+      if (!presets?.composedPreset) return true
+      try { return presets.composedPreset(context?.agent?.ctx) === 'ptc' } catch { return false }
+    }
+    ctx.tools.register(cuaDef, { when })
+    const sp = ctx.get?.('systemPrompt')
+    if (sp?.section) {
+      const bridgeUrl = new URL('./lib/ptc/facade.js', import.meta.url).href
+      sp.section({
+        name: 'ptc-cua',
+        order: sp.getSectionOrder?.('TOOL_COMPUTER_USE') ?? 0,
+        text:
+          'PTC 对象桥接已启用（实验性）。如果当前工具列表有 tools.computer_cua，可用以下方式获得对象层；'
+          + '否则普通工具面不受影响。\n'
+          + '```ts\n'
+          + `var { connectCua } = await import(${JSON.stringify(bridgeUrl)});\n`
+          + 'var cua = connectCua(() => tools.computer_cua, { onText: t => console.log(t) });\n'
+          + 'var app = await cua.getApp("Notepad");\n'
+          + 'var windows = await app.getWindows({ emit: false });\n'
+          + 'var win = await app.getWindow(windows[0].windowId);\n'
+          + 'await win.getAccessibilityTree({ emit: true });\n'
+          + 'await win.typeText("hello");\n'
+          + '```\n'
+          + '核心方法：getCapabilities/listApps/findApps/getApp/listWindows/getState/activate/listActions/'
+          + 'invoke/setValue/typeText/pressKey/mouseMove/click/drag/screenshot/show/scroll/performAction。'
+          + 'getAccessibilityTree() 返回树文本；元素 ID 由树头 "快照 <id>" 与行首 "[index]" 组合为 <id>:<index>。'
+          + 'selectText/paste/sendKeyEvent 返回 CAPABILITY_UNAVAILABLE 与替代路径，不要用坐标点击/输入去猜。'
+          + '所有动作仍受 autonomy 策略、stop 锁存与 Windows 投递阶梯约束；'
+          + '不要绕过 facade 直接调 cuaCall 或驱动。',
+      })
+    }
+  }
+  lastToolDefs = allDefs
+
   const visibleAtStart = visibleToolsForMode(cfg.surfaceMode)
   for (const def of allDefs) {
     if (visibleAtStart.includes(def.name)) ctx.tools.register(def)
   }
 
   ctx.logger?.info(
-    `dsh-win-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；其余经 computer_do dispatcher 路由）`,
+    `dsh-win-computer-use: ${cfg.surfaceMode} 工具面就绪（直接可见 ${visibleAtStart.length} 个；`
+      + `其余经 computer_do dispatcher 路由${cfg.ptcBridge === 'on' ? '；PTC 桥接 computer_cua 已启用' : ''}）`,
   )
 }
 

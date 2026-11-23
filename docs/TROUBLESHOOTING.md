@@ -36,6 +36,7 @@
 | `cua-driver not found` / `spawn` | 未安装、不在 PATH | 设 `CUA_DRIVER_BIN`；`cua-driver --version` 确认 |
 | 启动即失败 | daemon 未运行/挂死 | `cua-driver status`；`cua-driver stop` 后 `autostart kick` |
 | `contract version X does not match SDK Y` | CLI 与 daemon 不同版本 | 两者一起升级并重启 daemon；不要只升一侧 |
+| `computer_do status` 显示 `版本未知 (unknown)` + `--version 第1次超时` | 首次探测冷启动/daemon 忙；5s 超时 | 插件会 15s 重试一次；若仍 unknown，手动 `cua-driver --version`/`status` 后重启；`CUA_CALL_TIMEOUT_MS` 不影响探测 |
 | 所有工具 schema 错误/整树不加载 | 工具定义未用 `defineTool()` 返回值，或包不完整 | 用 headless 真机探针确认；离线假注册表不校验 schema |
 | 工具调用卡住不返回 | 驱动挂死；插件未声明 `timeoutMs` | 结束当前 run/step；重启 daemon；检查 `CUA_CALL_TIMEOUT_MS` |
 

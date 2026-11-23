@@ -2,7 +2,7 @@
 
 > 目的：说明插件信任谁、能做什么、明确不承诺什么，以及部署时如何收紧。
 > 读者：安全审查者、部署者、集成者。
-> 状态：当前实现（最后核对 2026-11-22）。
+> 状态：当前实现（最后核对 2026-11-23）。
 > 相关：[PERMISSIONS](../PERMISSIONS.md)（权限声明）· [ERRORS](ERRORS.md)（拒绝行为）· [WINDOWS](WINDOWS.md)（OS 边界）。
 
 ## 1. 安全姿态
@@ -110,6 +110,8 @@
 | 轨迹 JSONL | 工具名、参数摘要、长度/哈希、驱动摘要 | `trajectoryFile`/`DSH_CU_TRAJECTORY_FILE` | 默认关闭；本地文件 |
 
 **部署时须知**：启用 GLM 兜底 = 把截图内容发送到智谱端点；启用 native/vision = 把截图交给模型 provider。两者都可能在截图中包含敏感信息。
+
+`ptcBridge:on` 的 `computer_cua` 把同一能力以对象层暴露给 PTC preset：常规动作仍经现有工具/驱动，截图走 attachments；`show` 复用 `tools/background-input.ps1` 的 `SW_SHOWNOACTIVATE`，`scroll` 固定 argv 调用 `tools/uia-scroll.ps1`（UIA ScrollPattern、同 pid/点校验，无文件/网络）。`performAction` 只做 Invoke/ValuePattern.SetValue；`selectText/paste/sendKeyEvent` 返回结构化诊断，不做近似。它不是官方 provider，不提供 `cuaAccess` 或逐应用同意 UI。
 
 ## 7. 委派权限
 

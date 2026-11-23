@@ -8,11 +8,23 @@ import {
   capabilitiesFor, mapRequest, learnFromResponse, learnFromError,
   detectCapabilities, capabilitySummary,
 } from '../lib/driver/capabilities.js'
+import {
+  configureDriver, ensureDriverInfo, resetDriverInfo, getDriverInfoSync,
+} from '../lib/driver/info.js'
 
 let failures = 0
 const check = (name, fn) => {
   try {
     fn()
+    console.log(`✅ ${name}`)
+  } catch (err) {
+    failures++
+    console.log(`❌ ${name} — ${String(err.message).slice(0, 200)}`)
+  }
+}
+const checkAsync = async (name, fn) => {
+  try {
+    await fn()
     console.log(`✅ ${name}`)
   } catch (err) {
     failures++
@@ -195,6 +207,119 @@ const main = async () => {
       contract: { daemonContract: '0.8.0' },
     })
     assert.match(s, /contract=0\.8\.0/)
+  })
+
+  await checkAsync('C20 --version 超时一次后重试成功（5s→15s）', async () => {
+    const calls = []
+    const transport = {
+      bin: 'fake-timeout-then-ok',
+      async runOnce(argv, opts = {}) {
+        calls.push({ name: argv[0], timeoutMs: opts.timeoutMs })
+        if (argv[0] === '--version') {
+          if (calls.filter((c) => c.name === '--version').length === 1) {
+            const err = new Error('timeout after 5000ms')
+            err.kind = 'timeout'
+            throw err
+          }
+          return { code: 0, stdout: 'cua-driver 0.52.13\n', stderr: '' }
+        }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    const c = await detectCapabilities({ transport, env: {} })
+    assert.equal(c.version, '0.52.13')
+    assert.equal(c.profile, 'modern')
+    assert.equal(c.pointerCapture, true)
+    const versionCalls = calls.filter((c) => c.name === '--version')
+    assert.equal(versionCalls.length, 2)
+    assert.deepEqual(versionCalls.map((c) => c.timeoutMs), [5000, 15000])
+  })
+
+  await checkAsync('C21 连续两次 --version 超时 → unknown，跳过 status', async () => {
+    const calls = []
+    const transport = {
+      bin: 'fake-timeout-twice',
+      async runOnce(argv) {
+        calls.push(argv[0])
+        if (argv[0] === '--version') {
+          const err = new Error('timeout')
+          err.kind = 'timeout'
+          throw err
+        }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    const c = await detectCapabilities({ transport, env: {} })
+    assert.equal(c.version, null)
+    assert.equal(c.profile, 'unknown')
+    assert.equal(calls.filter((n) => n === '--version').length, 2)
+    assert.equal(calls.filter((n) => n === 'status').length, 0)
+    assert.ok(c.warnings.some((w) => /第1次超时 5000ms/.test(w)))
+    assert.ok(c.warnings.some((w) => /第2次超时 15000ms/.test(w)))
+  })
+
+  await checkAsync('C22 spawn 失败不重试', async () => {
+    const calls = []
+    const transport = {
+      bin: 'fake-spawn-error',
+      async runOnce(argv) {
+        calls.push(argv[0])
+        if (argv[0] === '--version') {
+          const err = new Error('spawn ENOENT')
+          err.kind = 'spawn'
+          throw err
+        }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    const c = await detectCapabilities({ transport, env: {} })
+    assert.equal(c.version, null)
+    assert.equal(calls.filter((n) => n === '--version').length, 1)
+  })
+
+  await checkAsync('C23 首次 --version 成功只探测一次', async () => {
+    const calls = []
+    const transport = {
+      bin: 'fake-ok',
+      async runOnce(argv) {
+        calls.push(argv[0])
+        if (argv[0] === '--version') return { code: 0, stdout: 'cua-driver 0.53.0\n', stderr: '' }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    const c = await detectCapabilities({ transport, env: {} })
+    assert.equal(c.version, '0.53.0')
+    assert.equal(calls.filter((n) => n === '--version').length, 1)
+  })
+
+  await checkAsync('C24 迟到的旧探测不覆盖新缓存（generation guard）', async () => {
+    configureDriver({ profile: 'auto' })
+    let resolveSlow
+    const slowVersion = new Promise((resolve) => { resolveSlow = resolve })
+    const slow = {
+      bin: 'slow',
+      async runOnce(argv) {
+        if (argv[0] === '--version') return slowVersion
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    const fast = {
+      bin: 'fast',
+      async runOnce(argv) {
+        if (argv[0] === '--version') return { code: 0, stdout: 'cua-driver 0.53.0\n', stderr: '' }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    const pSlow = ensureDriverInfo({ transport: slow })
+    configureDriver({ profile: 'auto' })
+    const pFast = ensureDriverInfo({ transport: fast })
+    const fastInfo = await pFast
+    resolveSlow({ code: 0, stdout: 'cua-driver 0.23.2\n', stderr: '' })
+    const slowInfo = await pSlow
+    assert.equal(fastInfo.version, '0.53.0')
+    assert.equal(slowInfo.version, '0.23.2')
+    assert.equal(getDriverInfoSync().version, '0.53.0')
+    resetDriverInfo()
   })
 
   console.log(`\n结果：${failures ? `❌ ${failures} 项失败` : '✅ 全部通过'}`)

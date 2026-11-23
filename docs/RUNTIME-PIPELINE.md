@@ -2,7 +2,7 @@
 
 > 目的：把 dsh 宿主、插件工具面、cua-driver、会话日志与 eval（S1-S4）串成一张可诊断的图。
 > 读者：排障者、集成者、维护者。
-> 状态：当前实现（最后核对 2026-11-22；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
+> 状态：当前实现（最后核对 2026-11-23；适用 dsh 0.2.2-rc.1/rc.2，Windows 优先）。
 > 相关：[ARCHITECTURE](ARCHITECTURE.md) · [WINDOWS](WINDOWS.md) · [TESTING](TESTING.md) · [ERRORS](ERRORS.md)。
 
 ## 1. 总览
@@ -11,7 +11,7 @@
 dsh CLI
   -> profile + patch 叠加
   -> cordis Loader / ToolsService
-  -> 插件 apply(ctx, config)（编译 23 个 defineTool，只注册可见子集）
+  -> 插件 apply(ctx, config)（编译 23 个 defineTool，只注册可见子集；ptcBridge:on 时 PTC preset 额外 1 个）
   -> 模型 step
   -> tools.execute
        -> 参数校验（defineTool）

@@ -50,8 +50,10 @@ public static class DshInput
     const int SM_CYVIRTUALSCREEN = 79;
 
     const uint SWP_NOSIZE = 0x0001;
+    const uint SWP_NOMOVE = 0x0002;
     const uint SWP_NOZORDER = 0x0004;
     const uint SWP_NOACTIVATE = 0x0010;
+    const uint SWP_SHOWWINDOW = 0x0040;
     const uint SWP_NOOWNERZORDER = 0x0200;
     const uint SWP_ASYNCWINDOWPOS = 0x4000;
 
@@ -1145,6 +1147,39 @@ public static class DshInput
     }
 
     // ---- probe ----
+    public static Dictionary<string, object> ShowWindowSafe(long hwndL, int expectedPid)
+    {
+        IntPtr hwnd = new IntPtr(hwndL);
+        string bad = CheckAction(hwnd, expectedPid);
+        if (bad.Length > 0) return Fail(bad, bad);
+        bool wasMinimized = IsIconic(hwnd);
+        bool wasVisible = IsWindowVisible(hwnd);
+        IntPtr fgBefore = GetForegroundWindow();
+        ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        if (IsIconic(hwnd))
+        {
+            // SW_SHOWNOACTIVATE may not restore every minimized window; add one no-activate show.
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+        bool minimized = IsIconic(hwnd);
+        bool visible = IsWindowVisible(hwnd);
+        IntPtr fgAfter = GetForegroundWindow();
+        bool foregroundChanged = fgBefore != fgAfter;
+        Dictionary<string, object> d = Ok();
+        d["dispatched"] = true;
+        d["windowId"] = (long)hwnd.ToInt64();
+        d["wasMinimized"] = wasMinimized;
+        d["wasVisible"] = wasVisible;
+        d["minimized"] = minimized;
+        d["visible"] = visible;
+        d["foregroundChanged"] = foregroundChanged;
+        d["effect"] = (visible && !minimized) ? "confirmed" : "unverifiable";
+        if (!visible || minimized) d["warning_code"] = "show_incomplete";
+        AddSideEffects(d, false, false, false, foregroundChanged);
+        return d;
+    }
+
     public static Dictionary<string, object> Probe(long hwndL, int expectedPid)
     {
         IntPtr hwnd = new IntPtr(hwndL);
@@ -1592,6 +1627,7 @@ while ($true) {
         $resp = $null
         switch ($cmd) {
             'probe' { $resp = [DshInput]::Probe([long]$req.hwnd, [int]$req.pid) }
+            'show' { $resp = [DshInput]::ShowWindowSafe([long]$req.hwnd, [int]$req.pid) }
             'postMouse' { $resp = [DshInput]::PostMouse([long]$req.hwnd, [int]$req.pid, [int]$req.x, [int]$req.y, [string]$req.button, [int]$req.count) }
             'postKey' { $resp = [DshInput]::PostKey([long]$req.hwnd, [int]$req.pid, [int]$req.vk, [bool]$req.extended) }
             'postText' {

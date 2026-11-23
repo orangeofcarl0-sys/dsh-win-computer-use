@@ -2,7 +2,7 @@
 
 > 目的：说明 `autonomy` 契约如何在不改变“用户无感、自动作用、基本安全”的前提下，提供可判定、可审计、可撤销的应用级策略。
 > 读者：部署者、集成者、要改 `lib/policy.js` / `lib/guard.js` / `lib/task.js` 的维护者。
-> 状态：当前实现（最后核对 2026-11-22；`lib/policy.js` + `autonomy` 配置）。
+> 状态：当前实现（最后核对 2026-11-23；`lib/policy.js` + `autonomy` 配置）。
 > 相关：[CONFIGURATION](CONFIGURATION.md) · [TOOLS](TOOLS.md) · [ERRORS](ERRORS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [SECURITY](SECURITY.md)。
 
 ## 1. 立场
@@ -111,6 +111,16 @@ opsGate（stop 锁存）
 - 无快照的 `computer_menu` / `computer_activate` / `computer_hover` 无法套用应用级规则；`allowedApps` 非空时会因无法确认而拒绝。
 - 坐标模式的密码框/敏感输入仍无法在元素级预判；`sensitiveApps` 是应用级兜底，密码硬保护仍是元素级。
 - `locked` 不改变 `deliveryMode` 的自动前台升级；它只拒绝显式应用操作/真实指针/委派。
+
+### 10.1 PTC 对象层
+
+`ptcBridge:on` 时，PTC 程序通过 `computer_cua`/`connectCua` 调用同一批动作；**没有第二套授权**：
+
+- 每个动作仍进入现有工具的 `guard → evaluatePolicy → checkRepeat`；`show`/`scroll` 是 direct native 动作，用同一 `evaluatePolicy` 重新授权（show 套 `computer_activate`、scroll 套 `computer_scroll` 规则）。
+- `blockedApps` 观察允许、动作拒绝；`sensitiveApps` auto 只读；`locked` 只允许 `allowedApps`；
+- `computer_stop` 锁存对 `computer_cua` 同样生效（`OPERATION_LOCKED`）；
+- 子 Agent 默认不能移动真实指针；`useSystemPointer` 在桥接层直接给 `CAPABILITY_OPTION_UNAVAILABLE`；
+- `performAction` 仅 Invoke/ValuePattern.SetValue；`selectText/paste/sendKeyEvent` 不近似，返回能力诊断与替代路径。
 - guarded 只覆盖敏感应用与真实指针，不是“每个应用都问”；默认 auto 仍零提示。
 - 策略引擎是纯函数：不读全局快照、不 spawn、不网络、不询问；询问只在 `resolvePolicyDecision`。
 

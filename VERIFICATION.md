@@ -9,9 +9,10 @@
 
 | 验证面 | 结果 | 平台 | 证据 |
 |---|---|---|---|
-| 离线测试 | **32 套 / 818 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
-| 自治策略 | 2026-11-22：`policy.test` **37 项**；auto 零提示、locked fail-closed、guarded 会话缓存、子 Agent 真实指针 deny、relative 坐标/图像预检 | Windows（离线） | `node tests/policy.test.mjs` |
-| 语法/安装脚本 | **58/58 JS + 2 个 bash -n** | Windows | `npm run check` |
+| 离线测试 | **33 套 / 1021 ✅ / 0 ❌** | Windows（跨平台 Node 可跑） | `npm test; echo $?` |
+| 自治策略 | 2026-11-23：`policy.test` **42 项**；auto 零提示、locked fail-closed、guarded 会话缓存、子 Agent 真实指针 deny、relative 坐标/图像预检 | Windows（离线） | `node tests/policy.test.mjs` |
+| PTC 真机 | 2026-11-23：headless `run_code` **38/38**；WPF scroll **7/7**（moved/percent/offset、at-limit、多轴）；Web 四阶段 **25/25**（gating、onImage、实际滚动、show/stop/resume）；驱动 `--version` 超时重试恢复 `0.52.13 (modern)` | Windows 11 + dsh 0.2.2-rc.5 | [EVIDENCE §38](docs/EVIDENCE.md) |
+| 语法/安装脚本 | **62/62 JS + 2 个 bash -n** | Windows | `npm run check` |
 | 文档/任务一致性 | **✅**（工具/配置/错误码/链接/过期数字 + S1-S4 阶段/脚本/AC2） | 跨平台 | `npm run check` |
 | 真驱动运行时 | **18/18**（0.23.2 与 0.52.13 均通过；含 native 文本快照 id）；2026-11-22 在 0.52.13 复跑 **18/18**，副屏 Firefox 窗口 `screenOrigin={x:2560,y:0,w:2560,h:1440}` | Windows 11 | `node verify-runtime.mjs` |
 | 驱动兼容层 | **✅**：0.23.2 与 0.53 fixtures 归一化一致；fake spawn 传输错误；真实 observe/refresh 端到端 | Windows（离线） | `tests/driver.*.mjs` |
@@ -136,10 +137,10 @@ dsh --profile headless --patch "<repo>/evals/headless-patch.yml" \
 
 判据：
 
-- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **818**。
-- `npm run check` 退出码 0：语法 **58/58** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
+- `npm test` 退出码 0，且最后每套都打印“全部通过”；总数 **1021**。
+- `npm run check` 退出码 0：语法 **62/62** + 文档/任务一致性（S1-S4 阶段、脚本、AC2）。
 - `verify-runtime` 输出 `结果：18/18 通过`。
-- `live-action` 输出 **23/23**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
+- `live-action` 输出 **33/33**（会打开临时记事本窗口；不杀进程，残留标签人工关闭）。
 - `verify-oracles` S1 + x1 clean 组 **10/10**；S4 dirty 组的 SKIP 要单独看，不要写成 PASS。
 - 阶段成员：S1 10 / S2 5 / S3 26 / S4 17（成员 58，唯一 41）；`node tests/tasks.check.mjs` 必须通过。
 - `npm pack --dry-run --json` 的文件数与 `tests/docs.facts.json` / `docs/store-evidence.md` 一致。

@@ -2,7 +2,7 @@
 
 > 目的：从零装好 `cua-driver` 与 `dsh-win-computer-use`，完成第一次观察，并知道如何升级/回退/卸载。
 > 读者：首次使用者、部署维护者。
-> 状态：当前实现（最后核对 2026-11-22）。安装脚本的实际行为与 npm 发布状态以本文为准。
+> 状态：当前实现（最后核对 2026-11-23）。安装脚本的实际行为与 npm 发布状态以本文为准。
 > 相关：[README](../README.md) · [CONFIGURATION](CONFIGURATION.md) · [TROUBLESHOOTING](TROUBLESHOOTING.md) · [store-evidence](store-evidence.md)。
 
 ## 1. 前置
@@ -147,7 +147,7 @@ node verify-runtime.mjs
 | 插件包内 `cordis.patch.yml` | bundle 默认值 | 低 |
 | `--patch <file>` | 一次性 overlay（评测/探针） | 最高（按加载顺序覆盖） |
 
-完整 31 键说明见 [CONFIGURATION](CONFIGURATION.md)。只改 `surfaceMode` 等少量键时，保留其余默认值即可。
+完整 32 键说明见 [CONFIGURATION](CONFIGURATION.md)。只改 `surfaceMode` 等少量键时，保留其余默认值即可。
 
 ## 6. 升级
 

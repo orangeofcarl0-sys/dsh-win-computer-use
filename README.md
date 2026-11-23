@@ -114,6 +114,7 @@ screen_observe ──► 快照（默认 60s）──► 动作（element 或窗
 - `action:"catalog"`：列出隐藏工具的紧凑签名（`name(required,optional?)`），最多 24 条；`query` 可按名称/描述过滤。
 - `action:"call"`：路由到隐藏工具；隐藏工具**不注册、不能直接调用**，但仍走自己的锁存/守卫/参数校验/快照/回执。
 - `action:"status"`：查看当前模式与可见/隐藏清单。
+- `ptcBridge:on` 时 PTC preset 的 Agent 额外获得 `computer_cua` 对象桥接（23 → 24 个工具）；默认 off，普通工具面不变。见 [docs/PTC.md](docs/PTC.md)。
 
 > PTC / `run_code` 模式下，SDK 只绑定**直接可见**的工具；隐藏工具不会出现在 SDK 里，仍需 `tools.computer_do({action:'call', tool, args})` 路由（例如 `tools.computer_task` 为 undefined 是预期行为）。
 
@@ -152,7 +153,7 @@ macOS 与 Linux 均按未验证处理：macOS 只有 0.1–0.2 时期的基础�
 
 ## 文档
 
-**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。快速入口：[INSTALL](docs/INSTALL.md)（安装/升级/卸载）· [TOOLS](docs/TOOLS.md)（23 个工具）· [CONFIGURATION](docs/CONFIGURATION.md)（31 个配置键）· [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)（错误码/排障）· [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md)（安全/权限）· [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md)（内部结构）· [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md)（测试/当前验证矩阵）· [EVIDENCE](docs/EVIDENCE.md)（按日期的运行证据与失败样本）。
+**唯一文档索引是 [docs/README.md](docs/README.md)**（按读者/任务/状态组织，含术语表与阅读路径）。快速入口：[INSTALL](docs/INSTALL.md)（安装/升级/卸载）· [TOOLS](docs/TOOLS.md)（23 个工具）· [CONFIGURATION](docs/CONFIGURATION.md)（32 个配置键）· [PTC](docs/PTC.md)（对象层/协议/能力诊断）· [ERRORS](docs/ERRORS.md) / [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)（错误码/排障）· [SECURITY](docs/SECURITY.md) / [PERMISSIONS](PERMISSIONS.md)（安全/权限）· [ARCHITECTURE](docs/ARCHITECTURE.md) / [RUNTIME-PIPELINE](docs/RUNTIME-PIPELINE.md)（内部结构）· [TESTING](docs/TESTING.md) / [VERIFICATION](VERIFICATION.md)（测试/当前验证矩阵）· [EVIDENCE](docs/EVIDENCE.md)（按日期的运行证据与失败样本）。
 
 开发与验证命令见 [TESTING](docs/TESTING.md)；维护者环境、硬知识与发布检查见 [MAINTAINING](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/MAINTAINING.md) 与 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 

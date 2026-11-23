@@ -20,10 +20,12 @@
 | 子 agent 委派 | 宿主 `subagents.startActivation`（`computer_task`） | 一次性子会话，能力受宿主限制 |
 | 结构密码扫描 | `powershell.exe` + `tools/uia-password-scan.ps1` | Windows，只读 UIA/样式位 |
 | 私有拖拽 | `powershell.exe` + `tools/private-drag.ps1` | Windows 前台 SendInput；仅 modifier/dwell 路径 |
-| 实验后台输入 | `powershell.exe` + `tools/background-input.ps1` | Windows 实验性 B0/B1/B2/B3；同 pid；三键默认 off；B1/B2/B3 需 `allowedApps`；无文件/网络 |
+| 实验后台输入 | `powershell.exe` + `tools/background-input.ps1` | Windows 实验性 B0/B1/B2/B3；同 pid；三键默认 off；B1/B2/B3 需 `allowedApps`；无文件/网络；PTC `show` 复用 `SW_SHOWNOACTIVATE` |
+| PTC 点滚动 | `powershell.exe` + `tools/uia-scroll.ps1` | UIA ScrollPattern；同 pid + 点命中校验；固定 argv；无文件/网络；仅 `computer_cua.scroll` 调用 |
 | 原生对话框 | `powershell.exe` + `tools/native-dialog.ps1` | Windows 标准 `#32770` 模态对话框：只读子控件枚举 + `BM_CLICK`；`nativeDialogs:off` 禁用 |
 | 原生菜单 | `powershell.exe` + `tools/native-menu.ps1` | Windows 经典 HMENU：同 pid、精确路径、叶子命令、`PostMessage(WM_COMMAND)`；`nativeMenus:off` 禁用 |
 | 原生 Button | `powershell.exe` + `tools/native-button.ps1` | Windows 标准 Win32/WinForms Button：同 pid、唯一 class/style/label/屏幕点匹配、单次 `BM_CLICK`；`nativeButtonTrigger:off` 禁用 |
+| PTC 对象桥接（可选） | 同上：现有工具 + `cua-driver` + 宿主 `attachments` + `tools/uia-scroll.ps1` | `ptcBridge:on` 时仅 PTC preset 的 `computer_cua`；show/scroll 走同一 guard/policy；无新可执行文件/网络；默认 off |
 | 轨迹日志（可选） | `node:fs` 写 `trajectoryFile`/`DSH_CU_TRAJECTORY_FILE` | 默认关闭；开启后写本地 JSONL |
 
 插件**不**使用 `approval` 服务；动作零审批、零打断。

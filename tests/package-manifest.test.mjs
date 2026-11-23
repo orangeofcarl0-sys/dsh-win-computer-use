@@ -64,6 +64,12 @@ check('dsh 权限声明仍在', () => {
   assert.ok(p && typeof p.summary === 'string' && Array.isArray(p.commands), 'permissions 缺失')
 })
 
+check('权限声明包含 PTC scroll helper', () => {
+  const p = pkg.dsh?.permissions
+  assert.ok(Array.isArray(p?.commands) && p.commands.some((c) => /uia-scroll\.ps1/.test(String(c))),
+    'permissions.commands 缺少 tools/uia-scroll.ps1')
+})
+
 check('测试脚本包含 P0 边界、dispatcher 与清单测试', () => {
   const test = pkg.scripts?.test || ''
   assert.match(test, /action-bounds\.mjs/)
