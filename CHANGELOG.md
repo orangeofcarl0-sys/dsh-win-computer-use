@@ -1,10 +1,10 @@
 # Changelog
 
-> **版本状态（2026-11-22）**：`v0.5.9` 已发布并推送 npm（`dsh-win-computer-use@0.5.9`）；`main` = 0.5.9，dsh 兼容基线为 **0.2.2-rc.1**。web profile 已安装 0.5.9 并切换 bundles（运行中的 web 进程需重启）。
+> **版本状态（2026-11-23）**：`v0.6.0` 已发布并推送 npm（`dsh-win-computer-use@0.6.0`）；`main` = 0.6.0，dsh 兼容基线为 **0.2.2-rc.1**。web profile 的 0.6.0 切换状态见 [PUBLISH](PUBLISH.md)（运行中的 web 进程需重启）。
 > 各版本条目内的测试/文件计数是**当时快照**；当前值以 `tests/docs.facts.json` 与 [VERIFICATION](VERIFICATION.md) 为准。
 > 逐轮步数、探针输出与失败样本见 [docs/EVIDENCE.md](docs/EVIDENCE.md)；当前契约见 [docs/TOOLS.md](docs/TOOLS.md)、[docs/CONFIGURATION.md](docs/CONFIGURATION.md)、[docs/ERRORS.md](docs/ERRORS.md)。
 
-## 未发布 (2026-11-22)
+## 0.6.0 (2026-11-23)
 
 **主题**：契约化自治策略（auto/locked/guarded）+ 相对坐标 + 图像预检错误码 + PTC 对象桥接（L1/L2，默认 off）；默认行为除子 Agent 真实指针收紧外不变。
 
@@ -18,6 +18,10 @@
 - 新增 `ptcBridge`（默认 off）与 `computer_cua`（仅 PTC preset）：官方风格 raw 方法核心子集 + `lib/ptc/facade.js` 的 `connectCua` 对象层；截图返回 bytes + attachment。
 - `show`（Win32 `SW_SHOWNOACTIVATE` 非激活恢复）、`scroll`（UIA ScrollPattern 点滚动，无 pattern 诊断）、`performAction`（Invoke/ValuePattern.SetValue 窄子集）已接入；`selectText/paste/sendKeyEvent` 仍返回结构化 `CAPABILITY_UNAVAILABLE` + 替代路径。
 - 新增只读 UIA pattern 探针（`evals/probe-uia-patterns.*`，不入包）；`ptc_call` 轨迹事件；`wrapPtc` 让 PTC 错误 rejection，普通 `wrap` 回执不变。
+
+### Changed
+
+- **兼容性**：`autonomy.subagents.realPointer` 默认由允许收紧为 `deny`；依赖子 Agent 移动真实指针的配置需显式设为 `inherit`。主 Agent 默认 `realPointer: auto`，零提示语义不变。
 
 ### Tests / Docs
 

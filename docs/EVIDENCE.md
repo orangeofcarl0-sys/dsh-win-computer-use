@@ -827,3 +827,12 @@ dsh --profile headless --patch "<workspace>/_probe-win-cu-deepseek.yml" \
 - `percent=-1`（provider 不支持百分比）→ `scroll_unverified`/`moved:null`，不是 pass。
 - Web 全动作使用宿主最小化 + PTC `show`；未把 WPF 按钮 `Minimize` 的 invoke 当作 PTC API 缺口（headless WinForms 已覆盖 invoke Minimize）。
 - 原始报告/事件/轨迹只在 `%TEMP%`，不入库。
+
+## 39. 2026-11-23 0.6.0 发布前检查
+
+- 版本口径：0.6.0 是 minor（新增公开契约面 `computer_cua`/`connectCua`、`autonomy` 配置族、relative 坐标；`subagents.realPointer` 默认收紧）；不是 patch，也不是 1.0.0。
+- `npm run check`：907 项通过；`npm test`：33 套 / **1021 项** / 0 失败（实际 `✅` 计数，与 `tests/docs.facts.json` 一致）。
+- `verify-runtime`：**18/18**（0.6.0 树、只读观察、真驱动 0.52.13）。
+- `live-action.e2e 3`：**33/33**（3 轮；同一代码 `26c2103`，版本切换只改版本/文档字符串）；残留测试窗口按精确 HWND 关闭，未按进程名杀。
+- `verify-oracles --stage S4`：**16/17 PASS + t13 SKIP**；`stage=all`：**40/41 PASS + t13 SKIP**（同一代码 `26c2103`；t13 真实网络 `ac2:none`）。
+- `npm pack --dry-run --json`：**76 文件**、version `0.6.0`；含 `lib/ptc/`，不含 tests/evals/node_modules。

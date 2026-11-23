@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-23）：`v0.5.9` 已发布并推送 npm（`dsh-win-computer-use@0.5.9`）；`main` = 0.5.9 + 未发布的 PTC 对象桥接（`ptcBridge` 默认 off）；web profile 已安装 `dsh-win-computer-use@0.5.9` 并切换 bundles（运行中的 web 进程需重启）。
+> 状态（2026-11-23）：`v0.6.0` 已发布并推送 npm（`dsh-win-computer-use@0.6.0`）；`main` = 0.6.0（PTC 对象桥接，`ptcBridge` 默认 off）。web profile 的 0.6.0 切换状态见 §1/§6。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -10,11 +10,11 @@
 |---|---|
 | 仓库 | `https://github.com/orangeofcarl0-sys/dsh-win-computer-use`（public，MIT） |
 | 默认分支 | `main`（单分支；旧 `v0.3` 已合并/删除） |
-| 最新发布 tag | `v0.5.9`（注解 tag） |
+| 最新发布 tag | `v0.6.0`（注解 tag） |
 | `main` HEAD | 以 `git log -1` 为准；不要写死提交号 |
-| `package.json` version | `0.5.9` |
-| npm | 已发布 `dsh-win-computer-use@0.5.9`；`npm view dsh-win-computer-use version` 复核 |
-| 部署 | web profile 已安装 `dsh-win-computer-use@0.5.9` 并替换 bundle；旧 `dsh-computer-use` 0.5.6 已移除（`dsh-computer-use.0.5.5-kept` 保留）；重启后生效 |
+| `package.json` version | `0.6.0` |
+| npm | 已发布 `dsh-win-computer-use@0.6.0`；`npm view dsh-win-computer-use version` 复核 |
+| 部署 | web profile 的 0.6.0 切换见 §6；旧 `dsh-computer-use` 0.5.6 已移除（`dsh-computer-use.0.5.5-kept` 保留）；重启后生效 |
 | 派生 | 由 [988hj7tczd-oss/dsh-computer-use](https://github.com/988hj7tczd-oss/dsh-computer-use) @ `07477f4`（MIT）派生，独立维护 |
 
 ## 2. 版本口径
@@ -22,8 +22,8 @@
 | 项 | 约定 |
 |---|---|
 | 版本号 | `package.json` / `package-lock.json` 的 `version` = tag 名去掉 `v` |
-| CHANGELOG | 顶部为当前版本一节；未发布时写“0.5.9 (未发布)” |
-| tag | **注解 tag**：`git tag -a v0.5.9 -m "..."` |
+| CHANGELOG | 顶部为当前版本一节；未发布时写“0.6.0 (未发布)” |
+| tag | **注解 tag**：`git tag -a v0.6.0 -m "..."` |
 | 分支 | 只推 `main`；不再维护发布分支 |
 | 发布物 | 提交 + 注解 tag；不是工作区 |
 | 授权 | push/tag/npm/部署只在用户明说“发布”时执行 |
@@ -140,9 +140,9 @@ dsh --profile web --dump-config | grep dsh-win-computer-use
 - 旧版 `dsh-computer-use` 与新版可并存于 node_modules，但 profile 配置只能启用一个 id。
 - 部署后若工具未出现：先查 `--dump-config` 与宿主日志；不要先怀疑模型。
 
-## 7. npm 发布（2026-11-22 已发布 0.5.9）
+## 7. npm 发布（2026-11-23 已发布 0.6.0）
 
-> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。`dsh-win-computer-use@0.5.9` 已发布。
+> dsh-market 优先走 npm tarball；`dsh plugin add <包名>` 从 npm 解析。`dsh-win-computer-use@0.6.0` 已发布。
 
 ```bash
 npm pack --dry-run --json        # 先看实际文件清单（以输出为准）

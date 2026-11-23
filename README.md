@@ -3,15 +3,15 @@
 > **Windows-first Computer Use for DeepSeek Harness。**
 > 深度 Win32 / WinUI / UIA 工程 · 零审批三级投递 · 23 个工具，默认 2 个稳定入口。
 
-[![Release](https://img.shields.io/badge/release-0.5.9-blue)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/releases)
+[![Release](https://img.shields.io/badge/release-0.6.0-blue)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/releases)
 [![npm](https://img.shields.io/badge/npm-dsh--win--computer--use-CB3837)](https://www.npmjs.com/package/dsh-win-computer-use)
-[![main](https://img.shields.io/badge/main-unreleased-blue)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/commits/main)
+[![main](https://img.shields.io/badge/main-0.6.0-blue)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/commits/main)
 [![dsh](https://img.shields.io/badge/dsh-%3E%3D0.2.2--rc.1-green)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/docs/COMPATIBILITY.md)
 [![Windows](https://img.shields.io/badge/Windows-deep--tested-0078D4)](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/docs/WINDOWS.md)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.18.0-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **版本状态（2026-11-22）**：npm 最新为 `dsh-win-computer-use@0.5.9`（tag `v0.5.9`）；`main` = 0.5.9，含 B0-B3/nativeMenus/nativeButtonTrigger（默认 off）与 UIPI 回执映射。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 已安装 0.5.9（运行中的 web 进程需重启）——见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
+> **版本状态（2026-11-23）**：npm 最新为 `dsh-win-computer-use@0.6.0`（tag `v0.6.0`）；`main` = 0.6.0，含 PTC 对象桥接（`ptcBridge` 默认 off）、`autonomy` 策略与 relative 坐标。旧名 `dsh-computer-use` 是上游包（latest 0.3.1），不是本项目。web profile 的 0.6.0 切换状态见 [PUBLISH](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/PUBLISH.md)。
 >
 > 2026-11-10 起包名/仓库名从 `dsh-computer-use` 改为 `dsh-win-computer-use`；旧 GitHub URL 自动 redirect。
 
@@ -60,7 +60,7 @@
 
 ### 2. 安装插件
 
-npm 已发布 `dsh-win-computer-use@0.5.9`，三种方式任选：
+npm 已发布 `dsh-win-computer-use@0.6.0`，三种方式任选：
 
 - npm：`npm install dsh-win-computer-use`；
 - dsh：`dsh plugin add dsh-win-computer-use`；

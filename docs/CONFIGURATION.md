@@ -20,7 +20,7 @@
 
 ## 2. 配置键总表
 
-> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键在 0.5.9 已可用；`autonomy`、`ptcBridge` 为本轮新增（未发布 main）。其余 25 键在 0.5.8/0.5.9 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 未发布段为准。
+> **版本可用性**：`nativeMenus`、`nativeButtonTrigger`、`backgroundInput`、`syntheticPointer`、`anchoredInput` 这 5 个实验键在 0.5.9 已可用；`autonomy`、`ptcBridge` 自 0.6.0 起可用（`ptcBridge` 默认 off）。其余 25 键在 0.5.8/0.5.9 均已可用。发布状态以 [CHANGELOG](https://github.com/orangeofcarl0-sys/dsh-win-computer-use/blob/main/CHANGELOG.md) 0.6.0 节为准。
 
 ### 2.1 观察与工具面
 
