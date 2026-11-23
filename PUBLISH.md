@@ -1,7 +1,7 @@
 # PUBLISH — 发布与部署手册
 
 > 适用：维护者。**push / tag / npm publish / 部署切换只在用户明确说“发布”时执行**；本地提交自主。
-> 状态（2026-11-22）：`v0.5.9` 已发布并推送 npm（`dsh-win-computer-use@0.5.9`）；`main` = 0.5.9（含 B0-B3/nativeMenus/nativeButtonTrigger 与 UIPI 回执映射）；web profile 已安装 `dsh-win-computer-use@0.5.9` 并切换 bundles（运行中的 web 进程需重启）。
+> 状态（2026-11-23）：`v0.5.9` 已发布并推送 npm（`dsh-win-computer-use@0.5.9`）；`main` = 0.5.9 + 未发布的 PTC 对象桥接（`ptcBridge` 默认 off）；web profile 已安装 `dsh-win-computer-use@0.5.9` 并切换 bundles（运行中的 web 进程需重启）。
 > 版本历史见 [CHANGELOG](CHANGELOG.md)；当前验证见 [VERIFICATION](VERIFICATION.md)。
 
 ## 1. 当前状态
@@ -38,7 +38,7 @@ git status --short
 # 1. 语法 + 安装脚本 + 文档/任务一致性
 npm run check; echo "check=$?"
 
-# 2. 离线测试（33 套 / 887 项；&& 串联，必须看 $?）
+# 2. 离线测试（33 套 / 1021 项；&& 串联，必须看 $?）
 npm test; echo "test=$?"
 
 # 3. 真驱动运行时（只读观察；18/18）
@@ -50,7 +50,7 @@ node tests/live-action.e2e.mjs 3
 # 5a. eval oracle 双向验证（S4 dirty 组；SKIP 不是 PASS）
 node evals/verify-oracles.mjs --stage S4
 
-# 5b. eval oracle（S1 + x1 clean 组，10/10）
+# 5b. eval oracle（全阶段 41 任务；40/41，t13 预期 SKIP）
 node evals/verify-oracles.mjs
 
 # 6. 打包面（以实际输出为准；确认没有 node_modules/.dsh-test/tests/evals）
